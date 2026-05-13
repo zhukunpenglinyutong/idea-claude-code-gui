@@ -88,4 +88,8 @@ public class SessionCallbackFacade {
     public void notifyUserMessageUuidPatched(String content, String uuid) {
         callbackHandler.notifyUserMessageUuidPatched(content, uuid);
     }
+
+    public void notifyLimitsUpdate(String json) {
+        callbackHandler.notifyLimitsUpdate(json);
+    }
 }

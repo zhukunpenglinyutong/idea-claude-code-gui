@@ -29,6 +29,8 @@ import { createInterface } from 'readline';
 import { handleClaudeCommand } from './channels/claude-channel.js';
 import { handleCodexCommand } from './channels/codex-channel.js';
 import { loadClaudeSdk, isClaudeSdkAvailable } from './utils/sdk-loader.js';
+import { emitClaudeLimitsIfDue } from './utils/usage-limits.js';
+import { emitCodexLimitsIfDue } from './utils/usage-limits.js';
 import {
   sendMessagePersistent,
   sendMessageWithAttachmentsPersistent,
@@ -221,11 +223,18 @@ process.stdout.write = function (chunk, encoding, callback) {
   }
 
   // Non-JSON output without a request context (e.g., SDK debug logs during preload)
-  // Wrap as a daemon log event so Java's NDJSON parser can handle it
+  // Route [LIMITS] as a structured daemon event; everything else as a log.
   if (trimmed.length > 0) {
     const lines = text.split('\n');
     for (const line of lines) {
-      if (line.trim().length > 0) {
+      const tl = line.trim();
+      if (!tl.length) continue;
+      if (tl.startsWith('[LIMITS]')) {
+        try {
+          const payload = JSON.parse(tl.substring('[LIMITS]'.length).trim());
+          writeRawLine({ type: 'daemon', event: 'limits', payload });
+        } catch { /* ignore malformed limits output */ }
+      } else {
         writeRawLine({ type: 'daemon', event: 'log', message: line });
       }
     }
@@ -672,6 +681,17 @@ async function processRequest(request) {
     }
   }, PPID_CHECK_INTERVAL_MS);
   ppidMonitor.unref();
+
+  // --- Periodic limits refresh ---
+  // Emits [LIMITS] every 5 minutes so the UI stays current without a message send.
+  // Routed as a 'limits' daemon event (no active request ID) by the stdout interceptor.
+  const LIMITS_POLL_MS = 300_000;
+  const limitsPoller = setInterval(() => {
+    if (activeRequestId) return; // skip if a request is in flight
+    emitClaudeLimitsIfDue().catch(() => {});
+    emitCodexLimitsIfDue().catch(() => {});
+  }, LIMITS_POLL_MS);
+  limitsPoller.unref();
 
   // --- Keep alive ---
   // The process stays alive as long as stdin is open (rl keeps the event loop active)

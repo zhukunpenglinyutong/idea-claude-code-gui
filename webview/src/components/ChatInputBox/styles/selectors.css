@@ -312,17 +312,18 @@
   display: inline-block;
 }
 
-.token-indicator-ring {
+/* ── Shared progress ring (used by TokenIndicator and LimitRing) ── */
+.progress-ring {
   transform: rotate(-90deg);
 }
 
-.token-indicator-bg {
+.progress-ring-bg {
   fill: none;
   stroke: var(--progress-bg);
   stroke-width: 1.5;
 }
 
-.token-indicator-fill {
+.progress-ring-fill {
   fill: none;
   stroke: var(--progress-fill);
   stroke-width: 1.5;
@@ -354,4 +355,49 @@
 .token-indicator:hover .token-tooltip {
   opacity: 1;
   visibility: visible;
+}
+
+/* ── Limit Ring (5h / 7d subscription windows) ── */
+.limit-ring {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.limit-ring-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.limit-ring-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  transform: translateY(-6px);
+  background: var(--dropdown-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--dropdown-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  padding: 5px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  z-index: 1002;
+}
+
+.limit-ring:hover .limit-ring-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.limit-ring-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  line-height: 1;
 }

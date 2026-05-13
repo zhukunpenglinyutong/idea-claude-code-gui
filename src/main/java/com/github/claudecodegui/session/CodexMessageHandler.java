@@ -108,6 +108,8 @@ public class CodexMessageHandler implements MessageCallback {
             }
         } else if ("message_end".equals(type)) {
             handleMessageEnd();
+        } else if ("limits".equals(type)) {
+            callbackHandler.notifyLimitsUpdate(content);
         } else {
             LOG.debug("CodexMessageHandler: Unhandled message type: " + type);
         }

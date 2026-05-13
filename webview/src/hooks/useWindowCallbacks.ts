@@ -9,6 +9,7 @@ import type { AskUserQuestionRequest } from '../components/AskUserQuestionDialog
 import type { PlanApprovalRequest } from '../components/PlanApprovalDialog';
 import type { RewindRequest } from '../components/RewindDialog';
 import { registerWindowCallbacks } from './windowCallbacks/registerCallbacks';
+import type { UsageLimits } from './providers/useUsageTracking';
 
 // Re-export from messageSync to avoid duplicate definition
 export { OPTIMISTIC_MESSAGE_TIME_WINDOW } from './windowCallbacks/messageSync';
@@ -38,6 +39,7 @@ export interface UseWindowCallbacksOptions {
   setUsagePercentage: React.Dispatch<React.SetStateAction<number>>;
   setUsageUsedTokens: React.Dispatch<React.SetStateAction<number | undefined>>;
   setUsageMaxTokens: React.Dispatch<React.SetStateAction<number | undefined>>;
+  setUsageLimits: (limits: UsageLimits | null) => void;
   setPermissionMode: React.Dispatch<React.SetStateAction<PermissionMode>>;
   setClaudePermissionMode: React.Dispatch<React.SetStateAction<PermissionMode>>;
   setCodexPermissionMode: React.Dispatch<React.SetStateAction<PermissionMode>>;

@@ -54,6 +54,9 @@ public class ClaudeSession {
     // Permission manager
     private final PermissionManager permissionManager = new PermissionManager();
 
+    // Daemon event listener for background limits polling — stored for cleanup
+    private com.github.claudecodegui.provider.common.DaemonBridge.DaemonEventListener limitsEventListener;
+
     /**
      * Represents a single message in the conversation.
      */
@@ -127,6 +130,9 @@ public class ClaudeSession {
         default void onUsageUpdate(int usedTokens, int maxTokens) {
         }
 
+        default void onLimitsUpdate(String json) {
+        }
+
         default void onUserMessageUuidPatched(String content, String uuid) {
         }
     }
@@ -177,6 +183,15 @@ public class ClaudeSession {
         permissionManager.setOnPermissionRequestedCallback(request -> {
             callbackFacade.notifyPermissionRequested(request);
         });
+
+        // Route periodic [LIMITS] daemon events (background poll) to the frontend
+        this.limitsEventListener = (event, data) -> {
+            if ("limits".equals(event) && data != null && data.has("payload")) {
+                String json = data.get("payload").toString();
+                callbackFacade.notifyLimitsUpdate(json);
+            }
+        };
+        claudeSDKBridge.addDaemonEventListener(limitsEventListener);
     }
 
     public void setCallback(SessionCallback callback) {

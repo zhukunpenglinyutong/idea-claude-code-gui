@@ -150,6 +150,15 @@ public class CallbackHandler {
     }
 
     /**
+     * Notify of a limits update.
+     */
+    public void notifyLimitsUpdate(String json) {
+        if (callback != null) {
+            callback.onLimitsUpdate(json);
+        }
+    }
+
+    /**
      * Notify that a specific message received its provider UUID.
      */
     public void notifyUserMessageUuidPatched(String content, String uuid) {

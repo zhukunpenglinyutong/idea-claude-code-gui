@@ -136,6 +136,9 @@ public class ClaudeMessageHandler implements MessageCallback {
             case "usage":
                 handleUsage(content);
                 break;
+            case "limits":
+                handleLimits(content);
+                break;
             case "slash_commands":
                 handleSlashCommands(content);
                 break;
@@ -983,5 +986,17 @@ public class ClaudeMessageHandler implements MessageCallback {
 
         target.addProperty("thinking", existing + delta);
         return true;
+    }
+
+    /**
+     * Handle limits data from the [LIMITS] tag emitted by ai-bridge.
+     */
+    private void handleLimits(String content) {
+        if (content == null || content.isEmpty() || !content.startsWith("{")) { return; }
+        try {
+            callbackHandler.notifyLimitsUpdate(content);
+        } catch (Exception e) {
+            LOG.warn("[ClaudeMessageHandler] Failed to forward limits: " + e.getMessage());
+        }
     }
 }

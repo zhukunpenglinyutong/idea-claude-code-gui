@@ -49,7 +49,7 @@ export function useModelProviderState({ addToast, t }: UseModelProviderStateOpti
   // ── Provider-specific sub-hooks ──
   const claude = useClaudeProvider();
   const codex = useCodexProvider();
-  const { isSdkInstalled, ...usage } = useUsageTracking();
+  const { isSdkInstalled, setUsageLimits, ...usage } = useUsageTracking();
   const settings = useProviderSettings({ addToast, t });
 
   const {
@@ -121,6 +121,7 @@ export function useModelProviderState({ addToast, t }: UseModelProviderStateOpti
 
   const handleProviderSelect = useCallback((providerId: string) => {
     setCurrentProvider(providerId);
+    setUsageLimits(null);
     sendBridgeEvent('set_provider', providerId);
 
     const modeToSet: PermissionMode = providerId === 'codex'
@@ -139,6 +140,7 @@ export function useModelProviderState({ addToast, t }: UseModelProviderStateOpti
     selectedCodexModel,
     selectedClaudeModel,
     longContextEnabled,
+    setUsageLimits,
   ]);
 
   const handleLongContextChange = useCallback((enabled: boolean) => {
@@ -191,6 +193,7 @@ export function useModelProviderState({ addToast, t }: UseModelProviderStateOpti
     ...claude,
     ...codex,
     ...usage,
+    setUsageLimits,
     ...settings,
     currentProvider, setCurrentProvider,
     permissionMode, setPermissionMode,

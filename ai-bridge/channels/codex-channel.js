@@ -3,6 +3,7 @@
  */
 import { sendMessage as codexSendMessage } from '../services/codex/message-service.js';
 import { getMcpServerTools as codexGetMcpServerTools } from '../services/codex/message-service.js';
+import { emitCodexLimitsIfDue, resetCodexCache } from '../utils/usage-limits.js';
 
 /**
  * Execute a Codex command.
@@ -48,6 +49,12 @@ export async function handleCodexCommand(command, args, stdinData) {
       const serverId = stdinData?.serverId || args[0] || null;
       const serverConfig = stdinData?.serverConfig || null;
       await codexGetMcpServerTools(serverId, serverConfig);
+      break;
+    }
+
+    case 'refreshLimits': {
+      resetCodexCache();
+      await emitCodexLimitsIfDue();
       break;
     }
 

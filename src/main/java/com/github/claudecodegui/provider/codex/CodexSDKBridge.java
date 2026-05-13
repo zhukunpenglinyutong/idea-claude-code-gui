@@ -230,6 +230,8 @@ public class CodexSDKBridge extends BaseSDKBridge {
                 assistantContent.append(content);
             }
             callback.onMessage("content", content);
+        } else if (line.startsWith("[LIMITS]")) {
+            callback.onMessage("limits", line.substring("[LIMITS]".length()).trim());
         } else if (line.startsWith("[SEND_ERROR]")) {
             String jsonStr = line.substring("[SEND_ERROR]".length()).trim();
             String errorMessage = jsonStr;

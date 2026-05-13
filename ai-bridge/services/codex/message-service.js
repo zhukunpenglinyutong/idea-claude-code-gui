@@ -19,6 +19,7 @@
 
 import { CodexPermissionMapper } from '../../utils/permission-mapper.js';
 import { getMcpServerTools as getMcpServerToolsImpl } from '../claude/mcp-status/index.js';
+import { emitCodexLimitsIfDue } from '../../utils/usage-limits.js';
 import {
   logDebug, logInfo, logWarn,
   ensureCodexSdk,
@@ -272,6 +273,8 @@ export async function sendMessage(
 
     await processCodexEventStream(events, state, config);
     emitStreamEndOnce();
+
+    emitCodexLimitsIfDue().catch(() => {});
 
     // ============================================================
     // 8. Completion Phase

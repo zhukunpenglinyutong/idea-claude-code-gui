@@ -16,6 +16,7 @@ import {
   getSessionMessages as claudeGetSessionMessages,
   getLatestUserMessage as claudeGetLatestUserMessage
 } from '../services/claude/session-service.js';
+import { emitClaudeLimitsIfDue, resetClaudeCache } from '../utils/usage-limits.js';
 
 /**
  * Execute a Claude specific command.
@@ -113,6 +114,12 @@ export async function handleClaudeCommand(command, args, stdinData) {
         success: false,
         error: 'getContextUsage requires daemon mode. No persistent runtime available in per-process mode.'
       }));
+      break;
+    }
+
+    case 'refreshLimits': {
+      resetClaudeCache();
+      await emitClaudeLimitsIfDue();
       break;
     }
 

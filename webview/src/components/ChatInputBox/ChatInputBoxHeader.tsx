@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next';
 import type { Attachment, SelectedAgent, QueuedMessage } from './types.js';
+import type { UsageLimits } from '../../hooks/providers/useUsageTracking.js';
 import { AttachmentList } from './AttachmentList.js';
 import { ContextBar } from './ContextBar.js';
 import { MessageQueue } from './MessageQueue.js';
@@ -32,6 +33,7 @@ export function ChatInputBoxHeader({
   onDismissOpenSourceBanner,
   autoOpenFileEnabled,
   onRequestEnableFileContext,
+  usageLimits,
 }: {
   sdkInstalled: boolean;
   sdkStatusLoading: boolean;
@@ -60,6 +62,7 @@ export function ChatInputBoxHeader({
   onDismissOpenSourceBanner?: () => void;
   autoOpenFileEnabled?: boolean;
   onRequestEnableFileContext?: () => void;
+  usageLimits?: UsageLimits | null;
 }) {
   return (
     <>
@@ -139,6 +142,7 @@ export function ChatInputBoxHeader({
         onToggleStatusPanel={onToggleStatusPanel}
         autoOpenFileEnabled={autoOpenFileEnabled}
         onRequestEnableFileContext={onRequestEnableFileContext}
+        usageLimits={usageLimits}
       />
     </>
   );

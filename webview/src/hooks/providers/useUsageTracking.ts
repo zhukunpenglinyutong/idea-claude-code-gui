@@ -1,5 +1,23 @@
 import { useCallback, useState } from 'react';
 
+export interface ClaudeLimitWindow {
+  percent: number;
+  resetsAt: string | null;
+}
+
+export interface CodexWindow {
+  percent: number;
+  resetsAt: string | null;
+}
+
+export interface UsageLimits {
+  provider: 'claude' | 'codex';
+  fiveHour?: ClaudeLimitWindow | null;
+  sevenDay?: ClaudeLimitWindow | null;
+  primaryWindow?: CodexWindow | null;
+  secondaryWindow?: CodexWindow | null;
+}
+
 const PROVIDER_TO_SDK: Record<string, string> = {
   claude: 'claude-sdk',
   anthropic: 'claude-sdk',
@@ -20,6 +38,7 @@ export function useUsageTracking() {
   const [usagePercentage, setUsagePercentage] = useState(0);
   const [usageUsedTokens, setUsageUsedTokens] = useState<number | undefined>(undefined);
   const [usageMaxTokens, setUsageMaxTokens] = useState<number | undefined>(undefined);
+  const [usageLimits, setUsageLimits] = useState<UsageLimits | null>(null);
   const [sdkStatus, setSdkStatus] = useState<SdkStatus>({});
   const [sdkStatusLoaded, setSdkStatusLoaded] = useState(false);
 
@@ -40,6 +59,8 @@ export function useUsageTracking() {
     setUsageUsedTokens,
     usageMaxTokens,
     setUsageMaxTokens,
+    usageLimits,
+    setUsageLimits,
     sdkStatus,
     setSdkStatus,
     sdkStatusLoaded,

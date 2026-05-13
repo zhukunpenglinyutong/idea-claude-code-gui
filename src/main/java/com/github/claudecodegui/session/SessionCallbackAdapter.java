@@ -365,6 +365,20 @@ public class SessionCallbackAdapter implements ClaudeSession.SessionCallback {
     }
 
     @Override
+    public void onLimitsUpdate(String json) {
+        if (isInactive()) {
+            return;
+        }
+        ApplicationManager.getApplication().invokeLater(() -> {
+            if (isInactive()) {
+                return;
+            }
+            jsTarget.callJavaScript("onUsageLimitsUpdate", JsUtils.escapeJs(json));
+            LOG.debug("Limits update sent to frontend");
+        });
+    }
+
+    @Override
     public void onUserMessageUuidPatched(String content, String uuid) {
         if (isInactive()) {
             return;

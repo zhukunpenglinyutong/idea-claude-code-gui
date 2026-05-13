@@ -1,10 +1,7 @@
 import { useTranslation } from 'react-i18next';
+import { ProgressRing } from './ProgressRing';
 import type { TokenIndicatorProps } from './types';
 
-/**
- * TokenIndicator - Usage ring progress bar component
- * Implemented using SVG dual-circle approach
- */
 export const TokenIndicator = ({
   percentage,
   size = 14,
@@ -12,15 +9,6 @@ export const TokenIndicator = ({
   maxTokens,
 }: TokenIndicatorProps) => {
   const { t } = useTranslation();
-  // Circle radius (accounting for stroke space)
-  const radius = (size - 3) / 2;
-  const center = size / 2;
-
-  // Circumference
-  const circumference = 2 * Math.PI * radius;
-
-  // Calculate offset (fill clockwise from top)
-  const strokeOffset = circumference * (1 - percentage / 100);
 
   // Indicator label: integer percentage (no decimal)
   const labelPercentage = `${Math.round(percentage)}%`;
@@ -48,33 +36,8 @@ export const TokenIndicator = ({
   return (
     <div className="token-indicator">
       <div className="token-indicator-wrap">
-        <svg
-          className="token-indicator-ring"
-          width={size}
-          height={size}
-          viewBox={`0 0 ${size} ${size}`}
-        >
-          {/* Background circle */}
-          <circle
-            className="token-indicator-bg"
-            cx={center}
-            cy={center}
-            r={radius}
-          />
-          {/* Progress arc */}
-          <circle
-            className="token-indicator-fill"
-            cx={center}
-            cy={center}
-            r={radius}
-            strokeDasharray={circumference}
-            strokeDashoffset={strokeOffset}
-          />
-        </svg>
-        {/* Hover tooltip */}
-        <div className="token-tooltip">
-          {tooltip}
-        </div>
+        <ProgressRing percent={percentage} size={size} />
+        <div className="token-tooltip">{tooltip}</div>
       </div>
       <span className="token-percentage-label">{labelPercentage}</span>
     </div>
