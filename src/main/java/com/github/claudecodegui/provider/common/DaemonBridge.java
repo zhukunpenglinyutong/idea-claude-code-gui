@@ -623,6 +623,17 @@ public class DaemonBridge {
                 break;
             }
 
+            case "limits": {
+                for (DaemonEventListener listener : eventListeners) {
+                    try {
+                        listener.onDaemonEvent(event, obj);
+                    } catch (Exception ex) {
+                        LOG.warn("[DaemonBridge] Listener threw while handling " + event, ex);
+                    }
+                }
+                break;
+            }
+
             default:
                 LOG.debug("[DaemonBridge] Unhandled daemon event: " + event);
         }
