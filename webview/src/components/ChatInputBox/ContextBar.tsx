@@ -189,7 +189,7 @@ export const ContextBar: React.FC<ContextBarProps> = memo(({
         {usageLimits?.provider === 'codex' && usageLimits.primaryWindow && (
           <LimitRing
             percent={usageLimits.primaryWindow.percent}
-            label="3h"
+            label="5h"
             resetsAt={usageLimits.primaryWindow.resetsAt ?? null}
           />
         )}
@@ -200,7 +200,7 @@ export const ContextBar: React.FC<ContextBarProps> = memo(({
             resetsAt={usageLimits.secondaryWindow.resetsAt ?? null}
           />
         )}
-        
+
         {/* Hidden file input */}
         <input
           ref={fileInputRef}
@@ -210,7 +210,7 @@ export const ContextBar: React.FC<ContextBarProps> = memo(({
           onChange={handleFileChange}
           style={HIDDEN_INPUT_STYLE}
         />
-        
+
         <div className="context-tool-divider" />
       </div>
 
@@ -227,13 +227,13 @@ export const ContextBar: React.FC<ContextBarProps> = memo(({
           />
           <span className="context-text">
             <span dir="ltr">
-              {selectedAgent.name.length > 3 
-                ? `${selectedAgent.name.slice(0, 3)}...` 
+              {selectedAgent.name.length > 3
+                ? `${selectedAgent.name.slice(0, 3)}...`
                 : selectedAgent.name}
             </span>
           </span>
-          <span 
-            className="codicon codicon-close context-close" 
+          <span
+            className="codicon codicon-close context-close"
             onClick={onClearAgent}
             title="Remove agent"
           />

@@ -366,6 +366,7 @@ public class SessionCallbackAdapter implements ClaudeSession.SessionCallback {
 
     @Override
     public void onLimitsUpdate(String json) {
+        com.github.claudecodegui.util.UsageLimitsCache.save(json);
         if (isInactive()) {
             return;
         }

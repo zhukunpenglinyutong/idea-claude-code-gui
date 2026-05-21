@@ -204,6 +204,7 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
 
     @Override
     public void createToolWindowContent(@NotNull Project project, @NotNull ToolWindow toolWindow) {
+        com.github.claudecodegui.util.UsageLimitsCache.clearAll();
         registerShutdownHook();
 
         ContentFactory contentFactory = ContentFactory.getInstance();
@@ -309,6 +310,7 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
                 ClaudeChatWindow window = contentToWindowMap.get(event.getContent());
                 if (window != null) {
                     window.loadRestoredHistoryIfNeeded();
+                    window.onTabActivated();
                 }
             }
 

@@ -13,6 +13,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Session management for Claude conversations.
@@ -54,8 +57,8 @@ public class ClaudeSession {
     // Permission manager
     private final PermissionManager permissionManager = new PermissionManager();
 
-    // Daemon event listener for background limits polling — stored for cleanup
-    private com.github.claudecodegui.provider.common.DaemonBridge.DaemonEventListener limitsEventListener;
+    // Periodic limits poller (Java-side, replaces daemon setInterval)
+    private final ScheduledExecutorService limitsScheduler;
 
     /**
      * Represents a single message in the conversation.
@@ -184,18 +187,50 @@ public class ClaudeSession {
             callbackFacade.notifyPermissionRequested(request);
         });
 
-        // Route periodic [LIMITS] daemon events (background poll) to the frontend
-        this.limitsEventListener = (event, data) -> {
-            if ("limits".equals(event) && data != null && data.has("payload")) {
-                String json = data.get("payload").toString();
-                callbackFacade.notifyLimitsUpdate(json);
-            }
-        };
-        claudeSDKBridge.addDaemonEventListener(limitsEventListener);
+        // Periodic limits refresh: Java-side timer checks persistent cache staleness
+        this.limitsScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "cc-gui-limits-poller");
+            t.setDaemon(true);
+            return t;
+        });
+        this.limitsScheduler.scheduleAtFixedRate(this::pollLimitsFromCache, 5, 5, TimeUnit.MINUTES);
     }
 
     public void setCallback(SessionCallback callback) {
         callbackFacade.setCallback(callback);
+    }
+
+    /** Shut down the periodic limits poller. Called from ClaudeChatWindow.dispose(). */
+    public void dispose() {
+        if (!limitsScheduler.isShutdown()) {
+            limitsScheduler.shutdownNow();
+        }
+    }
+
+    private void pollLimitsFromCache() {
+        pollLimitsForProvider("claude");
+        pollLimitsForProvider("codex");
+    }
+
+    private void pollLimitsForProvider(String provider) {
+        boolean isCodex = "codex".equals(provider);
+        boolean stale = isCodex
+                ? com.github.claudecodegui.util.UsageLimitsCache.isCodexStale()
+                : com.github.claudecodegui.util.UsageLimitsCache.isClaudeStale();
+        if (stale) {
+            String method = isCodex ? "codex.refreshLimits" : "claude.refreshLimits";
+            claudeSDKBridge.sendLimitsCommand(method, json -> {
+                com.github.claudecodegui.util.UsageLimitsCache.save(json);
+                callbackFacade.notifyLimitsUpdate(json);
+            });
+        } else {
+            String cached = isCodex
+                    ? com.github.claudecodegui.util.UsageLimitsCache.loadCodex()
+                    : com.github.claudecodegui.util.UsageLimitsCache.loadClaude();
+            if (cached != null) {
+                callbackFacade.notifyLimitsUpdate(cached);
+            }
+        }
     }
 
     public com.github.claudecodegui.session.EditorContextCollector getContextCollector() {

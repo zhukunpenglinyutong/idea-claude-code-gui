@@ -29,8 +29,6 @@ import { createInterface } from 'readline';
 import { handleClaudeCommand } from './channels/claude-channel.js';
 import { handleCodexCommand } from './channels/codex-channel.js';
 import { loadClaudeSdk, isClaudeSdkAvailable } from './utils/sdk-loader.js';
-import { emitClaudeLimitsIfDue } from './utils/usage-limits.js';
-import { emitCodexLimitsIfDue } from './utils/usage-limits.js';
 import {
   sendMessagePersistent,
   sendMessageWithAttachmentsPersistent,
@@ -681,17 +679,6 @@ async function processRequest(request) {
     }
   }, PPID_CHECK_INTERVAL_MS);
   ppidMonitor.unref();
-
-  // --- Periodic limits refresh ---
-  // Emits [LIMITS] every 5 minutes so the UI stays current without a message send.
-  // Routed as a 'limits' daemon event (no active request ID) by the stdout interceptor.
-  const LIMITS_POLL_MS = 300_000;
-  const limitsPoller = setInterval(() => {
-    if (activeRequestId) return; // skip if a request is in flight
-    emitClaudeLimitsIfDue().catch(() => {});
-    emitCodexLimitsIfDue().catch(() => {});
-  }, LIMITS_POLL_MS);
-  limitsPoller.unref();
 
   // --- Keep alive ---
   // The process stays alive as long as stdin is open (rl keeps the event loop active)

@@ -165,21 +165,27 @@ public class ClaudeSDKBridge extends BaseSDKBridge {
     /**
      * Send a limits-refresh command to the daemon and deliver [LIMITS] payloads
      * to the given callback. Fire-and-forget: never throws.
+     * Uses getDaemonBridge() (not getCurrentDaemonBridge()) so that an on-startup
+     * call succeeds even when the daemon is still warming up.
      */
     public void sendLimitsCommand(String method, java.util.function.Consumer<String> onLimitsJson) {
-        DaemonBridge db = daemonCoordinator.getCurrentDaemonBridge();
-        if (db == null || !db.isAlive()) {
-            return;
-        }
-        db.sendCommand(method, new JsonObject(), new DaemonBridge.DaemonOutputCallback() {
-            @Override public void onLine(String line) {
-                if (line.startsWith("[LIMITS]")) {
-                    onLimitsJson.accept(line.substring("[LIMITS]".length()).trim());
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                DaemonBridge db = daemonCoordinator.getDaemonBridge();
+                if (db == null || !db.isAlive()) {
+                    return;
                 }
-            }
-            @Override public void onStderr(String text) {}
-            @Override public void onError(String error) {}
-            @Override public void onComplete(boolean success) {}
+                db.sendCommand(method, new JsonObject(), new DaemonBridge.DaemonOutputCallback() {
+                    @Override public void onLine(String line) {
+                        if (line.startsWith("[LIMITS]")) {
+                            onLimitsJson.accept(line.substring("[LIMITS]".length()).trim());
+                        }
+                    }
+                    @Override public void onStderr(String text) {}
+                    @Override public void onError(String error) {}
+                    @Override public void onComplete(boolean success) {}
+                });
+            } catch (Exception ignored) { /* best-effort */ }
         });
     }
 
