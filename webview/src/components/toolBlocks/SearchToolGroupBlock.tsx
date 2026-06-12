@@ -2,6 +2,8 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
 import { truncate } from '../../utils/helpers';
+import { ThemedToolIcon, ToolStatusIndicator } from './CoDriverToolParts';
+import type { CoDriverIconName } from '../codriverIcons';
 
 interface SearchItem {
   toolName: string;
@@ -98,6 +100,13 @@ const getSearchToolIcon = (toolName: string): string => {
   return 'codicon-search';
 };
 
+const getSearchCoDriverIcon = (toolName: string): CoDriverIconName => {
+  const lower = toolName.toLowerCase();
+  if (lower === 'glob') return 'folder';
+  if (lower === 'find') return 'file';
+  return 'search';
+};
+
 /**
  * Parse item to SearchItem
  */
@@ -181,7 +190,7 @@ const SearchToolGroupBlock = ({ items }: SearchToolGroupBlockProps) => {
         style={headerStyle}
       >
         <div className="task-title-section" style={TITLE_SECTION_STYLE}>
-          <span className="codicon codicon-search tool-title-icon" />
+          <ThemedToolIcon codiconClass="codicon-search" codriverName="search" className="tool-title-icon" />
           <span className="tool-title-text" style={TITLE_TEXT_STYLE}>
             {t('tools.searchBatchTitle')}
           </span>
@@ -205,8 +214,9 @@ const SearchToolGroupBlock = ({ items }: SearchToolGroupBlockProps) => {
               title={item.pattern ? `${item.pattern}${item.path ? ` → ${item.path}` : ''}` : item.path}
             >
               {/* Tool type icon */}
-              <span
-                className={`codicon ${getSearchToolIcon(item.toolName)}`}
+              <ThemedToolIcon
+                codiconClass={getSearchToolIcon(item.toolName)}
+                codriverName={getSearchCoDriverIcon(item.toolName)}
                 style={TOOL_ICON_STYLE}
               />
 
@@ -232,8 +242,9 @@ const SearchToolGroupBlock = ({ items }: SearchToolGroupBlockProps) => {
               )}
 
               {/* Status indicator */}
-              <div
-                className={`tool-status-indicator ${item.isError ? 'error' : item.isCompleted ? 'completed' : 'pending'}`}
+              <ToolStatusIndicator
+                isError={item.isError}
+                isCompleted={item.isCompleted}
                 style={STATUS_INDICATOR_STYLE}
               />
             </div>

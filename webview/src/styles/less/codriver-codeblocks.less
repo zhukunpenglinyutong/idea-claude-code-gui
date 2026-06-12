@@ -1,0 +1,112 @@
+/* ==========================================================================
+   CoDriver code block cards.
+
+   This keeps the stock Markdown DOM for light/dark/system. MarkdownBlock only
+   emits the header below while the active theme is CoDriver; all styling is
+   additionally scoped here to avoid leaking the code-card chrome into the
+   default themes.
+   ========================================================================== */
+
+html[data-theme="codriver"] {
+    --codriver-code-card-bg: #121314;
+    --codriver-code-card-header-bg: #191a1b;
+    --codriver-code-card-border: rgba(139, 148, 158, 0.22);
+    --codriver-code-card-border-muted: rgba(139, 148, 158, 0.14);
+    --codriver-code-card-fg: #c9d1d9;
+    --codriver-code-card-muted-fg: #8b949e;
+}
+
+html[data-theme="codriver"] .markdown-content .code-block-wrapper {
+    position: relative;
+    overflow: hidden;
+    margin: 12px 0;
+    border: 1px solid var(--codriver-code-card-border);
+    border-radius: var(--codriver-radius-md, 8px);
+    background: var(--codriver-code-card-bg);
+    box-shadow: none;
+}
+
+html[data-theme="codriver"] .markdown-content .codriver-code-block-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 30px;
+    padding: 0 8px 0 12px;
+    gap: 8px;
+    color: var(--codriver-code-card-muted-fg);
+    background: var(--codriver-code-card-header-bg);
+    border-bottom: 1px solid var(--codriver-code-card-border-muted);
+    box-shadow: inset 0 1px 0 rgba(240, 246, 252, 0.035);
+}
+
+html[data-theme="codriver"] .markdown-content .codriver-code-block-language {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-family-mono, 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace);
+    font-size: 11px;
+    line-height: 1;
+    color: var(--codriver-code-card-muted-fg);
+    text-transform: lowercase;
+}
+
+html[data-theme="codriver"] .markdown-content .codriver-code-block-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex: 0 0 auto;
+}
+
+html[data-theme="codriver"] .markdown-content .code-block-wrapper pre {
+    margin: 0;
+    padding: 12px 14px;
+    border: 0;
+    border-radius: 0;
+    background: var(--codriver-code-card-bg);
+}
+
+html[data-theme="codriver"] .markdown-content .code-block-wrapper pre code {
+    color: var(--codriver-code-card-fg);
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+html[data-theme="codriver"] .markdown-content .code-block-wrapper .copy-code-btn {
+    position: relative;
+    top: auto;
+    right: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--codriver-radius-sm, 6px);
+    color: var(--codriver-code-card-muted-fg);
+    background: transparent;
+    opacity: 0.88;
+}
+
+html[data-theme="codriver"] .markdown-content .code-block-wrapper .copy-code-btn:hover,
+html[data-theme="codriver"] .markdown-content .code-block-wrapper .copy-code-btn:focus-visible {
+    color: var(--codriver-link, #58a6ff);
+    background: rgba(177, 186, 196, 0.10);
+    border-color: rgba(139, 148, 158, 0.22);
+    opacity: 1;
+}
+
+html[data-theme="codriver"] .markdown-content .code-block-wrapper .copy-code-btn .copy-tooltip {
+    top: -30px;
+    right: 0;
+    background: #202122;
+    color: #e6edf3;
+    border: 1px solid rgba(139, 148, 158, 0.24);
+    border-radius: var(--codriver-radius-sm, 6px);
+    box-shadow: 0 8px 24px rgba(1, 4, 9, 0.36);
+}
+
+html[data-theme="codriver"] .markdown-content .mermaid-rendered .codriver-code-block-header {
+    display: none;
+}

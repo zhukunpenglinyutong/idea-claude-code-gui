@@ -1,0 +1,328 @@
+/* ==========================================================================
+   CoDriver special content refinements: thinking, notifications, cards,
+   permission confirmations and message footer polish.
+   Scoped to [data-theme="codriver"] so default themes remain untouched.
+   ========================================================================== */
+
+html[data-theme="codriver"] {
+    --codriver-card-bg: rgba(22, 27, 34, 0.52);
+    --codriver-card-bg-raised: rgba(25, 26, 27, 0.92);
+    --codriver-card-border: rgba(139, 148, 158, 0.18);
+    --codriver-card-border-strong: rgba(139, 148, 158, 0.28);
+    --codriver-row-hover: rgba(177, 186, 196, 0.055);
+    --codriver-thinking-rail: rgba(88, 166, 255, 0.30);
+    --codriver-warning-bg: rgba(210, 153, 34, 0.12);
+    --codriver-danger-bg: rgba(248, 81, 73, 0.10);
+}
+
+/* Thinking and compact transcript blocks ---------------------------------- */
+html[data-theme="codriver"] .thinking-block,
+html[data-theme="codriver"] .compact-summary-block,
+html[data-theme="codriver"] .compact-notification-block,
+html[data-theme="codriver"] .task-notification-block {
+    position: relative;
+    margin: 8px 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    color: var(--codriver-fg-muted, #8b949e);
+}
+
+html[data-theme="codriver"] .thinking-block::before,
+html[data-theme="codriver"] .compact-summary-block::before,
+html[data-theme="codriver"] .compact-notification-block::before {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 5px;
+    bottom: 5px;
+    width: 1px;
+    border-radius: 999px;
+    background: var(--codriver-thinking-rail);
+}
+
+html[data-theme="codriver"] .thinking-header,
+html[data-theme="codriver"] .compact-summary-title,
+html[data-theme="codriver"] .compact-notification-header {
+    min-height: 26px;
+    padding: 4px 8px 4px 18px;
+    border-radius: var(--codriver-radius-sm, 6px);
+    color: var(--codriver-fg-muted, #8b949e);
+    background: transparent;
+    font-size: 12.5px;
+    font-weight: 500;
+    letter-spacing: 0;
+}
+
+html[data-theme="codriver"] .thinking-header:hover,
+html[data-theme="codriver"] .thinking-header:focus-visible,
+html[data-theme="codriver"] .compact-summary-title:hover,
+html[data-theme="codriver"] .compact-summary-title:focus-visible {
+    background: var(--codriver-row-hover);
+    color: var(--codriver-fg-default, #c9d1d9);
+    outline: none;
+}
+
+html[data-theme="codriver"] .thinking-icon,
+html[data-theme="codriver"] .compact-summary-icon,
+html[data-theme="codriver"] .compact-summary-toggle {
+    color: var(--codriver-fg-subtle, #6e7681);
+}
+
+html[data-theme="codriver"] .thinking-content,
+html[data-theme="codriver"] .compact-summary-content {
+    margin-left: 18px;
+    padding: 6px 10px 8px 12px;
+    border-left: 0;
+    color: var(--codriver-fg-muted, #8b949e);
+    background: rgba(22, 27, 34, 0.30);
+    border-radius: var(--codriver-radius-sm, 6px);
+}
+
+html[data-theme="codriver"] .compact-summary-metadata {
+    padding-left: 20px;
+    color: var(--codriver-fg-subtle, #6e7681);
+}
+
+html[data-theme="codriver"] .compact-notification-items {
+    margin-left: 18px;
+    padding-left: 0;
+}
+
+html[data-theme="codriver"] .compact-notification-item {
+    min-height: 22px;
+    gap: 7px;
+    color: var(--codriver-fg-muted, #8b949e);
+}
+
+html[data-theme="codriver"] .compact-notification-prefix {
+    width: 13px;
+    min-width: 13px;
+    color: var(--codriver-fg-subtle, #6e7681);
+}
+
+/* Task notifications become quiet inline activity notes. */
+html[data-theme="codriver"] .task-notification-block {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 24px;
+    padding: 3px 8px;
+    border: 1px solid var(--codriver-card-border);
+    border-radius: 999px;
+    background: rgba(22, 27, 34, 0.34);
+    font-size: 12px;
+}
+
+html[data-theme="codriver"] .task-notification-icon {
+    width: 13px;
+    height: 13px;
+    color: var(--codriver-fg-subtle, #6e7681);
+}
+
+html[data-theme="codriver"] .task-notification-success .task-notification-icon,
+html[data-theme="codriver"] .task-notification-completed .task-notification-icon,
+html[data-theme="codriver"] .task-notification-green .task-notification-icon {
+    color: var(--codriver-success, #3fb950);
+}
+
+html[data-theme="codriver"] .task-notification-error .task-notification-icon,
+html[data-theme="codriver"] .task-notification-red .task-notification-icon {
+    color: var(--codriver-danger, #f85149);
+}
+
+html[data-theme="codriver"] .task-notification-warning .task-notification-icon,
+html[data-theme="codriver"] .task-notification-yellow .task-notification-icon {
+    color: var(--codriver-attention, #d29922);
+}
+
+html[data-theme="codriver"] .task-notification-icon.codriver-icon-spinner {
+    animation: codriver-special-inline-spin 1.05s linear infinite;
+}
+
+@keyframes codriver-special-inline-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Message attachments inside the transcript use the same muted icon language
+   as the composer/context strip instead of bright per-filetype glyphs. */
+html[data-theme="codriver"] .message-attachment-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 24px;
+    padding: 3px 8px;
+    border: 1px solid var(--codriver-card-border);
+    border-radius: 999px;
+    background: rgba(22, 27, 34, 0.44);
+    color: var(--codriver-fg-muted, #8b949e);
+}
+
+html[data-theme="codriver"] .message-attachment-chip-icon,
+html[data-theme="codriver"] .codriver-message-attachment-icon {
+    color: var(--codriver-fg-subtle, #6e7681);
+    flex-shrink: 0;
+}
+
+html[data-theme="codriver"] .message-attachment-chip-ext {
+    color: var(--codriver-accent-blue, #58a6ff);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .02em;
+}
+
+html[data-theme="codriver"] .message-attachment-chip-name {
+    color: var(--codriver-fg-muted, #8b949e);
+    font-size: 12px;
+}
+
+/* Diagnostic and confirmation cards -------------------------------------- */
+html[data-theme="codriver"] .provider-not-configured-card,
+html[data-theme="codriver"] .error-diagnostic-card,
+html[data-theme="codriver"] .permission-dialog-v3-command-box {
+    background: var(--codriver-card-bg);
+    border: 1px solid var(--codriver-card-border);
+    border-radius: var(--codriver-radius-md, 8px);
+    box-shadow: none;
+}
+
+html[data-theme="codriver"] .provider-card-header,
+html[data-theme="codriver"] .error-diagnostic-header,
+html[data-theme="codriver"] .error-diagnostic-solution-header {
+    color: var(--codriver-fg-default, #c9d1d9);
+}
+
+html[data-theme="codriver"] .provider-card-icon,
+html[data-theme="codriver"] .error-diagnostic-icon {
+    color: var(--codriver-accent-blue, #58a6ff);
+    background: rgba(88, 166, 255, 0.08);
+    border: 1px solid rgba(88, 166, 255, 0.20);
+}
+
+html[data-theme="codriver"] .provider-card-description,
+html[data-theme="codriver"] .error-diagnostic-intro,
+html[data-theme="codriver"] .error-diagnostic-step-text,
+html[data-theme="codriver"] .error-diagnostic-reason {
+    color: var(--codriver-fg-muted, #8b949e);
+}
+
+html[data-theme="codriver"] .error-diagnostic-command,
+html[data-theme="codriver"] .error-diagnostic-solution {
+    background: rgba(13, 17, 23, 0.38);
+    border-color: var(--codriver-card-border);
+}
+
+html[data-theme="codriver"] .provider-card-action,
+html[data-theme="codriver"] .error-diagnostic-nav-btn,
+html[data-theme="codriver"] .error-diagnostic-copy-btn {
+    color: var(--codriver-fg-default, #c9d1d9);
+    background: rgba(88, 166, 255, 0.08);
+    border: 1px solid rgba(88, 166, 255, 0.18);
+    border-radius: var(--codriver-radius-sm, 6px);
+}
+
+html[data-theme="codriver"] .provider-card-action:hover,
+html[data-theme="codriver"] .error-diagnostic-nav-btn:hover,
+html[data-theme="codriver"] .error-diagnostic-copy-btn:hover {
+    background: rgba(88, 166, 255, 0.14);
+    border-color: rgba(88, 166, 255, 0.34);
+}
+
+/* Bottom permission confirmation sheet. */
+html[data-theme="codriver"] .permission-dialog-overlay {
+    background: rgba(1, 4, 9, 0.48);
+    backdrop-filter: blur(6px);
+}
+
+html[data-theme="codriver"] .permission-dialog-v3 {
+    background: var(--codriver-card-bg-raised);
+    border-top: 1px solid var(--codriver-card-border-strong);
+    box-shadow: 0 -18px 48px rgba(1, 4, 9, 0.44);
+}
+
+html[data-theme="codriver"] .permission-dialog-v3-title {
+    color: var(--codriver-fg-default, #c9d1d9);
+}
+
+html[data-theme="codriver"] .permission-dialog-v3-subtitle,
+html[data-theme="codriver"] .countdown-timer,
+html[data-theme="codriver"] .permission-dialog-v3-command-header .command-path {
+    color: var(--codriver-fg-muted, #8b949e);
+}
+
+html[data-theme="codriver"] .countdown-timer.warning,
+html[data-theme="codriver"] .timeout-warning-banner {
+    color: var(--codriver-attention, #d29922);
+}
+
+html[data-theme="codriver"] .timeout-warning-banner {
+    background: var(--codriver-warning-bg);
+    border: 1px solid rgba(210, 153, 34, 0.24);
+    border-radius: var(--codriver-radius-sm, 6px);
+}
+
+html[data-theme="codriver"] .permission-dialog-v3-command-header {
+    border-bottom-color: var(--codriver-card-border);
+}
+
+html[data-theme="codriver"] .permission-dialog-v3-command-header .command-arrow {
+    color: var(--codriver-success, #3fb950);
+}
+
+html[data-theme="codriver"] .permission-dialog-v3-command-header .command-toggle {
+    color: var(--codriver-fg-muted, #8b949e);
+}
+
+html[data-theme="codriver"] .permission-dialog-v3-command-header .command-toggle:hover {
+    color: var(--codriver-fg-default, #c9d1d9);
+    background: var(--codriver-row-hover);
+}
+
+html[data-theme="codriver"] .permission-dialog-v3-option {
+    background: rgba(22, 27, 34, 0.58);
+    border-color: var(--codriver-card-border);
+    color: var(--codriver-fg-default, #c9d1d9);
+}
+
+html[data-theme="codriver"] .permission-dialog-v3-option:hover,
+html[data-theme="codriver"] .permission-dialog-v3-option.selected {
+    background: rgba(88, 166, 255, 0.14);
+    border-color: rgba(88, 166, 255, 0.42);
+    color: var(--codriver-fg-default, #c9d1d9);
+}
+
+html[data-theme="codriver"] .permission-dialog-v3-option .option-key {
+    color: var(--codriver-fg-subtle, #6e7681);
+    background: rgba(13, 17, 23, 0.54);
+    border: 1px solid var(--codriver-card-border);
+}
+
+html[data-theme="codriver"] .permission-dialog-v3-option.selected .option-key {
+    color: var(--codriver-accent-blue, #58a6ff);
+    background: rgba(88, 166, 255, 0.10);
+}
+
+/* Footer/status polish ---------------------------------------------------- */
+html[data-theme="codriver"] .message-duration {
+    margin-top: 6px;
+}
+
+html[data-theme="codriver"] .message-duration .message-duration-inner {
+    gap: 5px;
+    padding: 2px 8px;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    color: var(--codriver-fg-subtle, #6e7681);
+}
+
+html[data-theme="codriver"] .message-duration-flag {
+    color: var(--codriver-success, #3fb950);
+}
+
+html[data-theme="codriver"] .message-duration-value,
+html[data-theme="codriver"] .message-duration-tokens {
+    color: var(--codriver-fg-muted, #8b949e);
+}

@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
+import { ToolStatusIndicator } from './CoDriverToolParts';
 
 interface BashItem {
   command: string;
@@ -211,10 +212,9 @@ const BashToolGroupBlock = ({ items, deniedToolIds }: BashToolGroupBlockProps) =
                     <span className={`bash-timeline-description ${item.description ? '' : 'bash-timeline-description-command'}`}>
                       {item.description || truncateCommand(item.command)}
                     </span>
-                    <div
-                      className={`tool-status-indicator ${
-                        item.isError ? 'error' : item.isCompleted ? 'completed' : 'pending'
-                      }`}
+                    <ToolStatusIndicator
+                      isError={item.isError}
+                      isCompleted={item.isCompleted}
                     />
                   </div>
 

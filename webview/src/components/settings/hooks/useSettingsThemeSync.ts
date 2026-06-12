@@ -1,6 +1,7 @@
 // hooks/useSettingsThemeSync.ts
 import { useState, useEffect } from 'react';
 import { applyDiffTheme, getStoredDiffTheme, type DiffThemeMode } from '../../../utils/diffTheme';
+import { applyChatBackgroundColor, applyUserMessageColor, normalizeHexColor } from '../../../utils/chatThemeColors';
 import {
   isUiThemeMode,
   resolveThemeAttribute,
@@ -58,22 +59,14 @@ export function useSettingsThemeSync(): UseSettingsThemeSyncReturn {
   });
 
   // Chat background color configuration
-  const [chatBgColor, setChatBgColor] = useState<string>(() => {
-    const saved = localStorage.getItem('chatBgColor');
-    if (saved && /^#[0-9a-fA-F]{6}$/.test(saved)) {
-      return saved;
-    }
-    return '';
-  });
+  const [chatBgColor, setChatBgColor] = useState<string>(() => (
+    normalizeHexColor(localStorage.getItem('chatBgColor'))
+  ));
 
   // User message bubble color configuration
-  const [userMsgColor, setUserMsgColor] = useState<string>(() => {
-    const saved = localStorage.getItem('userMsgColor');
-    if (saved && /^#[0-9a-fA-F]{6}$/.test(saved)) {
-      return saved;
-    }
-    return '';
-  });
+  const [userMsgColor, setUserMsgColor] = useState<string>(() => (
+    normalizeHexColor(localStorage.getItem('userMsgColor'))
+  ));
 
   // Diff theme configuration
   const [diffTheme, setDiffTheme] = useState<DiffThemeMode>(() => getStoredDiffTheme());
@@ -111,22 +104,20 @@ export function useSettingsThemeSync(): UseSettingsThemeSyncReturn {
 
   // Chat background color handler
   useEffect(() => {
+    applyChatBackgroundColor(chatBgColor);
     if (chatBgColor) {
-      document.documentElement.style.setProperty('--bg-chat', chatBgColor);
       localStorage.setItem('chatBgColor', chatBgColor);
     } else {
-      document.documentElement.style.removeProperty('--bg-chat');
       localStorage.removeItem('chatBgColor');
     }
   }, [chatBgColor]);
 
   // User message bubble color handler
   useEffect(() => {
+    applyUserMessageColor(userMsgColor);
     if (userMsgColor) {
-      document.documentElement.style.setProperty('--color-message-user-bg', userMsgColor);
       localStorage.setItem('userMsgColor', userMsgColor);
     } else {
-      document.documentElement.style.removeProperty('--color-message-user-bg');
       localStorage.removeItem('userMsgColor');
     }
   }, [userMsgColor]);

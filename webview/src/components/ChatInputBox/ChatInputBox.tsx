@@ -579,7 +579,7 @@ export const ChatInputBox = memo(forwardRef<ChatInputBoxHandle, ChatInputBoxProp
 
     return (
       <div
-        className={`chat-input-box ${isResizingInputBox ? 'is-resizing' : ''}`}
+        className={`chat-input-box ${isResizingInputBox ? 'is-resizing' : ''} ${isLoading ? 'is-loading' : ''}`.trim()}
         onClick={focusInput}
         ref={containerRef}
         style={containerStyle}

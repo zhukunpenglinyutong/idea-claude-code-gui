@@ -8,6 +8,8 @@ import { formatParamValue, truncate } from '../../utils/helpers';
 import { getFileIcon, getFolderIcon } from '../../utils/fileIcons';
 import { isCommandToolName, parseCommandType } from '../../utils/toolCommandPath';
 import { getToolLineInfo, resolveToolTarget, summarizeToolCommand, extractPathsFromPatch } from '../../utils/toolPresentation';
+import type { CoDriverIconName } from '../codriverIcons';
+import { ThemedFileIcon, ThemedToolIcon, ToolStatusIndicator } from './CoDriverToolParts';
 
 const SUMMARY_FILE_STYLE: React.CSSProperties = {
   display: 'inline-flex',
@@ -158,6 +160,34 @@ const getToolCodicon = (name?: string, input?: ToolInput): string => {
   return CODICON_MAP[lowerName] ?? 'codicon-tools';
 };
 
+const getCoDriverToolIcon = (name?: string, input?: ToolInput): CoDriverIconName => {
+  const lowerName = (name ?? '').toLowerCase();
+  const commandStr = (input?.command as string | undefined) ?? (input?.cmd as string | undefined);
+
+  if (isCommandToolName(lowerName) && commandStr) {
+    const parsed = parseCommandType(commandStr);
+    switch (parsed.type) {
+      case 'read':
+      case 'list':
+        return 'file';
+      case 'search':
+        return 'search';
+      default:
+        return 'terminal';
+    }
+  }
+
+  if (['read', 'read_file', 'write', 'write_to_file'].includes(lowerName)) return 'file';
+  if (['edit', 'edit_file', 'replace_string', 'apply_patch'].includes(lowerName)) return 'edit';
+  if (['bash', 'run_terminal_cmd', 'execute_command', 'executecommand', 'shell_command'].includes(lowerName)) return 'terminal';
+  if (['grep', 'websearch', 'search', 'find'].includes(lowerName)) return 'search';
+  if (['glob', 'list', 'shell_command_list', 'createdirectory', 'movefile', 'copyfile'].includes(lowerName)) return 'folder';
+  if (['task', 'todowrite', 'update_plan'].includes(lowerName)) return 'tool';
+  if (['webfetch'].includes(lowerName)) return 'link';
+  if (['delete'].includes(lowerName)) return 'warning';
+  return 'tool';
+};
+
 const omitFields = new Set([
   'file_path',
   'path',
@@ -199,9 +229,10 @@ const PatchFileLink = ({ path }: PatchFileLinkProps) => {
       {...tooltip}
       style={PATCH_FILE_LINK_STYLE}
     >
-      <span
+      <ThemedFileIcon
+        fileName={fileName}
+        fallbackSvg={getFileIcon(ext ?? '', fileName)}
         style={FILE_ICON_STYLE}
-        dangerouslySetInnerHTML={{ __html: getFileIcon(ext ?? '', fileName) }}
       />
       {fileName}
     </span>
@@ -237,6 +268,7 @@ const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps
 
   const displayName = getToolDisplayName(t, name, input);
   const codicon = getToolCodicon(name, input);
+  const codriverIcon = getCoDriverToolIcon(name, input);
 
   // Codex uses 'cmd', others use 'command'
   const commandStr = (typeof input.command === 'string' ? input.command : undefined) ??
@@ -314,7 +346,7 @@ const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps
         style={headerStyle}
       >
         <div className="task-title-section">
-          <span className={`codicon ${codicon} tool-title-icon`} />
+          <ThemedToolIcon codiconClass={codicon} codriverName={codriverIcon} className="tool-title-icon" />
 
           <span className="tool-title-text">
             {displayName}
@@ -327,9 +359,11 @@ const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps
                 style={(effectiveIsFile || isDirectoryPath) ? SUMMARY_FILE_STYLE : undefined}
               >
                 {(effectiveIsFile || isDirectoryPath) && (
-                   <span
+                   <ThemedFileIcon
+                      fileName={target?.cleanFileName || target?.displayPath || summary || ''}
+                      isDirectory={isDirectoryPath}
+                      fallbackSvg={getFileIconSvg()}
                       style={FILE_ICON_STYLE}
-                      dangerouslySetInnerHTML={{ __html: getFileIconSvg() }}
                    />
                 )}
                 {summary}
@@ -354,7 +388,7 @@ const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps
           )}
         </div>
 
-        <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />
+        <ToolStatusIndicator isError={isError} isCompleted={isCompleted} />
       </div>
       {hasExpandableContent && (
         <div className={`task-details-accordion ${expanded ? 'expanded' : ''}`}>

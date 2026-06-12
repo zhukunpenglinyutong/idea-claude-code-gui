@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { isExplicitUiThemeMode } from '../types/uiThemeMode';
+import { applyChatBackgroundColor, applyUserMessageColor, normalizeHexColor } from '../utils/chatThemeColors';
 
 /**
  * Manages IDE theme initialization and synchronization.
@@ -56,18 +57,10 @@ export function useThemeInit() {
     const scale = fontSizeMap[fontSizeLevel] || 1.0;
     document.documentElement.style.setProperty('--font-scale', scale.toString());
 
-    // Initialize chat background color (validate hex format before applying)
-    const isValidHexColor = (c: string) => /^#[0-9a-fA-F]{6}$/.test(c);
-    const savedChatBgColor = localStorage.getItem('chatBgColor');
-    if (savedChatBgColor && isValidHexColor(savedChatBgColor)) {
-      document.documentElement.style.setProperty('--bg-chat', savedChatBgColor);
-    }
-
-    // Initialize user message bubble color
-    const savedUserMsgColor = localStorage.getItem('userMsgColor');
-    if (savedUserMsgColor && isValidHexColor(savedUserMsgColor)) {
-      document.documentElement.style.setProperty('--color-message-user-bg', savedUserMsgColor);
-    }
+    // Initialize chat background and user bubble colors. CoDriver exposes
+    // additional tokens that must stay in sync with the existing generic vars.
+    applyChatBackgroundColor(normalizeHexColor(localStorage.getItem('chatBgColor')));
+    applyUserMessageColor(normalizeHexColor(localStorage.getItem('userMsgColor')));
 
     // Apply the user's explicit theme choice first. System remains bound to the IDE theme.
     const savedTheme = localStorage.getItem('theme');
