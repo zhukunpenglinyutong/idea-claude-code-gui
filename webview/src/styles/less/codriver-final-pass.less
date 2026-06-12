@@ -212,21 +212,43 @@ html[data-theme="codriver"] .bash-timeline-node.error {
 }
 
 /* Composer and picker final pass ----------------------------------------- */
+/* Keep the composer identical to the original CoDriver baseline: a medium-grey
+   panel with the blue shared focus border. Do not use the darker VS-Code canvas
+   tokens here, otherwise the input becomes a black well. */
 html[data-theme="codriver"] .chat-input-box {
-    background: var(--codriver-surface) !important;
-    border-color: var(--codriver-border) !important;
-    box-shadow: 0 12px 32px rgba(1, 4, 9, 0.28) !important;
+    --codriver-composer-panel: #44474e;
+    --codriver-composer-panel-hover: #474a51;
+    --codriver-composer-panel-focus: #484b52;
+    --input-bg: var(--codriver-composer-panel);
+    --input-border: rgba(240, 246, 252, 0.14);
+    --input-focus-border: #58a6ff;
+
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.018), rgba(0, 0, 0, 0.035)),
+        var(--codriver-composer-panel) !important;
+    border-color: var(--input-border) !important;
+    box-shadow:
+        0 1px 0 rgba(240, 246, 252, 0.06) inset,
+        0 12px 32px rgba(1, 4, 9, 0.30) !important;
 }
 
-html[data-theme="codriver"] .chat-input-box:hover,
+html[data-theme="codriver"] .chat-input-box:hover {
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.024), rgba(0, 0, 0, 0.025)),
+        var(--codriver-composer-panel-hover) !important;
+    border-color: var(--input-focus-border) !important;
+}
+
 html[data-theme="codriver"] .chat-input-box:focus-within,
 html[data-theme="codriver"] .chat-input-box.is-resizing {
-    border-color: var(--codriver-border-strong) !important;
-    box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.24), 0 12px 32px rgba(1, 4, 9, 0.30) !important;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.026), rgba(0, 0, 0, 0.020)),
+        var(--codriver-composer-panel-focus) !important;
+    border-color: var(--input-focus-border) !important;
 }
 
 html[data-theme="codriver"] .chat-input-box.is-loading {
-    border-color: transparent !important;
+    border-color: var(--input-focus-border) !important;
 }
 
 html[data-theme="codriver"] .attachment-list {

@@ -181,62 +181,22 @@ html[data-theme="codriver"] .bash-timeline-row > .tool-status-indicator.pending 
 }
 
 /* --------------------------------------------------------------------------
-   Composer working border
+   Composer loading state
    -------------------------------------------------------------------------- */
-html[data-theme="codriver"] .chat-input-box {
-    background: var(--codriver-input-background, #191a1b);
-    border-color: var(--codriver-input-border, rgba(139, 148, 158, 0.24));
-    border-radius: var(--codriver-radius-lg, 12px);
-    box-shadow: none;
-    isolation: isolate;
+/* JCEF rendered the conic-gradient working border as a large diagonal arc.
+   Keep the original CoDriver composer surface and blue border instead of
+   drawing an animated pseudo-element. */
+html[data-theme="codriver"] .chat-input-box::before,
+html[data-theme="codriver"] .chat-input-box::after {
+    content: none !important;
+    display: none !important;
+    background: none !important;
+    animation: none !important;
 }
 
-html[data-theme="codriver"] .chat-input-box::before {
-    content: '';
-    position: absolute;
-    inset: -1px;
-    z-index: 2;
-    border-radius: inherit;
-    padding: 1px;
-    opacity: 0;
-    pointer-events: none;
-    background: conic-gradient(
-        from 0deg,
-        transparent 0deg,
-        transparent 252deg,
-        var(--codriver-input-working-border-1) 288deg,
-        var(--codriver-input-working-border-2) 318deg,
-        var(--codriver-input-working-border-3) 344deg,
-        transparent 360deg
-    );
-    -webkit-mask:
-        linear-gradient(#000 0 0) content-box,
-        linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    transition: opacity 0.18s ease;
-    animation: codriver-composer-working-border-spin 1.9s linear infinite;
-}
-
-html[data-theme="codriver"] .chat-input-box.is-loading {
-    border-color: transparent;
-}
-
-html[data-theme="codriver"] .chat-input-box.is-loading::before {
-    opacity: 1;
-}
-
-html[data-theme="codriver"] .chat-input-box:hover,
-html[data-theme="codriver"] .chat-input-box:focus-within,
-html[data-theme="codriver"] .chat-input-box.is-resizing {
-    border-color: var(--codriver-focus-border, #58a6ff);
-    box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.26);
-}
-
+html[data-theme="codriver"] .chat-input-box.is-loading,
+html[data-theme="codriver"] .chat-input-box.is-loading:hover,
 html[data-theme="codriver"] .chat-input-box.is-loading:focus-within {
-    box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.36);
+    border-color: var(--input-focus-border, #58a6ff) !important;
 }
 
-@keyframes codriver-composer-working-border-spin {
-    to { transform: rotate(360deg); }
-}
