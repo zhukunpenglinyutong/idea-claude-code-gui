@@ -5,7 +5,6 @@ import { openFile } from '../../utils/bridge';
 import { useResolvedFileLinkTooltip } from '../../hooks/useResolvedFileLinkTooltip';
 import { getFileIcon, getFolderIcon } from '../../utils/fileIcons';
 import { getToolLineInfo, resolveToolTarget } from '../../utils/toolPresentation';
-import { ThemedFileIcon, ThemedToolIcon, ToolStatusIndicator } from './CoDriverToolParts';
 
 interface FileItem {
   filePath: string;
@@ -150,11 +149,9 @@ const FileListItem = ({ item, onFileClick }: FileListItemProps) => {
       style={getFileListItemStyle(item.isDirectory)}
       {...fileLinkTooltip}
     >
-      <ThemedFileIcon
-        fileName={item.cleanFileName}
-        isDirectory={item.isDirectory}
-        fallbackSvg={getFileIconSvg(item.cleanFileName, item.isDirectory)}
+      <span
         style={FILE_ICON_STYLE}
+        dangerouslySetInnerHTML={{ __html: getFileIconSvg(item.cleanFileName, item.isDirectory) }}
       />
       <span style={FILE_NAME_STYLE}>
         {item.displayPath}
@@ -164,9 +161,8 @@ const FileListItem = ({ item, onFileClick }: FileListItemProps) => {
           {item.lineInfo}
         </span>
       )}
-      <ToolStatusIndicator
-        isError={item.isError}
-        isCompleted={item.isCompleted}
+      <div
+        className={`tool-status-indicator ${item.isError ? 'error' : item.isCompleted ? 'completed' : 'pending'}`}
         style={STATUS_INDICATOR_STYLE}
       />
     </div>
@@ -236,7 +232,7 @@ const ReadToolGroupBlock = ({ items }: ReadToolGroupBlockProps) => {
         style={headerStyle}
       >
         <div className="task-title-section" style={TITLE_SECTION_STYLE}>
-          <ThemedToolIcon codiconClass="codicon-file-code" codriverName="file" className="tool-title-icon" />
+          <span className="codicon codicon-file-code tool-title-icon" />
           <span className="tool-title-text" style={TITLE_TEXT_STYLE}>
             {t('permission.tools.ReadBatch')}
           </span>

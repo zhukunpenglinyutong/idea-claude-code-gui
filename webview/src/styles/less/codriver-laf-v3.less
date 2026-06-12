@@ -15,11 +15,11 @@
 html[data-theme="codriver"] {
     color-scheme: dark;
 
-    --codriver-canvas: #121314;
-    --codriver-canvas-subtle: #0d0f10;
-    --codriver-surface: #191a1b;
-    --codriver-surface-muted: #202122;
-    --codriver-surface-raised: #242628;
+    --codriver-canvas: #0d1117;
+    --codriver-canvas-subtle: #010409;
+    --codriver-surface: #161b22;
+    --codriver-surface-muted: #1b222c;
+    --codriver-surface-raised: #21262d;
     --codriver-border: rgba(139, 148, 158, 0.24);
     --codriver-border-muted: rgba(139, 148, 158, 0.14);
     --codriver-border-strong: rgba(88, 166, 255, 0.62);
@@ -74,7 +74,7 @@ html[data-theme="codriver"] {
 
     --color-code-bg: rgba(210, 153, 34, 0.14);
     --color-code-inline-bg: rgba(210, 153, 34, 0.14);
-    --color-code-block-bg: #121314;
+    --color-code-block-bg: #0d1117;
     --color-code-block-border: var(--codriver-border-muted);
 
     --color-message-user-bg: var(--codriver-user);
@@ -95,7 +95,10 @@ html[data-theme="codriver"] {
 }
 
 html[data-theme="codriver"] body {
-    background: var(--codriver-canvas);
+    background:
+        radial-gradient(circle at 50% -18%, rgba(88, 166, 255, 0.20), transparent 26rem),
+        radial-gradient(circle at 50% -10%, rgba(163, 113, 247, 0.14), transparent 32rem),
+        var(--codriver-canvas);
     color: var(--codriver-fg-default);
 }
 
@@ -106,7 +109,10 @@ html[data-theme="codriver"] #app {
     border: 1px solid var(--codriver-border-muted);
     border-radius: var(--codriver-radius-lg);
     background: var(--codriver-canvas);
-    box-shadow: 0 24px 72px rgba(1, 4, 9, 0.54);
+    box-shadow:
+        0 0 0 1px rgba(88, 166, 255, 0.06),
+        0 0 48px rgba(88, 166, 255, 0.12),
+        0 24px 72px rgba(1, 4, 9, 0.62);
 }
 
 /* Header / top controls --------------------------------------------------- */
@@ -183,7 +189,9 @@ html[data-theme="codriver"] .icon-button .codicon {
 /* Main shell / message area ---------------------------------------------- */
 html[data-theme="codriver"] .messages-shell {
     position: relative;
-    background: var(--codriver-canvas);
+    background:
+        linear-gradient(180deg, rgba(88, 166, 255, 0.045), transparent 118px),
+        var(--codriver-canvas);
 }
 
 html[data-theme="codriver"] .messages-container {

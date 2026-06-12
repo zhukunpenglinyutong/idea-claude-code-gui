@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
 import { useIsToolDenied } from '../../hooks/useIsToolDenied';
-import { ThemedToolIcon, ToolStatusIndicator } from './CoDriverToolParts';
 
 const TASK_DETAILS_STYLE: React.CSSProperties = { padding: 0, border: 'none' };
 const TASK_CONTENT_WRAPPER_STYLE: React.CSSProperties = { paddingLeft: '40px', position: 'relative', zIndex: 1 };
@@ -53,12 +52,12 @@ const BashToolBlock = ({ input, result, toolId }: BashToolBlockProps) => {
         onClick={() => setExpanded((prev) => !prev)}
       >
         <div className="task-title-section">
-          <ThemedToolIcon codiconClass="codicon-terminal" codriverName="terminal" className="bash-tool-icon" />
+          <span className="codicon codicon-terminal bash-tool-icon" />
           <span className="bash-tool-title">{t('tools.runCommand')}</span>
           <span className="bash-tool-description">{description}</span>
         </div>
 
-        <ToolStatusIndicator isError={isError} isCompleted={isCompleted} />
+        <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />
       </div>
 
       {expanded && (

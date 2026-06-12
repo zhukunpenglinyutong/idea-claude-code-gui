@@ -297,20 +297,15 @@ export function useFileTags({
       const isDirectory = !isTerminal && !isService && !pureFileName.includes('.');
 
       let iconSvg = '';
-      let iconKindClass = 'file-tag-file';
       if (isTerminal) {
         iconSvg = icon_terminal;
-        iconKindClass = 'file-tag-terminal';
       } else if (isService) {
         iconSvg = icon_server;
-        iconKindClass = 'file-tag-service';
       } else if (isDirectory) {
         iconSvg = icon_folder;
-        iconKindClass = 'file-tag-folder';
       } else {
         const extension = pureFileName.indexOf('.') !== -1 ? pureFileName.split('.').pop() : '';
         iconSvg = getFileIcon(extension, pureFileName);
-        iconKindClass = 'file-tag-code';
       }
 
       // Escape file path for safe HTML attribute
@@ -325,7 +320,7 @@ export function useFileTags({
 
       // Create file tag HTML - use array push instead of string concatenation
       htmlParts.push(
-        `<span class="file-tag ${iconKindClass} has-tooltip" contenteditable="false" data-file-path="${escapedPath}" data-tooltip="${escapedFullPath}">`,
+        `<span class="file-tag has-tooltip" contenteditable="false" data-file-path="${escapedPath}" data-tooltip="${escapedFullPath}">`,
         `<span class="file-tag-icon">${iconSvg}</span>`,
         `<span class="file-tag-text">${escapedDisplayFileName}</span>`,
         `<span class="file-tag-close">&times;</span>`,

@@ -28,22 +28,8 @@ const LIGHT_PRESETS = [
   { color: '#f5f0eb', label: 'Solarized' },
 ];
 
-// VS Code Workbench Chat inspired CoDriver presets. These are intentionally
-// separate from the dark presets so reset/default handling matches the skin.
-const CODRIVER_PRESETS = [
-  { color: '#121314', label: 'CoDriver Default' },
-  { color: '#0d1117', label: 'GitHub Dark' },
-  { color: '#161b22', label: 'Raised Dark' },
-  { color: '#191a1b', label: 'VS Code Input' },
-  { color: '#1c2128', label: 'Soft Panel' },
-  { color: '#010409', label: 'Deep Canvas' },
-  { color: '#1a1b26', label: 'Tokyo Night' },
-  { color: '#1e1f29', label: 'Dracula' },
-];
-
 const DEFAULT_DARK_BG = '#1e1e1e';
 const DEFAULT_LIGHT_BG = '#ffffff';
-const DEFAULT_CODRIVER_BG = '#121314';
 
 // User message bubble color presets
 const USER_MSG_DARK_PRESETS = [
@@ -68,20 +54,8 @@ const USER_MSG_LIGHT_PRESETS = [
   { color: '#57606a', label: 'Gray' },
 ];
 
-const USER_MSG_CODRIVER_PRESETS = [
-  { color: '#265985', label: 'CoDriver Default' },
-  { color: '#1f6feb', label: 'VS Code Blue' },
-  { color: '#295f8f', label: 'Muted Blue' },
-  { color: '#1c2128', label: 'Neutral Panel' },
-  { color: '#238636', label: 'Context Green' },
-  { color: '#8957e5', label: 'Agent Purple' },
-  { color: '#9a6700', label: 'Attention Amber' },
-  { color: '#30363d', label: 'Quiet Gray' },
-];
-
 const DEFAULT_DARK_USER_MSG = '#005fb8';
 const DEFAULT_LIGHT_USER_MSG = '#0078d4';
-const DEFAULT_CODRIVER_USER_MSG = '#265985';
 const UI_FONT_SELECT_ID = 'settings-ui-font-select';
 const UI_FONT_CUSTOM_PATH_ID = 'settings-ui-font-custom-path';
 const CODE_FONT_SELECT_ID = 'settings-code-font-select';
@@ -241,28 +215,11 @@ const AppearanceTab = ({
     return (document.documentElement.getAttribute('data-theme') as 'light' | 'dark' | 'codriver') || 'dark';
   }, [theme]);
 
-  const isResolvedCoDriver = resolvedTheme === 'codriver';
-  const defaultBgColor = isResolvedCoDriver
-    ? DEFAULT_CODRIVER_BG
-    : resolvedTheme === 'light'
-      ? DEFAULT_LIGHT_BG
-      : DEFAULT_DARK_BG;
-  const presets = isResolvedCoDriver
-    ? CODRIVER_PRESETS
-    : resolvedTheme === 'light'
-      ? LIGHT_PRESETS
-      : DARK_PRESETS;
+  const defaultBgColor = resolvedTheme === 'light' ? DEFAULT_LIGHT_BG : DEFAULT_DARK_BG;
+  const presets = resolvedTheme === 'light' ? LIGHT_PRESETS : DARK_PRESETS;
 
-  const defaultUserMsgColor = isResolvedCoDriver
-    ? DEFAULT_CODRIVER_USER_MSG
-    : resolvedTheme === 'light'
-      ? DEFAULT_LIGHT_USER_MSG
-      : DEFAULT_DARK_USER_MSG;
-  const userMsgPresets = isResolvedCoDriver
-    ? USER_MSG_CODRIVER_PRESETS
-    : resolvedTheme === 'light'
-      ? USER_MSG_LIGHT_PRESETS
-      : USER_MSG_DARK_PRESETS;
+  const defaultUserMsgColor = resolvedTheme === 'light' ? DEFAULT_LIGHT_USER_MSG : DEFAULT_DARK_USER_MSG;
+  const userMsgPresets = resolvedTheme === 'light' ? USER_MSG_LIGHT_PRESETS : USER_MSG_DARK_PRESETS;
 
   const handlePresetClick = (color: string) => {
     if (color === defaultBgColor) {

@@ -6,8 +6,6 @@ import { DEFAULT_PERMISSION_DIALOG_TIMEOUT_SECONDS } from '../utils/permissionDi
 import MarkdownBlock from './MarkdownBlock';
 import { useDialogResize } from '../hooks/useDialogResize';
 import { isEditableEventTarget } from '../utils/isEditableEventTarget';
-import { CoDriverIcon } from './codriverIcons';
-import { useIsCoDriverTheme } from '../hooks/useActiveThemeMode';
 
 export interface PermissionRequest {
   channelId: string;
@@ -36,7 +34,6 @@ const PermissionDialog = ({
   const [showCommand, setShowCommand] = useState(true);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const { t } = useTranslation();
-  const isCoDriver = useIsCoDriverTheme();
   const { dialogRef, dialogHeight, setDialogHeight, handleResizeStart } = useDialogResize({ minHeight: 150 });
 
   const handleTimeout = useCallback(() => {
@@ -187,21 +184,13 @@ const PermissionDialog = ({
         <div className="permission-dialog-v3-header-row">
           <h3 className="permission-dialog-v3-title">{getToolTitle(request.toolName)}</h3>
           <span className={`countdown-timer ${isTimeWarning ? 'warning' : ''}`}>
-            {isCoDriver ? (
-              <CoDriverIcon name="history" size={13} aria-hidden="true" />
-            ) : (
-              <span className="codicon codicon-clock" />
-            )}
+            <span className="codicon codicon-clock" />
             <span className="countdown-time">{formatCountdown(remainingSeconds)}</span>
           </span>
         </div>
         {isTimeWarning && (
           <div className="timeout-warning-banner">
-            {isCoDriver ? (
-              <CoDriverIcon name="warning" size={14} aria-hidden="true" />
-            ) : (
-              <span className="codicon codicon-warning" />
-            )}
+            <span className="codicon codicon-warning" />
             <span>{t('permission.timeoutWarning', 'Please answer soon, dialog will close in {{seconds}} seconds', { seconds: remainingSeconds })}</span>
           </div>
         )}
@@ -217,11 +206,7 @@ const PermissionDialog = ({
               onClick={() => setShowCommand(!showCommand)}
               title={showCommand ? t('chat.collapse') : t('chat.expand')}
             >
-              {isCoDriver ? (
-                <CoDriverIcon name={showCommand ? 'chevronDown' : 'chevronRight'} size={13} aria-hidden="true" />
-              ) : (
-                <span className={`codicon codicon-chevron-${showCommand ? 'up' : 'down'}`} />
-              )}
+              <span className={`codicon codicon-chevron-${showCommand ? 'up' : 'down'}`} />
             </button>
           </div>
 

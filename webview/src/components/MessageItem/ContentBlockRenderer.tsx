@@ -14,7 +14,6 @@ import {
 } from '../toolBlocks';
 import { EDIT_TOOL_NAMES, BASH_TOOL_NAMES, TASK_MANAGE_TOOL_NAMES, AGENT_TOOL_NAMES, isToolName, isTransientInternalToolName, normalizeToolName } from '../../utils/toolConstants';
 import { TASK_STATUS_COLORS } from '../../utils/messageUtils';
-import { getFileIconKind } from '../../utils/fileIconKind';
 
 const IMAGE_BLOCK_STYLE: React.CSSProperties = { cursor: 'pointer' };
 const THINKING_VISIBLE_STYLE: React.CSSProperties = { display: 'block' };
@@ -27,28 +26,6 @@ function getImageStyle(isUser: boolean): React.CSSProperties {
     borderRadius: '8px',
     objectFit: 'contain',
   };
-}
-
-function getTaskNotificationIconName(status?: string): 'check' | 'error' | 'warning' | 'info' | 'spinner' {
-  const normalizedStatus = (status || '').toLowerCase();
-
-  if (normalizedStatus.includes('success') || normalizedStatus.includes('complete') || normalizedStatus.includes('green')) {
-    return 'check';
-  }
-
-  if (normalizedStatus.includes('error') || normalizedStatus.includes('fail') || normalizedStatus.includes('red')) {
-    return 'error';
-  }
-
-  if (normalizedStatus.includes('warn') || normalizedStatus.includes('yellow')) {
-    return 'warning';
-  }
-
-  if (normalizedStatus.includes('progress') || normalizedStatus.includes('running') || normalizedStatus.includes('pending')) {
-    return 'spinner';
-  }
-
-  return 'info';
 }
 
 /**
@@ -179,12 +156,6 @@ export function ContentBlockRenderer({
   findToolResult,
 }: ContentBlockRendererProps): React.ReactElement | null {
   const isCoDriver = useIsCoDriverTheme();
-  const handleThinkingKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onToggleThinking();
-    }
-  }, [onToggleThinking]);
   if (block.type === 'text') {
     return messageType === 'user' ? (
       <CollapsibleTextBlock content={block.text ?? ''} />
@@ -251,16 +222,7 @@ export function ContentBlockRenderer({
     const displayName = block.fileName || t('chat.unknownFile');
     return (
       <div className="message-attachment-chip" title={displayName}>
-        {isCoDriver ? (
-          <CoDriverIcon
-            className="message-attachment-chip-icon codriver-message-attachment-icon"
-            name={getFileIconKind(displayName)}
-            size={14}
-            aria-hidden="true"
-          />
-        ) : (
-          <span className={`message-attachment-chip-icon codicon ${getFileIcon(block.mediaType)}`} />
-        )}
+        <span className={`message-attachment-chip-icon codicon ${getFileIcon(block.mediaType)}`} />
         {ext && <span className="message-attachment-chip-ext">{ext}</span>}
         <span className="message-attachment-chip-name">{displayName}</span>
       </div>
@@ -272,11 +234,7 @@ export function ContentBlockRenderer({
       <div className="thinking-block">
         <div
           className="thinking-header"
-          role="button"
-          tabIndex={0}
-          aria-expanded={isThinkingExpanded}
           onClick={onToggleThinking}
-          onKeyDown={handleThinkingKeyDown}
         >
           <span className="thinking-title">
             {isThinking && isLastMessage && isLastBlock
@@ -368,11 +326,7 @@ export function ContentBlockRenderer({
           <div className="compact-notification-items">
             {block.items.map((item, idx) => (
               <div key={idx} className="compact-notification-item">
-                {isCoDriver ? (
-                  <CoDriverIcon className="compact-notification-prefix" name="chevronRight" size={12} aria-hidden="true" />
-                ) : (
-                  <span className="compact-notification-prefix">⎿</span>
-                )}
+                <span className="compact-notification-prefix">⎿</span>
                 <span className="compact-notification-text">{item.text}</span>
               </div>
             ))}
@@ -393,16 +347,7 @@ export function ContentBlockRenderer({
     const statusColor = TASK_STATUS_COLORS[block.status] || 'text';
     return (
       <div className={`task-notification-block task-notification-${statusColor}`}>
-        {isCoDriver ? (
-          <CoDriverIcon
-            className="task-notification-icon"
-            name={getTaskNotificationIconName(block.status)}
-            size={13}
-            aria-hidden="true"
-          />
-        ) : (
-          <span className="task-notification-icon">{block.icon}</span>
-        )}
+        <span className="task-notification-icon">{block.icon}</span>
         <span className="task-notification-summary">{block.summary}</span>
       </div>
     );

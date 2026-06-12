@@ -6,7 +6,6 @@ import { getFileIcon } from '../../utils/fileIcons';
 import { resolveToolTarget, getToolLineInfo } from '../../utils/toolPresentation';
 import { normalizeToolInput } from '../../utils/toolInputNormalization';
 import { useResolvedFileLinkTooltip } from '../../hooks/useResolvedFileLinkTooltip';
-import { ThemedFileIcon, ThemedToolIcon, ToolStatusIndicator } from './CoDriverToolParts';
 
 interface EditItem {
   filePath: string;
@@ -236,10 +235,9 @@ const EditFileItem = ({ item, onFileClick, onShowDiff, onRefresh, t }: EditFileI
 
   return (
     <div className="file-list-item" style={FILE_LIST_ITEM_STYLE}>
-      <ThemedFileIcon
-        fileName={item.fileName}
-        fallbackSvg={getFileIconSvg(item.fileName)}
+      <span
         style={FILE_ICON_STYLE}
+        dangerouslySetInnerHTML={{ __html: getFileIconSvg(item.fileName) }}
       />
       <span
         className="clickable-file"
@@ -282,9 +280,8 @@ const EditFileItem = ({ item, onFileClick, onShowDiff, onRefresh, t }: EditFileI
         </button>
       </div>
 
-      <ToolStatusIndicator
-        isError={item.isError}
-        isCompleted={item.isCompleted}
+      <div
+        className={`tool-status-indicator ${item.isError ? 'error' : item.isCompleted ? 'completed' : 'pending'}`}
         style={STATUS_INDICATOR_STYLE}
       />
     </div>
@@ -376,7 +373,7 @@ const EditToolGroupBlock = ({ items }: EditToolGroupBlockProps) => {
         style={headerStyle}
       >
         <div className="task-title-section" style={TITLE_SECTION_STYLE}>
-          <ThemedToolIcon codiconClass="codicon-edit" codriverName="edit" className="tool-title-icon" />
+          <span className="codicon codicon-edit tool-title-icon" />
           <span className="tool-title-text" style={TITLE_TEXT_STYLE}>
             {t('tools.editBatchTitle')}
           </span>

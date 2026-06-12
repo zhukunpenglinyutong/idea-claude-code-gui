@@ -188,7 +188,6 @@ export const DropdownItem = ({
       <div
         ref={itemRef}
         className={`dropdown-item ${isActive ? 'active' : ''} ${isDisabled ? 'disabled' : ''}`}
-        data-type={item.type}
         onClick={isDisabled ? undefined : onClick}
         onMouseEnter={() => {
           // Call the original onMouseEnter (for keyboard navigation highlighting)

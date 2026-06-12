@@ -4,7 +4,6 @@ import { memo, useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { openBrowser, openClass, openFile } from '../utils/bridge';
 import { useMarkdownFileLinkTooltip } from '../hooks/useMarkdownFileLinkTooltip';
-import { useIsCoDriverTheme } from '../hooks/useActiveThemeMode';
 import {
   decorateExistingAnchors,
   linkifyHtml,
@@ -503,19 +502,7 @@ const copyIconSvg = `
     </svg>
   `;
 
-const getCodeBlockLanguageLabel = (codeElement: Element | null): string => {
-  if (!codeElement) return 'text';
-
-  const languageClass = Array.from(codeElement.classList).find((className) =>
-    className.startsWith('language-'),
-  );
-
-  const rawLanguage = languageClass?.replace(/^language-/, '').trim();
-  return rawLanguage || 'text';
-};
-
 const MarkdownBlock = ({ content = '', isStreaming = false }: MarkdownBlockProps) => {
-  const isCoDriver = useIsCoDriverTheme();
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
   const [linkifyCapabilities, setLinkifyCapabilities] = useState<LinkifyCapabilities>(() =>
     getLinkifyCapabilities(),
@@ -742,25 +729,7 @@ const MarkdownBlock = ({ content = '', isStreaming = false }: MarkdownBlockProps
         btn.appendChild(iconSpan);
         btn.appendChild(tooltipSpan);
 
-        if (isCoDriver) {
-          const codeElement = pre.querySelector('code');
-          const header = doc.createElement('div');
-          header.className = 'codriver-code-block-header';
-
-          const language = doc.createElement('span');
-          language.className = 'codriver-code-block-language';
-          language.textContent = getCodeBlockLanguageLabel(codeElement);
-
-          const actions = doc.createElement('span');
-          actions.className = 'codriver-code-block-actions';
-          actions.appendChild(btn);
-
-          header.appendChild(language);
-          header.appendChild(actions);
-          wrapper.insertBefore(header, pre);
-        } else {
-          wrapper.appendChild(btn);
-        }
+        wrapper.appendChild(btn);
       });
 
       linkifyHtml(doc.body, linkifyCapabilities);
@@ -784,7 +753,7 @@ const MarkdownBlock = ({ content = '', isStreaming = false }: MarkdownBlockProps
         }
       });
     }
-  }, [content, isCoDriver, isStreaming, i18n.language, linkifyCapabilities, t]);
+  }, [content, isStreaming, i18n.language, linkifyCapabilities, t]);
 
   // Force DOM refresh when streaming ends to fix potential layout corruption from streaming render
   useEffect(() => {

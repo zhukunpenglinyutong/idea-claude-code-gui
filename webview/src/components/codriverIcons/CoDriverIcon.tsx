@@ -13,7 +13,6 @@ export type CoDriverIconName =
   | 'edit'
   | 'error'
   | 'file'
-  | 'folder'
   | 'history'
   | 'info'
   | 'link'
@@ -104,13 +103,6 @@ function renderIcon(name: CoDriverIconName): React.ReactNode {
         <>
           <path d="M6.75 3.75h6.6L18.25 8.7v11.55H6.75V3.75Z" />
           <path d="M13.25 4v5h5" />
-        </>
-      );
-    case 'folder':
-      return (
-        <>
-          <path d="M3.75 6.75h6.1l1.85 2.1h8.55v9.9H3.75V6.75Z" />
-          <path d="M3.75 8.85h16.5" />
         </>
       );
     case 'history':

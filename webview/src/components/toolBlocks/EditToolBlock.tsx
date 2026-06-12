@@ -8,7 +8,6 @@ import { getFileIcon } from '../../utils/fileIcons';
 import { getToolLineInfo, getToolEditCount, resolveToolTarget } from '../../utils/toolPresentation';
 import { normalizeToolInput } from '../../utils/toolInputNormalization';
 import GenericToolBlock from './GenericToolBlock';
-import { ThemedFileIcon, ThemedToolIcon, ToolStatusIndicator } from './CoDriverToolParts';
 
 interface EditToolBlockProps {
   name?: string;
@@ -379,7 +378,7 @@ const EditToolBlock = ({ name, input, result, toolId }: EditToolBlockProps) => {
       <div className="task-container" style={TASK_CONTAINER_STYLE}>
         <div className="task-header" onClick={() => setExpanded((prev) => !prev)}>
           <div className="task-title-section">
-            <ThemedToolIcon codiconClass="codicon-edit" codriverName="edit" className="tool-title-icon" />
+            <span className="codicon codicon-edit tool-title-icon" />
 
             <span className="tool-title-text">
               {t('tools.editFileTitle')}
@@ -390,10 +389,9 @@ const EditToolBlock = ({ name, input, result, toolId }: EditToolBlockProps) => {
               {...fileLinkTooltip}
               style={FILE_LINK_STYLE}
             >
-              <ThemedFileIcon
-                fileName={target?.cleanFileName || target?.displayPath || filePath || ''}
-                fallbackSvg={getFileIconSvg()}
+              <span
                 style={FILE_ICON_STYLE}
+                dangerouslySetInnerHTML={{ __html: getFileIconSvg() }}
               />
               {target?.displayPath || filePath}
             </span>
@@ -420,7 +418,7 @@ const EditToolBlock = ({ name, input, result, toolId }: EditToolBlockProps) => {
             )}
           </div>
 
-          <ToolStatusIndicator isError={isError} isCompleted={isCompleted} />
+          <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />
         </div>
 
         {expanded && (

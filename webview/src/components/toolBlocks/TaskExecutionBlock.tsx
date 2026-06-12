@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
 import { normalizeToolName } from '../../utils/toolConstants';
 import { sendBridgeEvent } from '../../utils/bridge';
-import { ThemedToolIcon, ToolStatusIndicator } from './CoDriverToolParts';
 import { useSubagentHistoryGetter, useSessionId, useGetToolResultRaw, type GetToolResultRawFn } from '../../contexts/SubagentContext';
 import SubagentProcessDetails from '../StatusPanel/SubagentProcessDetails';
 
@@ -203,7 +202,7 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
         onClick={() => setExpanded((prev) => !prev)}
       >
         <div className="task-title-section">
-          <ThemedToolIcon codiconClass="codicon-tools" codriverName="tool" className="tool-title-icon" />
+          <span className="codicon codicon-tools tool-title-icon" />
 
           <span className="tool-title-text">
             {name ?? t('tools.task')}
@@ -228,7 +227,7 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
         </div>
 
         <div className="task-header-right">
-          <ToolStatusIndicator isError={isError} isCompleted={isCompleted} />
+          <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />
         </div>
       </div>
 
