@@ -77,6 +77,23 @@ export function ThemedFileIcon({
 }
 
 export function ToolStatusIndicator({ isCompleted, isError, className, style }: ToolStatusIndicatorProps) {
+  const isCoDriver = useIsCoDriverTheme();
   const status = isError ? 'error' : isCompleted ? 'completed' : 'pending';
-  return <div className={['tool-status-indicator', status, className].filter(Boolean).join(' ')} style={style} />;
+  const classes = ['tool-status-indicator', status, className].filter(Boolean).join(' ');
+
+  if (isCoDriver) {
+    const iconClass = isError
+      ? 'codicon-close'
+      : isCompleted
+        ? 'codicon-check'
+        : 'codicon-loading';
+
+    return (
+      <div className={classes} style={style} aria-hidden="true">
+        <span className={`codicon ${iconClass} codriver-tool-status-icon`} />
+      </div>
+    );
+  }
+
+  return <div className={classes} style={style} />;
 }
