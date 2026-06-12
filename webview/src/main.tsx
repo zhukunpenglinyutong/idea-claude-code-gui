@@ -90,16 +90,14 @@ function createBridgeHeartbeatStarter() {
 }
 
 const startBridgeHeartbeat = createBridgeHeartbeatStarter();
-// vConsole debugging tool. Keep it opt-in only: release-like IDE runs must not
-// expose the green vConsole overlay in the chat UI.
+// vConsole debugging tool
 const enableVConsole =
-  import.meta.env.VITE_ENABLE_VCONSOLE === 'true' ||
-  new URLSearchParams(window.location.search).get('vconsole') === 'true';
+  import.meta.env.DEV || import.meta.env.VITE_ENABLE_VCONSOLE === 'true';
 
 if (enableVConsole) {
   void import('vconsole').then(({ default: VConsole }) => {
     new VConsole();
-    // Move vConsole button to top-left corner to avoid blocking the send button in the bottom-right.
+    // Move vConsole button to top-left corner to avoid blocking the send button in the bottom-right
     setTimeout(() => {
       const vcSwitch = document.getElementById('__vconsole') as HTMLElement;
       if (vcSwitch) {
