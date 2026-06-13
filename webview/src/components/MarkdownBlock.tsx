@@ -761,8 +761,8 @@ const MarkdownBlock = ({ content = '', isStreaming = false }: MarkdownBlockProps
       const pres = doc.querySelectorAll('pre');
       const copySuccessText = t('markdown.copySuccess');
       const copyCodeTitle = t('markdown.copyCode');
-      const collapseCodeTitle = t('markdown.collapseCode', 'Collapse code block');
-      const expandCodeTitle = t('markdown.expandCode', 'Expand code block');
+      const collapseCodeTitle = t('markdown.collapseCode', { defaultValue: 'Collapse code block' });
+      const expandCodeTitle = t('markdown.expandCode', { defaultValue: 'Expand code block' });
 
       pres.forEach((pre) => {
         const parent = pre.parentElement;

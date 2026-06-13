@@ -319,12 +319,6 @@
         "enabled": "Ativado",
         "disabled": "Desativado",
         "hint": "Quando desativado, criar uma nova sessão em uma conversa com mensagens existentes irá pular a caixa de confirmação."
-      },
-      "coDriverToolIcon": {
-        "label": "Tool Icon",
-        "enabled": "Use monochrome CoDriver tool icon",
-        "disabled": "Use original orange tool icon",
-        "hint": "Switches the IntelliJ tool-window stripe icon between the original orange icon and the monochrome CoDriver icon."
       }
     },
     "providers": "Gerenciamento de Provedores",

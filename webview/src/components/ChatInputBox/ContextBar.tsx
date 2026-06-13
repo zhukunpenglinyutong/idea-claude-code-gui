@@ -166,13 +166,15 @@ export const ContextBar: React.FC<ContextBarProps> = memo(({
             <CoDriverIcon name="attachment" size={16} aria-hidden="true" />
           </button>
         ) : (
-          <div
+          <button
+            type="button"
             className="context-tool-btn"
             onClick={handleAttachClick}
             title="Add attachment"
+            aria-label="Add attachment"
           >
             <span className="codicon codicon-attach" />
-          </div>
+          </button>
         )}
 
         {/* Token Indicator */}
@@ -236,10 +238,12 @@ export const ContextBar: React.FC<ContextBarProps> = memo(({
               <CoDriverIcon name="x" size={12} aria-hidden="true" />
             </button>
           ) : (
-            <span
+            <button
+              type="button"
               className="codicon codicon-close context-close"
               onClick={onClearAgent}
               title="Remove agent"
+              aria-label="Remove agent"
             />
           )}
         </div>
@@ -289,10 +293,12 @@ export const ContextBar: React.FC<ContextBarProps> = memo(({
               <CoDriverIcon name="x" size={12} aria-hidden="true" />
             </button>
           ) : (
-            <span
+            <button
+              type="button"
               className="codicon codicon-close context-close"
               onClick={onClearFile}
               title="Remove file context"
+              aria-label="Remove file context"
             />
           )}
         </div>

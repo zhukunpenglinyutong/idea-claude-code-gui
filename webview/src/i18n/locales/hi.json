@@ -274,12 +274,6 @@
         "enabled": "सक्षम",
         "disabled": "अक्षम",
         "hint": "अक्षम होने पर, मौजूदा संदेशों वाले सत्र में नया बनाने पर पुष्टि संवाद नहीं दिखेगा।"
-      },
-      "coDriverToolIcon": {
-        "label": "Tool Icon",
-        "enabled": "Use monochrome CoDriver tool icon",
-        "disabled": "Use original orange tool icon",
-        "hint": "Switches the IntelliJ tool-window stripe icon between the original orange icon and the monochrome CoDriver icon."
       }
     },
     "providers": "प्रदाता प्रबंधन",

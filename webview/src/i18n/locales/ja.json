@@ -274,12 +274,6 @@
         "enabled": "有効",
         "disabled": "無効",
         "hint": "無効にすると、メッセージが存在するセッションで新規作成を選択した際、確認ダイアログを表示せず直接新規セッションを作成します。"
-      },
-      "coDriverToolIcon": {
-        "label": "Tool Icon",
-        "enabled": "Use monochrome CoDriver tool icon",
-        "disabled": "Use original orange tool icon",
-        "hint": "Switches the IntelliJ tool-window stripe icon between the original orange icon and the monochrome CoDriver icon."
       }
     },
     "providers": "プロバイダー管理",

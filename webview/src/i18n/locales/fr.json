@@ -274,12 +274,6 @@
         "enabled": "Activé",
         "disabled": "Désactivé",
         "hint": "Lorsqu'elle est désactivée, créer une nouvelle session dans une conversation contenant des messages se fera directement, sans afficher la boîte de dialogue de confirmation."
-      },
-      "coDriverToolIcon": {
-        "label": "Tool Icon",
-        "enabled": "Use monochrome CoDriver tool icon",
-        "disabled": "Use original orange tool icon",
-        "hint": "Switches the IntelliJ tool-window stripe icon between the original orange icon and the monochrome CoDriver icon."
       }
     },
     "providers": "Gestion des fournisseurs",
