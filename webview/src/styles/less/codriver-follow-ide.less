@@ -645,3 +645,65 @@ html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper pre::-web
     background: #3f4248;
     border-radius: 999px;
 }
+
+/* Dark CoDriver color correction sampled from the current Copilot/IDE reference.
+ * Keep this scoped to IDE dark mode only: light mode has its own palette.
+ * Inline code and file/path links are plain colored text in Copilot, not chips. */
+html[data-theme="codriver"][data-ide-theme="dark"] {
+    --color-message-user-bg: #264f78;
+    --codriver-user: #264f78;
+    --codriver-link: #526cab;
+    --color-link: #526cab;
+    --color-tool-file-link: #526cab;
+    --color-tool-class-link: #526cab;
+    --codriver-inline-code-text: #d7ba7d;
+    --codriver-inline-code-bg: transparent;
+    --color-code-inline-bg: transparent;
+    --color-message-user-code-bg: transparent;
+    --color-message-user-code-border: transparent;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .message.user .message-content {
+    background: #264f78 !important;
+    border-color: rgba(121, 192, 255, 0.28) !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .message.user .message-content a,
+html[data-theme="codriver"][data-ide-theme="dark"] .message.user .message-content code:not(pre code) {
+    color: #d7ba7d !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content :not(pre) > code,
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content code:not(pre code),
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content code:not(pre code) {
+    color: #d7ba7d !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content a,
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content a,
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content a.file-link,
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content a.class-link,
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content a[data-linkify="file"],
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content a[data-linkify="class"],
+html[data-theme="codriver"][data-ide-theme="dark"] .tool-file-link,
+html[data-theme="codriver"][data-ide-theme="dark"] .tool-class-link {
+    color: #526cab !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content code a,
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content code a {
+    color: #526cab !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+}
