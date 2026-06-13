@@ -1,0 +1,62 @@
+/* Final CoDriver dark token color calibration.
+ *
+ * These values are scoped to the CoDriver skin while the host IDE is in dark
+ * mode. They intentionally do not affect the light CoDriver variant.
+ */
+
+html[data-theme="codriver"][data-ide-theme="dark"] {
+    --color-message-user-bg: #264f78;
+    --codriver-user: #264f78;
+    --codriver-link: #4daafc;
+    --color-link: #4daafc;
+    --color-tool-file-link: #4daafc;
+    --codriver-inline-code-text: #d7ba7d;
+    --codriver-inline-code-bg: transparent;
+    --color-code-inline-bg: transparent;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .message.user .message-content {
+    background: #264f78 !important;
+    border-color: rgba(121, 192, 255, 0.30) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content code:not(pre code),
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content code:not(pre code),
+html[data-theme="codriver"][data-ide-theme="dark"] .message.user .message-content code:not(pre code),
+html[data-theme="codriver"][data-ide-theme="dark"] .message.user .markdown-content code:not(pre code) {
+    color: #d7ba7d !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content a,
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content .markdown-link,
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content .file-link,
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content .class-link,
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content a.file-link,
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content a.class-link,
+html[data-theme="codriver"][data-ide-theme="dark"] .tool-file-link,
+html[data-theme="codriver"][data-ide-theme="dark"] .clickable-file {
+    color: #4daafc !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    text-decoration: none;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content a:hover,
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content .markdown-link:hover,
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content .file-link:hover,
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content .class-link:hover,
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content a.file-link:hover,
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content a.class-link:hover,
+html[data-theme="codriver"][data-ide-theme="dark"] .tool-file-link:hover,
+html[data-theme="codriver"][data-ide-theme="dark"] .clickable-file:hover {
+    color: #4daafc !important;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+}
