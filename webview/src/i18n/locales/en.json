@@ -323,6 +323,12 @@
         "enabled": "Enabled",
         "disabled": "Disabled",
         "hint": "When disabled, creating a new session in a conversation with existing messages will skip the confirmation dialog."
+      },
+      "coDriverToolIcon": {
+        "label": "Tool Icon",
+        "enabled": "Use monochrome CoDriver tool icon",
+        "disabled": "Use original orange tool icon",
+        "hint": "Switches the IntelliJ tool-window stripe icon between the original orange icon and the monochrome CoDriver icon."
       }
     },
     "providers": "Provider Management",

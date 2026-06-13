@@ -225,6 +225,8 @@ export interface AppearanceTabProps {
   onCodeColorChange?: (color: string) => void;
   diffTheme?: DiffThemeMode;
   onDiffThemeChange?: (theme: DiffThemeMode) => void;
+  coDriverToolIconEnabled?: boolean;
+  onCoDriverToolIconEnabledChange?: (enabled: boolean) => void;
 }
 
 const AppearanceTab = ({
@@ -251,6 +253,8 @@ const AppearanceTab = ({
   onCodeColorChange = () => {},
   diffTheme = 'follow',
   onDiffThemeChange = () => {},
+  coDriverToolIconEnabled = true,
+  onCoDriverToolIconEnabledChange = () => {},
 }: AppearanceTabProps) => {
   const { t, i18n } = useTranslation();
   const colorInputRef = useRef<HTMLInputElement>(null);
@@ -737,6 +741,29 @@ const AppearanceTab = ({
             <span className={styles.themeOptionLabel}>{t('settings.basic.theme.dark')}</span>
           </div>
         </div>
+
+        {theme === 'codriver' && (
+          <div className={styles.coDriverToolIconSection}>
+            <label className={styles.toggleWrapper}>
+              <input
+                type="checkbox"
+                className={styles.toggleInput}
+                checked={coDriverToolIconEnabled}
+                onChange={(event) => onCoDriverToolIconEnabledChange(event.target.checked)}
+              />
+              <span className={styles.toggleSlider} />
+              <span className={styles.toggleLabel}>
+                {coDriverToolIconEnabled
+                  ? t('settings.basic.coDriverToolIcon.enabled', 'Use monochrome CoDriver tool icon')
+                  : t('settings.basic.coDriverToolIcon.disabled', 'Use original orange tool icon')}
+              </span>
+            </label>
+            <small className={styles.formHint}>
+              <span className="codicon codicon-info" />
+              <span>{t('settings.basic.coDriverToolIcon.hint', 'Switches the IntelliJ tool-window stripe icon between the original orange icon and the monochrome CoDriver icon.')}</span>
+            </small>
+          </div>
+        )}
       </div>
 
       {/* Language switcher */}

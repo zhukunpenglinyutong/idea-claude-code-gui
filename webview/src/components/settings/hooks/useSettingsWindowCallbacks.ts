@@ -52,6 +52,7 @@ export interface SettingsWindowCallbacksDeps {
   setCommitGenerationEnabled?: (enabled: boolean) => void;
   setAiTitleGenerationEnabled?: (enabled: boolean) => void;
   setStatusBarWidgetEnabled?: (enabled: boolean) => void;
+  setCoDriverToolIconEnabled?: (enabled: boolean) => void;
   setTaskCompletionNotificationEnabled?: (enabled: boolean) => void;
   // Sound notification setters
   setSoundNotificationEnabled?: (enabled: boolean) => void;
@@ -357,6 +358,16 @@ export function useSettingsWindowCallbacks(deps: SettingsWindowCallbacksDeps) {
       }
     };
 
+    // Handle CoDriver tool window icon config updates from Java.
+    window.updateCoDriverToolIconEnabled = (jsonStr: string) => {
+      try {
+        const data = JSON.parse(jsonStr);
+        d().setCoDriverToolIconEnabled?.(data.codriverToolIconEnabled ?? true);
+      } catch (error) {
+        console.error('[SettingsView] Failed to parse CoDriver tool icon config:', error);
+      }
+    };
+
     // Task completion notification config callback (opt-in feature, default false)
     window.updateTaskCompletionNotificationEnabled = (jsonStr: string) => {
       try {
@@ -527,6 +538,7 @@ export function useSettingsWindowCallbacks(deps: SettingsWindowCallbacksDeps) {
     sendToJava('get_commit_generation_enabled:');
     sendToJava('get_ai_title_generation_enabled:');
     sendToJava('get_status_bar_widget_enabled:');
+    sendToJava('get_codriver_tool_icon_enabled:');
     sendToJava('get_task_completion_notification_enabled:');
     sendToJava('get_permission_dialog_timeout:');
 
@@ -564,6 +576,7 @@ export function useSettingsWindowCallbacks(deps: SettingsWindowCallbacksDeps) {
       window.updateCommitGenerationEnabled = undefined;
       window.updateAiTitleGenerationEnabled = undefined;
       window.updateStatusBarWidgetEnabled = undefined;
+      window.updateCoDriverToolIconEnabled = undefined;
       window.updateTaskCompletionNotificationEnabled = undefined;
       window.updateAgents = previousUpdateAgents;
       window.agentOperationResult = undefined;

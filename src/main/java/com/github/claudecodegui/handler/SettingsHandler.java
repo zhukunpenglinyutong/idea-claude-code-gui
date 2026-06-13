@@ -239,6 +239,12 @@ public class SettingsHandler extends BaseMessageHandler {
             case "set_status_bar_widget_enabled":
                 projectConfigHandler.handleSetStatusBarWidgetEnabled(content);
                 return true;
+            case "get_codriver_tool_icon_enabled":
+                projectConfigHandler.handleGetCoDriverToolIconEnabled();
+                return true;
+            case "set_codriver_tool_icon_enabled":
+                projectConfigHandler.handleSetCoDriverToolIconEnabled(content);
+                return true;
             case "get_task_completion_notification_enabled":
                 projectConfigHandler.handleGetTaskCompletionNotificationEnabled();
                 return true;

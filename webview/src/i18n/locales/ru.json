@@ -274,6 +274,12 @@
         "enabled": "Включено",
         "disabled": "Отключено",
         "hint": "При отключении создание нового чата в существующем диалоге будет происходить напрямую, без подтверждения."
+      },
+      "coDriverToolIcon": {
+        "label": "Tool Icon",
+        "enabled": "Use monochrome CoDriver tool icon",
+        "disabled": "Use original orange tool icon",
+        "hint": "Switches the IntelliJ tool-window stripe icon between the original orange icon and the monochrome CoDriver icon."
       }
     },
     "providers": "Управление провайдерами",

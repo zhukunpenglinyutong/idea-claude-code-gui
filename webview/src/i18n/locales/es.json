@@ -274,6 +274,12 @@
         "enabled": "Habilitado",
         "disabled": "Deshabilitado",
         "hint": "Cuando está deshabilitado, crear una nueva sesión en una conversación con mensajes existentes omitirá el cuadro de confirmación."
+      },
+      "coDriverToolIcon": {
+        "label": "Tool Icon",
+        "enabled": "Use monochrome CoDriver tool icon",
+        "disabled": "Use original orange tool icon",
+        "hint": "Switches the IntelliJ tool-window stripe icon between the original orange icon and the monochrome CoDriver icon."
       }
     },
     "providers": "Gestión de proveedores",

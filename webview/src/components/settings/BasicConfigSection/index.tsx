@@ -81,6 +81,9 @@ interface BasicConfigSectionProps {
   // Status bar widget configuration
   statusBarWidgetEnabled?: boolean;
   onStatusBarWidgetEnabledChange?: (enabled: boolean) => void;
+  // CoDriver tool window icon configuration
+  coDriverToolIconEnabled?: boolean;
+  onCoDriverToolIconEnabledChange?: (enabled: boolean) => void;
   // AI title generation configuration
   aiTitleGenerationEnabled?: boolean;
   onAiTitleGenerationEnabledChange?: (enabled: boolean) => void;
@@ -156,6 +159,8 @@ const BasicConfigSection = (props: BasicConfigSectionProps) => {
           onCodeColorChange={props.onCodeColorChange}
           diffTheme={props.diffTheme}
           onDiffThemeChange={props.onDiffThemeChange}
+          coDriverToolIconEnabled={props.coDriverToolIconEnabled}
+          onCoDriverToolIconEnabledChange={props.onCoDriverToolIconEnabledChange}
         />
       )}
 

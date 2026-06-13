@@ -79,6 +79,7 @@ export interface UseSettingsBasicActionsReturn {
   commitGenerationEnabled: boolean;
   aiTitleGenerationEnabled: boolean;
   statusBarWidgetEnabled: boolean;
+  coDriverToolIconEnabled: boolean;
   taskCompletionNotificationEnabled: boolean;
   commitAiConfig: CommitAiConfig;
   promptEnhancerConfig: PromptEnhancerConfig;
@@ -111,6 +112,7 @@ export interface UseSettingsBasicActionsReturn {
   handleCommitGenerationEnabledChange: (enabled: boolean) => void;
   handleAiTitleGenerationEnabledChange: (enabled: boolean) => void;
   handleStatusBarWidgetEnabledChange: (enabled: boolean) => void;
+  handleCoDriverToolIconEnabledChange: (enabled: boolean) => void;
   handleTaskCompletionNotificationEnabledChange: (enabled: boolean) => void;
   permissionDialogTimeoutSeconds: number;
   handlePermissionDialogTimeoutChange: (seconds: number) => void;
@@ -162,6 +164,7 @@ export interface UseSettingsBasicActionsReturn {
   /** @internal */ setCommitGenerationEnabled: (enabled: boolean) => void;
   /** @internal */ setAiTitleGenerationEnabled: (enabled: boolean) => void;
   /** @internal */ setStatusBarWidgetEnabled: (enabled: boolean) => void;
+  /** @internal */ setCoDriverToolIconEnabled: (enabled: boolean) => void;
   /** @internal */ setTaskCompletionNotificationEnabled: (enabled: boolean) => void;
   /** @internal */ setCommitAiConfig: (config: CommitAiConfig) => void;
   /** @internal */ setPromptEnhancerConfig: (config: PromptEnhancerConfig) => void;
@@ -273,6 +276,9 @@ export function useSettingsBasicActions({
 
   // Status bar widget toggle (default: true)
   const [statusBarWidgetEnabled, setStatusBarWidgetEnabled] = useState<boolean>(true);
+
+  // Store the CoDriver tool window icon toggle (default: true).
+  const [coDriverToolIconEnabled, setCoDriverToolIconEnabled] = useState<boolean>(true);
 
   // Task completion notification toggle (default: false, opt-in feature)
   const [taskCompletionNotificationEnabled, setTaskCompletionNotificationEnabled] = useState<boolean>(false);
@@ -477,6 +483,13 @@ export function useSettingsBasicActions({
     setStatusBarWidgetEnabled(enabled);
     const payload = { statusBarWidgetEnabled: enabled };
     sendToJava(`set_status_bar_widget_enabled:${JSON.stringify(payload)}`);
+  }, []);
+
+  // Persist CoDriver tool window icon toggle changes.
+  const handleCoDriverToolIconEnabledChange = useCallback((enabled: boolean) => {
+    setCoDriverToolIconEnabled(enabled);
+    const payload = { codriverToolIconEnabled: enabled };
+    sendToJava(`set_codriver_tool_icon_enabled:${JSON.stringify(payload)}`);
   }, []);
 
   // Task completion notification toggle change handler
@@ -694,6 +707,9 @@ export function useSettingsBasicActions({
     statusBarWidgetEnabled,
     setStatusBarWidgetEnabled,
     handleStatusBarWidgetEnabledChange,
+    coDriverToolIconEnabled,
+    setCoDriverToolIconEnabled,
+    handleCoDriverToolIconEnabledChange,
     taskCompletionNotificationEnabled,
     setTaskCompletionNotificationEnabled,
     handleTaskCompletionNotificationEnabledChange,

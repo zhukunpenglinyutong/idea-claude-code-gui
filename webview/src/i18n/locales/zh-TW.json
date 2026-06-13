@@ -274,6 +274,12 @@
         "enabled": "已開啟",
         "disabled": "已關閉",
         "hint": "關閉後，在已有訊息的會話中點選新建將直接建立，不再彈出確認視窗"
+      },
+      "coDriverToolIcon": {
+        "label": "Tool Icon",
+        "enabled": "Use monochrome CoDriver tool icon",
+        "disabled": "Use original orange tool icon",
+        "hint": "Switches the IntelliJ tool-window stripe icon between the original orange icon and the monochrome CoDriver icon."
       }
     },
     "providers": "供應商管理",

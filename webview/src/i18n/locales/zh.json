@@ -323,6 +323,12 @@
         "enabled": "已开启",
         "disabled": "已关闭",
         "hint": "关闭后，在已有消息的会话中点击新建将直接创建，不再弹出确认窗口"
+      },
+      "coDriverToolIcon": {
+        "label": "Tool Icon",
+        "enabled": "Use monochrome CoDriver tool icon",
+        "disabled": "Use original orange tool icon",
+        "hint": "Switches the IntelliJ tool-window stripe icon between the original orange icon and the monochrome CoDriver icon."
       }
     },
     "providers": "供应商管理",

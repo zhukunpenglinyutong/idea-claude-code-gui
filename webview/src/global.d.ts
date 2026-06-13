@@ -309,6 +309,11 @@ interface Window {
   updateStatusBarWidgetEnabled?: (json: string) => void;
 
   /**
+   * Update CoDriver tool window icon enabled state
+   */
+  updateCoDriverToolIconEnabled?: (json: string) => void;
+
+  /**
    * Update task completion notification enabled state
    */
   updateTaskCompletionNotificationEnabled?: (json: string) => void;

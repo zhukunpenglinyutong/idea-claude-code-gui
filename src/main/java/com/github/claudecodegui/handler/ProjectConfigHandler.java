@@ -7,6 +7,7 @@ import com.github.claudecodegui.settings.CodemossSettingsService;
 import com.github.claudecodegui.action.SendShortcutSync;
 import com.github.claudecodegui.provider.claude.ClaudeHistoryReader;
 import com.github.claudecodegui.provider.codex.CodexHistoryReader;
+import com.github.claudecodegui.ui.icon.ToolWindowIconService;
 import com.github.claudecodegui.util.FontConfigService;
 import com.github.claudecodegui.util.ThemeConfigService;
 import com.google.gson.Gson;
@@ -687,6 +688,23 @@ public class ProjectConfigHandler {
             settingsService::setStatusBarWidgetEnabled,
             "window.updateStatusBarWidgetEnabled",
             "Failed to save status bar config");
+    }
+
+    public void handleGetCoDriverToolIconEnabled() {
+        respondWithJson("window.updateCoDriverToolIconEnabled",
+            () -> jsonOf("codriverToolIconEnabled", settingsService.getCoDriverToolIconEnabled()),
+            jsonOf("codriverToolIconEnabled", true),
+            "Failed to get CoDriver tool icon enabled");
+    }
+
+    public void handleSetCoDriverToolIconEnabled(String content) {
+        handleBooleanToggle(content, "codriverToolIconEnabled", true, "CoDriver tool icon enabled",
+            enabled -> {
+                settingsService.setCoDriverToolIconEnabled(enabled);
+                ToolWindowIconService.applyIcon(context.getProject(), enabled);
+            },
+            "window.updateCoDriverToolIconEnabled",
+            "Failed to save CoDriver tool icon config");
     }
 
     public void handleGetTaskCompletionNotificationEnabled() {

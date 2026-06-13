@@ -196,6 +196,9 @@ const SettingsView = ({
     statusBarWidgetEnabled,
     setStatusBarWidgetEnabled,
     handleStatusBarWidgetEnabledChange,
+    coDriverToolIconEnabled,
+    setCoDriverToolIconEnabled,
+    handleCoDriverToolIconEnabledChange,
     taskCompletionNotificationEnabled,
     setTaskCompletionNotificationEnabled,
     handleTaskCompletionNotificationEnabledChange,
@@ -352,6 +355,7 @@ const SettingsView = ({
     setCommitGenerationEnabled,
     setAiTitleGenerationEnabled,
     setStatusBarWidgetEnabled,
+    setCoDriverToolIconEnabled,
     setTaskCompletionNotificationEnabled,
   });
 
@@ -515,6 +519,8 @@ const SettingsView = ({
                 handleStatusBarWidgetEnabledChange(enabled);
                 addToast(t('toast.restartRequired'), 'warning');
               }}
+              coDriverToolIconEnabled={coDriverToolIconEnabled}
+              onCoDriverToolIconEnabledChange={handleCoDriverToolIconEnabledChange}
               aiTitleGenerationEnabled={aiTitleGenerationEnabled}
               onAiTitleGenerationEnabledChange={handleAiTitleGenerationEnabledChange}
               newSessionConfirmEnabled={!skipNewSessionConfirm}

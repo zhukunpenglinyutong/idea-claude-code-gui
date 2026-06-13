@@ -117,4 +117,17 @@ describe('useSettingsBasicActions', () => {
 
     expect(window.sendToJava).not.toHaveBeenCalled();
   });
+
+  it('sends CoDriver tool icon preference changes to Java', () => {
+    const { result } = renderHook(() => useSettingsBasicActions({}));
+
+    act(() => {
+      result.current.handleCoDriverToolIconEnabledChange(false);
+    });
+
+    expect(result.current.coDriverToolIconEnabled).toBe(false);
+    expect(window.sendToJava).toHaveBeenCalledWith(
+      'set_codriver_tool_icon_enabled:{"codriverToolIconEnabled":false}'
+    );
+  });
 });

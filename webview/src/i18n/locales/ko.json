@@ -296,6 +296,12 @@
         "enabled": "활성화",
         "disabled": "비활성화",
         "hint": "비활성화하면 메시지가 있는 세션에서 새로 만들기를 선택할 때 확인 대화 상자 없이 바로 새 세션을 만듭니다."
+      },
+      "coDriverToolIcon": {
+        "label": "Tool Icon",
+        "enabled": "Use monochrome CoDriver tool icon",
+        "disabled": "Use original orange tool icon",
+        "hint": "Switches the IntelliJ tool-window stripe icon between the original orange icon and the monochrome CoDriver icon."
       }
     },
     "providers": "제공자 관리",
