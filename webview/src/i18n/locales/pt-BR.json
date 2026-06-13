@@ -1087,7 +1087,9 @@
   "markdown": {
     "copyCode": "Copiar código",
     "copyMessage": "Copiar mensagem",
-    "copySuccess": "Copiado!"
+    "copySuccess": "Copiado!",
+    "collapseCode": "Recolher bloco de código",
+    "expandCode": "Expandir bloco de código"
   },
   "usage": {
     "loading": "Carregando estatísticas...",

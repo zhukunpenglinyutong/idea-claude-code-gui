@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import MarkdownBlock from './MarkdownBlock';
 import {
@@ -64,6 +64,68 @@ describe('MarkdownBlock linkify integration', () => {
     const fencedCode = document.querySelector('pre code');
     expect(fencedCode?.textContent).toContain('src/ignored-block.ts');
     expect(fencedCode?.querySelector('a')).toBeNull();
+  });
+
+  it('renders code blocks with a clickable collapse control and language label', () => {
+    render(
+      <MarkdownBlock
+        content={[
+          '```typescript',
+          'const value = 42;',
+          '```',
+        ].join('\n')}
+      />,
+    );
+
+    const wrapper = document.querySelector('.code-block-wrapper') as HTMLElement;
+    const codeBlock = document.querySelector('pre code') as HTMLElement;
+    const collapseButton = screen.getByRole('button', { name: 'markdown.collapseCode' });
+
+    expect(wrapper.getAttribute('data-language')).toBe('typescript');
+    expect(screen.getByText('TypeScript')).toBeTruthy();
+    expect(codeBlock.textContent).toContain('const value = 42;');
+    expect(collapseButton.getAttribute('aria-expanded')).toBe('true');
+
+    fireEvent.click(collapseButton);
+
+    expect(wrapper.classList.contains('is-collapsed')).toBe(true);
+    expect(collapseButton.getAttribute('aria-expanded')).toBe('false');
+    expect(collapseButton.getAttribute('aria-label')).toBe('markdown.expandCode');
+    expect(collapseButton.querySelector('.codicon-chevron-right')).toBeTruthy();
+
+    fireEvent.click(collapseButton);
+
+    expect(wrapper.classList.contains('is-collapsed')).toBe(false);
+    expect(collapseButton.getAttribute('aria-expanded')).toBe('true');
+    expect(collapseButton.getAttribute('aria-label')).toBe('markdown.collapseCode');
+    expect(collapseButton.querySelector('.codicon-chevron-down')).toBeTruthy();
+  });
+
+  it('copies code from the wrapped code block header button', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    render(
+      <MarkdownBlock
+        content={[
+          '```java',
+          'class Demo {',
+          '}',
+          '```',
+        ].join('\n')}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'markdown.copyCode' }));
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalled();
+    });
+    expect(writeText.mock.calls[0][0]).toContain('class Demo {');
+    expect(writeText.mock.calls[0][0]).toContain('}');
   });
 
   it('renders Java class links only when capability is enabled', () => {

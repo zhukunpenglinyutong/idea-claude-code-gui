@@ -922,7 +922,9 @@
   "markdown": {
     "copyCode": "コードをコピー",
     "copyMessage": "メッセージをコピー",
-    "copySuccess": "コピーされました!"
+    "copySuccess": "コピーされました!",
+    "collapseCode": "コードブロックを折りたたむ",
+    "expandCode": "コードブロックを展開"
   },
   "usage": {
     "loading": "統計を読み込み中...",

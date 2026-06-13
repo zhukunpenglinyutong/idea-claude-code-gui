@@ -1114,7 +1114,9 @@
   "markdown": {
     "copyCode": "复制代码",
     "copyMessage": "复制消息",
-    "copySuccess": "复制成功"
+    "copySuccess": "复制成功",
+    "collapseCode": "折叠代码块",
+    "expandCode": "展开代码块"
   },
   "usage": {
     "loading": "加载统计数据中...",

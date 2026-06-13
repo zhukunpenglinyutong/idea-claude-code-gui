@@ -1109,7 +1109,9 @@
   "markdown": {
     "copyCode": "Copy code",
     "copyMessage": "Copy message",
-    "copySuccess": "Copied!"
+    "copySuccess": "Copied!",
+    "collapseCode": "Collapse code block",
+    "expandCode": "Expand code block"
   },
   "usage": {
     "loading": "Loading statistics...",
