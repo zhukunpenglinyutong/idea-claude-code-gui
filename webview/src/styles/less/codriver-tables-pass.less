@@ -109,3 +109,44 @@ html[data-theme="codriver"] {
         border-bottom: 0 !important;
     }
 }
+
+/* Keep Copilot-style markdown tables aligned: use one native table layout. */
+html[data-theme="codriver"] {
+    .markdown-content table {
+        display: table !important;
+        width: 100% !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        overflow: visible;
+    }
+
+    .markdown-content thead {
+        display: table-header-group !important;
+        width: auto !important;
+    }
+
+    .markdown-content tbody {
+        display: table-row-group !important;
+        width: auto !important;
+    }
+
+    .markdown-content tr {
+        display: table-row !important;
+        width: auto !important;
+    }
+
+    .markdown-content th,
+    .markdown-content td {
+        display: table-cell !important;
+        box-sizing: border-box;
+    }
+
+    .markdown-content th {
+        text-align: center !important;
+    }
+
+    .markdown-content td {
+        text-align: left !important;
+        vertical-align: top;
+    }
+}
