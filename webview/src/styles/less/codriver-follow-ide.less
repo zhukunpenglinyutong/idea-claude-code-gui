@@ -564,3 +564,84 @@ html[data-theme="codriver"][data-ide-theme="dark"] .message.assistant .message-c
 html[data-theme="codriver"][data-ide-theme="dark"] .message.assistant .markdown-content {
     background: transparent !important;
 }
+
+/* Dark IDE follow-up: CoDriver code blocks must not create a black card. Match the
+ * surrounding Copilot/IDE surface: title strip and body share the #191a1c window
+ * base; only the divider below the title strip and the horizontal code scrollbar
+ * remain visible. */
+html[data-theme="codriver"][data-ide-theme="dark"] {
+    --codriver-code-surface: var(--codriver-ide-window-bg);
+    --codriver-code-title-border: #2b2d30;
+    --color-code-block-bg: var(--codriver-code-surface);
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper {
+    background: var(--codriver-code-surface) !important;
+    border: none !important;
+    border-radius: 6px !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper::before {
+    content: '' !important;
+    display: block !important;
+    height: 28px !important;
+    background: var(--codriver-code-surface) !important;
+    border-bottom: 1px solid var(--codriver-code-title-border) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper::after {
+    top: 4px !important;
+    left: 11px !important;
+    color: var(--codriver-fg-muted) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper pre,
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content pre,
+html[data-theme="codriver"][data-ide-theme="dark"] pre {
+    margin: 0 !important;
+    padding: 12px 14px 14px !important;
+    background: var(--codriver-code-surface) !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper pre code,
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content pre code,
+html[data-theme="codriver"][data-ide-theme="dark"] pre code,
+html[data-theme="codriver"][data-ide-theme="dark"] .hljs {
+    background: transparent !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper .copy-code-btn,
+html[data-theme="codriver"][data-ide-theme="dark"] .copy-code-btn {
+    top: 3px !important;
+    right: 7px !important;
+    background: transparent !important;
+    border-color: transparent !important;
+    color: var(--codriver-fg-muted) !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper .copy-code-btn:hover,
+html[data-theme="codriver"][data-ide-theme="dark"] .copy-code-btn:hover {
+    background: rgba(255, 255, 255, 0.06) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    color: var(--codriver-fg-default) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper pre::-webkit-scrollbar {
+    height: 8px;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper pre::-webkit-scrollbar-track {
+    background: var(--codriver-code-surface);
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper pre::-webkit-scrollbar-thumb {
+    background: #3f4248;
+    border-radius: 999px;
+}
