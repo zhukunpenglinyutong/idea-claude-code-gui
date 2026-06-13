@@ -381,3 +381,38 @@ html[data-theme="codriver"][data-ide-theme="light"] {
     --hljs-del-fg: #cf222e;
     --hljs-del-bg: #ffebe9;
 }
+
+/* Light IDE mode: user requests are not dark-blue pills. Match the VS Code/
+ * Copilot light treatment: black text on a very light blue request bubble.
+ * This final override intentionally comes after the shared CoDriver message
+ * rules because codriver-laf-v3 defines the dark request bubble globally. */
+html[data-theme="codriver"][data-ide-theme="light"] {
+    --color-message-user-bg: #d4e2ff;
+    --color-message-user-text: #111827;
+    --color-message-user-code-bg: rgba(25, 107, 197, 0.10);
+    --color-message-user-code-border: rgba(25, 107, 197, 0.16);
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message.user .message-content {
+    color: var(--color-message-user-text) !important;
+    background: var(--color-message-user-bg) !important;
+    border: 1px solid rgba(25, 107, 197, 0.16) !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message.user .markdown-content,
+html[data-theme="codriver"][data-ide-theme="light"] .message.user .message-content p,
+html[data-theme="codriver"][data-ide-theme="light"] .message.user .message-content li {
+    color: var(--color-message-user-text) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message.user .message-content a {
+    color: #196bc5 !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message.user .message-content code:not(pre code),
+html[data-theme="codriver"][data-ide-theme="light"] .message.user .markdown-content code:not(pre code) {
+    color: #111827 !important;
+    background: var(--color-message-user-code-bg) !important;
+    border-color: var(--color-message-user-code-border) !important;
+}
