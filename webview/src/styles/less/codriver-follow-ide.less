@@ -36,11 +36,13 @@ html[data-theme="codriver"][data-ide-theme="dark"] {
     --accent-primary-active: #2f65ca;
     --accent-secondary: #58a6ff;
 
-    --color-link: #4ea1ff;
+    --codriver-default-link: #4daafc;
+    --codriver-default-inline-code-text: #d7ba7d;
+    --color-link: var(--codriver-custom-link-color, var(--codriver-default-link));
     --color-code-block-bg: #1f2023;
     --color-code-block-border: #35383d;
     --color-code-inline-bg: rgba(214, 170, 90, 0.18);
-    --color-message-user-bg: #265985;
+    --color-message-user-bg: #264f78;
     --color-message-user-text: #ffffff;
     --color-message-user-code-bg: rgba(0, 0, 0, 0.20);
     --color-message-user-code-border: rgba(255, 255, 255, 0.12);
@@ -70,7 +72,7 @@ html[data-theme="codriver"][data-ide-theme="dark"] {
     --codriver-heading: var(--text-secondary);
     --codriver-code-bg: var(--color-code-block-bg);
     --codriver-inline-code-bg: var(--color-code-inline-bg);
-    --codriver-inline-code-text: #f0c674;
+    --codriver-inline-code-text: var(--codriver-custom-code-color, var(--codriver-default-inline-code-text));
 }
 
 html[data-theme="codriver"][data-ide-theme="light"] {
@@ -101,11 +103,13 @@ html[data-theme="codriver"][data-ide-theme="light"] {
     --accent-primary-active: #005a9e;
     --accent-secondary: #2b88d8;
 
-    --color-link: #0066cc;
+    --codriver-default-link: #196bc5;
+    --codriver-default-inline-code-text: #cf222e;
+    --color-link: var(--codriver-custom-link-color, var(--codriver-default-link));
     --color-code-block-bg: #f5f5f5;
     --color-code-block-border: #d0d0d0;
     --color-code-inline-bg: rgba(163, 88, 0, 0.12);
-    --color-message-user-bg: #0078d4;
+    --color-message-user-bg: #d4e2ff;
     --color-message-user-text: #ffffff;
     --color-message-user-code-bg: rgba(0, 0, 0, 0.15);
     --color-message-user-code-border: rgba(255, 255, 255, 0.20);
@@ -135,7 +139,7 @@ html[data-theme="codriver"][data-ide-theme="light"] {
     --codriver-heading: var(--text-secondary);
     --codriver-code-bg: var(--color-code-block-bg);
     --codriver-inline-code-bg: var(--color-code-inline-bg);
-    --codriver-inline-code-text: #a35800;
+    --codriver-inline-code-text: var(--codriver-custom-code-color, var(--codriver-default-inline-code-text));
 }
 
 html[data-theme="codriver"] body,
@@ -390,6 +394,11 @@ html[data-theme="codriver"][data-ide-theme="light"] {
     --color-message-user-bg: #d4e2ff;
     --color-message-user-text: #111827;
     --color-message-user-code-bg: rgba(25, 107, 197, 0.10);
+    --codriver-default-link: #196bc5;
+    --codriver-default-inline-code-text: #cf222e;
+    --codriver-link: var(--codriver-custom-link-color, var(--codriver-default-link));
+    --color-link: var(--codriver-link);
+    --codriver-inline-code-text: var(--codriver-custom-code-color, var(--codriver-default-inline-code-text));
     --color-message-user-code-border: rgba(25, 107, 197, 0.16);
 }
 
@@ -407,12 +416,12 @@ html[data-theme="codriver"][data-ide-theme="light"] .message.user .message-conte
 }
 
 html[data-theme="codriver"][data-ide-theme="light"] .message.user .message-content a {
-    color: #196bc5 !important;
+    color: var(--codriver-link) !important;
 }
 
 html[data-theme="codriver"][data-ide-theme="light"] .message.user .message-content code:not(pre code),
 html[data-theme="codriver"][data-ide-theme="light"] .message.user .markdown-content code:not(pre code) {
-    color: #111827 !important;
+    color: var(--codriver-inline-code-text) !important;
     background: var(--color-message-user-code-bg) !important;
     border-color: var(--color-message-user-code-border) !important;
 }
@@ -513,12 +522,13 @@ html[data-theme="codriver"][data-ide-theme="light"] .copy-tooltip {
  * IDE the shell/header/transcript surface must use the host window base (#191a1c)
  * while only component internals such as code blocks keep their own card color. */
 html[data-theme="codriver"][data-ide-theme="dark"] {
-    --codriver-ide-window-bg: #191a1c;
-    --codriver-ide-toolbar-bg: #191a1c;
+    --codriver-default-window-bg: #191a1c;
+    --bg-chat: var(--codriver-default-window-bg);
+    --codriver-ide-window-bg: var(--bg-chat);
+    --codriver-ide-toolbar-bg: var(--codriver-ide-window-bg);
     --codriver-ide-toolbar-border: #2b2d30;
 
     --bg-primary: var(--codriver-ide-window-bg);
-    --bg-chat: var(--codriver-ide-window-bg);
     --codriver-canvas: var(--codriver-ide-window-bg);
     --codriver-canvas-subtle: var(--codriver-ide-window-bg);
     --codriver-shell-bg: var(--codriver-ide-window-bg);
@@ -651,12 +661,14 @@ html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper pre::-web
  * Inline code and file/path links are plain colored text in Copilot, not chips. */
 html[data-theme="codriver"][data-ide-theme="dark"] {
     --color-message-user-bg: #264f78;
-    --codriver-user: #264f78;
-    --codriver-link: #526cab;
-    --color-link: #526cab;
-    --color-tool-file-link: #526cab;
-    --color-tool-class-link: #526cab;
-    --codriver-inline-code-text: #d7ba7d;
+    --codriver-user: var(--color-message-user-bg);
+    --codriver-default-link: #4daafc;
+    --codriver-link: var(--codriver-custom-link-color, var(--codriver-default-link));
+    --color-link: var(--codriver-link);
+    --color-tool-file-link: var(--codriver-link);
+    --color-tool-class-link: var(--codriver-link);
+    --codriver-default-inline-code-text: #d7ba7d;
+    --codriver-inline-code-text: var(--codriver-custom-code-color, var(--codriver-default-inline-code-text));
     --codriver-inline-code-bg: transparent;
     --color-code-inline-bg: transparent;
     --color-message-user-code-bg: transparent;
@@ -664,20 +676,23 @@ html[data-theme="codriver"][data-ide-theme="dark"] {
 }
 
 html[data-theme="codriver"][data-ide-theme="dark"] .message.user .message-content {
-    background: #264f78 !important;
+    background: var(--color-message-user-bg) !important;
     border-color: rgba(121, 192, 255, 0.28) !important;
     box-shadow: none !important;
 }
 
-html[data-theme="codriver"][data-ide-theme="dark"] .message.user .message-content a,
+html[data-theme="codriver"][data-ide-theme="dark"] .message.user .message-content a {
+    color: var(--codriver-link) !important;
+}
+
 html[data-theme="codriver"][data-ide-theme="dark"] .message.user .message-content code:not(pre code) {
-    color: #d7ba7d !important;
+    color: var(--codriver-inline-code-text) !important;
 }
 
 html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content :not(pre) > code,
 html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content code:not(pre code),
 html[data-theme="codriver"][data-ide-theme="dark"] .message-content code:not(pre code) {
-    color: #d7ba7d !important;
+    color: var(--codriver-inline-code-text) !important;
     background: transparent !important;
     border: 0 !important;
     box-shadow: none !important;
@@ -693,7 +708,7 @@ html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content a[data-link
 html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content a[data-linkify="class"],
 html[data-theme="codriver"][data-ide-theme="dark"] .tool-file-link,
 html[data-theme="codriver"][data-ide-theme="dark"] .tool-class-link {
-    color: #526cab !important;
+    color: var(--codriver-link) !important;
     background: transparent !important;
     border: 0 !important;
     box-shadow: none !important;
@@ -701,7 +716,7 @@ html[data-theme="codriver"][data-ide-theme="dark"] .tool-class-link {
 
 html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content code a,
 html[data-theme="codriver"][data-ide-theme="dark"] .message-content code a {
-    color: #526cab !important;
+    color: var(--codriver-link) !important;
     background: transparent !important;
     border: 0 !important;
     box-shadow: none !important;

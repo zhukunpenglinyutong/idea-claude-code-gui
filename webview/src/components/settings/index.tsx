@@ -102,6 +102,10 @@ const SettingsView = ({
     setChatBgColor,
     userMsgColor,
     setUserMsgColor,
+    linkColor,
+    setLinkColor,
+    codeColor,
+    setCodeColor,
     diffTheme,
     setDiffTheme,
   } = useSettingsThemeSync();
@@ -493,6 +497,10 @@ const SettingsView = ({
               onChatBgColorChange={setChatBgColor}
               userMsgColor={userMsgColor}
               onUserMsgColorChange={setUserMsgColor}
+              linkColor={linkColor}
+              onLinkColorChange={setLinkColor}
+              codeColor={codeColor}
+              onCodeColorChange={setCodeColor}
               diffTheme={diffTheme}
               onDiffThemeChange={setDiffTheme}
               diffExpandedByDefault={diffExpandedByDefault}

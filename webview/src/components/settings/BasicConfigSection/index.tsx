@@ -63,6 +63,12 @@ interface BasicConfigSectionProps {
   // User message bubble color configuration
   userMsgColor?: string;
   onUserMsgColorChange?: (color: string) => void;
+  // CoDriver link color configuration
+  linkColor?: string;
+  onLinkColorChange?: (color: string) => void;
+  // CoDriver inline code color configuration
+  codeColor?: string;
+  onCodeColorChange?: (color: string) => void;
   // Diff theme configuration
   diffTheme?: DiffThemeMode;
   onDiffThemeChange?: (theme: DiffThemeMode) => void;
@@ -144,6 +150,10 @@ const BasicConfigSection = (props: BasicConfigSectionProps) => {
           onChatBgColorChange={props.onChatBgColorChange}
           userMsgColor={props.userMsgColor}
           onUserMsgColorChange={props.onUserMsgColorChange}
+          linkColor={props.linkColor}
+          onLinkColorChange={props.onLinkColorChange}
+          codeColor={props.codeColor}
+          onCodeColorChange={props.onCodeColorChange}
           diffTheme={props.diffTheme}
           onDiffThemeChange={props.onDiffThemeChange}
         />
