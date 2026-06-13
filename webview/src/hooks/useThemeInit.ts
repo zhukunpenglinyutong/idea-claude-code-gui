@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react';
 import { isExplicitUiThemeMode } from '../types/uiThemeMode';
 
+function applyIdeThemeAttribute(theme: 'light' | 'dark' | null) {
+  if (theme === null) {
+    document.documentElement.removeAttribute('data-ide-theme');
+    return;
+  }
+
+  document.documentElement.setAttribute('data-ide-theme', theme);
+}
+
 /**
  * Manages IDE theme initialization and synchronization.
  * Handles font scaling, background color, and theme mode detection.
@@ -22,6 +31,7 @@ export function useThemeInit() {
       try {
         const themeData = JSON.parse(jsonStr);
         const theme = themeData.isDark ? 'dark' : 'light';
+        applyIdeThemeAttribute(theme);
         setIdeTheme(theme);
       } catch {
         // Failed to parse IDE theme response
@@ -33,11 +43,15 @@ export function useThemeInit() {
       try {
         const themeData = JSON.parse(jsonStr);
         const theme = themeData.isDark ? 'dark' : 'light';
+        applyIdeThemeAttribute(theme);
         setIdeTheme(theme);
       } catch {
         // Failed to parse IDE theme change
       }
     };
+
+    // Initialize IDE theme base attribute before any explicit skin is applied.
+    applyIdeThemeAttribute(ideTheme);
 
     // Initialize font scaling
     const savedLevel = localStorage.getItem('fontSizeLevel');
@@ -93,6 +107,7 @@ export function useThemeInit() {
           // If in Follow IDE mode and unable to get IDE theme, use injected theme or dark as fallback
           if (savedTheme === null || savedTheme === 'system') {
             const fallback = injectedTheme || 'dark';
+            applyIdeThemeAttribute(fallback as 'light' | 'dark');
             setIdeTheme(fallback as 'light' | 'dark');
           }
         }
@@ -113,6 +128,8 @@ export function useThemeInit() {
     }
 
     // If user selected "Follow IDE" mode
+    applyIdeThemeAttribute(ideTheme);
+
     if (savedTheme === null || savedTheme === 'system') {
       document.documentElement.setAttribute('data-theme', ideTheme);
     }

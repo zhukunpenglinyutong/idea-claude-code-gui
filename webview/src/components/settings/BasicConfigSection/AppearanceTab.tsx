@@ -215,11 +215,16 @@ const AppearanceTab = ({
     return (document.documentElement.getAttribute('data-theme') as 'light' | 'dark' | 'codriver') || 'dark';
   }, [theme]);
 
-  const defaultBgColor = resolvedTheme === 'light' ? DEFAULT_LIGHT_BG : DEFAULT_DARK_BG;
-  const presets = resolvedTheme === 'light' ? LIGHT_PRESETS : DARK_PRESETS;
+  const effectiveBaseTheme = useMemo(() => {
+    if (resolvedTheme !== 'codriver') return resolvedTheme;
+    return (document.documentElement.getAttribute('data-ide-theme') as 'light' | 'dark') || 'dark';
+  }, [resolvedTheme]);
 
-  const defaultUserMsgColor = resolvedTheme === 'light' ? DEFAULT_LIGHT_USER_MSG : DEFAULT_DARK_USER_MSG;
-  const userMsgPresets = resolvedTheme === 'light' ? USER_MSG_LIGHT_PRESETS : USER_MSG_DARK_PRESETS;
+  const defaultBgColor = effectiveBaseTheme === 'light' ? DEFAULT_LIGHT_BG : DEFAULT_DARK_BG;
+  const presets = effectiveBaseTheme === 'light' ? LIGHT_PRESETS : DARK_PRESETS;
+
+  const defaultUserMsgColor = effectiveBaseTheme === 'light' ? DEFAULT_LIGHT_USER_MSG : DEFAULT_DARK_USER_MSG;
+  const userMsgPresets = effectiveBaseTheme === 'light' ? USER_MSG_LIGHT_PRESETS : USER_MSG_DARK_PRESETS;
 
   const handlePresetClick = (color: string) => {
     if (color === defaultBgColor) {

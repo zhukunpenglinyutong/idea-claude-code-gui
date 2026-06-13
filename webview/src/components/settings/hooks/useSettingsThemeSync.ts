@@ -78,6 +78,16 @@ export function useSettingsThemeSync(): UseSettingsThemeSyncReturn {
   // Diff theme configuration
   const [diffTheme, setDiffTheme] = useState<DiffThemeMode>(() => getStoredDiffTheme());
 
+  // Keep the CoDriver skin as an overlay on top of the IDE light/dark base.
+  // `data-theme` selects the skin, `data-ide-theme` keeps the IDE-derived base available.
+  useEffect(() => {
+    if (ideTheme !== null) {
+      document.documentElement.setAttribute('data-ide-theme', ideTheme);
+    } else {
+      document.documentElement.removeAttribute('data-ide-theme');
+    }
+  }, [ideTheme]);
+
   // Theme switching handler (supports following IDE theme)
   useEffect(() => {
     const resolvedTheme = resolveThemeAttribute(themePreference, ideTheme);
