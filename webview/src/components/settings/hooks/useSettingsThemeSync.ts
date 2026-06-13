@@ -80,6 +80,10 @@ export function useSettingsThemeSync(): UseSettingsThemeSyncReturn {
 
   // Theme switching handler (supports following IDE theme)
   useEffect(() => {
+    if (ideTheme !== null) {
+      document.documentElement.setAttribute('data-ide-theme', ideTheme);
+    }
+
     const resolvedTheme = resolveThemeAttribute(themePreference, ideTheme);
     if (resolvedTheme !== null) {
       document.documentElement.setAttribute('data-theme', resolvedTheme);
