@@ -7,6 +7,7 @@ import com.github.claudecodegui.settings.CodemossSettingsService;
 import com.github.claudecodegui.action.SendShortcutSync;
 import com.github.claudecodegui.provider.claude.ClaudeHistoryReader;
 import com.github.claudecodegui.provider.codex.CodexHistoryReader;
+import com.github.claudecodegui.ui.icon.PluginIconProvider;
 import com.github.claudecodegui.ui.icon.ToolWindowIconService;
 import com.github.claudecodegui.util.FontConfigService;
 import com.github.claudecodegui.util.ThemeConfigService;
@@ -701,6 +702,7 @@ public class ProjectConfigHandler {
         handleBooleanToggle(content, "codriverToolIconEnabled", true, "CoDriver tool icon enabled",
             enabled -> {
                 settingsService.setCoDriverToolIconEnabled(enabled);
+                PluginIconProvider.setCoDriverIconEnabledCache(enabled);
                 ToolWindowIconService.applyIcon(context.getProject(), enabled);
             },
             "window.updateCoDriverToolIconEnabled",

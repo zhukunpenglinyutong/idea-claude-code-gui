@@ -5,12 +5,9 @@ import com.github.claudecodegui.ui.toolwindow.ClaudeSDKToolWindow;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.IconLoader;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowManager;
 import org.jetbrains.annotations.NotNull;
-
-import javax.swing.Icon;
 
 /**
  * Apply the user-selected tool window icon without coupling settings UI code to the tool window factory.
@@ -18,8 +15,6 @@ import javax.swing.Icon;
 public final class ToolWindowIconService {
 
     private static final Logger LOG = Logger.getInstance(ToolWindowIconService.class);
-    private static final String DEFAULT_ICON_PATH = "/icons/cc-gui-icon.svg";
-    private static final String CODRIVER_ICON_PATH = "/icons/codriver-tool-icon.svg";
 
     private ToolWindowIconService() {
     }
@@ -61,7 +56,7 @@ public final class ToolWindowIconService {
      * Apply the requested icon to a concrete tool window.
      */
     public static void applyIcon(@NotNull ToolWindow toolWindow, boolean coDriverIconEnabled) {
-        toolWindow.setIcon(loadIcon(coDriverIconEnabled));
+        toolWindow.setIcon(PluginIconProvider.getPluginIcon(coDriverIconEnabled));
     }
 
     private static boolean readCoDriverIconPreference(@NotNull CodemossSettingsService settingsService) {
@@ -71,10 +66,5 @@ public final class ToolWindowIconService {
             LOG.warn("[ToolWindowIconService] Failed to read CoDriver tool icon preference; using CoDriver icon", e);
             return true;
         }
-    }
-
-    private static Icon loadIcon(boolean coDriverIconEnabled) {
-        String path = coDriverIconEnabled ? CODRIVER_ICON_PATH : DEFAULT_ICON_PATH;
-        return IconLoader.getIcon(path, ToolWindowIconService.class);
     }
 }

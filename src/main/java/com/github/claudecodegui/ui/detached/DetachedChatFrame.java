@@ -84,9 +84,15 @@ public class DetachedChatFrame extends JFrame {
      * Setup the UI components for the detached window.
      */
     private void setupUI() {
-        // Set window icon (use PNG since ImageIcon doesn't support SVG)
+        // Set window icon (use PNG since ImageIcon doesn't support SVG).
+        // Follow the CoDriver tool-icon preference so a detached window matches the
+        // tool window / actions instead of always showing the orange logo.
         try {
-            java.net.URL iconUrl = getClass().getResource("/icons/logo-16.png");
+            java.net.URL iconUrl = getClass().getResource(
+                    com.github.claudecodegui.ui.icon.PluginIconProvider.getCurrentPluginWindowImagePath());
+            if (iconUrl == null) {
+                iconUrl = getClass().getResource("/icons/logo-16.png");
+            }
             if (iconUrl != null) {
                 setIconImage(new ImageIcon(iconUrl).getImage());
             }

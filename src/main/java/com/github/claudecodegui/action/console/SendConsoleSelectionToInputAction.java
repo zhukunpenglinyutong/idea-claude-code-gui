@@ -1,6 +1,7 @@
 package com.github.claudecodegui.action.console;
 
 import com.github.claudecodegui.i18n.ClaudeCodeGuiBundle;
+import com.github.claudecodegui.ui.icon.PluginIconProvider;
 import com.github.claudecodegui.util.SelectionTextUtils;
 import com.intellij.execution.impl.ConsoleViewImpl;
 import com.intellij.execution.ui.ConsoleView;
@@ -43,6 +44,7 @@ public class SendConsoleSelectionToInputAction extends AnAction implements DumbA
 
     @Override
     public void update(@NotNull AnActionEvent e) {
+        e.getPresentation().setIcon(PluginIconProvider.getCurrentPluginIcon());
         e.getPresentation().setEnabledAndVisible(resolveSelectedText(e) != null);
     }
 
