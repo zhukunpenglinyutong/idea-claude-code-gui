@@ -506,3 +506,61 @@ html[data-theme="codriver"][data-ide-theme="light"] .copy-tooltip {
     border-color: var(--border-primary) !important;
     box-shadow: 0 4px 12px rgba(31, 35, 40, 0.12) !important;
 }
+
+/* Dark IDE follow-up: keep CoDriver as a skin over the IntelliJ dark window
+ * surface. The previous rules still allowed the GitHub-dark #0d1117 header strip
+ * and darker rgba overlays from codriver-laf-v3 to leak through. In dark Follow
+ * IDE the shell/header/transcript surface must use the host window base (#191a1c)
+ * while only component internals such as code blocks keep their own card color. */
+html[data-theme="codriver"][data-ide-theme="dark"] {
+    --codriver-ide-window-bg: #191a1c;
+    --codriver-ide-toolbar-bg: #191a1c;
+    --codriver-ide-toolbar-border: #2b2d30;
+
+    --bg-primary: var(--codriver-ide-window-bg);
+    --bg-chat: var(--codriver-ide-window-bg);
+    --codriver-canvas: var(--codriver-ide-window-bg);
+    --codriver-canvas-subtle: var(--codriver-ide-window-bg);
+    --codriver-shell-bg: var(--codriver-ide-window-bg);
+    --codriver-chat-surface: var(--codriver-ide-window-bg);
+    --codriver-transcript-bg: var(--codriver-ide-window-bg);
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] body,
+html[data-theme="codriver"][data-ide-theme="dark"] #root,
+html[data-theme="codriver"][data-ide-theme="dark"] #app,
+html[data-theme="codriver"][data-ide-theme="dark"] .messages-shell,
+html[data-theme="codriver"][data-ide-theme="dark"] .messages-container,
+html[data-theme="codriver"][data-ide-theme="dark"] .input-area {
+    background-color: var(--codriver-ide-window-bg) !important;
+    background-image: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] #app {
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .header {
+    background: var(--codriver-ide-toolbar-bg) !important;
+    background-color: var(--codriver-ide-toolbar-bg) !important;
+    background-image: none !important;
+    border-bottom-color: var(--codriver-ide-toolbar-border) !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .header::before,
+html[data-theme="codriver"][data-ide-theme="dark"] .header::after,
+html[data-theme="codriver"][data-ide-theme="dark"] .messages-shell::before,
+html[data-theme="codriver"][data-ide-theme="dark"] .messages-shell::after,
+html[data-theme="codriver"][data-ide-theme="dark"] .messages-container::before,
+html[data-theme="codriver"][data-ide-theme="dark"] .messages-container::after {
+    content: none !important;
+    display: none !important;
+    background: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .message.assistant,
+html[data-theme="codriver"][data-ide-theme="dark"] .message.assistant .message-content,
+html[data-theme="codriver"][data-ide-theme="dark"] .message.assistant .markdown-content {
+    background: transparent !important;
+}
