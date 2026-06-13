@@ -69,6 +69,8 @@ public class SettingsHandler extends BaseMessageHandler {
         "get_task_completion_notification_enabled",
         "set_task_completion_notification_enabled",
         "get_ide_theme",
+        "get_codriver_tool_icon_enabled",
+        "set_codriver_tool_icon_enabled",
         "get_commit_prompt",
         "set_commit_prompt",
         "get_commit_ai_config",

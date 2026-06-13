@@ -185,12 +185,7 @@ describe('hydrateNativeFileIconElements', () => {
   it('does not render an icon when the cached value is invalid', async () => {
     const { requestNativeFileIcon, hydrateNativeFileIconElements } = await loadModule();
     const key = 'file:/project/g.ts';
-    const root = document.createElement('div');
-    const el = document.createElement('span');
-    el.setAttribute('data-native-file-icon-key', key);
-    el.setAttribute('data-native-file-icon-path', '/project/g.ts');
-    el.setAttribute('data-native-file-icon-name', 'g.ts');
-    root.appendChild(el);
+    const { root, el } = buildElement(key);
 
     requestNativeFileIcon(key, { filePath: '/project/g.ts' });
     emitBackendResponse(JSON.stringify({ icons: [{ id: key, dataUrl: 'data:text/html;base64,abcd' }] }));
@@ -198,6 +193,30 @@ describe('hydrateNativeFileIconElements', () => {
     hydrateNativeFileIconElements(root);
 
     expect(el.querySelector('img')).toBeNull();
-    expect(el.classList.contains('native-pending')).toBe(true);
+  });
+
+  it('clears pending and does not re-request when the icon resolved to null', async () => {
+    const { requestNativeFileIcon, hydrateNativeFileIconElements } = await loadModule();
+    const key = 'file:/project/h.ts';
+
+    // Backend resolved the request but returned no native icon.
+    requestNativeFileIcon(key, { filePath: '/project/h.ts' });
+    emitBackendResponse(JSON.stringify({ icons: [{ id: key, dataUrl: null }] }));
+    sendToJavaMock.mockClear();
+
+    const root = document.createElement('div');
+    const el = document.createElement('span');
+    el.classList.add('native-pending');
+    el.setAttribute('data-native-file-icon-key', key);
+    el.setAttribute('data-native-file-icon-path', '/project/h.ts');
+    root.appendChild(el);
+
+    hydrateNativeFileIconElements(root);
+
+    // Fallback is kept, the element is no longer pending, and no new request is
+    // dispatched (the cached null would otherwise leave it stuck pending).
+    expect(el.querySelector('img')).toBeNull();
+    expect(el.classList.contains('native-pending')).toBe(false);
+    expect(sendToJavaMock).not.toHaveBeenCalled();
   });
 });

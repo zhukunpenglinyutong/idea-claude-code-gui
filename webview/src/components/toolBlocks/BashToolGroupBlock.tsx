@@ -124,7 +124,7 @@ const BashToolGroupBlock = ({ items, deniedToolIds }: BashToolGroupBlockProps) =
 
   // Calculate list height for 3.5 visible items
   const needsScroll = bashItems.length > MAX_VISIBLE_ITEMS;
-  
+
   // Base height for collapsed state
   const baseHeight = needsScroll
     ? MAX_VISIBLE_ITEMS * ITEM_HEIGHT

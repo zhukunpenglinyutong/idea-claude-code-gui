@@ -210,9 +210,16 @@ export function hydrateNativeFileIconElements(root: ParentNode): void {
       continue;
     }
 
-    const cached = CACHE.get(key);
-    if (isSafeIconDataUrl(cached)) {
-      applyNativeIconImage(element, cached);
+    // Already resolved: render the icon, or — if it resolved without a usable
+    // icon (cached null) — keep the fallback and drop the pending state instead
+    // of re-subscribing to a request that CACHE.has() would suppress.
+    if (CACHE.has(key)) {
+      const cached = CACHE.get(key);
+      if (isSafeIconDataUrl(cached)) {
+        applyNativeIconImage(element, cached);
+      } else {
+        element.classList.remove('native-pending');
+      }
       continue;
     }
 
@@ -222,9 +229,13 @@ export function hydrateNativeFileIconElements(root: ParentNode): void {
       if (isSafeIconDataUrl(dataUrl)) {
         applyNativeIconImage(element, dataUrl);
         unsubscribe();
+      } else if (CACHE.has(key)) {
+        // Resolved without a usable icon: keep the fallback, stop pending.
+        element.classList.remove('native-pending');
+        unsubscribe();
       }
-      // On failure/timeout the value is absent; stay subscribed so a later
-      // successful resolution can still hydrate the element.
+      // On failure/timeout the value is absent (not cached); stay subscribed so
+      // a later successful resolution can still hydrate the element.
     });
 
     requestNativeFileIcon(key, {
