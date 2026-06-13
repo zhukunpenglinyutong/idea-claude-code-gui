@@ -202,6 +202,7 @@ const PatchFileLink = ({ path }: PatchFileLinkProps) => {
     >
       <ToolFileIcon
         fileName={fileName}
+        filePath={path}
         stockSvg={getFileIcon(ext ?? '', fileName)}
         style={FILE_ICON_STYLE}
       />
@@ -331,6 +332,7 @@ const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps
                 {(effectiveIsFile || isDirectoryPath) && (
                    <ToolFileIcon
                       fileName={target?.cleanFileName}
+                      filePath={target?.openPath || target?.rawPath}
                       isDirectory={isDirectoryPath}
                       stockSvg={getFileIconSvg()}
                       style={FILE_ICON_STYLE}

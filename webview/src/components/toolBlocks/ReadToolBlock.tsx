@@ -143,6 +143,7 @@ const ReadToolBlock = ({ input, result, toolId }: ReadToolBlockProps) => {
           >
             <ToolFileIcon
               fileName={target?.cleanFileName}
+              filePath={target?.openPath || target?.rawPath}
               isDirectory={isDirectory}
               stockSvg={getFileIconSvg()}
               style={FILE_ICON_STYLE}

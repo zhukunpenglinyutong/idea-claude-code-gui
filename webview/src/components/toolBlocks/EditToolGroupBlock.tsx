@@ -238,6 +238,7 @@ const EditFileItem = ({ item, onFileClick, onShowDiff, onRefresh, t }: EditFileI
     <div className="file-list-item" style={FILE_LIST_ITEM_STYLE}>
       <ToolFileIcon
         fileName={item.fileName}
+        filePath={item.openPath || item.filePath}
         stockSvg={getFileIconSvg(item.fileName)}
         style={FILE_ICON_STYLE}
       />

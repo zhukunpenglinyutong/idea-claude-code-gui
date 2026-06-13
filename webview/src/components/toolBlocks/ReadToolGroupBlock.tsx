@@ -152,6 +152,7 @@ const FileListItem = ({ item, onFileClick }: FileListItemProps) => {
     >
       <ToolFileIcon
         fileName={item.cleanFileName}
+        filePath={item.openPath || item.filePath}
         isDirectory={item.isDirectory}
         stockSvg={getFileIconSvg(item.cleanFileName, item.isDirectory)}
         style={FILE_ICON_STYLE}

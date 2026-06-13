@@ -157,10 +157,15 @@ html[data-theme="codriver"] .codriver-tool-file-icon {
     flex-shrink: 0;
 }
 
-html[data-theme="codriver"] .codriver-tool-file-icon svg {
+html[data-theme="codriver"] .codriver-tool-file-icon svg,
+html[data-theme="codriver"] .codriver-tool-file-icon img {
     width: 16px;
     height: 16px;
     display: block;
+}
+
+html[data-theme="codriver"] .codriver-tool-file-icon img {
+    object-fit: contain;
 }
 
 html[data-theme="codriver"] .task-details,

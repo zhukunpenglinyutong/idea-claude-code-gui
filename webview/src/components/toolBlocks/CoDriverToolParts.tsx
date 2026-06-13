@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useIsCoDriverTheme } from '../../hooks/useActiveThemeMode';
+import { useNativeFileIcon } from '../../utils/nativeFileIcons';
 
 export type ToolStatusState = 'pending' | 'completed' | 'error';
 
@@ -12,6 +13,7 @@ interface ToolStatusIndicatorProps {
 
 interface ToolFileIconProps {
   fileName?: string;
+  filePath?: string;
   isDirectory?: boolean;
   stockSvg: string;
   className?: string;
@@ -50,12 +52,32 @@ export function ToolStatusIndicator({ isCompleted, isError, className, style }: 
   );
 }
 
-export function ToolFileIcon({ stockSvg, className, style }: ToolFileIconProps) {
+export function ToolFileIcon({ fileName, filePath, isDirectory, stockSvg, className, style }: ToolFileIconProps) {
   const isCoDriver = useIsCoDriverTheme();
+  const nativeIcon = useNativeFileIcon({ filePath, fileName, isDirectory }, isCoDriver);
+  const classes = `${isCoDriver ? 'codriver-tool-file-icon ' : ''}${className ?? ''}`.trim() || undefined;
+
+  if (!isCoDriver) {
+    return (
+      <span
+        className={className}
+        style={style}
+        dangerouslySetInnerHTML={{ __html: stockSvg }}
+      />
+    );
+  }
+
+  if (nativeIcon) {
+    return (
+      <span className={classes} style={style}>
+        <img src={nativeIcon} alt="" aria-hidden="true" draggable={false} />
+      </span>
+    );
+  }
 
   return (
     <span
-      className={`${isCoDriver ? 'codriver-tool-file-icon ' : ''}${className ?? ''}`.trim() || undefined}
+      className={`${classes ?? 'codriver-tool-file-icon'} fallback`}
       style={style}
       dangerouslySetInnerHTML={{ __html: stockSvg }}
     />

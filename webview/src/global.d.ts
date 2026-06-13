@@ -359,6 +359,12 @@ interface Window {
   onFilePathResolved?: (json: string) => void;
 
   /**
+   * Native IntelliJ file icon callback. Receives JSON with data URLs for icons
+   * resolved by the IntelliJ Platform.
+   */
+  onNativeFileIconsResolved?: (json: string) => void;
+
+  /**
    * Show success message
    */
   showSuccess?: (message: string) => void;

@@ -392,6 +392,7 @@ const EditToolBlock = ({ name, input, result, toolId }: EditToolBlockProps) => {
             >
               <ToolFileIcon
                 fileName={target?.cleanFileName}
+                filePath={target?.openPath || target?.rawPath}
                 stockSvg={getFileIconSvg()}
                 style={FILE_ICON_STYLE}
               />
