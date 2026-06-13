@@ -220,6 +220,23 @@ describe('AppearanceTab CoDriver tool icon setting', () => {
     window.sendToJava = undefined;
   });
 
+  it('renders the racing co-driver line icon for the CoDriver theme option', () => {
+    render(
+      <AppearanceTab
+        {...({
+          theme: 'codriver',
+          onThemeChange: vi.fn(),
+          fontSizeLevel: 3,
+          onFontSizeLevelChange: vi.fn(),
+          coDriverToolIconEnabled: true,
+          onCoDriverToolIconEnabledChange: vi.fn(),
+        } as any)}
+      />
+    );
+
+    expect(screen.getByTestId('codriver-theme-icon')).toBeTruthy();
+  });
+
   it('renders the CoDriver tool icon toggle only for the CoDriver theme', () => {
     const onCoDriverToolIconEnabledChange = vi.fn();
 

@@ -19,7 +19,7 @@ public final class ToolWindowIconService {
 
     private static final Logger LOG = Logger.getInstance(ToolWindowIconService.class);
     private static final String DEFAULT_ICON_PATH = "/icons/cc-gui-icon.svg";
-    private static final String CODRIVER_ICON_PATH = "/icons/codriver-tool-icon.png";
+    private static final String CODRIVER_ICON_PATH = "/icons/codriver-tool-icon.svg";
 
     private ToolWindowIconService() {
     }

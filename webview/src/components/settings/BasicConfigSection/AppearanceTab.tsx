@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { DiffThemeMode } from '../../../utils/diffTheme';
 import type { UiThemeMode } from '../../../types/uiThemeMode';
 import type { UiFontConfig, CodeFontConfig } from '../hooks/useSettingsBasicActions';
+import coDriverRacerLineIcon from '../../../assets/images/codriver-racer-line-icon.svg';
 
 // Preset colors (module-level constants to avoid recreating on each render)
 const DARK_PRESETS = [
@@ -189,12 +190,14 @@ const SystemIcon = () => (
   </svg>
 );
 
-const CoDriverIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <path d="M12 3.75C7.44 3.75 3.75 7.44 3.75 12S7.44 20.25 12 20.25 20.25 16.56 20.25 12 16.56 3.75 12 3.75Z" stroke="currentColor" strokeWidth="1.8"/>
-    <path d="M8.2 12.1c.7-1.35 1.95-2.15 3.8-2.15s3.1.8 3.8 2.15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-    <path d="M7.7 13.9c.95 1.25 2.38 1.9 4.3 1.9s3.35-.65 4.3-1.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-  </svg>
+const CoDriverThemeIcon = () => (
+  <img
+    src={coDriverRacerLineIcon}
+    alt=""
+    aria-hidden="true"
+    data-testid="codriver-theme-icon"
+    className={styles.coDriverThemeIconImage}
+  />
 );
 
 export interface AppearanceTabProps {
@@ -715,8 +718,8 @@ const AppearanceTab = ({
             className={`${styles.themeOption} ${theme === 'codriver' ? styles.active : ''}`}
             onClick={() => onThemeChange('codriver')}
           >
-            <div className={styles.themeIconSystem}>
-              <CoDriverIcon />
+            <div className={styles.themeIconCoDriver}>
+              <CoDriverThemeIcon />
             </div>
             <span className={styles.themeOptionLabel}>{t('settings.basic.theme.codriver', 'CoDriver')}</span>
           </div>
