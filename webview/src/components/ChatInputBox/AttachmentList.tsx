@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { Attachment, AttachmentListProps } from './types';
 import { isImageAttachment } from './types';
 import { CoDriverIcon } from '../codriverIcons';
+import { NativeFileIcon } from '../nativeIcons/NativeFileIcon';
 import { getFileIconKind } from '../../utils/fileIconKind';
 import { useIsCoDriverTheme } from '../../hooks/useActiveThemeMode';
 
@@ -101,11 +102,16 @@ export const AttachmentList = ({
                   </button>
                 ) : (
                   <span className="attachment-preview-frame">
-                    <CoDriverIcon
+                    <NativeFileIcon
                       className={`attachment-file-icon attachment-file-icon-${iconName}`}
-                      name={iconName}
-                      size={17}
-                      aria-hidden="true"
+                      fileName={attachment.fileName}
+                      fallback={(
+                        <CoDriverIcon
+                          name={iconName}
+                          size={17}
+                          aria-hidden="true"
+                        />
+                      )}
                     />
                   </span>
                 )}

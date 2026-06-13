@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { getFileIcon } from '../../utils/fileIcons';
 import { TokenIndicator } from './TokenIndicator';
 import { CoDriverIcon } from '../codriverIcons';
+import { NativeFileIcon } from '../nativeIcons/NativeFileIcon';
 import { getFileIconKind } from '../../utils/fileIconKind';
 import { useIsCoDriverTheme } from '../../hooks/useActiveThemeMode';
 import type { SelectedAgent } from './types';
@@ -253,12 +254,18 @@ export const ContextBar: React.FC<ContextBarProps> = memo(({
         >
           {activeFile && (
             isCoDriver ? (
-              <CoDriverIcon
+              <NativeFileIcon
                 className={`context-file-icon context-file-icon-${activeFileIconName}`}
-                name={activeFileIconName}
-                size={15}
+                filePath={activeFile}
+                fileName={getFileName(activeFile)}
                 style={FILE_ICON_STYLE}
-                aria-hidden="true"
+                fallback={(
+                  <CoDriverIcon
+                    name={activeFileIconName}
+                    size={15}
+                    aria-hidden="true"
+                  />
+                )}
               />
             ) : (
               <span

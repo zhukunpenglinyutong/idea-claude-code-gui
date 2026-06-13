@@ -73,7 +73,7 @@ function installNativeFileIconCallback(): void {
   callbackInstalled = true;
 }
 
-function subscribe(key: string, listener: () => void): () => void {
+export function subscribeNativeFileIcon(key: string, listener: () => void): () => void {
   let listeners = LISTENERS.get(key);
   if (!listeners) {
     listeners = new Set();
@@ -88,7 +88,7 @@ function subscribe(key: string, listener: () => void): () => void {
   };
 }
 
-function requestNativeIcon(key: string, request: NativeFileIconRequest): void {
+export function requestNativeFileIcon(key: string, request: NativeFileIconRequest): void {
   if (CACHE.has(key) || PENDING.has(key)) {
     return;
   }
@@ -106,6 +106,50 @@ function requestNativeIcon(key: string, request: NativeFileIconRequest): void {
   });
 }
 
+export function readNativeFileIcon(key: string): string | null | undefined {
+  return CACHE.get(key);
+}
+
+export function hydrateNativeFileIconElements(root: ParentNode): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
+  installNativeFileIconCallback();
+  const elements = Array.from(root.querySelectorAll<HTMLElement>('[data-native-file-icon-key]'));
+  for (const element of elements) {
+    const key = element.dataset.nativeFileIconKey || '';
+    if (!key) {
+      continue;
+    }
+
+    const cached = CACHE.get(key);
+    if (cached) {
+      element.innerHTML = `<img src="${cached}" alt="" draggable="false" />`;
+      element.classList.add('native-loaded');
+      element.classList.remove('native-pending');
+      continue;
+    }
+
+    element.classList.add('native-pending');
+    const unsubscribe = subscribeNativeFileIcon(key, () => {
+      const dataUrl = CACHE.get(key);
+      if (dataUrl) {
+        element.innerHTML = `<img src="${dataUrl}" alt="" draggable="false" />`;
+        element.classList.add('native-loaded');
+        element.classList.remove('native-pending');
+      }
+      unsubscribe();
+    });
+
+    requestNativeFileIcon(key, {
+      filePath: element.dataset.nativeFileIconPath || '',
+      fileName: element.dataset.nativeFileIconName || '',
+      isDirectory: element.dataset.nativeFileIconDirectory === 'true',
+    });
+  }
+}
+
 export function useNativeFileIcon(request: NativeFileIconRequest, enabled = true): string | null {
   const key = useMemo(() => getNativeFileIconCacheKey(request), [request.filePath, request.fileName, request.isDirectory]);
   const [, setVersion] = useState(0);
@@ -116,8 +160,8 @@ export function useNativeFileIcon(request: NativeFileIconRequest, enabled = true
     }
 
     installNativeFileIconCallback();
-    const unsubscribe = subscribe(key, () => setVersion((value) => value + 1));
-    requestNativeIcon(key, request);
+    const unsubscribe = subscribeNativeFileIcon(key, () => setVersion((value) => value + 1));
+    requestNativeFileIcon(key, request);
     return unsubscribe;
   }, [enabled, key, request.filePath, request.fileName, request.isDirectory]);
 

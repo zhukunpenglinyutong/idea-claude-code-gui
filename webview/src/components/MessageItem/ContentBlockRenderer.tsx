@@ -4,6 +4,7 @@ import type { ClaudeContentBlock, ToolResultBlock, CompactSummaryMetadata } from
 
 import MarkdownBlock from '../MarkdownBlock';
 import { CoDriverIcon } from '../codriverIcons';
+import { NativeFileIcon } from '../nativeIcons/NativeFileIcon';
 import { useIsCoDriverTheme } from '../../hooks/useActiveThemeMode';
 import CollapsibleTextBlock from '../CollapsibleTextBlock';
 import {
@@ -222,7 +223,15 @@ export function ContentBlockRenderer({
     const displayName = block.fileName || t('chat.unknownFile');
     return (
       <div className="message-attachment-chip" title={displayName}>
-        <span className={`message-attachment-chip-icon codicon ${getFileIcon(block.mediaType)}`} />
+        {isCoDriver ? (
+          <NativeFileIcon
+            className="message-attachment-chip-icon"
+            fileName={displayName}
+            fallback={<span className={`codicon ${getFileIcon(block.mediaType)}`} />}
+          />
+        ) : (
+          <span className={`message-attachment-chip-icon codicon ${getFileIcon(block.mediaType)}`} />
+        )}
         {ext && <span className="message-attachment-chip-ext">{ext}</span>}
         <span className="message-attachment-chip-name">{displayName}</span>
       </div>
