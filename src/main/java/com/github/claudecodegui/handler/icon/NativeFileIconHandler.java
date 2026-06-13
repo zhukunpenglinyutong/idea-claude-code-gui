@@ -26,6 +26,9 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -42,6 +45,21 @@ public class NativeFileIconHandler extends BaseMessageHandler {
     private static final String TYPE_RESOLVE_NATIVE_FILE_ICONS = "resolve_native_file_icons";
     private static final int ICON_FLAGS = Iconable.ICON_FLAG_VISIBILITY | Iconable.ICON_FLAG_READ_STATUS;
     private static final int FALLBACK_ICON_SIZE = 16;
+    private static final int ICON_CACHE_MAX_ENTRIES = 512;
+
+    /**
+     * Bounded LRU cache of rendered icons, keyed by (path|fileName|isDirectory).
+     * Rendering an icon (paintIcon -> PNG -> base64) is comparatively expensive and
+     * the same items recur across tool lists and dropdowns within a session, so we
+     * memoize the encoded result to avoid re-encoding identical icons repeatedly.
+     */
+    private static final Map<String, IconImage> ICON_CACHE = Collections.synchronizedMap(
+            new LinkedHashMap<String, IconImage>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, IconImage> eldest) {
+                    return size() > ICON_CACHE_MAX_ENTRIES;
+                }
+            });
 
     public NativeFileIconHandler(HandlerContext context) {
         super(context);
@@ -108,14 +126,29 @@ public class NativeFileIconHandler extends BaseMessageHandler {
         JsonObject result = new JsonObject();
         result.addProperty("id", id);
 
-        Icon icon = resolveIcon(filePath, fileName, directory);
-        IconImage iconImage = renderIcon(icon);
+        IconImage iconImage = resolveIconImage(filePath, fileName, directory);
         if (iconImage != null) {
             result.addProperty("dataUrl", iconImage.dataUrl);
             result.addProperty("width", iconImage.width);
             result.addProperty("height", iconImage.height);
         }
         return result;
+    }
+
+    private IconImage resolveIconImage(String filePath, String fileName, boolean directory) {
+        String cacheKey = (filePath == null ? "" : filePath) + '|'
+                + (fileName == null ? "" : fileName) + '|' + directory;
+
+        IconImage cached = ICON_CACHE.get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+
+        IconImage iconImage = renderIcon(resolveIcon(filePath, fileName, directory));
+        if (iconImage != null) {
+            ICON_CACHE.put(cacheKey, iconImage);
+        }
+        return iconImage;
     }
 
     private Icon resolveIcon(String filePath, String fileName, boolean directory) {
