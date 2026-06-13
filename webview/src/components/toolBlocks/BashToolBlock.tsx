@@ -47,7 +47,7 @@ const BashToolBlock = ({ input, result, toolId }: BashToolBlockProps) => {
   }
 
   return (
-    <div className="task-container">
+    <div className="task-container codriver-collapsible-tool">
       <div
         className={`task-header bash-tool-header ${expanded ? 'expanded' : ''}`}
         onClick={() => setExpanded((prev) => !prev)}

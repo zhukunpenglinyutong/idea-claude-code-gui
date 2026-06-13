@@ -170,7 +170,7 @@ const BashToolGroupBlock = ({ items, deniedToolIds }: BashToolGroupBlockProps) =
   };
 
   return (
-    <div className="task-container bash-group-container">
+    <div className="task-container codriver-collapsible-tool bash-group-container">
       {/* Header - always visible */}
       <div
         className="task-header bash-group-header"

@@ -310,7 +310,7 @@ const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps
   };
 
   return (
-    <div className="task-container">
+    <div className={`task-container ${hasExpandableContent ? 'codriver-collapsible-tool' : 'codriver-inline-tool'}`}>
       <div
         className="task-header"
         onClick={hasExpandableContent ? () => setExpanded((prev) => !prev) : undefined}

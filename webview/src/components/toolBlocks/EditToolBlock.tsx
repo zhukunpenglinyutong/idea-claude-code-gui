@@ -376,7 +376,7 @@ const EditToolBlock = ({ name, input, result, toolId }: EditToolBlockProps) => {
         </div>
       </div>
 
-      <div className="task-container" style={TASK_CONTAINER_STYLE}>
+      <div className="task-container codriver-collapsible-tool" style={TASK_CONTAINER_STYLE}>
         <div className="task-header" onClick={() => setExpanded((prev) => !prev)}>
           <div className="task-title-section">
             <span className="codicon codicon-edit tool-title-icon" />

@@ -370,7 +370,7 @@ const EditToolGroupBlock = ({ items }: EditToolGroupBlockProps) => {
   };
 
   return (
-    <div className="task-container" style={CONTAINER_STYLE}>
+    <div className="task-container codriver-collapsible-tool" style={CONTAINER_STYLE}>
       <div
         className="task-header"
         onClick={() => setExpanded((prev) => !prev)}

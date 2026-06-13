@@ -197,11 +197,12 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
   }, [agentId, currentSessionId, description, shouldPollHistory, toolId]);
 
   return (
-    <div className="task-container">
+    <div className="task-container codriver-collapsible-tool">
       <div
         className={`task-header ${expanded ? 'task-header-expanded' : ''}`}
         onClick={() => setExpanded((prev) => !prev)}
       >
+        <ToolStatusIndicator isCompleted={isCompleted} isError={isError} />
         <div className="task-title-section">
           <span className="codicon codicon-tools tool-title-icon" />
 
@@ -227,9 +228,7 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
           )}
         </div>
 
-        <div className="task-header-right">
-          <ToolStatusIndicator isCompleted={isCompleted} isError={isError} />
-        </div>
+        <div className="task-header-right" />
       </div>
 
       {expanded && (

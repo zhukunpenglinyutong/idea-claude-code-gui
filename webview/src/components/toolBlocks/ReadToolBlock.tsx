@@ -118,15 +118,17 @@ const ReadToolBlock = ({ input, result, toolId }: ReadToolBlockProps) => {
     key !== 'description'   // Omit Codex description field
   );
 
+  const hasExpandableContent = params.length > 0;
   const headerStyle: React.CSSProperties = {
-    borderBottom: expanded ? '1px solid var(--border-primary)' : undefined,
+    borderBottom: expanded && hasExpandableContent ? '1px solid var(--border-primary)' : undefined,
+    cursor: hasExpandableContent ? 'pointer' : 'default',
   };
 
   return (
-    <div className="task-container">
+    <div className={`task-container ${hasExpandableContent ? 'codriver-collapsible-tool' : 'codriver-inline-tool'}`}>
       <div
         className="task-header"
-        onClick={() => setExpanded((prev) => !prev)}
+        onClick={hasExpandableContent ? () => setExpanded((prev) => !prev) : undefined}
         style={headerStyle}
       >
         <div className="task-title-section">

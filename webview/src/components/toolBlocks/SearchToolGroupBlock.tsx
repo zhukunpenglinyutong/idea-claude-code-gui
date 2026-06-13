@@ -175,7 +175,7 @@ const SearchToolGroupBlock = ({ items }: SearchToolGroupBlockProps) => {
   };
 
   return (
-    <div className="task-container">
+    <div className="task-container codriver-collapsible-tool">
       <div
         className="task-header"
         onClick={() => setExpanded((prev) => !prev)}

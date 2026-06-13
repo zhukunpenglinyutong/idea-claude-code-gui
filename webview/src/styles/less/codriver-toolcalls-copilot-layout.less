@@ -1,0 +1,186 @@
+/* CoDriver tool call layout pass.
+ * Keep the native IntelliJ file icons, but align the rows closer to Copilot:
+ * - status glyph on the left, no green success pill in tool rows
+ * - only collapsible tool usages get the rounded frame
+ * - action glyphs move to the right, away from the tool name
+ * - collapsible tool rows show a subtle bottom chevron on hover
+ */
+
+html[data-theme="codriver"] {
+    --codriver-tool-frame-border: rgba(190, 195, 204, 0.18);
+    --codriver-tool-hover-bg: rgba(190, 195, 204, 0.055);
+    --codriver-tool-inline-hover-bg: rgba(190, 195, 204, 0.04);
+    --codriver-tool-status-ok: #f0f6fc;
+    --codriver-tool-status-error: #f85149;
+    --codriver-tool-status-pending: #8b949e;
+    --codriver-tool-action-muted: #8b949e;
+    --codriver-tool-action-hover: #c9d1d9;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] {
+    --codriver-tool-frame-border: rgba(31, 35, 40, 0.16);
+    --codriver-tool-hover-bg: rgba(31, 35, 40, 0.045);
+    --codriver-tool-inline-hover-bg: rgba(31, 35, 40, 0.035);
+    --codriver-tool-status-ok: #1f2328;
+    --codriver-tool-status-error: #cf222e;
+    --codriver-tool-status-pending: #6e7781;
+    --codriver-tool-action-muted: #6e7781;
+    --codriver-tool-action-hover: #1f2328;
+}
+
+html[data-theme="codriver"] .task-container {
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    margin: 4px 0 !important;
+    overflow: visible !important;
+}
+
+html[data-theme="codriver"] .task-container.codriver-collapsible-tool,
+html[data-theme="codriver"] .task-container.agent-group-container,
+html[data-theme="codriver"] .task-container.bash-group-container {
+    border-color: var(--codriver-tool-frame-border) !important;
+    border-radius: 7px !important;
+    overflow: hidden !important;
+    margin: 8px 0 !important;
+}
+
+html[data-theme="codriver"] .task-container.codriver-inline-tool {
+    border-color: transparent !important;
+    border-radius: 0 !important;
+    margin: 2px 0 !important;
+}
+
+html[data-theme="codriver"] .task-header,
+html[data-theme="codriver"] .bash-tool-header,
+html[data-theme="codriver"] .bash-group-header {
+    position: relative;
+    min-height: 30px;
+    background: transparent !important;
+    border-bottom-color: transparent !important;
+    padding: 5px 8px !important;
+}
+
+html[data-theme="codriver"] .codriver-collapsible-tool > .task-header {
+    padding-bottom: 10px !important;
+}
+
+html[data-theme="codriver"] .codriver-inline-tool > .task-header {
+    cursor: default !important;
+}
+
+html[data-theme="codriver"] .task-header:hover,
+html[data-theme="codriver"] .bash-tool-header:hover,
+html[data-theme="codriver"] .bash-group-header:hover,
+html[data-theme="codriver"] .bash-timeline-content:hover,
+html[data-theme="codriver"] .file-list-item:hover {
+    background: var(--codriver-tool-inline-hover-bg) !important;
+}
+
+html[data-theme="codriver"] .codriver-collapsible-tool > .task-header:hover,
+html[data-theme="codriver"] .codriver-collapsible-tool > .bash-tool-header:hover,
+html[data-theme="codriver"] .codriver-collapsible-tool > .bash-group-header:hover {
+    background: var(--codriver-tool-hover-bg) !important;
+}
+
+html[data-theme="codriver"] .codriver-collapsible-tool > .task-header::after,
+html[data-theme="codriver"] .codriver-collapsible-tool > .bash-tool-header::after,
+html[data-theme="codriver"] .codriver-collapsible-tool > .bash-group-header::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 3px;
+    width: 6px;
+    height: 6px;
+    border-right: 1px solid var(--codriver-tool-action-muted);
+    border-bottom: 1px solid var(--codriver-tool-action-muted);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-50%) translateY(-2px) rotate(45deg);
+    transition: opacity 120ms ease, transform 120ms ease, border-color 120ms ease;
+}
+
+html[data-theme="codriver"] .codriver-collapsible-tool > .task-header:hover::after,
+html[data-theme="codriver"] .codriver-collapsible-tool > .bash-tool-header:hover::after,
+html[data-theme="codriver"] .codriver-collapsible-tool > .bash-group-header:hover::after {
+    opacity: 0.82;
+    border-color: var(--codriver-tool-action-hover);
+    transform: translateX(-50%) translateY(0) rotate(45deg);
+}
+
+html[data-theme="codriver"] .task-title-section {
+    gap: 4px !important;
+}
+
+html[data-theme="codriver"] .task-title-section > .tool-title-icon,
+html[data-theme="codriver"] .task-title-section > .bash-tool-icon,
+html[data-theme="codriver"] .codicon-file-code.tool-title-icon,
+html[data-theme="codriver"] .codicon-edit.tool-title-icon,
+html[data-theme="codriver"] .codicon-terminal.tool-title-icon,
+html[data-theme="codriver"] .codicon-search.tool-title-icon {
+    order: 50;
+    margin-left: auto !important;
+    margin-right: 0 !important;
+    color: var(--codriver-tool-action-muted) !important;
+    opacity: 0.78;
+    font-size: 14px !important;
+}
+
+html[data-theme="codriver"] .task-header:hover .tool-title-icon,
+html[data-theme="codriver"] .task-header:hover .bash-tool-icon,
+html[data-theme="codriver"] .bash-tool-header:hover .bash-tool-icon {
+    color: var(--codriver-tool-action-hover) !important;
+    opacity: 0.95;
+}
+
+html[data-theme="codriver"] .agent-group-chevron {
+    display: none !important;
+}
+
+html[data-theme="codriver"] .codriver-tool-status {
+    order: -20;
+    width: 16px !important;
+    height: 16px !important;
+    min-width: 16px;
+    margin: 0 7px 0 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: var(--codriver-tool-status-pending) !important;
+    animation: none !important;
+}
+
+html[data-theme="codriver"] .codriver-tool-status .codicon {
+    width: 14px;
+    height: 14px;
+    font-size: 14px;
+    line-height: 14px;
+}
+
+html[data-theme="codriver"] .codriver-tool-status-completed {
+    color: var(--codriver-tool-status-ok) !important;
+}
+
+html[data-theme="codriver"] .codriver-tool-status-error {
+    color: var(--codriver-tool-status-error) !important;
+}
+
+html[data-theme="codriver"] .codriver-tool-status-pending {
+    color: var(--codriver-tool-status-pending) !important;
+}
+
+html[data-theme="codriver"] .codriver-tool-status-pending .codicon {
+    animation: codriver-tool-status-spin 0.9s linear infinite;
+}
+
+html[data-theme="codriver"] .task-header-right {
+    margin-left: 8px;
+}
+
+html[data-theme="codriver"] .task-details,
+html[data-theme="codriver"] .task-details-accordion.expanded > .task-details,
+html[data-theme="codriver"] .file-list-container {
+    border-top-color: var(--codriver-tool-frame-border) !important;
+}

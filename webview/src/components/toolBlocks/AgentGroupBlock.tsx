@@ -154,7 +154,7 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
   }, [agentId, currentSessionId, summary, expanded, history, isStreaming, isCompleted, toolId]);
 
   return (
-    <div className="task-container agent-group-container">
+    <div className="task-container codriver-collapsible-tool agent-group-container">
       <div
         className={`task-header ${expanded ? 'task-header-expanded' : ''}`}
         onClick={() => setExpanded((prev) => !prev)}
@@ -169,6 +169,7 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
           }
         }}
       >
+        <ToolStatusIndicator isCompleted={isCompleted} isError={isError} />
         <div className="task-title-section">
           <span className="codicon codicon-type-hierarchy tool-title-icon" />
           <span className="tool-title-text">
@@ -185,7 +186,6 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
         </div>
 
         <div className="task-header-right">
-          <ToolStatusIndicator isCompleted={isCompleted} isError={isError} />
           <span className={`codicon agent-group-chevron ${expanded ? 'codicon-chevron-up' : 'codicon-chevron-down'}`} />
         </div>
       </div>
