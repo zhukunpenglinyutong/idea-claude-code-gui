@@ -5,6 +5,7 @@ import { openFile } from '../../utils/bridge';
 import { useResolvedFileLinkTooltip } from '../../hooks/useResolvedFileLinkTooltip';
 import { getFileIcon, getFolderIcon } from '../../utils/fileIcons';
 import { getToolLineInfo, resolveToolTarget } from '../../utils/toolPresentation';
+import { ToolFileIcon, ToolStatusIndicator } from './CoDriverToolParts';
 
 interface FileItem {
   filePath: string;
@@ -149,9 +150,11 @@ const FileListItem = ({ item, onFileClick }: FileListItemProps) => {
       style={getFileListItemStyle(item.isDirectory)}
       {...fileLinkTooltip}
     >
-      <span
+      <ToolFileIcon
+        fileName={item.cleanFileName}
+        isDirectory={item.isDirectory}
+        stockSvg={getFileIconSvg(item.cleanFileName, item.isDirectory)}
         style={FILE_ICON_STYLE}
-        dangerouslySetInnerHTML={{ __html: getFileIconSvg(item.cleanFileName, item.isDirectory) }}
       />
       <span style={FILE_NAME_STYLE}>
         {item.displayPath}
@@ -161,8 +164,9 @@ const FileListItem = ({ item, onFileClick }: FileListItemProps) => {
           {item.lineInfo}
         </span>
       )}
-      <div
-        className={`tool-status-indicator ${item.isError ? 'error' : item.isCompleted ? 'completed' : 'pending'}`}
+      <ToolStatusIndicator
+        isCompleted={item.isCompleted}
+        isError={item.isError}
         style={STATUS_INDICATOR_STYLE}
       />
     </div>

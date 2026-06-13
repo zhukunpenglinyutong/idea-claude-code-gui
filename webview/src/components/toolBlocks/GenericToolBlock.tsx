@@ -8,6 +8,7 @@ import { formatParamValue, truncate } from '../../utils/helpers';
 import { getFileIcon, getFolderIcon } from '../../utils/fileIcons';
 import { isCommandToolName, parseCommandType } from '../../utils/toolCommandPath';
 import { getToolLineInfo, resolveToolTarget, summarizeToolCommand, extractPathsFromPatch } from '../../utils/toolPresentation';
+import { ToolFileIcon, ToolStatusIndicator } from './CoDriverToolParts';
 
 const SUMMARY_FILE_STYLE: React.CSSProperties = {
   display: 'inline-flex',
@@ -199,9 +200,10 @@ const PatchFileLink = ({ path }: PatchFileLinkProps) => {
       {...tooltip}
       style={PATCH_FILE_LINK_STYLE}
     >
-      <span
+      <ToolFileIcon
+        fileName={fileName}
+        stockSvg={getFileIcon(ext ?? '', fileName)}
         style={FILE_ICON_STYLE}
-        dangerouslySetInnerHTML={{ __html: getFileIcon(ext ?? '', fileName) }}
       />
       {fileName}
     </span>
@@ -327,9 +329,11 @@ const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps
                 style={(effectiveIsFile || isDirectoryPath) ? SUMMARY_FILE_STYLE : undefined}
               >
                 {(effectiveIsFile || isDirectoryPath) && (
-                   <span
+                   <ToolFileIcon
+                      fileName={target?.cleanFileName}
+                      isDirectory={isDirectoryPath}
+                      stockSvg={getFileIconSvg()}
                       style={FILE_ICON_STYLE}
-                      dangerouslySetInnerHTML={{ __html: getFileIconSvg() }}
                    />
                 )}
                 {summary}
@@ -354,7 +358,7 @@ const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps
           )}
         </div>
 
-        <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />
+        <ToolStatusIndicator isCompleted={isCompleted} isError={isError} />
       </div>
       {hasExpandableContent && (
         <div className={`task-details-accordion ${expanded ? 'expanded' : ''}`}>

@@ -8,6 +8,7 @@ import { getFileIcon } from '../../utils/fileIcons';
 import { getToolLineInfo, getToolEditCount, resolveToolTarget } from '../../utils/toolPresentation';
 import { normalizeToolInput } from '../../utils/toolInputNormalization';
 import GenericToolBlock from './GenericToolBlock';
+import { ToolFileIcon, ToolStatusIndicator } from './CoDriverToolParts';
 
 interface EditToolBlockProps {
   name?: string;
@@ -389,9 +390,10 @@ const EditToolBlock = ({ name, input, result, toolId }: EditToolBlockProps) => {
               {...fileLinkTooltip}
               style={FILE_LINK_STYLE}
             >
-              <span
+              <ToolFileIcon
+                fileName={target?.cleanFileName}
+                stockSvg={getFileIconSvg()}
                 style={FILE_ICON_STYLE}
-                dangerouslySetInnerHTML={{ __html: getFileIconSvg() }}
               />
               {target?.displayPath || filePath}
             </span>
@@ -418,7 +420,7 @@ const EditToolBlock = ({ name, input, result, toolId }: EditToolBlockProps) => {
             )}
           </div>
 
-          <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />
+          <ToolStatusIndicator isCompleted={isCompleted} isError={isError} />
         </div>
 
         {expanded && (
