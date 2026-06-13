@@ -225,3 +225,159 @@ html[data-theme="codriver"][data-ide-theme="light"] .completion-item.selected {
     background: rgba(0, 120, 212, 0.12);
     color: var(--text-secondary);
 }
+
+/* Light CoDriver must derive from the real Follow IDE light surfaces. The base
+ * CoDriver skin still contains dark, GitHub-style component rules; these final
+ * overrides remove the remaining dark chrome in light IDE mode without touching
+ * the established dark composer. */
+html[data-theme="codriver"][data-ide-theme="light"] {
+    --bg-primary: #ffffff;
+    --bg-chat: #ffffff;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #f4f4f4;
+    --bg-elevated: #ffffff;
+    --bg-hover: #f2f2f2;
+    --bg-active: #e8f2ff;
+
+    --text-primary: #1f2328;
+    --text-secondary: #111111;
+    --text-tertiary: #59636e;
+    --text-muted: #8a8f98;
+    --text-placeholder: #8a8f98;
+
+    --border-primary: #d6d8dc;
+    --border-secondary: #c9ccd2;
+    --border-hover: #b3b8c2;
+
+    --codriver-canvas: #ffffff;
+    --codriver-canvas-subtle: #ffffff;
+    --codriver-surface: #ffffff;
+    --codriver-surface-muted: #f6f6f7;
+    --codriver-surface-raised: #ffffff;
+    --codriver-shell-bg: #ffffff;
+    --codriver-chat-surface: #ffffff;
+    --codriver-transcript-bg: #ffffff;
+    --codriver-panel-bg: #ffffff;
+    --codriver-panel-raised-bg: #f6f6f7;
+    --codriver-code-bg: #f7f7f8;
+    --codriver-inline-code-bg: #f2f2f2;
+    --codriver-inline-code-text: #24292f;
+    --codriver-heading: #24292f;
+    --codriver-border: rgba(31, 35, 40, 0.18);
+    --codriver-border-muted: rgba(31, 35, 40, 0.12);
+    --codriver-border-strong: rgba(47, 129, 247, 0.54);
+    --codriver-fg-default: #24292f;
+    --codriver-fg-muted: #59636e;
+    --codriver-fg-subtle: #6e7781;
+
+    --color-code-block-bg: #f7f7f8;
+    --color-code-block-border: #d0d7de;
+    --color-code-inline-bg: rgba(175, 184, 193, 0.20);
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] body,
+html[data-theme="codriver"][data-ide-theme="light"] #root,
+html[data-theme="codriver"][data-ide-theme="light"] #app,
+html[data-theme="codriver"][data-ide-theme="light"] .messages-shell,
+html[data-theme="codriver"][data-ide-theme="light"] .messages-container,
+html[data-theme="codriver"][data-ide-theme="light"] .input-area {
+    background: #ffffff !important;
+    color: var(--text-primary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] #app {
+    border-color: transparent !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .header {
+    background: #ffffff !important;
+    color: var(--text-primary) !important;
+    border-bottom-color: var(--border-primary) !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .session-title,
+html[data-theme="codriver"][data-ide-theme="light"] .header-left > *,
+html[data-theme="codriver"][data-ide-theme="light"] .icon-button,
+html[data-theme="codriver"][data-ide-theme="light"] .back-button,
+html[data-theme="codriver"][data-ide-theme="light"] .new-chat-button {
+    color: var(--text-secondary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .icon-button:hover,
+html[data-theme="codriver"][data-ide-theme="light"] .back-button:hover,
+html[data-theme="codriver"][data-ide-theme="light"] .new-chat-button:hover {
+    background: var(--bg-hover) !important;
+    color: var(--text-secondary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message-content,
+html[data-theme="codriver"][data-ide-theme="light"] .markdown-content,
+html[data-theme="codriver"][data-ide-theme="light"] .message.assistant .message-content {
+    color: var(--text-primary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message-content strong,
+html[data-theme="codriver"][data-ide-theme="light"] .markdown-content strong,
+html[data-theme="codriver"][data-ide-theme="light"] .markdown-content h1,
+html[data-theme="codriver"][data-ide-theme="light"] .markdown-content h2,
+html[data-theme="codriver"][data-ide-theme="light"] .markdown-content h3 {
+    color: var(--text-secondary) !important;
+}
+
+/* In light mode the code card must use the same light Follow IDE structure as
+ * the base UI. The dark CoDriver code-block chrome is only for IDE dark mode. */
+html[data-theme="codriver"][data-ide-theme="light"] .code-block-wrapper,
+html[data-theme="codriver"][data-ide-theme="light"] .markdown-content pre,
+html[data-theme="codriver"][data-ide-theme="light"] pre {
+    background: var(--color-code-block-bg) !important;
+    border: 1px solid var(--color-code-block-border) !important;
+    color: #24292f !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .code-block-wrapper::before,
+html[data-theme="codriver"][data-ide-theme="light"] .code-block-wrapper::after {
+    display: none !important;
+    content: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .code-block-wrapper pre,
+html[data-theme="codriver"][data-ide-theme="light"] .markdown-content pre code,
+html[data-theme="codriver"][data-ide-theme="light"] pre code,
+html[data-theme="codriver"][data-ide-theme="light"] .hljs {
+    background: transparent !important;
+    color: #24292f !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .copy-code-btn {
+    background: #ffffff !important;
+    border-color: var(--border-primary) !important;
+    color: var(--text-tertiary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .copy-code-btn:hover {
+    background: var(--bg-hover) !important;
+    color: var(--text-secondary) !important;
+}
+
+/* GitHub/VS Code light token palette. This fixes the remaining dark-only
+ * syntax variables from codriver-syntax.less, e.g. Java keywords are red in the
+ * light reference instead of amber/yellow. */
+html[data-theme="codriver"][data-ide-theme="light"] {
+    --hljs-fg: #24292f;
+    --hljs-red: #cf222e;
+    --hljs-purple: #8250df;
+    --hljs-blue: #0550ae;
+    --hljs-light-blue: #0a3069;
+    --hljs-orange: #953800;
+    --hljs-green: #116329;
+    --hljs-gray: #6e7781;
+    --hljs-yellow: #4d2d00;
+    --hljs-section: #0969da;
+    --hljs-add-fg: #116329;
+    --hljs-add-bg: #dafbe1;
+    --hljs-del-fg: #cf222e;
+    --hljs-del-bg: #ffebe9;
+}
