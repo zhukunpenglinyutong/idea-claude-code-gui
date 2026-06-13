@@ -108,7 +108,7 @@ function requestNativeIcon(key: string, request: NativeFileIconRequest): void {
 
 export function useNativeFileIcon(request: NativeFileIconRequest, enabled = true): string | null {
   const key = useMemo(() => getNativeFileIconCacheKey(request), [request.filePath, request.fileName, request.isDirectory]);
-  const [version, setVersion] = useState(0);
+  const [, setVersion] = useState(0);
 
   useEffect(() => {
     if (!enabled || !key || key === 'file:') {
