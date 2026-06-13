@@ -416,3 +416,93 @@ html[data-theme="codriver"][data-ide-theme="light"] .message.user .markdown-cont
     background: var(--color-message-user-code-bg) !important;
     border-color: var(--color-message-user-code-border) !important;
 }
+
+/* Light IDE follow-up: do not let dark CoDriver cards/buttons leak into light mode.
+ * The base CoDriver skin intentionally uses dark VS Code/GitHub surfaces; in
+ * Follow IDE light those dark cards must collapse back to the light workbench
+ * treatment instead of rendering almost-black boxes. */
+html[data-theme="codriver"][data-ide-theme="light"] .thinking-block,
+html[data-theme="codriver"][data-ide-theme="light"] .compact-summary-block,
+html[data-theme="codriver"][data-ide-theme="light"] .compact-notification-block,
+html[data-theme="codriver"][data-ide-theme="light"] .task-notification-block,
+html[data-theme="codriver"][data-ide-theme="light"] .streaming-connect-status {
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    color: var(--text-tertiary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .thinking-header,
+html[data-theme="codriver"][data-ide-theme="light"] .compact-summary-title {
+    background: transparent !important;
+    color: var(--text-tertiary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .thinking-header:hover,
+html[data-theme="codriver"][data-ide-theme="light"] .compact-summary-title:hover {
+    background: var(--bg-hover) !important;
+    color: var(--text-secondary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .thinking-content {
+    background: transparent !important;
+    border-left-color: var(--border-primary) !important;
+    color: var(--text-tertiary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .thinking-content .markdown-content,
+html[data-theme="codriver"][data-ide-theme="light"] .thinking-content .markdown-content p,
+html[data-theme="codriver"][data-ide-theme="light"] .thinking-content .markdown-content li {
+    color: var(--text-tertiary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message-copy-btn,
+html[data-theme="codriver"][data-ide-theme="light"] .message-copy-btn-inline,
+html[data-theme="codriver"][data-ide-theme="light"] .copy-code-btn,
+html[data-theme="codriver"][data-ide-theme="light"] .error-diagnostic-copy-btn,
+html[data-theme="codriver"][data-ide-theme="light"] .history-copy-id-btn,
+html[data-theme="codriver"][data-ide-theme="light"] .icon-btn.copy-btn {
+    background: #ffffff !important;
+    border-color: var(--border-primary) !important;
+    color: var(--text-tertiary) !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message-copy-btn:hover,
+html[data-theme="codriver"][data-ide-theme="light"] .message-copy-btn-inline:hover,
+html[data-theme="codriver"][data-ide-theme="light"] .copy-code-btn:hover,
+html[data-theme="codriver"][data-ide-theme="light"] .error-diagnostic-copy-btn:hover,
+html[data-theme="codriver"][data-ide-theme="light"] .history-copy-id-btn:hover,
+html[data-theme="codriver"][data-ide-theme="light"] .icon-btn.copy-btn:hover {
+    background: var(--bg-hover) !important;
+    border-color: var(--border-hover) !important;
+    color: var(--text-secondary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message-copy-btn .codriver-icon,
+html[data-theme="codriver"][data-ide-theme="light"] .message-copy-btn-inline .codriver-icon,
+html[data-theme="codriver"][data-ide-theme="light"] .copy-code-btn .codriver-icon,
+html[data-theme="codriver"][data-ide-theme="light"] .copy-icon svg,
+html[data-theme="codriver"][data-ide-theme="light"] .copy-code-btn svg {
+    color: currentColor !important;
+    stroke: currentColor !important;
+    fill: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message-copy-btn.copied,
+html[data-theme="codriver"][data-ide-theme="light"] .copy-code-btn.copied,
+html[data-theme="codriver"][data-ide-theme="light"] .error-diagnostic-copy-btn.copied,
+html[data-theme="codriver"][data-ide-theme="light"] .history-copy-id-btn.copied {
+    color: #1a7f37 !important;
+    border-color: rgba(26, 127, 55, 0.28) !important;
+    background: #dafbe1 !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message-copy-btn .copy-tooltip,
+html[data-theme="codriver"][data-ide-theme="light"] .copy-code-btn .copy-tooltip,
+html[data-theme="codriver"][data-ide-theme="light"] .copy-tooltip {
+    background: #ffffff !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-primary) !important;
+    box-shadow: 0 4px 12px rgba(31, 35, 40, 0.12) !important;
+}
