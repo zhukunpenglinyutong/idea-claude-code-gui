@@ -4,6 +4,7 @@ import { getFileIcon } from '../../../utils/fileIcons.js';
 import { getNativeFileIconCacheKey, hydrateNativeFileIconElements } from '../../../utils/nativeFileIcons.js';
 import { icon_folder, icon_terminal, icon_server } from '../../../utils/icons.js';
 import { perfTimer } from '../../../utils/debug.js';
+import { useIsCoDriverTheme } from '../../../hooks/useActiveThemeMode.js';
 import {
   TEXT_LENGTH_THRESHOLDS,
   RENDERING_LIMITS,
@@ -50,6 +51,8 @@ export function useFileTags({
   getTextContent,
   onCloseCompletions,
 }: UseFileTagsOptions): UseFileTagsReturn {
+  const isCoDriver = useIsCoDriverTheme();
+
   // Path mapping: filename/relative path -> absolute path (for tooltip display)
   const pathMappingRef = useRef<Map<string, string>>(new Map());
   // Flag for just rendered file tags (skip completion detection)
@@ -319,7 +322,7 @@ export function useFileTags({
         filePath;
       const escapedFullPath = escapeHtmlAttr(fullPath);
 
-      const nativeIconKey = !isTerminal && !isService
+      const nativeIconKey = isCoDriver && !isTerminal && !isService
         ? getNativeFileIconCacheKey({ filePath: fullPath, fileName: pureFileName, isDirectory })
         : '';
       const nativeIconAttrs = nativeIconKey
@@ -364,7 +367,9 @@ export function useFileTags({
 
     // Update content
     editableRef.current.innerHTML = newHTML;
-    hydrateNativeFileIconElements(editableRef.current);
+    if (isCoDriver) {
+      hydrateNativeFileIconElements(editableRef.current);
+    }
     timer.mark('set-innerHTML');
 
     // Restore cursor position
@@ -420,7 +425,7 @@ export function useFileTags({
     }, 0);
 
     timer.end();
-  }, [editableRef, getTextContent, onCloseCompletions, escapeHtmlText]);
+  }, [editableRef, getTextContent, onCloseCompletions, escapeHtmlText, isCoDriver]);
 
   /**
    * Extract all file tags from current input
