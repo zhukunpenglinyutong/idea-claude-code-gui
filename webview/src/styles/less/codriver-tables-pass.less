@@ -89,3 +89,23 @@ html[data-theme="codriver"][data-ide-theme="dark"] {
 html[data-theme="codriver"][data-ide-theme="light"] {
     --codriver-table-border: #d0d7de;
 }
+
+/* Match Copilot's plain markdown table appearance: no internal grid. */
+html[data-theme="codriver"] {
+    .markdown-content table,
+    .markdown-content thead,
+    .markdown-content tbody,
+    .markdown-content tr,
+    .markdown-content th,
+    .markdown-content td {
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .markdown-content th + th,
+    .markdown-content td + td,
+    .markdown-content tbody tr:last-child td {
+        border-left: 0 !important;
+        border-bottom: 0 !important;
+    }
+}
