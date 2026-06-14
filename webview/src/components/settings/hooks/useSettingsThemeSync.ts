@@ -44,9 +44,19 @@ export function useSettingsThemeSync(): UseSettingsThemeSyncReturn {
     return 'system'; // Default: follow IDE
   });
 
-  // IDE theme state (prefer Java-injected initial theme, used to handle dynamic changes)
+  // IDE theme state. Prefer the live `data-ide-theme` already on <html>: the chat
+  // view (useThemeInit) keeps it in sync with the *current* IDE theme via
+  // get_ide_theme. window.__INITIAL_IDE_THEME__ is only a load-time snapshot and
+  // can be stale; reading it on Settings mount previously clobbered data-ide-theme
+  // and flipped CoDriver to light. Fall back to the injected snapshot only when the
+  // attribute is not present yet.
   const [ideTheme, setIdeTheme] = useState<IdeThemeMode | null>(() => {
-    // Check if Java has injected the initial theme
+    if (typeof document !== 'undefined') {
+      const domIdeTheme = document.documentElement.getAttribute('data-ide-theme');
+      if (domIdeTheme === 'light' || domIdeTheme === 'dark') {
+        return domIdeTheme;
+      }
+    }
     const injectedTheme = window.__INITIAL_IDE_THEME__;
     if (injectedTheme === 'light' || injectedTheme === 'dark') {
       return injectedTheme;
@@ -100,19 +110,26 @@ export function useSettingsThemeSync(): UseSettingsThemeSyncReturn {
   // Diff theme configuration
   const [diffTheme, setDiffTheme] = useState<DiffThemeMode>(() => getStoredDiffTheme());
 
-  // Theme switching handler (supports following IDE theme)
+  // Theme switching handler (supports following IDE theme).
+  // Writes are idempotent: merely opening Settings must not re-initialize or
+  // overwrite the active theme — only an actual change (user toggle or a live IDE
+  // theme change) is written back. This prevents the Settings mount from flipping
+  // CoDriver away from the current IDE light/dark state.
   useEffect(() => {
-    if (ideTheme !== null) {
-      document.documentElement.setAttribute('data-ide-theme', ideTheme);
+    const root = document.documentElement;
+
+    if (ideTheme !== null && root.getAttribute('data-ide-theme') !== ideTheme) {
+      root.setAttribute('data-ide-theme', ideTheme);
     }
 
     const resolvedTheme = resolveThemeAttribute(themePreference, ideTheme);
-    if (resolvedTheme !== null) {
-      document.documentElement.setAttribute('data-theme', resolvedTheme);
+    if (resolvedTheme !== null && root.getAttribute('data-theme') !== resolvedTheme) {
+      root.setAttribute('data-theme', resolvedTheme);
     }
 
-    // Save to localStorage
-    localStorage.setItem('theme', themePreference);
+    if (localStorage.getItem('theme') !== themePreference) {
+      localStorage.setItem('theme', themePreference);
+    }
   }, [themePreference, ideTheme]);
 
   // Font size scaling handler
