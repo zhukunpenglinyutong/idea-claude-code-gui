@@ -132,6 +132,17 @@ export function useSettingsThemeSync(): UseSettingsThemeSyncReturn {
     }
   }, [themePreference, ideTheme]);
 
+  // Report whether the CoDriver chat theme is active so the plugin (tool window / action)
+  // icon can follow it: switching away from CoDriver restores the original icon. The theme
+  // preference is the source of truth (only an explicit `codriver` choice counts; system,
+  // light and dark never resolve to CoDriver).
+  useEffect(() => {
+    if (window.sendToJava) {
+      const active = themePreference === 'codriver';
+      window.sendToJava(`set_codriver_theme_active:${JSON.stringify({ active })}`);
+    }
+  }, [themePreference]);
+
   // Font size scaling handler
   useEffect(() => {
     // Map level to scale ratio

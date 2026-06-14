@@ -69,6 +69,7 @@ public class CodemossSettingsService {
     private static final String DEFAULT_COMMIT_AI_CODEX_MODEL = "gpt-5.5";
     private static final String USER_LANGUAGE_CONFIG_KEY = "language";
     private static final String CODRIVER_TOOL_ICON_ENABLED_KEY = "codriverToolIconEnabled";
+    private static final String CODRIVER_THEME_ACTIVE_KEY = "codriverThemeActive";
 
     private final Gson gson;
 
@@ -312,6 +313,33 @@ public class CodemossSettingsService {
         config.addProperty(CODRIVER_TOOL_ICON_ENABLED_KEY, enabled);
         writeConfig(config);
         LOG.info("[CodemossSettings] Set CoDriver tool icon enabled: " + enabled);
+    }
+
+    /**
+     * Read whether the CoDriver chat theme is currently active. This mirrors the webview's
+     * active theme so the plugin (tool window / action) icon can be scoped to the CoDriver
+     * theme. Default is false (non-CoDriver themes use the original icon).
+     *
+     * @return whether the CoDriver theme is active, default is false
+     */
+    public boolean getCoDriverThemeActive() throws IOException {
+        JsonObject config = readConfig();
+        if (config.has(CODRIVER_THEME_ACTIVE_KEY) && !config.get(CODRIVER_THEME_ACTIVE_KEY).isJsonNull()) {
+            return config.get(CODRIVER_THEME_ACTIVE_KEY).getAsBoolean();
+        }
+        return false;
+    }
+
+    /**
+     * Persist whether the CoDriver chat theme is currently active.
+     *
+     * @param active whether the CoDriver theme is active
+     */
+    public void setCoDriverThemeActive(boolean active) throws IOException {
+        JsonObject config = readConfig();
+        config.addProperty(CODRIVER_THEME_ACTIVE_KEY, active);
+        writeConfig(config);
+        LOG.info("[CodemossSettings] Set CoDriver theme active: " + active);
     }
 
     // ==================== Language Config Management ====================

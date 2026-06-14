@@ -71,6 +71,7 @@ public class SettingsHandler extends BaseMessageHandler {
         "get_ide_theme",
         "get_codriver_tool_icon_enabled",
         "set_codriver_tool_icon_enabled",
+        "set_codriver_theme_active",
         "get_commit_prompt",
         "set_commit_prompt",
         "get_commit_ai_config",
@@ -246,6 +247,9 @@ public class SettingsHandler extends BaseMessageHandler {
                 return true;
             case "set_codriver_tool_icon_enabled":
                 projectConfigHandler.handleSetCoDriverToolIconEnabled(content);
+                return true;
+            case "set_codriver_theme_active":
+                projectConfigHandler.handleSetCoDriverThemeActive(content);
                 return true;
             case "get_task_completion_notification_enabled":
                 projectConfigHandler.handleGetTaskCompletionNotificationEnabled();

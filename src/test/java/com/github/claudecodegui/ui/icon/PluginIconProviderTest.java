@@ -13,9 +13,10 @@ public class PluginIconProviderTest {
 
     @After
     public void resetCache() {
-        // The provider keeps a static preference cache; restore the default (CoDriver) so
-        // test ordering cannot leak state into other suites.
+        // The provider keeps static caches; restore defaults so test ordering cannot leak
+        // state into other suites.
         PluginIconProvider.setCoDriverIconEnabledCache(true);
+        PluginIconProvider.setCoDriverThemeActiveCache(false);
     }
 
     @Test
@@ -44,5 +45,33 @@ public class PluginIconProviderTest {
         Assert.assertEquals(
                 "/icons/cc-gui-icon.svg",
                 PluginIconProvider.resolvePluginIconPath(PluginIconProvider.isCoDriverIconEnabled()));
+    }
+
+    @Test
+    public void iconActiveOnlyWhenThemeActiveAndToggleEnabled() {
+        PluginIconProvider.setCoDriverIconEnabledCache(true);
+        PluginIconProvider.setCoDriverThemeActiveCache(true);
+        Assert.assertTrue(PluginIconProvider.isCoDriverIconActive());
+        Assert.assertEquals(
+                "/icons/codriver-tool-icon.svg",
+                PluginIconProvider.resolvePluginIconPath(PluginIconProvider.isCoDriverIconActive()));
+    }
+
+    @Test
+    public void iconInactiveWhenThemeNotActiveEvenIfToggleEnabled() {
+        // The reported bug: toggle on, but a non-CoDriver theme must still show the original icon.
+        PluginIconProvider.setCoDriverIconEnabledCache(true);
+        PluginIconProvider.setCoDriverThemeActiveCache(false);
+        Assert.assertFalse(PluginIconProvider.isCoDriverIconActive());
+        Assert.assertEquals(
+                "/icons/cc-gui-icon.svg",
+                PluginIconProvider.resolvePluginIconPath(PluginIconProvider.isCoDriverIconActive()));
+    }
+
+    @Test
+    public void iconInactiveWhenToggleDisabledEvenInCoDriverTheme() {
+        PluginIconProvider.setCoDriverIconEnabledCache(false);
+        PluginIconProvider.setCoDriverThemeActiveCache(true);
+        Assert.assertFalse(PluginIconProvider.isCoDriverIconActive());
     }
 }

@@ -10,7 +10,9 @@ import com.intellij.openapi.wm.ToolWindowManager;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Apply the user-selected tool window icon without coupling settings UI code to the tool window factory.
+ * Applies the effective plugin icon to the CC GUI tool window. The icon decision lives in
+ * {@link PluginIconProvider} (CoDriver icon only when the CoDriver theme is active and the
+ * toggle is on); this service just pushes it onto the tool window.
  */
 public final class ToolWindowIconService {
 
@@ -20,51 +22,44 @@ public final class ToolWindowIconService {
     }
 
     /**
-     * Apply the persisted icon preference to the already-created tool window descriptor.
+     * Prime the icon caches from persisted settings and apply the effective icon to the
+     * already-created tool window descriptor (called at tool window creation).
      */
     public static void applyConfiguredIcon(@NotNull ToolWindow toolWindow,
                                            @NotNull CodemossSettingsService settingsService) {
-        applyIcon(toolWindow, readCoDriverIconPreference(settingsService));
+        primeCaches(settingsService);
+        applyCurrentIcon(toolWindow);
     }
 
-    /**
-     * Apply the persisted icon preference to the project's active tool window instance.
-     */
-    public static void applyConfiguredIcon(@NotNull Project project,
-                                           @NotNull CodemossSettingsService settingsService) {
-        applyIcon(project, readCoDriverIconPreference(settingsService));
+    /** Apply the current effective plugin icon to a concrete tool window. */
+    public static void applyCurrentIcon(@NotNull ToolWindow toolWindow) {
+        toolWindow.setIcon(PluginIconProvider.getCurrentPluginIcon());
     }
 
-    /**
-     * Apply the requested icon to the project's active tool window instance.
-     */
-    public static void applyIcon(@NotNull Project project, boolean coDriverIconEnabled) {
+    /** Apply the current effective plugin icon to the project's active tool window instance. */
+    public static void applyCurrentIcon(@NotNull Project project) {
         ApplicationManager.getApplication().invokeLater(() -> {
             if (project.isDisposed()) {
                 return;
             }
-
             ToolWindow toolWindow = ToolWindowManager.getInstance(project)
                     .getToolWindow(ClaudeSDKToolWindow.TOOL_WINDOW_ID);
             if (toolWindow != null) {
-                applyIcon(toolWindow, coDriverIconEnabled);
+                applyCurrentIcon(toolWindow);
             }
         });
     }
 
-    /**
-     * Apply the requested icon to a concrete tool window.
-     */
-    public static void applyIcon(@NotNull ToolWindow toolWindow, boolean coDriverIconEnabled) {
-        toolWindow.setIcon(PluginIconProvider.getPluginIcon(coDriverIconEnabled));
-    }
-
-    private static boolean readCoDriverIconPreference(@NotNull CodemossSettingsService settingsService) {
+    private static void primeCaches(@NotNull CodemossSettingsService settingsService) {
         try {
-            return settingsService.getCoDriverToolIconEnabled();
+            PluginIconProvider.setCoDriverIconEnabledCache(settingsService.getCoDriverToolIconEnabled());
         } catch (Exception e) {
-            LOG.warn("[ToolWindowIconService] Failed to read CoDriver tool icon preference; using CoDriver icon", e);
-            return true;
+            LOG.warn("[ToolWindowIconService] Failed to read CoDriver tool icon preference", e);
+        }
+        try {
+            PluginIconProvider.setCoDriverThemeActiveCache(settingsService.getCoDriverThemeActive());
+        } catch (Exception e) {
+            LOG.warn("[ToolWindowIconService] Failed to read CoDriver theme active flag", e);
         }
     }
 }

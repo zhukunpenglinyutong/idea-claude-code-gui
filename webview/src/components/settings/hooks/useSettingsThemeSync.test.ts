@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { useSettingsThemeSync } from './useSettingsThemeSync';
 
@@ -15,10 +15,12 @@ beforeEach(() => {
   setAttr('data-theme', null);
   setAttr('data-ide-theme', null);
   delete (window as unknown as { __INITIAL_IDE_THEME__?: string }).__INITIAL_IDE_THEME__;
+  delete (window as unknown as { sendToJava?: unknown }).sendToJava;
 });
 
 afterEach(() => {
   cleanup();
+  delete (window as unknown as { sendToJava?: unknown }).sendToJava;
 });
 
 describe('useSettingsThemeSync theme state', () => {
@@ -99,5 +101,39 @@ describe('useSettingsThemeSync theme state', () => {
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect(localStorage.getItem('theme')).toBe('dark');
+  });
+});
+
+describe('useSettingsThemeSync reports active theme to Java for the plugin icon', () => {
+  it('reports active=true while CoDriver is the preference and active=false after switching away', () => {
+    const sendToJava = vi.fn();
+    (window as unknown as { sendToJava: (m: string) => void }).sendToJava = sendToJava;
+
+    setAttr('data-theme', 'codriver');
+    setAttr('data-ide-theme', 'dark');
+    localStorage.setItem('theme', 'codriver');
+
+    const { result } = renderHook(() => useSettingsThemeSync());
+
+    // On mount it reports the current CoDriver theme as active.
+    expect(sendToJava).toHaveBeenCalledWith('set_codriver_theme_active:{"active":true}');
+
+    sendToJava.mockClear();
+    act(() => result.current.setThemePreference('dark'));
+
+    // Switching to a non-CoDriver theme reports inactive so the icon reverts.
+    expect(sendToJava).toHaveBeenCalledWith('set_codriver_theme_active:{"active":false}');
+  });
+
+  it('reports active=false for non-CoDriver themes', () => {
+    const sendToJava = vi.fn();
+    (window as unknown as { sendToJava: (m: string) => void }).sendToJava = sendToJava;
+
+    setAttr('data-ide-theme', 'dark');
+    localStorage.setItem('theme', 'light');
+
+    renderHook(() => useSettingsThemeSync());
+
+    expect(sendToJava).toHaveBeenCalledWith('set_codriver_theme_active:{"active":false}');
   });
 });

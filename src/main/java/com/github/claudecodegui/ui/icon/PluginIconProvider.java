@@ -11,10 +11,11 @@ import javax.swing.Icon;
  * Single source of truth for the plugin's own branding icon.
  *
  * <p>Wherever the plugin shows its CC GUI / Claude Code GUI icon (tool window stripe,
- * editor/console/VCS actions, commit dialog, …) the icon must follow the persisted
- * {@code codriverToolIconEnabled} preference: the monochrome CoDriver racer icon when
- * enabled, the original orange icon when disabled. Callers should never hard-code an icon
- * path themselves — they resolve it here so a single toggle stays consistent everywhere.
+ * editor/console/VCS actions, commit dialog, …) the icon follows the active state: the
+ * monochrome CoDriver racer icon is used only when the CoDriver chat theme is active AND
+ * the {@code codriverToolIconEnabled} toggle is on; otherwise the original orange icon is
+ * used. Callers never hard-code an icon path — they resolve it here so the decision stays
+ * consistent everywhere.
  */
 public final class PluginIconProvider {
 
@@ -29,19 +30,28 @@ public final class PluginIconProvider {
     static final String ORIGINAL_WINDOW_IMAGE_PATH = "/icons/logo-16.png";
     static final String CODRIVER_WINDOW_IMAGE_PATH = "/icons/codriver-tool-icon.png";
 
-    // Cached preference so per-frame action update() calls (some on the EDT) don't read
-    // the settings file repeatedly. Refreshed whenever the toggle is persisted.
+    // Cached preferences so per-frame action update() calls (some on the EDT) don't read
+    // the settings file repeatedly. Refreshed whenever the values are persisted.
     private static volatile Boolean cachedCoDriverIconEnabled = null;
+    private static volatile Boolean cachedCoDriverThemeActive = null;
 
     private PluginIconProvider() {
     }
 
     /**
-     * Update the cached preference. Call this right after the setting is persisted so every
-     * icon surface (tool window, actions, commit dialog) reflects the change without IO.
+     * Update the cached toggle preference. Call this right after the setting is persisted so
+     * every icon surface (tool window, actions, commit dialog) reflects the change without IO.
      */
     public static void setCoDriverIconEnabledCache(boolean enabled) {
         cachedCoDriverIconEnabled = enabled;
+    }
+
+    /**
+     * Update the cached "CoDriver theme active" flag. Call this right after it is persisted so
+     * the icon follows the active chat theme without re-reading settings.
+     */
+    public static void setCoDriverThemeActiveCache(boolean active) {
+        cachedCoDriverThemeActive = active;
     }
 
     /**
@@ -62,10 +72,10 @@ public final class PluginIconProvider {
         return coDriverIconEnabled ? CODRIVER_WINDOW_IMAGE_PATH : ORIGINAL_WINDOW_IMAGE_PATH;
     }
 
-    /** The PNG window-icon resource path matching the persisted preference. */
+    /** The PNG window-icon resource path matching the current effective state. */
     @NotNull
     public static String getCurrentPluginWindowImagePath() {
-        return resolvePluginWindowImagePath(isCoDriverIconEnabled());
+        return resolvePluginWindowImagePath(isCoDriverIconActive());
     }
 
     /** The original orange plugin icon, regardless of the current preference. */
@@ -86,15 +96,24 @@ public final class PluginIconProvider {
         return loadIcon(coDriverIconEnabled);
     }
 
-    /** The icon matching the persisted {@code codriverToolIconEnabled} preference. */
+    /** The icon matching the current effective state (CoDriver theme active AND toggle on). */
     @NotNull
     public static Icon getCurrentPluginIcon() {
-        return loadIcon(isCoDriverIconEnabled());
+        return loadIcon(isCoDriverIconActive());
     }
 
     /**
-     * Read the persisted preference. Defaults to the CoDriver icon on failure, mirroring
-     * {@link ToolWindowIconService}'s behaviour so the icon stays consistent across surfaces.
+     * Whether the monochrome CoDriver icon should currently be shown: only when the CoDriver
+     * chat theme is active AND the toggle is enabled. Any other theme uses the original icon
+     * regardless of the toggle.
+     */
+    public static boolean isCoDriverIconActive() {
+        return isCoDriverThemeActive() && isCoDriverIconEnabled();
+    }
+
+    /**
+     * Read the persisted toggle. Defaults to the CoDriver icon on failure, mirroring the
+     * default-enabled behaviour of the setting.
      */
     public static boolean isCoDriverIconEnabled() {
         Boolean cached = cachedCoDriverIconEnabled;
@@ -110,6 +129,26 @@ public final class PluginIconProvider {
         }
         cachedCoDriverIconEnabled = enabled;
         return enabled;
+    }
+
+    /**
+     * Whether the CoDriver chat theme is currently active. Defaults to false on failure so a
+     * non-CoDriver theme never shows the CoDriver icon.
+     */
+    public static boolean isCoDriverThemeActive() {
+        Boolean cached = cachedCoDriverThemeActive;
+        if (cached != null) {
+            return cached;
+        }
+        boolean active;
+        try {
+            active = new CodemossSettingsService().getCoDriverThemeActive();
+        } catch (Exception e) {
+            LOG.warn("[PluginIconProvider] Failed to read CoDriver theme active flag; assuming inactive", e);
+            active = false;
+        }
+        cachedCoDriverThemeActive = active;
+        return active;
     }
 
     private static Icon loadIcon(boolean coDriverIconEnabled) {

@@ -703,10 +703,31 @@ public class ProjectConfigHandler {
             enabled -> {
                 settingsService.setCoDriverToolIconEnabled(enabled);
                 PluginIconProvider.setCoDriverIconEnabledCache(enabled);
-                ToolWindowIconService.applyIcon(context.getProject(), enabled);
+                // Re-apply the effective icon (toggle is only honored while the CoDriver
+                // theme is active).
+                ToolWindowIconService.applyCurrentIcon(context.getProject());
             },
             "window.updateCoDriverToolIconEnabled",
             "Failed to save CoDriver tool icon config");
+    }
+
+    /**
+     * Track whether the CoDriver chat theme is currently active so the plugin icon can be
+     * scoped to it: the CoDriver icon is shown only when the CoDriver theme is active AND the
+     * tool-icon toggle is enabled; switching to any other theme restores the original icon.
+     * The webview is the source of truth and reports this on load and on theme changes.
+     */
+    public void handleSetCoDriverThemeActive(String content) {
+        try {
+            JsonObject json = gson.fromJson(content, JsonObject.class);
+            boolean active = readBoolean(json, "active", false);
+            settingsService.setCoDriverThemeActive(active);
+            PluginIconProvider.setCoDriverThemeActiveCache(active);
+            ToolWindowIconService.applyCurrentIcon(context.getProject());
+            LOG.info("[ProjectConfigHandler] Set CoDriver theme active: " + active);
+        } catch (Exception e) {
+            LOG.error("[ProjectConfigHandler] Failed to set CoDriver theme active: " + e.getMessage(), e);
+        }
     }
 
     public void handleGetTaskCompletionNotificationEnabled() {

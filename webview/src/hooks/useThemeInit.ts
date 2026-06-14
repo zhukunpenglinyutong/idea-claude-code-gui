@@ -105,6 +105,10 @@ export function useThemeInit() {
     const requestIdeTheme = () => {
       if (window.sendToJava) {
         window.sendToJava('get_ide_theme:');
+        // Report the active chat theme so the plugin (tool window / action) icon follows it
+        // from startup. The CoDriver icon must only show while the CoDriver theme is active.
+        const coDriverThemeActive = localStorage.getItem('theme') === 'codriver';
+        window.sendToJava(`set_codriver_theme_active:${JSON.stringify({ active: coDriverThemeActive })}`);
       } else {
         retryCount++;
         if (retryCount < MAX_RETRIES) {
