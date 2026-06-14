@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
 import { truncate } from '../../utils/helpers';
+import { ToolStatusIndicator } from './CoDriverToolParts';
 
 interface SearchItem {
   toolName: string;
@@ -174,7 +175,7 @@ const SearchToolGroupBlock = ({ items }: SearchToolGroupBlockProps) => {
   };
 
   return (
-    <div className="task-container">
+    <div className="task-container codriver-collapsible-tool">
       <div
         className="task-header"
         onClick={() => setExpanded((prev) => !prev)}
@@ -232,8 +233,9 @@ const SearchToolGroupBlock = ({ items }: SearchToolGroupBlockProps) => {
               )}
 
               {/* Status indicator */}
-              <div
-                className={`tool-status-indicator ${item.isError ? 'error' : item.isCompleted ? 'completed' : 'pending'}`}
+              <ToolStatusIndicator
+                isCompleted={item.isCompleted}
+                isError={item.isError}
                 style={STATUS_INDICATOR_STYLE}
               />
             </div>

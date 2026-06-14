@@ -1,4 +1,6 @@
 import { memo, useMemo } from 'react';
+import { useIsCoDriverTheme } from '../../hooks/useActiveThemeMode';
+import { NativeFileIcon } from '../nativeIcons/NativeFileIcon';
 import { getFileIconSvg } from './utils';
 
 interface FileIconProps {
@@ -9,15 +11,32 @@ interface FileIconProps {
 /**
  * File icon component that safely renders SVG icons.
  *
- * Security note: The SVG content comes from internal trusted source (getFileIconSvg)
- * which maps file extensions to pre-defined SVG strings. No user input is rendered.
+ * CoDriver asks the IntelliJ backend for the native IDE file icon. The stock
+ * SVG icon remains the fallback and is still used by the other themes.
  */
 const FileIcon = memo(({ filePath, className = 'file-change-icon' }: FileIconProps) => {
-  // Memoize SVG to prevent unnecessary recalculations
+  const isCoDriver = useIsCoDriverTheme();
+  const fileName = useMemo(() => filePath.split(/[/\\]/).pop() || filePath, [filePath]);
   const svgContent = useMemo(() => getFileIconSvg(filePath), [filePath]);
 
-  // SVG comes from internal trusted source - no user input
-  // eslint-disable-next-line react/no-danger
+  const fallback = (
+    <span
+      dangerouslySetInnerHTML={{ __html: svgContent }}
+      aria-hidden="true"
+    />
+  );
+
+  if (isCoDriver) {
+    return (
+      <NativeFileIcon
+        className={className}
+        filePath={filePath}
+        fileName={fileName}
+        fallback={fallback}
+      />
+    );
+  }
+
   return (
     <span
       className={className}

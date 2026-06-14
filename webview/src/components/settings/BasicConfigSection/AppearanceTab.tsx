@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { DiffThemeMode } from '../../../utils/diffTheme';
 import type { UiThemeMode } from '../../../types/uiThemeMode';
 import type { UiFontConfig, CodeFontConfig } from '../hooks/useSettingsBasicActions';
+import coDriverRacerLineIcon from '../../../assets/images/codriver-racer-line-icon.svg';
 
 // Preset colors (module-level constants to avoid recreating on each render)
 const DARK_PRESETS = [
@@ -30,6 +31,30 @@ const LIGHT_PRESETS = [
 
 const DEFAULT_DARK_BG = '#1e1e1e';
 const DEFAULT_LIGHT_BG = '#ffffff';
+const DEFAULT_CODRIVER_DARK_BG = '#191a1c';
+const DEFAULT_CODRIVER_LIGHT_BG = '#ffffff';
+
+const CODRIVER_DARK_PRESETS = [
+  { color: DEFAULT_CODRIVER_DARK_BG, label: 'CoDriver Default' },
+  { color: '#202123', label: 'JetBrains Panel' },
+  { color: '#1f1f1f', label: 'IDE Surface' },
+  { color: '#242628', label: 'Soft Dark' },
+  { color: '#0d1117', label: 'GitHub Dark' },
+  { color: '#22272e', label: 'GitHub Dimmed' },
+  { color: '#2b2d30', label: 'Raised Panel' },
+  { color: '#111827', label: 'Deep Neutral' },
+];
+
+const CODRIVER_LIGHT_PRESETS = [
+  { color: DEFAULT_CODRIVER_LIGHT_BG, label: 'CoDriver Default' },
+  { color: '#f7f8fa', label: 'Soft White' },
+  { color: '#f6f8fa', label: 'GitHub Light' },
+  { color: '#f3f4f6', label: 'IDE Panel' },
+  { color: '#eef2f7', label: 'Cool Gray' },
+  { color: '#fffaf0', label: 'Warm White' },
+  { color: '#f5f7fb', label: 'Blue White' },
+  { color: '#fbfbfc', label: 'Quiet White' },
+];
 
 // User message bubble color presets
 const USER_MSG_DARK_PRESETS = [
@@ -56,6 +81,76 @@ const USER_MSG_LIGHT_PRESETS = [
 
 const DEFAULT_DARK_USER_MSG = '#005fb8';
 const DEFAULT_LIGHT_USER_MSG = '#0078d4';
+const DEFAULT_CODRIVER_DARK_USER_MSG = '#264f78';
+const DEFAULT_CODRIVER_LIGHT_USER_MSG = '#d4e2ff';
+
+const CODRIVER_USER_MSG_DARK_PRESETS = [
+  { color: DEFAULT_CODRIVER_DARK_USER_MSG, label: 'CoDriver Default' },
+  { color: '#2f5f8f', label: 'Softer Blue' },
+  { color: '#1f6feb', label: 'GitHub Blue' },
+  { color: '#2563a6', label: 'Workbench Blue' },
+  { color: '#1a7f37', label: 'Context Green' },
+  { color: '#6e40c9', label: 'Agent Purple' },
+  { color: '#4a5568', label: 'Neutral' },
+  { color: '#0e6b8a', label: 'Teal' },
+];
+
+const CODRIVER_USER_MSG_LIGHT_PRESETS = [
+  { color: DEFAULT_CODRIVER_LIGHT_USER_MSG, label: 'CoDriver Default' },
+  { color: '#cfe1ff', label: 'Soft Blue' },
+  { color: '#e8f1ff', label: 'Very Light Blue' },
+  { color: '#dbeafe', label: 'Workbench Blue' },
+  { color: '#dafbe1', label: 'Context Green' },
+  { color: '#efe7ff', label: 'Agent Purple' },
+  { color: '#f2f4f8', label: 'Neutral' },
+  { color: '#e0f2fe', label: 'Teal' },
+];
+
+const DEFAULT_CODRIVER_DARK_LINK = '#4daafc';
+const DEFAULT_CODRIVER_LIGHT_LINK = '#196bc5';
+const CODRIVER_LINK_DARK_PRESETS = [
+  { color: DEFAULT_CODRIVER_DARK_LINK, label: 'CoDriver Default' },
+  { color: '#526cab', label: 'Muted VS Code' },
+  { color: '#58a6ff', label: 'GitHub Blue' },
+  { color: '#79c0ff', label: 'Bright Blue' },
+  { color: '#2f81f7', label: 'Accent Blue' },
+  { color: '#4ea1ff', label: 'IDE Link' },
+  { color: '#6cb6ff', label: 'Soft Link' },
+  { color: '#94c2ff', label: 'Subtle Link' },
+];
+const CODRIVER_LINK_LIGHT_PRESETS = [
+  { color: DEFAULT_CODRIVER_LIGHT_LINK, label: 'CoDriver Default' },
+  { color: '#0969da', label: 'GitHub Blue' },
+  { color: '#0550ae', label: 'VS Code Blue' },
+  { color: '#0a66c2', label: 'IDE Link' },
+  { color: '#2563eb', label: 'Accent Blue' },
+  { color: '#0366d6', label: 'Classic Blue' },
+  { color: '#1d4ed8', label: 'Deep Blue' },
+  { color: '#3b82f6', label: 'Soft Blue' },
+];
+
+const DEFAULT_CODRIVER_DARK_CODE = '#d7ba7d';
+const DEFAULT_CODRIVER_LIGHT_CODE = '#cf222e';
+const CODRIVER_CODE_DARK_PRESETS = [
+  { color: DEFAULT_CODRIVER_DARK_CODE, label: 'CoDriver Default' },
+  { color: '#d6b975', label: 'Muted Amber' },
+  { color: '#e3c16f', label: 'Warm Amber' },
+  { color: '#f0c674', label: 'Classic Yellow' },
+  { color: '#c9a86a', label: 'Subtle Gold' },
+  { color: '#ffd166', label: 'Bright Gold' },
+  { color: '#f2cc60', label: 'VS Code Yellow' },
+  { color: '#e5c07b', label: 'One Dark' },
+];
+const CODRIVER_CODE_LIGHT_PRESETS = [
+  { color: DEFAULT_CODRIVER_LIGHT_CODE, label: 'CoDriver Default' },
+  { color: '#a31515', label: 'JetBrains Red' },
+  { color: '#b31d28', label: 'GitHub Red' },
+  { color: '#c2410c', label: 'Orange Red' },
+  { color: '#953800', label: 'Brown' },
+  { color: '#8250df', label: 'Purple' },
+  { color: '#0550ae', label: 'Blue' },
+  { color: '#116329', label: 'Green' },
+];
 const UI_FONT_SELECT_ID = 'settings-ui-font-select';
 const UI_FONT_CUSTOM_PATH_ID = 'settings-ui-font-custom-path';
 const CODE_FONT_SELECT_ID = 'settings-code-font-select';
@@ -95,12 +190,14 @@ const SystemIcon = () => (
   </svg>
 );
 
-const CoDriverIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <path d="M12 3.75C7.44 3.75 3.75 7.44 3.75 12S7.44 20.25 12 20.25 20.25 16.56 20.25 12 16.56 3.75 12 3.75Z" stroke="currentColor" strokeWidth="1.8"/>
-    <path d="M8.2 12.1c.7-1.35 1.95-2.15 3.8-2.15s3.1.8 3.8 2.15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-    <path d="M7.7 13.9c.95 1.25 2.38 1.9 4.3 1.9s3.35-.65 4.3-1.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-  </svg>
+const CoDriverThemeIcon = () => (
+  <img
+    src={coDriverRacerLineIcon}
+    alt=""
+    aria-hidden="true"
+    data-testid="codriver-theme-icon"
+    className={styles.coDriverThemeIconImage}
+  />
 );
 
 export interface AppearanceTabProps {
@@ -125,8 +222,14 @@ export interface AppearanceTabProps {
   onChatBgColorChange?: (color: string) => void;
   userMsgColor?: string;
   onUserMsgColorChange?: (color: string) => void;
+  linkColor?: string;
+  onLinkColorChange?: (color: string) => void;
+  codeColor?: string;
+  onCodeColorChange?: (color: string) => void;
   diffTheme?: DiffThemeMode;
   onDiffThemeChange?: (theme: DiffThemeMode) => void;
+  coDriverToolIconEnabled?: boolean;
+  onCoDriverToolIconEnabledChange?: (enabled: boolean) => void;
 }
 
 const AppearanceTab = ({
@@ -147,14 +250,24 @@ const AppearanceTab = ({
   onChatBgColorChange = () => {},
   userMsgColor = '',
   onUserMsgColorChange = () => {},
+  linkColor = '',
+  onLinkColorChange = () => {},
+  codeColor = '',
+  onCodeColorChange = () => {},
   diffTheme = 'follow',
   onDiffThemeChange = () => {},
+  coDriverToolIconEnabled = true,
+  onCoDriverToolIconEnabledChange = () => {},
 }: AppearanceTabProps) => {
   const { t, i18n } = useTranslation();
   const colorInputRef = useRef<HTMLInputElement>(null);
   const userMsgColorInputRef = useRef<HTMLInputElement>(null);
+  const linkColorInputRef = useRef<HTMLInputElement>(null);
+  const codeColorInputRef = useRef<HTMLInputElement>(null);
   const [hexInput, setHexInput] = useState(chatBgColor || '');
   const [userMsgHexInput, setUserMsgHexInput] = useState(userMsgColor || '');
+  const [linkHexInput, setLinkHexInput] = useState(linkColor || '');
+  const [codeHexInput, setCodeHexInput] = useState(codeColor || '');
   const [selectedUiFontOption, setSelectedUiFontOption] = useState(() => {
     if (!uiFontConfig || uiFontConfig.mode === 'followEditor') return 'followEditor';
     return 'customFile';
@@ -178,6 +291,14 @@ const AppearanceTab = ({
   useEffect(() => {
     setUserMsgHexInput(userMsgColor || '');
   }, [userMsgColor]);
+
+  useEffect(() => {
+    setLinkHexInput(linkColor || '');
+  }, [linkColor]);
+
+  useEffect(() => {
+    setCodeHexInput(codeColor || '');
+  }, [codeColor]);
 
   useEffect(() => {
     if (!uiFontConfig || uiFontConfig.mode === 'followEditor') {
@@ -214,12 +335,30 @@ const AppearanceTab = ({
     if (theme !== 'system') return theme;
     return (document.documentElement.getAttribute('data-theme') as 'light' | 'dark' | 'codriver') || 'dark';
   }, [theme]);
+  const isCoDriverTheme = resolvedTheme === 'codriver';
+  const coDriverPaletteTheme = (document.documentElement.getAttribute('data-ide-theme') === 'light')
+    ? 'light'
+    : 'dark';
+  const paletteTheme = isCoDriverTheme ? coDriverPaletteTheme : resolvedTheme;
 
-  const defaultBgColor = resolvedTheme === 'light' ? DEFAULT_LIGHT_BG : DEFAULT_DARK_BG;
-  const presets = resolvedTheme === 'light' ? LIGHT_PRESETS : DARK_PRESETS;
+  const defaultBgColor = isCoDriverTheme
+    ? (coDriverPaletteTheme === 'light' ? DEFAULT_CODRIVER_LIGHT_BG : DEFAULT_CODRIVER_DARK_BG)
+    : (paletteTheme === 'light' ? DEFAULT_LIGHT_BG : DEFAULT_DARK_BG);
+  const presets = isCoDriverTheme
+    ? (coDriverPaletteTheme === 'light' ? CODRIVER_LIGHT_PRESETS : CODRIVER_DARK_PRESETS)
+    : (paletteTheme === 'light' ? LIGHT_PRESETS : DARK_PRESETS);
 
-  const defaultUserMsgColor = resolvedTheme === 'light' ? DEFAULT_LIGHT_USER_MSG : DEFAULT_DARK_USER_MSG;
-  const userMsgPresets = resolvedTheme === 'light' ? USER_MSG_LIGHT_PRESETS : USER_MSG_DARK_PRESETS;
+  const defaultUserMsgColor = isCoDriverTheme
+    ? (coDriverPaletteTheme === 'light' ? DEFAULT_CODRIVER_LIGHT_USER_MSG : DEFAULT_CODRIVER_DARK_USER_MSG)
+    : (paletteTheme === 'light' ? DEFAULT_LIGHT_USER_MSG : DEFAULT_DARK_USER_MSG);
+  const userMsgPresets = isCoDriverTheme
+    ? (coDriverPaletteTheme === 'light' ? CODRIVER_USER_MSG_LIGHT_PRESETS : CODRIVER_USER_MSG_DARK_PRESETS)
+    : (paletteTheme === 'light' ? USER_MSG_LIGHT_PRESETS : USER_MSG_DARK_PRESETS);
+
+  const defaultLinkColor = coDriverPaletteTheme === 'light' ? DEFAULT_CODRIVER_LIGHT_LINK : DEFAULT_CODRIVER_DARK_LINK;
+  const linkPresets = coDriverPaletteTheme === 'light' ? CODRIVER_LINK_LIGHT_PRESETS : CODRIVER_LINK_DARK_PRESETS;
+  const defaultCodeColor = coDriverPaletteTheme === 'light' ? DEFAULT_CODRIVER_LIGHT_CODE : DEFAULT_CODRIVER_DARK_CODE;
+  const codePresets = coDriverPaletteTheme === 'light' ? CODRIVER_CODE_LIGHT_PRESETS : CODRIVER_CODE_DARK_PRESETS;
 
   const handlePresetClick = (color: string) => {
     if (color === defaultBgColor) {
@@ -269,6 +408,54 @@ const AppearanceTab = ({
     onUserMsgColorChange('');
   };
 
+  const handleLinkPresetClick = (color: string) => {
+    if (color === defaultLinkColor) {
+      onLinkColorChange('');
+    } else {
+      onLinkColorChange(color);
+    }
+  };
+
+  const handleLinkColorInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onLinkColorChange(e.target.value);
+  };
+
+  const handleLinkHexInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setLinkHexInput(value);
+    if (/^#[0-9a-fA-F]{6}$/.test(value)) {
+      onLinkColorChange(value);
+    }
+  };
+
+  const handleResetLinkColor = () => {
+    onLinkColorChange('');
+  };
+
+  const handleCodePresetClick = (color: string) => {
+    if (color === defaultCodeColor) {
+      onCodeColorChange('');
+    } else {
+      onCodeColorChange(color);
+    }
+  };
+
+  const handleCodeColorInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onCodeColorChange(e.target.value);
+  };
+
+  const handleCodeHexInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setCodeHexInput(value);
+    if (/^#[0-9a-fA-F]{6}$/.test(value)) {
+      onCodeColorChange(value);
+    }
+  };
+
+  const handleResetCodeColor = () => {
+    onCodeColorChange('');
+  };
+
   const isUserMsgPresetActive = (presetColor: string) => {
     if (presetColor === defaultUserMsgColor && !userMsgColor) return true;
     return userMsgColor.toLowerCase() === presetColor.toLowerCase();
@@ -277,6 +464,16 @@ const AppearanceTab = ({
   const isPresetActive = (presetColor: string) => {
     if (presetColor === defaultBgColor && !chatBgColor) return true;
     return chatBgColor.toLowerCase() === presetColor.toLowerCase();
+  };
+
+  const isLinkPresetActive = (presetColor: string) => {
+    if (presetColor === defaultLinkColor && !linkColor) return true;
+    return linkColor.toLowerCase() === presetColor.toLowerCase();
+  };
+
+  const isCodePresetActive = (presetColor: string) => {
+    if (presetColor === defaultCodeColor && !codeColor) return true;
+    return codeColor.toLowerCase() === presetColor.toLowerCase();
   };
 
   const hasSavedCustomFont = Boolean(uiFontConfig?.customFontPath);
@@ -390,6 +587,113 @@ const AppearanceTab = ({
     onSaveUiFontCustomPath(customFontPathDraft.trim());
   };
 
+  const renderCoDriverColorChooser = ({
+    icon,
+    label,
+    customLabel,
+    hint,
+    presets: colorPresets,
+    isActive,
+    onPresetClick,
+    inputRef,
+    color,
+    defaultColor,
+    onColorInputChange,
+    hexValue,
+    onHexInputChange,
+    onReset,
+  }: {
+    icon: string;
+    label: string;
+    customLabel: string;
+    hint: string;
+    presets: Array<{ color: string; label: string }>;
+    isActive: (color: string) => boolean;
+    onPresetClick: (color: string) => void;
+    inputRef: React.RefObject<HTMLInputElement | null>;
+    color: string;
+    defaultColor: string;
+    onColorInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    hexValue: string;
+    onHexInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    onReset: () => void;
+  }) => (
+    <div className={styles.bgColorSection}>
+      <div className={styles.fieldHeader}>
+        <span className={`codicon ${icon}`} />
+        <span className={styles.fieldLabel}>{label}</span>
+      </div>
+
+      <div className={styles.colorPresets}>
+        {colorPresets.map((preset) => (
+          <div
+            key={preset.color}
+            className={`${styles.colorSwatch} ${isActive(preset.color) ? styles.active : ''}`}
+            onClick={() => onPresetClick(preset.color)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onPresetClick(preset.color);
+              }
+            }}
+            role="button"
+            tabIndex={0}
+            title={preset.label}
+            aria-label={preset.label}
+          >
+            <div
+              className={styles.colorSwatchInner}
+              style={getSwatchStyle(preset.color)}
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className={styles.customColorRow}>
+        <span className={styles.customColorLabel}>{customLabel}</span>
+        <div
+          className={styles.colorPickerWrapper}
+          onClick={() => inputRef.current?.click()}
+        >
+          <div
+            className={styles.colorPickerPreview}
+            style={getSwatchStyle(color || defaultColor)}
+          />
+          <input
+            ref={inputRef}
+            type="color"
+            className={styles.colorPickerInput}
+            value={color || defaultColor}
+            onChange={onColorInputChange}
+          />
+        </div>
+        <input
+          type="text"
+          className={styles.hexInput}
+          value={hexValue}
+          onChange={onHexInputChange}
+          placeholder="#000000"
+          maxLength={7}
+        />
+        {color && (
+          <button
+            className={styles.resetBtn}
+            onClick={onReset}
+            title={t('common.reset', 'Reset')}
+          >
+            <span className="codicon codicon-discard" />
+            {t('common.reset', 'Reset')}
+          </button>
+        )}
+      </div>
+
+      <small className={styles.formHint}>
+        <span className="codicon codicon-info" />
+        <span>{hint}</span>
+      </small>
+    </div>
+  );
+
   return (
     <div className={styles.tabContent}>
       {/* Theme switcher */}
@@ -414,8 +718,8 @@ const AppearanceTab = ({
             className={`${styles.themeOption} ${theme === 'codriver' ? styles.active : ''}`}
             onClick={() => onThemeChange('codriver')}
           >
-            <div className={styles.themeIconSystem}>
-              <CoDriverIcon />
+            <div className={styles.themeIconCoDriver}>
+              <CoDriverThemeIcon />
             </div>
             <span className={styles.themeOptionLabel}>{t('settings.basic.theme.codriver', 'CoDriver')}</span>
           </div>
@@ -440,6 +744,29 @@ const AppearanceTab = ({
             <span className={styles.themeOptionLabel}>{t('settings.basic.theme.dark')}</span>
           </div>
         </div>
+
+        {theme === 'codriver' && (
+          <div className={styles.coDriverToolIconSection}>
+            <label className={styles.toggleWrapper}>
+              <input
+                type="checkbox"
+                className={styles.toggleInput}
+                checked={coDriverToolIconEnabled}
+                onChange={(event) => onCoDriverToolIconEnabledChange(event.target.checked)}
+              />
+              <span className={styles.toggleSlider} />
+              <span className={styles.toggleLabel}>
+                {coDriverToolIconEnabled
+                  ? t('settings.basic.coDriverToolIcon.enabled', 'Use monochrome CoDriver tool icon')
+                  : t('settings.basic.coDriverToolIcon.disabled', 'Use original orange tool icon')}
+              </span>
+            </label>
+            <small className={styles.formHint}>
+              <span className="codicon codicon-info" />
+              <span>{t('settings.basic.coDriverToolIcon.hint', 'Switches the IntelliJ tool-window stripe icon between the original orange icon and the monochrome CoDriver icon.')}</span>
+            </small>
+          </div>
+        )}
       </div>
 
       {/* Language switcher */}
@@ -548,6 +875,23 @@ const AppearanceTab = ({
           <span className="codicon codicon-info" />
           <span>{uiFontHint}</span>
         </small>
+
+        {isCoDriverTheme && renderCoDriverColorChooser({
+          icon: 'codicon-link',
+          label: t('settings.basic.linkColor.label', 'Link Color'),
+          customLabel: t('settings.basic.linkColor.custom', 'Custom'),
+          hint: t('settings.basic.linkColor.hint', 'Customize CoDriver file, directory, and markdown link color. Leave empty to use the CoDriver default.'),
+          presets: linkPresets,
+          isActive: isLinkPresetActive,
+          onPresetClick: handleLinkPresetClick,
+          inputRef: linkColorInputRef,
+          color: linkColor,
+          defaultColor: defaultLinkColor,
+          onColorInputChange: handleLinkColorInputChange,
+          hexValue: linkHexInput,
+          onHexInputChange: handleLinkHexInputChange,
+          onReset: handleResetLinkColor,
+        })}
       </div>
 
       {/* Code font selector */}
@@ -629,6 +973,23 @@ const AppearanceTab = ({
           <span className="codicon codicon-info" />
           <span>{codeFontHint}</span>
         </small>
+
+        {isCoDriverTheme && renderCoDriverColorChooser({
+          icon: 'codicon-code',
+          label: t('settings.basic.codeColor.label', 'Code Font Color'),
+          customLabel: t('settings.basic.codeColor.custom', 'Custom'),
+          hint: t('settings.basic.codeColor.hint', 'Customize CoDriver inline-code color. Dark mode defaults to amber; light mode defaults to red.'),
+          presets: codePresets,
+          isActive: isCodePresetActive,
+          onPresetClick: handleCodePresetClick,
+          inputRef: codeColorInputRef,
+          color: codeColor,
+          defaultColor: defaultCodeColor,
+          onColorInputChange: handleCodeColorInputChange,
+          hexValue: codeHexInput,
+          onHexInputChange: handleCodeHexInputChange,
+          onReset: handleResetCodeColor,
+        })}
       </div>
 
       {/* Diff theme */}

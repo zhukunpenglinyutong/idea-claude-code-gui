@@ -1,9 +1,11 @@
 package com.github.claudecodegui.ui.toolwindow;
 
 import com.github.claudecodegui.i18n.ClaudeCodeGuiBundle;
+import com.github.claudecodegui.settings.CodemossSettingsService;
 import com.github.claudecodegui.settings.TabStateService;
 import com.github.claudecodegui.startup.BridgePreloader;
 import com.github.claudecodegui.ui.detached.DetachedWindowManager;
+import com.github.claudecodegui.ui.icon.ToolWindowIconService;
 import com.github.claudecodegui.util.PlatformUtils;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
@@ -200,11 +202,13 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
     public void init(@NotNull ToolWindow toolWindow) {
         toolWindow.setTitle(TOOL_WINDOW_DISPLAY_NAME);
         toolWindow.setStripeTitle(TOOL_WINDOW_DISPLAY_NAME);
+        ToolWindowIconService.applyConfiguredIcon(toolWindow, new CodemossSettingsService());
     }
 
     @Override
     public void createToolWindowContent(@NotNull Project project, @NotNull ToolWindow toolWindow) {
         registerShutdownHook();
+        ToolWindowIconService.applyConfiguredIcon(toolWindow, new CodemossSettingsService());
 
         ContentFactory contentFactory = ContentFactory.getInstance();
         ContentManager contentManager = toolWindow.getContentManager();

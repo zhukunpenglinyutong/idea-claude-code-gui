@@ -944,7 +944,9 @@
   "markdown": {
     "copyCode": "Копировать код",
     "copyMessage": "Копировать сообщение",
-    "copySuccess": "Скопировано!"
+    "copySuccess": "Скопировано!",
+    "collapseCode": "Свернуть блок кода",
+    "expandCode": "Развернуть блок кода"
   },
   "usage": {
     "loading": "Загрузка статистики...",

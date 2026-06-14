@@ -28,6 +28,7 @@ import com.github.claudecodegui.handler.file.FileExportHandler;
 import com.github.claudecodegui.handler.file.FileHandler;
 import com.github.claudecodegui.handler.file.OpenClassHandler;
 import com.github.claudecodegui.handler.file.UndoFileHandler;
+import com.github.claudecodegui.handler.icon.NativeFileIconHandler;
 import com.github.claudecodegui.permission.PermissionService;
 import com.github.claudecodegui.provider.claude.ClaudeSDKBridge;
 import com.github.claudecodegui.provider.codex.CodexSDKBridge;
@@ -265,6 +266,7 @@ public class ChatWindowDelegate {
         messageDispatcher.registerHandler(new DependencyHandler(handlerContext));
         messageDispatcher.registerHandler(new ClipboardHandler(handlerContext));
         messageDispatcher.registerHandler(new NodeProcessHandler(handlerContext));
+        messageDispatcher.registerHandler(new NativeFileIconHandler(handlerContext));
 
         messageDispatcher.registerHandler(new WindowEventHandler(handlerContext, new WindowEventHandler.Callback() {
             @Override public void onHeartbeat(String content) { host.getWebviewWatchdog().handleHeartbeat(content); }

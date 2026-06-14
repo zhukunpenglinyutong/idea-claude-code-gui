@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
 import { useIsToolDenied } from '../../hooks/useIsToolDenied';
+import { ToolStatusIndicator } from './CoDriverToolParts';
 
 const TASK_DETAILS_STYLE: React.CSSProperties = { padding: 0, border: 'none' };
 const TASK_CONTENT_WRAPPER_STYLE: React.CSSProperties = { paddingLeft: '40px', position: 'relative', zIndex: 1 };
@@ -46,7 +47,7 @@ const BashToolBlock = ({ input, result, toolId }: BashToolBlockProps) => {
   }
 
   return (
-    <div className="task-container">
+    <div className="task-container codriver-collapsible-tool">
       <div
         className={`task-header bash-tool-header ${expanded ? 'expanded' : ''}`}
         onClick={() => setExpanded((prev) => !prev)}
@@ -57,7 +58,7 @@ const BashToolBlock = ({ input, result, toolId }: BashToolBlockProps) => {
           <span className="bash-tool-description">{description}</span>
         </div>
 
-        <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />
+        <ToolStatusIndicator isCompleted={isCompleted} isError={isError} />
       </div>
 
       {expanded && (

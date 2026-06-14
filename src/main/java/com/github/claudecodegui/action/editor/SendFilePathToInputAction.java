@@ -1,6 +1,7 @@
 package com.github.claudecodegui.action.editor;
 
 import com.github.claudecodegui.i18n.ClaudeCodeGuiBundle;
+import com.github.claudecodegui.ui.icon.PluginIconProvider;
 import com.github.claudecodegui.ui.toolwindow.ClaudeSDKToolWindow;
 import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
@@ -94,6 +95,8 @@ public class SendFilePathToInputAction extends AnAction implements DumbAware {
      */
     @Override
     public void update(@NotNull AnActionEvent e) {
+        e.getPresentation().setIcon(PluginIconProvider.getCurrentPluginIcon());
+
         Project project = e.getProject();
         if (project == null) {
             e.getPresentation().setEnabledAndVisible(false);

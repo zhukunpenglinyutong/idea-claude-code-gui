@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
+import { ToolStatusIndicator } from './CoDriverToolParts';
 
 interface BashItem {
   command: string;
@@ -123,7 +124,7 @@ const BashToolGroupBlock = ({ items, deniedToolIds }: BashToolGroupBlockProps) =
 
   // Calculate list height for 3.5 visible items
   const needsScroll = bashItems.length > MAX_VISIBLE_ITEMS;
-  
+
   // Base height for collapsed state
   const baseHeight = needsScroll
     ? MAX_VISIBLE_ITEMS * ITEM_HEIGHT
@@ -169,7 +170,7 @@ const BashToolGroupBlock = ({ items, deniedToolIds }: BashToolGroupBlockProps) =
   };
 
   return (
-    <div className="task-container bash-group-container">
+    <div className="task-container codriver-collapsible-tool bash-group-container">
       {/* Header - always visible */}
       <div
         className="task-header bash-group-header"
@@ -211,10 +212,9 @@ const BashToolGroupBlock = ({ items, deniedToolIds }: BashToolGroupBlockProps) =
                     <span className={`bash-timeline-description ${item.description ? '' : 'bash-timeline-description-command'}`}>
                       {item.description || truncateCommand(item.command)}
                     </span>
-                    <div
-                      className={`tool-status-indicator ${
-                        item.isError ? 'error' : item.isCompleted ? 'completed' : 'pending'
-                      }`}
+                    <ToolStatusIndicator
+                      isCompleted={item.isCompleted}
+                      isError={item.isError}
                     />
                   </div>
 

@@ -7,6 +7,7 @@ import { getPersistedExpanded, setPersistedExpanded } from '../../utils/expanded
 import { useSubagentHistoryGetter, useSessionId, useGetToolResultRaw, type GetToolResultRawFn } from '../../contexts/SubagentContext';
 import SubagentProcessDetails from '../StatusPanel/SubagentProcessDetails';
 import { ContentBlockRenderer } from '../MessageItem/ContentBlockRenderer';
+import { ToolStatusIndicator } from './CoDriverToolParts';
 
 // Constants extracted from magic numbers
 const MAX_SUMMARY_LENGTH = 120;
@@ -153,7 +154,7 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
   }, [agentId, currentSessionId, summary, expanded, history, isStreaming, isCompleted, toolId]);
 
   return (
-    <div className="task-container agent-group-container">
+    <div className="task-container codriver-collapsible-tool agent-group-container">
       <div
         className={`task-header ${expanded ? 'task-header-expanded' : ''}`}
         onClick={() => setExpanded((prev) => !prev)}
@@ -168,6 +169,7 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
           }
         }}
       >
+        <ToolStatusIndicator isCompleted={isCompleted} isError={isError} />
         <div className="task-title-section">
           <span className="codicon codicon-type-hierarchy tool-title-icon" />
           <span className="tool-title-text">
@@ -184,7 +186,6 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
         </div>
 
         <div className="task-header-right">
-          <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />
           <span className={`codicon agent-group-chevron ${expanded ? 'codicon-chevron-up' : 'codicon-chevron-down'}`} />
         </div>
       </div>

@@ -6,6 +6,7 @@ import { openFile } from '../../utils/bridge';
 import { useResolvedFileLinkTooltip } from '../../hooks/useResolvedFileLinkTooltip';
 import { getFileIcon, getFolderIcon } from '../../utils/fileIcons';
 import { getToolLineInfo, resolveToolTarget } from '../../utils/toolPresentation';
+import { ToolFileIcon, ToolStatusIndicator } from './CoDriverToolParts';
 
 interface ReadToolBlockProps {
   input?: ToolInput;
@@ -117,15 +118,17 @@ const ReadToolBlock = ({ input, result, toolId }: ReadToolBlockProps) => {
     key !== 'description'   // Omit Codex description field
   );
 
+  const hasExpandableContent = params.length > 0;
   const headerStyle: React.CSSProperties = {
-    borderBottom: expanded ? '1px solid var(--border-primary)' : undefined,
+    borderBottom: expanded && hasExpandableContent ? '1px solid var(--border-primary)' : undefined,
+    cursor: hasExpandableContent ? 'pointer' : 'default',
   };
 
   return (
-    <div className="task-container">
+    <div className={`task-container ${hasExpandableContent ? 'codriver-collapsible-tool' : 'codriver-inline-tool'}`}>
       <div
         className="task-header"
-        onClick={() => setExpanded((prev) => !prev)}
+        onClick={hasExpandableContent ? () => setExpanded((prev) => !prev) : undefined}
         style={headerStyle}
       >
         <div className="task-title-section">
@@ -140,9 +143,12 @@ const ReadToolBlock = ({ input, result, toolId }: ReadToolBlockProps) => {
             {...(!isDirectory ? fileLinkTooltip : {})}
             style={FILE_LINK_STYLE}
           >
-            <span
+            <ToolFileIcon
+              fileName={target?.cleanFileName}
+              filePath={target?.openPath || target?.rawPath}
+              isDirectory={isDirectory}
+              stockSvg={getFileIconSvg()}
               style={FILE_ICON_STYLE}
-              dangerouslySetInnerHTML={{ __html: getFileIconSvg() }}
             />
             {target?.displayPath || filePath}
           </span>
@@ -156,7 +162,7 @@ const ReadToolBlock = ({ input, result, toolId }: ReadToolBlockProps) => {
           )}
         </div>
 
-        <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />
+        <ToolStatusIndicator isCompleted={isCompleted} isError={isError} />
       </div>
 
       {expanded && params.length > 0 && (

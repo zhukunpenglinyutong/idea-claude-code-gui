@@ -1,0 +1,152 @@
+/* =========================================================================
+   CoDriver — markdown tables.
+
+   Keep tables on the same chat surface instead of rendering them as heavy
+   cards. This mirrors the VS Code/Copilot markdown feel: a normal markdown
+   table with thin separators, a quiet header, and no extra dark panel.
+   ========================================================================= */
+
+html[data-theme="codriver"] {
+    .markdown-content table {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        margin: 12px 0 16px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        border: 0;
+        border-radius: 0;
+        border-spacing: 0;
+        border-collapse: collapse;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .markdown-content table::-webkit-scrollbar {
+        height: 8px;
+    }
+
+    .markdown-content table::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .markdown-content table::-webkit-scrollbar-thumb {
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--border-primary) 78%, transparent);
+    }
+
+    .markdown-content thead,
+    .markdown-content tbody,
+    .markdown-content tr {
+        display: table;
+        width: 100%;
+        table-layout: auto;
+    }
+
+    .markdown-content th,
+    .markdown-content td {
+        padding: 6px 10px;
+        border: 0;
+        border-bottom: 1px solid var(--codriver-table-border, var(--border-primary));
+        background: transparent;
+        color: var(--text-primary);
+        text-align: left;
+        vertical-align: top;
+        word-break: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .markdown-content th + th,
+    .markdown-content td + td {
+        border-left: 1px solid var(--codriver-table-border, var(--border-primary));
+    }
+
+    .markdown-content thead th,
+    .markdown-content th {
+        background: transparent;
+        color: var(--codriver-heading, var(--text-primary));
+        font-weight: 600;
+    }
+
+    .markdown-content tbody tr:nth-child(2n) {
+        background: transparent;
+    }
+
+    .markdown-content tbody tr:last-child td {
+        border-bottom-color: var(--codriver-table-border, var(--border-primary));
+    }
+
+    .markdown-content td code,
+    .markdown-content th code {
+        white-space: normal;
+    }
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] {
+    --codriver-table-border: color-mix(in srgb, #ffffff 16%, transparent);
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] {
+    --codriver-table-border: #d0d7de;
+}
+
+/* Match Copilot's plain markdown table appearance: no internal grid. */
+html[data-theme="codriver"] {
+    .markdown-content table,
+    .markdown-content thead,
+    .markdown-content tbody,
+    .markdown-content tr,
+    .markdown-content th,
+    .markdown-content td {
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .markdown-content th + th,
+    .markdown-content td + td,
+    .markdown-content tbody tr:last-child td {
+        border-left: 0 !important;
+        border-bottom: 0 !important;
+    }
+}
+
+/* Keep Copilot-style markdown tables aligned: use one native table layout. */
+html[data-theme="codriver"] {
+    .markdown-content table {
+        display: table !important;
+        width: 100% !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        overflow: visible;
+    }
+
+    .markdown-content thead {
+        display: table-header-group !important;
+        width: auto !important;
+    }
+
+    .markdown-content tbody {
+        display: table-row-group !important;
+        width: auto !important;
+    }
+
+    .markdown-content tr {
+        display: table-row !important;
+        width: auto !important;
+    }
+
+    .markdown-content th,
+    .markdown-content td {
+        display: table-cell !important;
+        box-sizing: border-box;
+    }
+
+    .markdown-content th {
+        text-align: center !important;
+    }
+
+    .markdown-content td {
+        text-align: left !important;
+        vertical-align: top;
+    }
+}

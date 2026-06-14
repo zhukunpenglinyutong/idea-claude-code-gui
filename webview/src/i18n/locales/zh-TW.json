@@ -922,7 +922,9 @@
   "markdown": {
     "copyCode": "複製程式碼",
     "copyMessage": "複製訊息",
-    "copySuccess": "複製成功"
+    "copySuccess": "複製成功",
+    "collapseCode": "收合程式碼區塊",
+    "expandCode": "展開程式碼區塊"
   },
   "usage": {
     "loading": "載入統計資料中...",

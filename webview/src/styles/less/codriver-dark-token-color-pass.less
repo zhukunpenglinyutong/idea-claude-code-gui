@@ -1,0 +1,67 @@
+/* Final CoDriver dark token color calibration.
+ *
+ * These values are scoped to the CoDriver skin while the host IDE is in dark
+ * mode. They intentionally do not affect the light CoDriver variant.
+ */
+
+html[data-theme="codriver"][data-ide-theme="dark"] {
+    --color-message-user-bg: #264f78;
+    --codriver-user: var(--color-message-user-bg);
+    --codriver-default-link: #4daafc;
+    --codriver-link: var(--codriver-custom-link-color, var(--codriver-default-link));
+    --color-link: var(--codriver-link);
+    --color-tool-file-link: var(--codriver-link);
+    --color-tool-class-link: var(--codriver-link);
+    --codriver-default-inline-code-text: #d7ba7d;
+    --codriver-inline-code-text: var(--codriver-custom-code-color, var(--codriver-default-inline-code-text));
+    --codriver-inline-code-bg: transparent;
+    --color-code-inline-bg: transparent;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .message.user .message-content {
+    background: var(--color-message-user-bg) !important;
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content code:not(pre code),
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content code:not(pre code),
+html[data-theme="codriver"][data-ide-theme="dark"] .message.user .message-content code:not(pre code),
+html[data-theme="codriver"][data-ide-theme="dark"] .message.user .markdown-content code:not(pre code) {
+    color: var(--codriver-inline-code-text) !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content a,
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content .markdown-link,
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content .file-link,
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content .class-link,
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content a.file-link,
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content a.class-link,
+html[data-theme="codriver"][data-ide-theme="dark"] .tool-file-link,
+html[data-theme="codriver"][data-ide-theme="dark"] .clickable-file {
+    color: var(--codriver-link) !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    text-decoration: none;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content a:hover,
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content .markdown-link:hover,
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content .file-link:hover,
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content .class-link:hover,
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content a.file-link:hover,
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content a.class-link:hover,
+html[data-theme="codriver"][data-ide-theme="dark"] .tool-file-link:hover,
+html[data-theme="codriver"][data-ide-theme="dark"] .clickable-file:hover {
+    color: var(--codriver-link) !important;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+}

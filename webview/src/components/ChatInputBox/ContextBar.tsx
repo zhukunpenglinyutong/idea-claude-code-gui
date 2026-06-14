@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { getFileIcon } from '../../utils/fileIcons';
 import { TokenIndicator } from './TokenIndicator';
 import { CoDriverIcon } from '../codriverIcons';
+import { NativeFileIcon } from '../nativeIcons/NativeFileIcon';
 import { getFileIconKind } from '../../utils/fileIconKind';
 import { useIsCoDriverTheme } from '../../hooks/useActiveThemeMode';
 import type { SelectedAgent } from './types';
@@ -165,13 +166,15 @@ export const ContextBar: React.FC<ContextBarProps> = memo(({
             <CoDriverIcon name="attachment" size={16} aria-hidden="true" />
           </button>
         ) : (
-          <div
+          <button
+            type="button"
             className="context-tool-btn"
             onClick={handleAttachClick}
             title="Add attachment"
+            aria-label="Add attachment"
           >
             <span className="codicon codicon-attach" />
-          </div>
+          </button>
         )}
 
         {/* Token Indicator */}
@@ -235,10 +238,12 @@ export const ContextBar: React.FC<ContextBarProps> = memo(({
               <CoDriverIcon name="x" size={12} aria-hidden="true" />
             </button>
           ) : (
-            <span
+            <button
+              type="button"
               className="codicon codicon-close context-close"
               onClick={onClearAgent}
               title="Remove agent"
+              aria-label="Remove agent"
             />
           )}
         </div>
@@ -253,12 +258,18 @@ export const ContextBar: React.FC<ContextBarProps> = memo(({
         >
           {activeFile && (
             isCoDriver ? (
-              <CoDriverIcon
+              <NativeFileIcon
                 className={`context-file-icon context-file-icon-${activeFileIconName}`}
-                name={activeFileIconName}
-                size={15}
+                filePath={activeFile}
+                fileName={getFileName(activeFile)}
                 style={FILE_ICON_STYLE}
-                aria-hidden="true"
+                fallback={(
+                  <CoDriverIcon
+                    name={activeFileIconName}
+                    size={15}
+                    aria-hidden="true"
+                  />
+                )}
               />
             ) : (
               <span
@@ -282,10 +293,12 @@ export const ContextBar: React.FC<ContextBarProps> = memo(({
               <CoDriverIcon name="x" size={12} aria-hidden="true" />
             </button>
           ) : (
-            <span
+            <button
+              type="button"
               className="codicon codicon-close context-close"
               onClick={onClearFile}
               title="Remove file context"
+              aria-label="Remove file context"
             />
           )}
         </div>

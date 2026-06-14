@@ -1,0 +1,191 @@
+/* CoDriver tool invocation rows.
+ * Keep stock IntelliJ-like file icons from the existing file-icon resolver. The
+ * webview does not own native IntelliJ Swing icons yet, so this layer only
+ * changes placement and weight: status node on the left, native/stock file icon
+ * next to the file name, no right-side traffic-light dot in CoDriver.
+ */
+
+html[data-theme="codriver"] {
+    --codriver-tool-row-border: rgba(190, 195, 204, 0.18);
+    --codriver-tool-row-hover: rgba(190, 195, 204, 0.06);
+    --codriver-tool-row-muted: var(--codriver-fg-muted, var(--text-tertiary));
+    --codriver-tool-row-text: var(--codriver-fg-default, var(--text-primary));
+    --codriver-tool-row-link: var(--codriver-link, var(--color-link));
+    --codriver-tool-status-completed: #2ea043;
+    --codriver-tool-status-error: #f85149;
+    --codriver-tool-status-pending: #8b949e;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] {
+    --codriver-tool-row-border: rgba(31, 35, 40, 0.18);
+    --codriver-tool-row-hover: rgba(31, 35, 40, 0.045);
+    --codriver-tool-row-muted: #59636e;
+    --codriver-tool-row-text: #1f2328;
+    --codriver-tool-row-link: #0969da;
+    --codriver-tool-status-completed: #1f883d;
+    --codriver-tool-status-error: #cf222e;
+    --codriver-tool-status-pending: #6e7781;
+}
+
+html[data-theme="codriver"] .task-container,
+html[data-theme="codriver"] .agent-group-container {
+    background: transparent !important;
+    border: 1px solid var(--codriver-tool-row-border) !important;
+    border-radius: 7px !important;
+    box-shadow: none !important;
+    margin: 8px 0 !important;
+    overflow: hidden;
+}
+
+html[data-theme="codriver"] .task-header,
+html[data-theme="codriver"] .bash-tool-header {
+    min-height: 34px;
+    padding: 6px 10px !important;
+    gap: 8px;
+    background: transparent !important;
+    color: var(--codriver-tool-row-text) !important;
+}
+
+html[data-theme="codriver"] .task-header:hover,
+html[data-theme="codriver"] .bash-tool-header:hover {
+    background: var(--codriver-tool-row-hover) !important;
+}
+
+html[data-theme="codriver"] .task-title-section,
+html[data-theme="codriver"] .bash-timeline-row {
+    gap: 6px;
+    min-width: 0;
+}
+
+html[data-theme="codriver"] .tool-title-icon,
+html[data-theme="codriver"] .bash-tool-icon,
+html[data-theme="codriver"] .codicon-file-code.tool-title-icon,
+html[data-theme="codriver"] .codicon-edit.tool-title-icon,
+html[data-theme="codriver"] .codicon-terminal.tool-title-icon,
+html[data-theme="codriver"] .codicon-search.tool-title-icon {
+    color: var(--codriver-tool-row-muted) !important;
+    opacity: 0.9;
+    margin-right: 2px !important;
+}
+
+html[data-theme="codriver"] .tool-title-text,
+html[data-theme="codriver"] .bash-tool-title,
+html[data-theme="codriver"] .task-summary-text {
+    color: var(--codriver-tool-row-text) !important;
+    font-weight: 600;
+}
+
+html[data-theme="codriver"] .tool-title-summary,
+html[data-theme="codriver"] .bash-tool-description,
+html[data-theme="codriver"] .bash-timeline-description,
+html[data-theme="codriver"] .file-list-item {
+    color: var(--codriver-tool-row-muted) !important;
+}
+
+html[data-theme="codriver"] .tool-title-summary.clickable-file,
+html[data-theme="codriver"] .clickable-file,
+html[data-theme="codriver"] .file-list-item.clickable-file {
+    color: var(--codriver-tool-row-link) !important;
+    text-decoration: none !important;
+}
+
+html[data-theme="codriver"] .file-list-item {
+    border-radius: 5px;
+}
+
+html[data-theme="codriver"] .file-list-item:hover,
+html[data-theme="codriver"] .file-list-item.clickable-file:hover {
+    background: var(--codriver-tool-row-hover) !important;
+}
+
+html[data-theme="codriver"] .codriver-tool-status {
+    order: -1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 17px !important;
+    height: 17px !important;
+    min-width: 17px;
+    margin: 0 7px 0 0 !important;
+    padding: 0;
+    border-radius: 50%;
+    box-sizing: border-box;
+    background: transparent;
+    border: 1px solid currentColor;
+    color: var(--codriver-tool-status-pending);
+    animation: none !important;
+}
+
+html[data-theme="codriver"] .codriver-tool-status .codicon {
+    display: block;
+    width: 12px;
+    height: 12px;
+    font-size: 12px;
+    line-height: 12px;
+}
+
+html[data-theme="codriver"] .codriver-tool-status-completed {
+    color: #ffffff;
+    background: var(--codriver-tool-status-completed) !important;
+    border-color: var(--codriver-tool-status-completed) !important;
+}
+
+html[data-theme="codriver"] .codriver-tool-status-error {
+    color: var(--codriver-tool-status-error);
+    background: transparent !important;
+    border-color: var(--codriver-tool-status-error) !important;
+}
+
+html[data-theme="codriver"] .codriver-tool-status-pending {
+    color: var(--codriver-tool-status-pending);
+    background: transparent !important;
+    border-color: rgba(139, 148, 158, 0.45) !important;
+}
+
+html[data-theme="codriver"] .codriver-tool-status-pending .codicon {
+    animation: codriver-tool-status-spin 0.9s linear infinite;
+}
+
+@keyframes codriver-tool-status-spin {
+    to { transform: rotate(360deg); }
+}
+
+html[data-theme="codriver"] .codriver-tool-file-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+html[data-theme="codriver"] .codriver-tool-file-icon svg,
+html[data-theme="codriver"] .codriver-tool-file-icon img {
+    width: 16px;
+    height: 16px;
+    display: block;
+}
+
+html[data-theme="codriver"] .codriver-tool-file-icon img {
+    object-fit: contain;
+}
+
+html[data-theme="codriver"] .task-details,
+html[data-theme="codriver"] .file-list-container {
+    background: transparent !important;
+    border-top-color: var(--codriver-tool-row-border) !important;
+}
+
+html[data-theme="codriver"] .bash-command-block,
+html[data-theme="codriver"] .bash-output-block {
+    background: transparent !important;
+    border-color: var(--codriver-tool-row-border) !important;
+    color: var(--codriver-tool-row-text) !important;
+}
+
+html[data-theme="codriver"] .bash-timeline-line {
+    background: var(--codriver-tool-row-border) !important;
+}
+
+html[data-theme="codriver"] .bash-timeline-node {
+    background: var(--codriver-tool-row-muted) !important;
+    border-color: var(--codriver-tool-row-border) !important;
+}

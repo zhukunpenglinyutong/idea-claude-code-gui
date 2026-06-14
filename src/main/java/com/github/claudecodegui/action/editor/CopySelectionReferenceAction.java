@@ -1,6 +1,7 @@
 package com.github.claudecodegui.action.editor;
 
 import com.github.claudecodegui.i18n.ClaudeCodeGuiBundle;
+import com.github.claudecodegui.ui.icon.PluginIconProvider;
 import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
@@ -72,6 +73,7 @@ public class CopySelectionReferenceAction extends AnAction implements DumbAware 
 
     @Override
     public void update(@NotNull AnActionEvent e) {
+        e.getPresentation().setIcon(PluginIconProvider.getCurrentPluginIcon());
         Editor editor = e.getData(CommonDataKeys.EDITOR);
         e.getPresentation().setEnabledAndVisible(e.getProject() != null && hasSelection(editor));
     }

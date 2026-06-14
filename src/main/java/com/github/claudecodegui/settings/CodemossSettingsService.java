@@ -68,6 +68,7 @@ public class CodemossSettingsService {
     private static final String DEFAULT_COMMIT_AI_CLAUDE_MODEL = "claude-sonnet-4-6";
     private static final String DEFAULT_COMMIT_AI_CODEX_MODEL = "gpt-5.5";
     private static final String USER_LANGUAGE_CONFIG_KEY = "language";
+    private static final String CODRIVER_TOOL_ICON_ENABLED_KEY = "codriverToolIconEnabled";
 
     private final Gson gson;
 
@@ -284,6 +285,33 @@ public class CodemossSettingsService {
         config.add("codex", codex);
 
         return config;
+    }
+
+    // ==================== CoDriver Icon Preference ====================
+
+    /**
+     * Read whether the monochrome CoDriver tool window icon is enabled.
+     *
+     * @return whether the CoDriver icon is enabled, default is true
+     */
+    public boolean getCoDriverToolIconEnabled() throws IOException {
+        JsonObject config = readConfig();
+        if (config.has(CODRIVER_TOOL_ICON_ENABLED_KEY) && !config.get(CODRIVER_TOOL_ICON_ENABLED_KEY).isJsonNull()) {
+            return config.get(CODRIVER_TOOL_ICON_ENABLED_KEY).getAsBoolean();
+        }
+        return true;
+    }
+
+    /**
+     * Persist whether the monochrome CoDriver tool window icon is enabled.
+     *
+     * @param enabled whether to enable the CoDriver icon
+     */
+    public void setCoDriverToolIconEnabled(boolean enabled) throws IOException {
+        JsonObject config = readConfig();
+        config.addProperty(CODRIVER_TOOL_ICON_ENABLED_KEY, enabled);
+        writeConfig(config);
+        LOG.info("[CodemossSettings] Set CoDriver tool icon enabled: " + enabled);
     }
 
     // ==================== Language Config Management ====================

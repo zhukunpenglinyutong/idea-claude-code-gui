@@ -26,6 +26,10 @@ export interface UseSettingsThemeSyncReturn {
   setChatBgColor: (color: string) => void;
   userMsgColor: string;
   setUserMsgColor: (color: string) => void;
+  linkColor: string;
+  setLinkColor: (color: string) => void;
+  codeColor: string;
+  setCodeColor: (color: string) => void;
   diffTheme: DiffThemeMode;
   setDiffTheme: (theme: DiffThemeMode) => void;
 }
@@ -75,11 +79,33 @@ export function useSettingsThemeSync(): UseSettingsThemeSyncReturn {
     return '';
   });
 
+  // CoDriver link color configuration
+  const [linkColor, setLinkColor] = useState<string>(() => {
+    const saved = localStorage.getItem('codriverLinkColor');
+    if (saved && /^#[0-9a-fA-F]{6}$/.test(saved)) {
+      return saved;
+    }
+    return '';
+  });
+
+  // CoDriver inline code color configuration
+  const [codeColor, setCodeColor] = useState<string>(() => {
+    const saved = localStorage.getItem('codriverCodeColor');
+    if (saved && /^#[0-9a-fA-F]{6}$/.test(saved)) {
+      return saved;
+    }
+    return '';
+  });
+
   // Diff theme configuration
   const [diffTheme, setDiffTheme] = useState<DiffThemeMode>(() => getStoredDiffTheme());
 
   // Theme switching handler (supports following IDE theme)
   useEffect(() => {
+    if (ideTheme !== null) {
+      document.documentElement.setAttribute('data-ide-theme', ideTheme);
+    }
+
     const resolvedTheme = resolveThemeAttribute(themePreference, ideTheme);
     if (resolvedTheme !== null) {
       document.documentElement.setAttribute('data-theme', resolvedTheme);
@@ -131,6 +157,30 @@ export function useSettingsThemeSync(): UseSettingsThemeSyncReturn {
     }
   }, [userMsgColor]);
 
+  // CoDriver link color handler. Keep this CoDriver-specific so light/dark/system
+  // keep their existing color settings and variables untouched.
+  useEffect(() => {
+    if (linkColor) {
+      document.documentElement.style.setProperty('--codriver-custom-link-color', linkColor);
+      localStorage.setItem('codriverLinkColor', linkColor);
+    } else {
+      document.documentElement.style.removeProperty('--codriver-custom-link-color');
+      localStorage.removeItem('codriverLinkColor');
+    }
+  }, [linkColor]);
+
+  // CoDriver inline-code color handler. This intentionally does not write
+  // --color-code-inline-* because that would affect non-CoDriver themes.
+  useEffect(() => {
+    if (codeColor) {
+      document.documentElement.style.setProperty('--codriver-custom-code-color', codeColor);
+      localStorage.setItem('codriverCodeColor', codeColor);
+    } else {
+      document.documentElement.style.removeProperty('--codriver-custom-code-color');
+      localStorage.removeItem('codriverCodeColor');
+    }
+  }, [codeColor]);
+
   // Diff theme handler
   useEffect(() => {
     applyDiffTheme(diffTheme, ideTheme);
@@ -147,6 +197,10 @@ export function useSettingsThemeSync(): UseSettingsThemeSyncReturn {
     setChatBgColor,
     userMsgColor,
     setUserMsgColor,
+    linkColor,
+    setLinkColor,
+    codeColor,
+    setCodeColor,
     diffTheme,
     setDiffTheme,
   };

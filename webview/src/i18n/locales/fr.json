@@ -917,7 +917,9 @@
   "markdown": {
     "copyCode": "Copier le code",
     "copyMessage": "Copier le message",
-    "copySuccess": "Copié !"
+    "copySuccess": "Copié !",
+    "collapseCode": "Réduire le bloc de code",
+    "expandCode": "Développer le bloc de code"
   },
   "usage": {
     "loading": "Chargement des statistiques...",

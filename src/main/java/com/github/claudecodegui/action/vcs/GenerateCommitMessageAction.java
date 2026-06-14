@@ -4,6 +4,7 @@ import com.github.claudecodegui.i18n.ClaudeCodeGuiBundle;
 import com.github.claudecodegui.notifications.ClaudeNotifier;
 import com.github.claudecodegui.service.GitCommitMessageService;
 import com.github.claudecodegui.settings.CodemossSettingsService;
+import com.github.claudecodegui.ui.icon.PluginIconProvider;
 import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
@@ -271,6 +272,9 @@ public class GenerateCommitMessageAction extends AnAction implements DumbAware {
         // Set localized text
         e.getPresentation().setText(ClaudeCodeGuiBundle.message("action.generateCommitMessage.text"));
         e.getPresentation().setDescription(ClaudeCodeGuiBundle.message("action.generateCommitMessage.description"));
+        // Follow the CoDriver tool-icon preference so the commit dialog never shows the
+        // orange icon while the monochrome CoDriver icon is enabled.
+        e.getPresentation().setIcon(PluginIconProvider.getCurrentPluginIcon());
         e.getPresentation().setEnabledAndVisible(enabled);
     }
 }

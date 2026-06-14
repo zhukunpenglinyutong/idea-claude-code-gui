@@ -6,6 +6,7 @@ import { getFileIcon } from '../../utils/fileIcons';
 import { resolveToolTarget, getToolLineInfo } from '../../utils/toolPresentation';
 import { normalizeToolInput } from '../../utils/toolInputNormalization';
 import { useResolvedFileLinkTooltip } from '../../hooks/useResolvedFileLinkTooltip';
+import { ToolFileIcon, ToolStatusIndicator } from './CoDriverToolParts';
 
 interface EditItem {
   filePath: string;
@@ -235,9 +236,11 @@ const EditFileItem = ({ item, onFileClick, onShowDiff, onRefresh, t }: EditFileI
 
   return (
     <div className="file-list-item" style={FILE_LIST_ITEM_STYLE}>
-      <span
+      <ToolFileIcon
+        fileName={item.fileName}
+        filePath={item.openPath || item.filePath}
+        stockSvg={getFileIconSvg(item.fileName)}
         style={FILE_ICON_STYLE}
-        dangerouslySetInnerHTML={{ __html: getFileIconSvg(item.fileName) }}
       />
       <span
         className="clickable-file"
@@ -280,8 +283,9 @@ const EditFileItem = ({ item, onFileClick, onShowDiff, onRefresh, t }: EditFileI
         </button>
       </div>
 
-      <div
-        className={`tool-status-indicator ${item.isError ? 'error' : item.isCompleted ? 'completed' : 'pending'}`}
+      <ToolStatusIndicator
+        isCompleted={item.isCompleted}
+        isError={item.isError}
         style={STATUS_INDICATOR_STYLE}
       />
     </div>
@@ -366,7 +370,7 @@ const EditToolGroupBlock = ({ items }: EditToolGroupBlockProps) => {
   };
 
   return (
-    <div className="task-container" style={CONTAINER_STYLE}>
+    <div className="task-container codriver-collapsible-tool" style={CONTAINER_STYLE}>
       <div
         className="task-header"
         onClick={() => setExpanded((prev) => !prev)}

@@ -917,7 +917,9 @@
   "markdown": {
     "copyCode": "कोड कॉपी करें",
     "copyMessage": "संदेश कॉपी करें",
-    "copySuccess": "कॉपी हो गया"
+    "copySuccess": "कॉपी हो गया",
+    "collapseCode": "कोड ब्लॉक संक्षिप्त करें",
+    "expandCode": "कोड ब्लॉक विस्तृत करें"
   },
   "usage": {
     "loading": "सांख्यिकी लोड हो रही है...",

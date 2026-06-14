@@ -494,6 +494,68 @@ function renderStreamingContent(
 // Mermaid render counter for generating unique IDs
 let mermaidIdCounter = 0;
 
+
+const LANGUAGE_DISPLAY_NAMES: Record<string, string> = {
+  bash: 'Bash',
+  css: 'CSS',
+  diff: 'Diff',
+  dockerfile: 'Dockerfile',
+  go: 'Go',
+  html: 'HTML',
+  java: 'Java',
+  javascript: 'JavaScript',
+  js: 'JavaScript',
+  json: 'JSON',
+  jsx: 'JavaScript JSX',
+  kotlin: 'Kotlin',
+  markdown: 'Markdown',
+  md: 'Markdown',
+  plaintext: 'Plain text',
+  python: 'Python',
+  py: 'Python',
+  rust: 'Rust',
+  shell: 'Shell',
+  sh: 'Shell',
+  sql: 'SQL',
+  typescript: 'TypeScript',
+  ts: 'TypeScript',
+  tsx: 'TypeScript JSX',
+  xml: 'XML',
+  yaml: 'YAML',
+  yml: 'YAML',
+};
+
+function extractCodeLanguage(code: Element | null): string {
+  if (!code) {
+    return '';
+  }
+
+  for (const className of Array.from(code.classList)) {
+    if (className.startsWith('language-')) {
+      return className.slice('language-'.length).toLowerCase();
+    }
+  }
+
+  return '';
+}
+
+function formatCodeLanguageLabel(language: string): string {
+  if (!language) {
+    return 'Plain text';
+  }
+
+  const displayName = LANGUAGE_DISPLAY_NAMES[language.toLowerCase()];
+  if (displayName) {
+    return displayName;
+  }
+
+  return language
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 // Copy icon SVG (hoisted to module scope to avoid recreation on each render)
 const copyIconSvg = `
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -695,10 +757,12 @@ const MarkdownBlock = ({ content = '', isStreaming = false }: MarkdownBlockProps
       }
 
       const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
-    decorateExistingAnchors(doc.body);
+      decorateExistingAnchors(doc.body);
       const pres = doc.querySelectorAll('pre');
       const copySuccessText = t('markdown.copySuccess');
       const copyCodeTitle = t('markdown.copyCode');
+      const collapseCodeTitle = t('markdown.collapseCode', { defaultValue: 'Collapse code block' });
+      const expandCodeTitle = t('markdown.expandCode', { defaultValue: 'Expand code block' });
 
       pres.forEach((pre) => {
         const parent = pre.parentElement;
@@ -706,11 +770,32 @@ const MarkdownBlock = ({ content = '', isStreaming = false }: MarkdownBlockProps
           return;
         }
 
+        const code = pre.querySelector('code');
+        const language = extractCodeLanguage(code);
+        const languageLabel = formatCodeLanguageLabel(language);
         const wrapper = doc.createElement('div');
         wrapper.className = 'code-block-wrapper';
+        wrapper.setAttribute('data-language', language || 'plaintext');
 
-        pre.parentNode?.insertBefore(wrapper, pre);
-        wrapper.appendChild(pre);
+        const header = doc.createElement('div');
+        header.className = 'code-block-header';
+
+        const collapseBtn = doc.createElement('button');
+        collapseBtn.type = 'button';
+        collapseBtn.className = 'code-block-collapse-btn';
+        collapseBtn.title = collapseCodeTitle;
+        collapseBtn.setAttribute('aria-label', collapseCodeTitle);
+        collapseBtn.setAttribute('aria-expanded', 'true');
+        collapseBtn.setAttribute('data-collapse-title', collapseCodeTitle);
+        collapseBtn.setAttribute('data-expand-title', expandCodeTitle);
+
+        const collapseIcon = doc.createElement('span');
+        collapseIcon.className = 'codicon codicon-chevron-down';
+        collapseBtn.appendChild(collapseIcon);
+
+        const label = doc.createElement('span');
+        label.className = 'code-block-language';
+        label.textContent = languageLabel;
 
         const btn = doc.createElement('button');
         btn.type = 'button';
@@ -729,7 +814,13 @@ const MarkdownBlock = ({ content = '', isStreaming = false }: MarkdownBlockProps
         btn.appendChild(iconSpan);
         btn.appendChild(tooltipSpan);
 
-        wrapper.appendChild(btn);
+        header.appendChild(collapseBtn);
+        header.appendChild(label);
+        header.appendChild(btn);
+
+        pre.parentNode?.insertBefore(wrapper, pre);
+        wrapper.appendChild(header);
+        wrapper.appendChild(pre);
       });
 
       linkifyHtml(doc.body, linkifyCapabilities);
@@ -799,6 +890,26 @@ const MarkdownBlock = ({ content = '', isStreaming = false }: MarkdownBlockProps
     const target = targetNode.nodeType === Node.TEXT_NODE
       ? (targetNode as Text).parentElement
       : (event.target as HTMLElement);
+
+    const collapseBtn = target?.closest('button.code-block-collapse-btn') as HTMLButtonElement | null;
+    if (collapseBtn && containerRef.current?.contains(collapseBtn)) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const wrapper = collapseBtn.closest('.code-block-wrapper');
+      const collapsed = !wrapper?.classList.contains('is-collapsed');
+      wrapper?.classList.toggle('is-collapsed', collapsed);
+      collapseBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      collapseBtn.title = collapsed
+        ? collapseBtn.getAttribute('data-expand-title') || collapseBtn.title
+        : collapseBtn.getAttribute('data-collapse-title') || collapseBtn.title;
+      collapseBtn.setAttribute('aria-label', collapseBtn.title);
+
+      const icon = collapseBtn.querySelector('.codicon');
+      icon?.classList.toggle('codicon-chevron-down', !collapsed);
+      icon?.classList.toggle('codicon-chevron-right', collapsed);
+      return;
+    }
 
     const copyBtn = target?.closest('button.copy-code-btn') as HTMLButtonElement | null;
     if (copyBtn && containerRef.current?.contains(copyBtn)) {

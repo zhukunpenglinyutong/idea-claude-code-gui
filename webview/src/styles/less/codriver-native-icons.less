@@ -1,0 +1,40 @@
+html[data-theme="codriver"] .codriver-native-file-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  line-height: 1;
+  color: currentColor;
+  vertical-align: text-bottom;
+}
+
+html[data-theme="codriver"] .codriver-native-file-icon > img,
+html[data-theme="codriver"] .file-tag-icon.native-loaded > img {
+  display: block;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+html[data-theme="codriver"] .codriver-native-file-icon.native-pending > svg,
+html[data-theme="codriver"] .codriver-native-file-icon.native-pending > span,
+html[data-theme="codriver"] .file-tag-icon.native-pending > svg {
+  width: 16px;
+  height: 16px;
+}
+
+html[data-theme="codriver"] .file-tag-icon.codriver-native-file-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 5px;
+}
+
+html[data-theme="codriver"] .context-file-icon.codriver-native-file-icon,
+html[data-theme="codriver"] .attachment-file-icon.codriver-native-file-icon,
+html[data-theme="codriver"] .dropdown-item-icon.codriver-native-file-icon,
+html[data-theme="codriver"] .message-attachment-chip-icon.codriver-native-file-icon,
+html[data-theme="codriver"] .file-change-icon.codriver-native-file-icon {
+  color: inherit;
+}

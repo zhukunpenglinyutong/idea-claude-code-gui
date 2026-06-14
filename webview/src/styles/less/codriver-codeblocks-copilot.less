@@ -1,0 +1,172 @@
+/* CoDriver code block polish.
+ *
+ * VS Code/Copilot renders chat code blocks through a real editor model. The
+ * language in the fence selects tokenization; the active editor theme supplies
+ * the colors. This webview cannot reuse VS Code's editor pipeline directly, so
+ * these scoped overrides align the highlight.js token palette and block chrome
+ * with the default Copilot/Dark+ and Light+ look without changing other themes.
+ */
+
+html[data-theme="codriver"] {
+    --codriver-code-block-radius: 6px;
+    --codriver-code-block-header-height: 30px;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] {
+    --codriver-code-block-bg: var(--codriver-ide-window-bg, #191a1c);
+    --codriver-code-block-header-bg: var(--codriver-ide-window-bg, #191a1c);
+    --codriver-code-block-border: #2b2d30;
+    --codriver-code-block-control-hover: rgba(255, 255, 255, 0.06);
+    --codriver-code-block-control-active: rgba(255, 255, 255, 0.09);
+    --codriver-code-block-scrollbar: #3f4248;
+    --color-code-block-bg: var(--codriver-code-block-bg);
+    --color-code-block-border: var(--codriver-code-block-border);
+
+    /* VS Code Dark+ inspired token palette. */
+    --hljs-fg: #d4d4d4;
+    --hljs-red: #569cd6;
+    --hljs-purple: #dcdcaa;
+    --hljs-blue: #9cdcfe;
+    --hljs-light-blue: #ce9178;
+    --hljs-orange: #4ec9b0;
+    --hljs-green: #4ec9b0;
+    --hljs-gray: #6a9955;
+    --hljs-yellow: #b5cea8;
+    --hljs-section: #569cd6;
+    --hljs-add-fg: #b5cea8;
+    --hljs-add-bg: rgba(35, 134, 54, 0.18);
+    --hljs-del-fg: #f48771;
+    --hljs-del-bg: rgba(248, 81, 73, 0.16);
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] {
+    --codriver-code-block-bg: #ffffff;
+    --codriver-code-block-header-bg: #ffffff;
+    --codriver-code-block-border: #d0d7de;
+    --codriver-code-block-control-hover: rgba(31, 35, 40, 0.06);
+    --codriver-code-block-control-active: rgba(31, 35, 40, 0.10);
+    --codriver-code-block-scrollbar: #afb8c1;
+    --color-code-block-bg: var(--codriver-code-block-bg);
+    --color-code-block-border: var(--codriver-code-block-border);
+
+    /* VS Code Light+ inspired token palette. */
+    --hljs-fg: #000000;
+    --hljs-red: #0000ff;
+    --hljs-purple: #795e26;
+    --hljs-blue: #001080;
+    --hljs-light-blue: #a31515;
+    --hljs-orange: #267f99;
+    --hljs-green: #267f99;
+    --hljs-gray: #008000;
+    --hljs-yellow: #098658;
+    --hljs-section: #0000ff;
+    --hljs-add-fg: #116329;
+    --hljs-add-bg: #dafbe1;
+    --hljs-del-fg: #cf222e;
+    --hljs-del-bg: #ffebe9;
+}
+
+html[data-theme="codriver"] .code-block-wrapper {
+    margin: 12px 0 16px !important;
+    overflow: hidden !important;
+    background: var(--codriver-code-block-bg) !important;
+    border: 1px solid var(--codriver-code-block-border) !important;
+    border-radius: var(--codriver-code-block-radius) !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"] .code-block-wrapper::before,
+html[data-theme="codriver"] .code-block-wrapper::after {
+    content: none !important;
+    display: none !important;
+}
+
+html[data-theme="codriver"] .code-block-header {
+    min-height: var(--codriver-code-block-header-height) !important;
+    padding: 0 6px !important;
+    background: var(--codriver-code-block-header-bg) !important;
+    border: none !important;
+    border-bottom: 1px solid var(--codriver-code-block-border) !important;
+    border-radius: 0 !important;
+}
+
+html[data-theme="codriver"] .code-block-wrapper.is-collapsed .code-block-header {
+    border-bottom: none !important;
+}
+
+html[data-theme="codriver"] .code-block-collapse-btn,
+html[data-theme="codriver"] .code-block-header .copy-code-btn {
+    position: relative !important;
+    inset: auto !important;
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    min-height: 24px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    border-radius: 4px !important;
+    box-shadow: none !important;
+    color: var(--codriver-fg-muted, var(--text-secondary)) !important;
+    opacity: 0.88 !important;
+}
+
+html[data-theme="codriver"] .code-block-collapse-btn:hover,
+html[data-theme="codriver"] .code-block-header .copy-code-btn:hover {
+    background: var(--codriver-code-block-control-hover) !important;
+    border-color: transparent !important;
+    color: var(--codriver-fg-default, var(--text-primary)) !important;
+    opacity: 1 !important;
+}
+
+html[data-theme="codriver"] .code-block-collapse-btn:active,
+html[data-theme="codriver"] .code-block-header .copy-code-btn:active {
+    background: var(--codriver-code-block-control-active) !important;
+}
+
+html[data-theme="codriver"] .code-block-language {
+    color: var(--codriver-fg-muted, var(--text-tertiary)) !important;
+    font-size: 12px !important;
+    line-height: 1 !important;
+}
+
+html[data-theme="codriver"] .code-block-wrapper pre,
+html[data-theme="codriver"] .markdown-content .code-block-wrapper pre {
+    margin: 0 !important;
+    padding: 12px 14px 14px !important;
+    background: var(--codriver-code-block-bg) !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+}
+
+html[data-theme="codriver"] .code-block-wrapper pre code,
+html[data-theme="codriver"] .markdown-content .code-block-wrapper pre code,
+html[data-theme="codriver"] .hljs {
+    background: transparent !important;
+    color: var(--hljs-fg) !important;
+    font-size: 13px !important;
+    line-height: 1.55 !important;
+    tab-size: 4 !important;
+}
+
+html[data-theme="codriver"] .code-block-wrapper.is-collapsed pre,
+html[data-theme="codriver"] .code-block-wrapper.is-collapsed .mermaid-diagram {
+    display: none !important;
+}
+
+html[data-theme="codriver"] .code-block-wrapper pre::-webkit-scrollbar {
+    height: 8px;
+}
+
+html[data-theme="codriver"] .code-block-wrapper pre::-webkit-scrollbar-track {
+    background: var(--codriver-code-block-bg);
+}
+
+html[data-theme="codriver"] .code-block-wrapper pre::-webkit-scrollbar-thumb {
+    background: var(--codriver-code-block-scrollbar);
+    border-radius: 999px;
+}

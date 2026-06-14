@@ -212,3 +212,83 @@ describe('AppearanceTab ui font selector', () => {
     expect(onUiFontSelectionChange).toHaveBeenCalledWith('customFile');
   });
 });
+
+
+describe('AppearanceTab CoDriver tool icon setting', () => {
+  afterEach(() => {
+    localStorage.clear();
+    window.sendToJava = undefined;
+  });
+
+  it('renders the racing co-driver line icon for the CoDriver theme option', () => {
+    render(
+      <AppearanceTab
+        {...({
+          theme: 'codriver',
+          onThemeChange: vi.fn(),
+          fontSizeLevel: 3,
+          onFontSizeLevelChange: vi.fn(),
+          coDriverToolIconEnabled: true,
+          onCoDriverToolIconEnabledChange: vi.fn(),
+        } as any)}
+      />
+    );
+
+    expect(screen.getByTestId('codriver-theme-icon')).toBeTruthy();
+  });
+
+  it('renders the CoDriver tool icon toggle only for the CoDriver theme', () => {
+    const onCoDriverToolIconEnabledChange = vi.fn();
+
+    const { rerender } = render(
+      <AppearanceTab
+        {...({
+          theme: 'dark',
+          onThemeChange: vi.fn(),
+          fontSizeLevel: 3,
+          onFontSizeLevelChange: vi.fn(),
+          coDriverToolIconEnabled: true,
+          onCoDriverToolIconEnabledChange,
+        } as any)}
+      />
+    );
+
+    expect(screen.queryByText('settings.basic.coDriverToolIcon.enabled')).toBeNull();
+
+    rerender(
+      <AppearanceTab
+        {...({
+          theme: 'codriver',
+          onThemeChange: vi.fn(),
+          fontSizeLevel: 3,
+          onFontSizeLevelChange: vi.fn(),
+          coDriverToolIconEnabled: true,
+          onCoDriverToolIconEnabledChange,
+        } as any)}
+      />
+    );
+
+    expect(screen.getByText('settings.basic.coDriverToolIcon.enabled')).toBeTruthy();
+  });
+
+  it('notifies Java-facing state when the CoDriver tool icon toggle changes', () => {
+    const onCoDriverToolIconEnabledChange = vi.fn();
+
+    render(
+      <AppearanceTab
+        {...({
+          theme: 'codriver',
+          onThemeChange: vi.fn(),
+          fontSizeLevel: 3,
+          onFontSizeLevelChange: vi.fn(),
+          coDriverToolIconEnabled: true,
+          onCoDriverToolIconEnabledChange,
+        } as any)}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('checkbox'));
+
+    expect(onCoDriverToolIconEnabledChange).toHaveBeenCalledWith(false);
+  });
+});

@@ -4,6 +4,7 @@ import com.github.claudecodegui.i18n.ClaudeCodeGuiBundle;
 import com.github.claudecodegui.notifications.ClaudeNotifier;
 import com.github.claudecodegui.provider.common.MessageCallback;
 import com.github.claudecodegui.provider.common.SDKResult;
+import com.github.claudecodegui.ui.icon.PluginIconProvider;
 import com.github.claudecodegui.ui.toolwindow.ClaudeChatWindow;
 import com.github.claudecodegui.ui.toolwindow.ClaudeSDKToolWindow;
 import com.intellij.openapi.actionSystem.ActionUpdateThread;
@@ -271,6 +272,7 @@ public class QuickFixWithClaudeAction extends AnAction implements DumbAware {
 
     @Override
     public void update(@NotNull AnActionEvent e) {
+        e.getPresentation().setIcon(PluginIconProvider.getCurrentPluginIcon());
         e.getPresentation().setEnabledAndVisible(true);
     }
 }

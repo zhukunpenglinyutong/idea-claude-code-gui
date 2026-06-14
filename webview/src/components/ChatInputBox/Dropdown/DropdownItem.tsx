@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { DropdownItemProps } from '../types';
+import type { DropdownItemProps, FileItem } from '../types';
+import { useIsCoDriverTheme } from '../../../hooks/useActiveThemeMode';
+import { NativeFileIcon } from '../../nativeIcons/NativeFileIcon';
 
 const SVG_ICON_STYLE: React.CSSProperties = {
   width: 16,
@@ -28,6 +30,9 @@ export const DropdownItem = ({
     left: 0,
     placement: 'bottom'
   });
+
+  const isCoDriver = useIsCoDriverTheme();
+  const fileData = item.data?.file as FileItem | undefined;
 
   /**
    * Handle mouse enter to show tooltip
@@ -64,6 +69,23 @@ export const DropdownItem = ({
   const renderIcon = () => {
     const icon = typeof item.icon === 'string' ? item.icon.trim() : '';
     const isInlineSvgIcon = icon.startsWith('<svg');
+
+    if (isCoDriver && fileData && (item.type === 'file' || item.type === 'directory')) {
+      const fallback = isInlineSvgIcon ? (
+        <span dangerouslySetInnerHTML={{ __html: icon }} style={SVG_ICON_STYLE} />
+      ) : (
+        <span className={`codicon ${icon || getDefaultIconClass(item.type)}`} />
+      );
+      return (
+        <NativeFileIcon
+          className="dropdown-item-icon"
+          fileName={fileData.name || item.label}
+          filePath={fileData.absolutePath || fileData.path || item.description || item.label}
+          isDirectory={item.type === 'directory'}
+          fallback={fallback}
+        />
+      );
+    }
 
     // If icon contains SVG tags, it's an inline SVG
     if (isInlineSvgIcon) {

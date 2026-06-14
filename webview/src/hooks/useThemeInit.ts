@@ -17,11 +17,17 @@ export function useThemeInit() {
 
   // Initialize theme and font scaling
   useEffect(() => {
+    const initialIdeTheme = window.__INITIAL_IDE_THEME__;
+    if (initialIdeTheme === 'light' || initialIdeTheme === 'dark') {
+      document.documentElement.setAttribute('data-ide-theme', initialIdeTheme);
+    }
+
     // Register IDE theme received callback
     window.onIdeThemeReceived = (jsonStr: string) => {
       try {
         const themeData = JSON.parse(jsonStr);
         const theme = themeData.isDark ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-ide-theme', theme);
         setIdeTheme(theme);
       } catch {
         // Failed to parse IDE theme response
@@ -33,6 +39,7 @@ export function useThemeInit() {
       try {
         const themeData = JSON.parse(jsonStr);
         const theme = themeData.isDark ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-ide-theme', theme);
         setIdeTheme(theme);
       } catch {
         // Failed to parse IDE theme change
@@ -69,6 +76,19 @@ export function useThemeInit() {
       document.documentElement.style.setProperty('--color-message-user-bg', savedUserMsgColor);
     }
 
+    // Initialize CoDriver-only link and inline-code color overrides. These are
+    // deliberately separate from the generic theme variables so CC GUI light,
+    // dark, and Follow IDE keep their existing color behavior.
+    const savedCoDriverLinkColor = localStorage.getItem('codriverLinkColor');
+    if (savedCoDriverLinkColor && isValidHexColor(savedCoDriverLinkColor)) {
+      document.documentElement.style.setProperty('--codriver-custom-link-color', savedCoDriverLinkColor);
+    }
+
+    const savedCoDriverCodeColor = localStorage.getItem('codriverCodeColor');
+    if (savedCoDriverCodeColor && isValidHexColor(savedCoDriverCodeColor)) {
+      document.documentElement.style.setProperty('--codriver-custom-code-color', savedCoDriverCodeColor);
+    }
+
     // Apply the user's explicit theme choice first. System remains bound to the IDE theme.
     const savedTheme = localStorage.getItem('theme');
     if (isExplicitUiThemeMode(savedTheme)) {
@@ -93,6 +113,7 @@ export function useThemeInit() {
           // If in Follow IDE mode and unable to get IDE theme, use injected theme or dark as fallback
           if (savedTheme === null || savedTheme === 'system') {
             const fallback = injectedTheme || 'dark';
+            document.documentElement.setAttribute('data-ide-theme', fallback);
             setIdeTheme(fallback as 'light' | 'dark');
           }
         }
@@ -111,6 +132,8 @@ export function useThemeInit() {
     if (ideTheme === null) {
       return;
     }
+
+    document.documentElement.setAttribute('data-ide-theme', ideTheme);
 
     // If user selected "Follow IDE" mode
     if (savedTheme === null || savedTheme === 'system') {

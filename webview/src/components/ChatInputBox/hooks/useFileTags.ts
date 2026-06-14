@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { escapeHtmlAttr } from '../utils/htmlEscape.js';
 import { getFileIcon } from '../../../utils/fileIcons.js';
+import { getNativeFileIconCacheKey, hydrateNativeFileIconElements } from '../../../utils/nativeFileIcons.js';
 import { icon_folder, icon_terminal, icon_server } from '../../../utils/icons.js';
 import { perfTimer } from '../../../utils/debug.js';
+import { useIsCoDriverTheme } from '../../../hooks/useActiveThemeMode.js';
 import {
   TEXT_LENGTH_THRESHOLDS,
   RENDERING_LIMITS,
@@ -49,6 +51,8 @@ export function useFileTags({
   getTextContent,
   onCloseCompletions,
 }: UseFileTagsOptions): UseFileTagsReturn {
+  const isCoDriver = useIsCoDriverTheme();
+
   // Path mapping: filename/relative path -> absolute path (for tooltip display)
   const pathMappingRef = useRef<Map<string, string>>(new Map());
   // Flag for just rendered file tags (skip completion detection)
@@ -318,10 +322,23 @@ export function useFileTags({
         filePath;
       const escapedFullPath = escapeHtmlAttr(fullPath);
 
+      const nativeIconKey = isCoDriver && !isTerminal && !isService
+        ? getNativeFileIconCacheKey({ filePath: fullPath, fileName: pureFileName, isDirectory })
+        : '';
+      const nativeIconAttrs = nativeIconKey
+        ? [
+            `data-native-file-icon-key="${escapeHtmlAttr(nativeIconKey)}"`,
+            `data-native-file-icon-path="${escapeHtmlAttr(fullPath)}"`,
+            `data-native-file-icon-name="${escapeHtmlAttr(pureFileName)}"`,
+            `data-native-file-icon-directory="${isDirectory ? 'true' : 'false'}"`,
+          ].join(' ')
+        : '';
+      const nativeIconClass = nativeIconKey ? ' codriver-native-file-icon native-pending' : '';
+
       // Create file tag HTML - use array push instead of string concatenation
       htmlParts.push(
         `<span class="file-tag has-tooltip" contenteditable="false" data-file-path="${escapedPath}" data-tooltip="${escapedFullPath}">`,
-        `<span class="file-tag-icon">${iconSvg}</span>`,
+        `<span class="file-tag-icon${nativeIconClass}" ${nativeIconAttrs}>${iconSvg}</span>`,
         `<span class="file-tag-text">${escapedDisplayFileName}</span>`,
         `<span class="file-tag-close">&times;</span>`,
         `</span>`,
@@ -350,6 +367,9 @@ export function useFileTags({
 
     // Update content
     editableRef.current.innerHTML = newHTML;
+    if (isCoDriver) {
+      hydrateNativeFileIconElements(editableRef.current);
+    }
     timer.mark('set-innerHTML');
 
     // Restore cursor position
@@ -405,7 +425,7 @@ export function useFileTags({
     }, 0);
 
     timer.end();
-  }, [editableRef, getTextContent, onCloseCompletions, escapeHtmlText]);
+  }, [editableRef, getTextContent, onCloseCompletions, escapeHtmlText, isCoDriver]);
 
   /**
    * Extract all file tags from current input

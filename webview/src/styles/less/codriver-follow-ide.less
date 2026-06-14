@@ -1,0 +1,724 @@
+/* CoDriver follows the active IDE light/dark base.
+ * Keep data-theme="codriver" for CoDriver-specific rendering, but derive the
+ * base surfaces from data-ide-theme instead of forcing a standalone dark
+ * background. This mirrors the VS Code chat approach: chat chrome is layered on
+ * top of the current workbench theme tokens rather than owning the window color.
+ */
+
+html[data-theme="codriver"] {
+    --codriver-follow-focus: #58a6ff;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] {
+    color-scheme: dark;
+
+    /* IntelliJ dark window base sampled from the reference view. */
+    --bg-primary: #191a1c;
+    --bg-chat: var(--bg-primary);
+    --bg-secondary: #252629;
+    --bg-tertiary: #2b2d30;
+    --bg-elevated: #2b2d30;
+    --bg-hover: #2f3136;
+    --bg-active: #383b40;
+
+    --text-primary: #d0d2d6;
+    --text-secondary: #f0f1f3;
+    --text-tertiary: #9da3ad;
+    --text-muted: #7f8590;
+    --text-placeholder: #8b9099;
+
+    --border-primary: #303336;
+    --border-secondary: #3b3e43;
+    --border-hover: #50545a;
+
+    --accent-primary: #3574f0;
+    --accent-primary-hover: #4a85f8;
+    --accent-primary-active: #2f65ca;
+    --accent-secondary: #58a6ff;
+
+    --codriver-default-link: #4daafc;
+    --codriver-default-inline-code-text: #d7ba7d;
+    --color-link: var(--codriver-custom-link-color, var(--codriver-default-link));
+    --color-code-block-bg: #1f2023;
+    --color-code-block-border: #35383d;
+    --color-code-inline-bg: rgba(214, 170, 90, 0.18);
+    --color-message-user-bg: #264f78;
+    --color-message-user-text: #ffffff;
+    --color-message-user-code-bg: rgba(0, 0, 0, 0.20);
+    --color-message-user-code-border: rgba(255, 255, 255, 0.12);
+
+    --scrollbar-track: var(--bg-primary);
+    --scrollbar-thumb: #3f4248;
+    --scrollbar-thumb-hover: #555a62;
+
+    --codriver-canvas: var(--bg-chat);
+    --codriver-canvas-subtle: var(--bg-chat);
+    --codriver-shell-bg: var(--bg-chat);
+    --codriver-chat-surface: var(--bg-chat);
+    --codriver-transcript-bg: var(--bg-chat);
+    --codriver-panel-bg: var(--bg-secondary);
+    --codriver-panel-raised-bg: var(--bg-tertiary);
+    --codriver-composer-bg: #44474e;
+    --codriver-composer-panel: #44474e;
+    --codriver-composer-panel-hover: #474a51;
+    --codriver-composer-panel-focus: #484b52;
+    --codriver-border: rgba(190, 195, 204, 0.20);
+    --codriver-border-muted: rgba(190, 195, 204, 0.12);
+    --codriver-border-strong: rgba(88, 166, 255, 0.68);
+    --codriver-fg-default: var(--text-primary);
+    --codriver-fg-muted: var(--text-tertiary);
+    --codriver-fg-subtle: var(--text-muted);
+    --codriver-link: var(--color-link);
+    --codriver-heading: var(--text-secondary);
+    --codriver-code-bg: var(--color-code-block-bg);
+    --codriver-inline-code-bg: var(--color-code-inline-bg);
+    --codriver-inline-code-text: var(--codriver-custom-code-color, var(--codriver-default-inline-code-text));
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] {
+    color-scheme: light;
+
+    /* Follow the light IDE/workbench surface instead of leaving CoDriver dark. */
+    --bg-primary: #ffffff;
+    --bg-chat: var(--bg-primary);
+    --bg-secondary: #f3f3f3;
+    --bg-tertiary: #e8e8e8;
+    --bg-elevated: #f5f5f5;
+    --bg-hover: #e0e0e0;
+    --bg-active: #d6d6d6;
+
+    --text-primary: #333333;
+    --text-secondary: #1a1a1a;
+    --text-tertiary: #666666;
+    --text-muted: #999999;
+    --text-placeholder: #8a8f98;
+    --text-white: #ffffff;
+
+    --border-primary: #d0d0d0;
+    --border-secondary: #c0c0c0;
+    --border-hover: #a0a0a0;
+
+    --accent-primary: #0078d4;
+    --accent-primary-hover: #106ebe;
+    --accent-primary-active: #005a9e;
+    --accent-secondary: #2b88d8;
+
+    --codriver-default-link: #196bc5;
+    --codriver-default-inline-code-text: #cf222e;
+    --color-link: var(--codriver-custom-link-color, var(--codriver-default-link));
+    --color-code-block-bg: #f5f5f5;
+    --color-code-block-border: #d0d0d0;
+    --color-code-inline-bg: rgba(163, 88, 0, 0.12);
+    --color-message-user-bg: #d4e2ff;
+    --color-message-user-text: #ffffff;
+    --color-message-user-code-bg: rgba(0, 0, 0, 0.15);
+    --color-message-user-code-border: rgba(255, 255, 255, 0.20);
+
+    --scrollbar-track: #f0f0f0;
+    --scrollbar-thumb: #c0c0c0;
+    --scrollbar-thumb-hover: #a0a0a0;
+
+    --codriver-canvas: var(--bg-chat);
+    --codriver-canvas-subtle: var(--bg-chat);
+    --codriver-shell-bg: var(--bg-chat);
+    --codriver-chat-surface: var(--bg-chat);
+    --codriver-transcript-bg: var(--bg-chat);
+    --codriver-panel-bg: var(--bg-secondary);
+    --codriver-panel-raised-bg: var(--bg-elevated);
+    --codriver-composer-bg: var(--bg-secondary);
+    --codriver-composer-panel: var(--bg-secondary);
+    --codriver-composer-panel-hover: var(--bg-tertiary);
+    --codriver-composer-panel-focus: #ffffff;
+    --codriver-border: rgba(0, 0, 0, 0.16);
+    --codriver-border-muted: rgba(0, 0, 0, 0.10);
+    --codriver-border-strong: rgba(0, 120, 212, 0.62);
+    --codriver-fg-default: var(--text-primary);
+    --codriver-fg-muted: var(--text-tertiary);
+    --codriver-fg-subtle: var(--text-muted);
+    --codriver-link: var(--color-link);
+    --codriver-heading: var(--text-secondary);
+    --codriver-code-bg: var(--color-code-block-bg);
+    --codriver-inline-code-bg: var(--color-code-inline-bg);
+    --codriver-inline-code-text: var(--codriver-custom-code-color, var(--codriver-default-inline-code-text));
+}
+
+html[data-theme="codriver"] body,
+html[data-theme="codriver"] #root,
+html[data-theme="codriver"] #app,
+html[data-theme="codriver"] .messages-shell,
+html[data-theme="codriver"] .messages-container,
+html[data-theme="codriver"] .input-area {
+    background: var(--bg-chat) !important;
+    color: var(--text-primary);
+}
+
+/* Remove the earlier blue/purple canvas overlays. The IDE theme owns the base
+ * window color; CoDriver only adds component-level accents. */
+html[data-theme="codriver"] .messages-shell {
+    background-image: none !important;
+}
+
+html[data-theme="codriver"] .message.assistant .message-content,
+html[data-theme="codriver"] .markdown-content,
+html[data-theme="codriver"] .message-content {
+    color: var(--text-primary);
+}
+
+html[data-theme="codriver"] .markdown-content h1,
+html[data-theme="codriver"] .markdown-content h2,
+html[data-theme="codriver"] .markdown-content h3 {
+    color: var(--text-secondary);
+}
+
+html[data-theme="codriver"] .markdown-content a {
+    color: var(--color-link);
+}
+
+html[data-theme="codriver"] .markdown-content code:not(pre code),
+html[data-theme="codriver"] .message-content code:not(pre code) {
+    background: var(--color-code-inline-bg);
+    color: var(--codriver-inline-code-text);
+}
+
+html[data-theme="codriver"] .code-block-wrapper,
+html[data-theme="codriver"] pre {
+    background: var(--color-code-block-bg);
+    border-color: var(--color-code-block-border);
+}
+
+/* The CoDriver picker/composer CSS declares the actual input box variables.
+ * Keep dark exactly as the established grey composer, but let light mode return
+ * to the light IDE base. */
+html[data-theme="codriver"][data-ide-theme="light"] .chat-input-box {
+    --input-bg: var(--bg-secondary);
+    background: var(--bg-secondary) !important;
+    color: var(--text-primary);
+    border-color: var(--border-secondary);
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .chat-input-box:hover {
+    background: var(--bg-tertiary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .chat-input-box:focus-within,
+html[data-theme="codriver"][data-ide-theme="light"] .chat-input-box.resizing-active {
+    background: #ffffff !important;
+    border-color: rgba(0, 120, 212, 0.72) !important;
+    box-shadow: 0 0 0 1px rgba(0, 120, 212, 0.26) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message.user .message-content {
+    background: var(--color-message-user-bg);
+    border-color: rgba(0, 120, 212, 0.45);
+    color: #ffffff;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .toolbar-tab,
+html[data-theme="codriver"][data-ide-theme="light"] .context-item,
+html[data-theme="codriver"][data-ide-theme="light"] .attachment-item,
+html[data-theme="codriver"][data-ide-theme="light"] .selector-dropdown,
+html[data-theme="codriver"][data-ide-theme="light"] .completion-dropdown {
+    background: var(--bg-secondary);
+    border-color: var(--border-primary);
+    color: var(--text-primary);
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .toolbar-tab.active,
+html[data-theme="codriver"][data-ide-theme="light"] .selector-option.selected,
+html[data-theme="codriver"][data-ide-theme="light"] .completion-item.selected {
+    background: rgba(0, 120, 212, 0.12);
+    color: var(--text-secondary);
+}
+
+/* Light CoDriver must derive from the real Follow IDE light surfaces. The base
+ * CoDriver skin still contains dark, GitHub-style component rules; these final
+ * overrides remove the remaining dark chrome in light IDE mode without touching
+ * the established dark composer. */
+html[data-theme="codriver"][data-ide-theme="light"] {
+    --bg-primary: #ffffff;
+    --bg-chat: #ffffff;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #f4f4f4;
+    --bg-elevated: #ffffff;
+    --bg-hover: #f2f2f2;
+    --bg-active: #e8f2ff;
+
+    --text-primary: #1f2328;
+    --text-secondary: #111111;
+    --text-tertiary: #59636e;
+    --text-muted: #8a8f98;
+    --text-placeholder: #8a8f98;
+
+    --border-primary: #d6d8dc;
+    --border-secondary: #c9ccd2;
+    --border-hover: #b3b8c2;
+
+    --codriver-canvas: #ffffff;
+    --codriver-canvas-subtle: #ffffff;
+    --codriver-surface: #ffffff;
+    --codriver-surface-muted: #f6f6f7;
+    --codriver-surface-raised: #ffffff;
+    --codriver-shell-bg: #ffffff;
+    --codriver-chat-surface: #ffffff;
+    --codriver-transcript-bg: #ffffff;
+    --codriver-panel-bg: #ffffff;
+    --codriver-panel-raised-bg: #f6f6f7;
+    --codriver-code-bg: #f7f7f8;
+    --codriver-inline-code-bg: #f2f2f2;
+    --codriver-inline-code-text: #24292f;
+    --codriver-heading: #24292f;
+    --codriver-border: rgba(31, 35, 40, 0.18);
+    --codriver-border-muted: rgba(31, 35, 40, 0.12);
+    --codriver-border-strong: rgba(47, 129, 247, 0.54);
+    --codriver-fg-default: #24292f;
+    --codriver-fg-muted: #59636e;
+    --codriver-fg-subtle: #6e7781;
+
+    --color-code-block-bg: #f7f7f8;
+    --color-code-block-border: #d0d7de;
+    --color-code-inline-bg: rgba(175, 184, 193, 0.20);
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] body,
+html[data-theme="codriver"][data-ide-theme="light"] #root,
+html[data-theme="codriver"][data-ide-theme="light"] #app,
+html[data-theme="codriver"][data-ide-theme="light"] .messages-shell,
+html[data-theme="codriver"][data-ide-theme="light"] .messages-container,
+html[data-theme="codriver"][data-ide-theme="light"] .input-area {
+    background: #ffffff !important;
+    color: var(--text-primary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] #app {
+    border-color: transparent !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .header {
+    background: #ffffff !important;
+    color: var(--text-primary) !important;
+    border-bottom-color: var(--border-primary) !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .session-title,
+html[data-theme="codriver"][data-ide-theme="light"] .header-left > *,
+html[data-theme="codriver"][data-ide-theme="light"] .icon-button,
+html[data-theme="codriver"][data-ide-theme="light"] .back-button,
+html[data-theme="codriver"][data-ide-theme="light"] .new-chat-button {
+    color: var(--text-secondary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .icon-button:hover,
+html[data-theme="codriver"][data-ide-theme="light"] .back-button:hover,
+html[data-theme="codriver"][data-ide-theme="light"] .new-chat-button:hover {
+    background: var(--bg-hover) !important;
+    color: var(--text-secondary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message-content,
+html[data-theme="codriver"][data-ide-theme="light"] .markdown-content,
+html[data-theme="codriver"][data-ide-theme="light"] .message.assistant .message-content {
+    color: var(--text-primary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message-content strong,
+html[data-theme="codriver"][data-ide-theme="light"] .markdown-content strong,
+html[data-theme="codriver"][data-ide-theme="light"] .markdown-content h1,
+html[data-theme="codriver"][data-ide-theme="light"] .markdown-content h2,
+html[data-theme="codriver"][data-ide-theme="light"] .markdown-content h3 {
+    color: var(--text-secondary) !important;
+}
+
+/* In light mode the code card must use the same light Follow IDE structure as
+ * the base UI. The dark CoDriver code-block chrome is only for IDE dark mode. */
+html[data-theme="codriver"][data-ide-theme="light"] .code-block-wrapper,
+html[data-theme="codriver"][data-ide-theme="light"] .markdown-content pre,
+html[data-theme="codriver"][data-ide-theme="light"] pre {
+    background: var(--color-code-block-bg) !important;
+    border: 1px solid var(--color-code-block-border) !important;
+    color: #24292f !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .code-block-wrapper::before,
+html[data-theme="codriver"][data-ide-theme="light"] .code-block-wrapper::after {
+    display: none !important;
+    content: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .code-block-wrapper pre,
+html[data-theme="codriver"][data-ide-theme="light"] .markdown-content pre code,
+html[data-theme="codriver"][data-ide-theme="light"] pre code,
+html[data-theme="codriver"][data-ide-theme="light"] .hljs {
+    background: transparent !important;
+    color: #24292f !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .copy-code-btn {
+    background: #ffffff !important;
+    border-color: var(--border-primary) !important;
+    color: var(--text-tertiary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .copy-code-btn:hover {
+    background: var(--bg-hover) !important;
+    color: var(--text-secondary) !important;
+}
+
+/* GitHub/VS Code light token palette. This fixes the remaining dark-only
+ * syntax variables from codriver-syntax.less, e.g. Java keywords are red in the
+ * light reference instead of amber/yellow. */
+html[data-theme="codriver"][data-ide-theme="light"] {
+    --hljs-fg: #24292f;
+    --hljs-red: #cf222e;
+    --hljs-purple: #8250df;
+    --hljs-blue: #0550ae;
+    --hljs-light-blue: #0a3069;
+    --hljs-orange: #953800;
+    --hljs-green: #116329;
+    --hljs-gray: #6e7781;
+    --hljs-yellow: #4d2d00;
+    --hljs-section: #0969da;
+    --hljs-add-fg: #116329;
+    --hljs-add-bg: #dafbe1;
+    --hljs-del-fg: #cf222e;
+    --hljs-del-bg: #ffebe9;
+}
+
+/* Light IDE mode: user requests are not dark-blue pills. Match the VS Code/
+ * Copilot light treatment: black text on a very light blue request bubble.
+ * This final override intentionally comes after the shared CoDriver message
+ * rules because codriver-laf-v3 defines the dark request bubble globally. */
+html[data-theme="codriver"][data-ide-theme="light"] {
+    --color-message-user-bg: #d4e2ff;
+    --color-message-user-text: #111827;
+    --color-message-user-code-bg: rgba(25, 107, 197, 0.10);
+    --codriver-default-link: #196bc5;
+    --codriver-default-inline-code-text: #cf222e;
+    --codriver-link: var(--codriver-custom-link-color, var(--codriver-default-link));
+    --color-link: var(--codriver-link);
+    --codriver-inline-code-text: var(--codriver-custom-code-color, var(--codriver-default-inline-code-text));
+    --color-message-user-code-border: rgba(25, 107, 197, 0.16);
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message.user .message-content {
+    color: var(--color-message-user-text) !important;
+    background: var(--color-message-user-bg) !important;
+    border: 1px solid rgba(25, 107, 197, 0.16) !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message.user .markdown-content,
+html[data-theme="codriver"][data-ide-theme="light"] .message.user .message-content p,
+html[data-theme="codriver"][data-ide-theme="light"] .message.user .message-content li {
+    color: var(--color-message-user-text) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message.user .message-content a {
+    color: var(--codriver-link) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message.user .message-content code:not(pre code),
+html[data-theme="codriver"][data-ide-theme="light"] .message.user .markdown-content code:not(pre code) {
+    color: var(--codriver-inline-code-text) !important;
+    background: var(--color-message-user-code-bg) !important;
+    border-color: var(--color-message-user-code-border) !important;
+}
+
+/* Light IDE follow-up: do not let dark CoDriver cards/buttons leak into light mode.
+ * The base CoDriver skin intentionally uses dark VS Code/GitHub surfaces; in
+ * Follow IDE light those dark cards must collapse back to the light workbench
+ * treatment instead of rendering almost-black boxes. */
+html[data-theme="codriver"][data-ide-theme="light"] .thinking-block,
+html[data-theme="codriver"][data-ide-theme="light"] .compact-summary-block,
+html[data-theme="codriver"][data-ide-theme="light"] .compact-notification-block,
+html[data-theme="codriver"][data-ide-theme="light"] .task-notification-block,
+html[data-theme="codriver"][data-ide-theme="light"] .streaming-connect-status {
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    color: var(--text-tertiary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .thinking-header,
+html[data-theme="codriver"][data-ide-theme="light"] .compact-summary-title {
+    background: transparent !important;
+    color: var(--text-tertiary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .thinking-header:hover,
+html[data-theme="codriver"][data-ide-theme="light"] .compact-summary-title:hover {
+    background: var(--bg-hover) !important;
+    color: var(--text-secondary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .thinking-content {
+    background: transparent !important;
+    border-left-color: var(--border-primary) !important;
+    color: var(--text-tertiary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .thinking-content .markdown-content,
+html[data-theme="codriver"][data-ide-theme="light"] .thinking-content .markdown-content p,
+html[data-theme="codriver"][data-ide-theme="light"] .thinking-content .markdown-content li {
+    color: var(--text-tertiary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message-copy-btn,
+html[data-theme="codriver"][data-ide-theme="light"] .message-copy-btn-inline,
+html[data-theme="codriver"][data-ide-theme="light"] .copy-code-btn,
+html[data-theme="codriver"][data-ide-theme="light"] .error-diagnostic-copy-btn,
+html[data-theme="codriver"][data-ide-theme="light"] .history-copy-id-btn,
+html[data-theme="codriver"][data-ide-theme="light"] .icon-btn.copy-btn {
+    background: #ffffff !important;
+    border-color: var(--border-primary) !important;
+    color: var(--text-tertiary) !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message-copy-btn:hover,
+html[data-theme="codriver"][data-ide-theme="light"] .message-copy-btn-inline:hover,
+html[data-theme="codriver"][data-ide-theme="light"] .copy-code-btn:hover,
+html[data-theme="codriver"][data-ide-theme="light"] .error-diagnostic-copy-btn:hover,
+html[data-theme="codriver"][data-ide-theme="light"] .history-copy-id-btn:hover,
+html[data-theme="codriver"][data-ide-theme="light"] .icon-btn.copy-btn:hover {
+    background: var(--bg-hover) !important;
+    border-color: var(--border-hover) !important;
+    color: var(--text-secondary) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message-copy-btn .codriver-icon,
+html[data-theme="codriver"][data-ide-theme="light"] .message-copy-btn-inline .codriver-icon,
+html[data-theme="codriver"][data-ide-theme="light"] .copy-code-btn .codriver-icon,
+html[data-theme="codriver"][data-ide-theme="light"] .copy-icon svg,
+html[data-theme="codriver"][data-ide-theme="light"] .copy-code-btn svg {
+    color: currentColor !important;
+    stroke: currentColor !important;
+    fill: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message-copy-btn.copied,
+html[data-theme="codriver"][data-ide-theme="light"] .copy-code-btn.copied,
+html[data-theme="codriver"][data-ide-theme="light"] .error-diagnostic-copy-btn.copied,
+html[data-theme="codriver"][data-ide-theme="light"] .history-copy-id-btn.copied {
+    color: #1a7f37 !important;
+    border-color: rgba(26, 127, 55, 0.28) !important;
+    background: #dafbe1 !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="light"] .message-copy-btn .copy-tooltip,
+html[data-theme="codriver"][data-ide-theme="light"] .copy-code-btn .copy-tooltip,
+html[data-theme="codriver"][data-ide-theme="light"] .copy-tooltip {
+    background: #ffffff !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-primary) !important;
+    box-shadow: 0 4px 12px rgba(31, 35, 40, 0.12) !important;
+}
+
+/* Dark IDE follow-up: keep CoDriver as a skin over the IntelliJ dark window
+ * surface. The previous rules still allowed the GitHub-dark #0d1117 header strip
+ * and darker rgba overlays from codriver-laf-v3 to leak through. In dark Follow
+ * IDE the shell/header/transcript surface must use the host window base (#191a1c)
+ * while only component internals such as code blocks keep their own card color. */
+html[data-theme="codriver"][data-ide-theme="dark"] {
+    --codriver-default-window-bg: #191a1c;
+    --bg-chat: var(--codriver-default-window-bg);
+    --codriver-ide-window-bg: var(--bg-chat);
+    --codriver-ide-toolbar-bg: var(--codriver-ide-window-bg);
+    --codriver-ide-toolbar-border: #2b2d30;
+
+    --bg-primary: var(--codriver-ide-window-bg);
+    --codriver-canvas: var(--codriver-ide-window-bg);
+    --codriver-canvas-subtle: var(--codriver-ide-window-bg);
+    --codriver-shell-bg: var(--codriver-ide-window-bg);
+    --codriver-chat-surface: var(--codriver-ide-window-bg);
+    --codriver-transcript-bg: var(--codriver-ide-window-bg);
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] body,
+html[data-theme="codriver"][data-ide-theme="dark"] #root,
+html[data-theme="codriver"][data-ide-theme="dark"] #app,
+html[data-theme="codriver"][data-ide-theme="dark"] .messages-shell,
+html[data-theme="codriver"][data-ide-theme="dark"] .messages-container,
+html[data-theme="codriver"][data-ide-theme="dark"] .input-area {
+    background-color: var(--codriver-ide-window-bg) !important;
+    background-image: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] #app {
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .header {
+    background: var(--codriver-ide-toolbar-bg) !important;
+    background-color: var(--codriver-ide-toolbar-bg) !important;
+    background-image: none !important;
+    border-bottom-color: var(--codriver-ide-toolbar-border) !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .header::before,
+html[data-theme="codriver"][data-ide-theme="dark"] .header::after,
+html[data-theme="codriver"][data-ide-theme="dark"] .messages-shell::before,
+html[data-theme="codriver"][data-ide-theme="dark"] .messages-shell::after,
+html[data-theme="codriver"][data-ide-theme="dark"] .messages-container::before,
+html[data-theme="codriver"][data-ide-theme="dark"] .messages-container::after {
+    content: none !important;
+    display: none !important;
+    background: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .message.assistant,
+html[data-theme="codriver"][data-ide-theme="dark"] .message.assistant .message-content,
+html[data-theme="codriver"][data-ide-theme="dark"] .message.assistant .markdown-content {
+    background: transparent !important;
+}
+
+/* Dark IDE follow-up: CoDriver code blocks must not create a black card. Match the
+ * surrounding Copilot/IDE surface: title strip and body share the #191a1c window
+ * base; only the divider below the title strip and the horizontal code scrollbar
+ * remain visible. */
+html[data-theme="codriver"][data-ide-theme="dark"] {
+    --codriver-code-surface: var(--codriver-ide-window-bg);
+    --codriver-code-title-border: #2b2d30;
+    --color-code-block-bg: var(--codriver-code-surface);
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper {
+    background: var(--codriver-code-surface) !important;
+    border: none !important;
+    border-radius: 6px !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper::before {
+    content: '' !important;
+    display: block !important;
+    height: 28px !important;
+    background: var(--codriver-code-surface) !important;
+    border-bottom: 1px solid var(--codriver-code-title-border) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper::after {
+    top: 4px !important;
+    left: 11px !important;
+    color: var(--codriver-fg-muted) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper pre,
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content pre,
+html[data-theme="codriver"][data-ide-theme="dark"] pre {
+    margin: 0 !important;
+    padding: 12px 14px 14px !important;
+    background: var(--codriver-code-surface) !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper pre code,
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content pre code,
+html[data-theme="codriver"][data-ide-theme="dark"] pre code,
+html[data-theme="codriver"][data-ide-theme="dark"] .hljs {
+    background: transparent !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper .copy-code-btn,
+html[data-theme="codriver"][data-ide-theme="dark"] .copy-code-btn {
+    top: 3px !important;
+    right: 7px !important;
+    background: transparent !important;
+    border-color: transparent !important;
+    color: var(--codriver-fg-muted) !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper .copy-code-btn:hover,
+html[data-theme="codriver"][data-ide-theme="dark"] .copy-code-btn:hover {
+    background: rgba(255, 255, 255, 0.06) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    color: var(--codriver-fg-default) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper pre::-webkit-scrollbar {
+    height: 8px;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper pre::-webkit-scrollbar-track {
+    background: var(--codriver-code-surface);
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .code-block-wrapper pre::-webkit-scrollbar-thumb {
+    background: #3f4248;
+    border-radius: 999px;
+}
+
+/* Dark CoDriver color correction sampled from the current Copilot/IDE reference.
+ * Keep this scoped to IDE dark mode only: light mode has its own palette.
+ * Inline code and file/path links are plain colored text in Copilot, not chips. */
+html[data-theme="codriver"][data-ide-theme="dark"] {
+    --color-message-user-bg: #264f78;
+    --codriver-user: var(--color-message-user-bg);
+    --codriver-default-link: #4daafc;
+    --codriver-link: var(--codriver-custom-link-color, var(--codriver-default-link));
+    --color-link: var(--codriver-link);
+    --color-tool-file-link: var(--codriver-link);
+    --color-tool-class-link: var(--codriver-link);
+    --codriver-default-inline-code-text: #d7ba7d;
+    --codriver-inline-code-text: var(--codriver-custom-code-color, var(--codriver-default-inline-code-text));
+    --codriver-inline-code-bg: transparent;
+    --color-code-inline-bg: transparent;
+    --color-message-user-code-bg: transparent;
+    --color-message-user-code-border: transparent;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .message.user .message-content {
+    background: var(--color-message-user-bg) !important;
+    border-color: rgba(121, 192, 255, 0.28) !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .message.user .message-content a {
+    color: var(--codriver-link) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .message.user .message-content code:not(pre code) {
+    color: var(--codriver-inline-code-text) !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content :not(pre) > code,
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content code:not(pre code),
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content code:not(pre code) {
+    color: var(--codriver-inline-code-text) !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content a,
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content a,
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content a.file-link,
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content a.class-link,
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content a[data-linkify="file"],
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content a[data-linkify="class"],
+html[data-theme="codriver"][data-ide-theme="dark"] .tool-file-link,
+html[data-theme="codriver"][data-ide-theme="dark"] .tool-class-link {
+    color: var(--codriver-link) !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+html[data-theme="codriver"][data-ide-theme="dark"] .markdown-content code a,
+html[data-theme="codriver"][data-ide-theme="dark"] .message-content code a {
+    color: var(--codriver-link) !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+}

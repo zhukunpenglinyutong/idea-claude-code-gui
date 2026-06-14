@@ -1033,7 +1033,9 @@
   "markdown": {
     "copyCode": "코드 복사",
     "copyMessage": "메시지 복사",
-    "copySuccess": "복사됨!"
+    "copySuccess": "복사됨!",
+    "collapseCode": "코드 블록 접기",
+    "expandCode": "코드 블록 펼치기"
   },
   "usage": {
     "loading": "통계 로딩 중...",

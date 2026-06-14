@@ -5,6 +5,7 @@ import { normalizeToolName } from '../../utils/toolConstants';
 import { sendBridgeEvent } from '../../utils/bridge';
 import { useSubagentHistoryGetter, useSessionId, useGetToolResultRaw, type GetToolResultRawFn } from '../../contexts/SubagentContext';
 import SubagentProcessDetails from '../StatusPanel/SubagentProcessDetails';
+import { ToolStatusIndicator } from './CoDriverToolParts';
 
 const MONO_FONT_STYLE: React.CSSProperties = {
   fontFamily: "var(--cc-gui-code-font-family, var(--idea-editor-font-family, 'JetBrains Mono', 'Consolas', monospace))",
@@ -196,11 +197,12 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
   }, [agentId, currentSessionId, description, shouldPollHistory, toolId]);
 
   return (
-    <div className="task-container">
+    <div className="task-container codriver-collapsible-tool">
       <div
         className={`task-header ${expanded ? 'task-header-expanded' : ''}`}
         onClick={() => setExpanded((prev) => !prev)}
       >
+        <ToolStatusIndicator isCompleted={isCompleted} isError={isError} />
         <div className="task-title-section">
           <span className="codicon codicon-tools tool-title-icon" />
 
@@ -226,9 +228,7 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
           )}
         </div>
 
-        <div className="task-header-right">
-          <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />
-        </div>
+        <div className="task-header-right" />
       </div>
 
       {expanded && (

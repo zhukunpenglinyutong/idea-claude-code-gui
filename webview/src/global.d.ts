@@ -309,6 +309,11 @@ interface Window {
   updateStatusBarWidgetEnabled?: (json: string) => void;
 
   /**
+   * Update CoDriver tool window icon enabled state
+   */
+  updateCoDriverToolIconEnabled?: (json: string) => void;
+
+  /**
    * Update task completion notification enabled state
    */
   updateTaskCompletionNotificationEnabled?: (json: string) => void;
@@ -357,6 +362,12 @@ interface Window {
    * File path resolved callback - receives the resolved absolute path for a file link tooltip.
    */
   onFilePathResolved?: (json: string) => void;
+
+  /**
+   * Native IntelliJ file icon callback. Receives JSON with data URLs for icons
+   * resolved by the IntelliJ Platform.
+   */
+  onNativeFileIconsResolved?: (json: string) => void;
 
   /**
    * Show success message

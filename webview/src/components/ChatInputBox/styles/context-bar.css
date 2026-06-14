@@ -218,6 +218,14 @@
   opacity: 0.7;
   font-size: 14px;
   margin-left: 4px;
+  /* Reset native <button> chrome so button.context-close renders identically to
+     the legacy inline <span> across light/dark/follow-IDE themes. */
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  line-height: 1;
 }
 
 .context-close:hover {
