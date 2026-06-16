@@ -107,6 +107,12 @@ export async function handleClaudeCommand(command, args, stdinData) {
       break;
     }
 
+    case 'refreshLimits': {
+      resetClaudeCache();
+      await emitClaudeLimitsIfDue();
+      break;
+    }
+
     case 'getContextUsage': {
       // getContextUsage requires a persistent runtime (daemon mode).
       // In per-process mode, there is no persistent runtime, so return an error.
