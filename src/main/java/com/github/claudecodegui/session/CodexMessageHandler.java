@@ -109,6 +109,7 @@ public class CodexMessageHandler implements MessageCallback {
         } else if ("message_end".equals(type)) {
             handleMessageEnd();
         } else if ("limits".equals(type)) {
+            com.github.claudecodegui.util.UsageLimitsCache.save(content);
             callbackHandler.notifyLimitsUpdate(content);
         } else {
             LOG.debug("CodexMessageHandler: Unhandled message type: " + type);

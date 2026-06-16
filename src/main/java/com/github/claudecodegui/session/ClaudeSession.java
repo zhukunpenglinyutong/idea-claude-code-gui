@@ -193,7 +193,7 @@ public class ClaudeSession {
             t.setDaemon(true);
             return t;
         });
-        this.limitsScheduler.scheduleAtFixedRate(this::pollLimitsFromCache, 5, 5, TimeUnit.MINUTES);
+        this.limitsScheduler.scheduleAtFixedRate(this::pollLimitsFromCache, 10, 10, TimeUnit.SECONDS);
     }
 
     public void setCallback(SessionCallback callback) {
@@ -207,9 +207,29 @@ public class ClaudeSession {
         }
     }
 
+    /**
+     * Trigger an immediate limits fetch after a response completes.
+     * Usage always changes after a turn, so we skip the staleness check
+     * and go straight to the API.
+     */
+    public void onStreamCompleted() {
+        String provider = getProvider();
+        if (provider == null || provider.isEmpty()) {
+            return;
+        }
+        boolean isCodex = "codex".equalsIgnoreCase(provider);
+        String method = isCodex ? "codex.refreshLimits" : "claude.refreshLimits";
+        claudeSDKBridge.sendLimitsCommand(method, json -> {
+            com.github.claudecodegui.util.UsageLimitsCache.save(json);
+            callbackFacade.notifyLimitsUpdate(json);
+        });
+    }
+
     private void pollLimitsFromCache() {
-        pollLimitsForProvider("claude");
-        pollLimitsForProvider("codex");
+        String provider = getProvider();
+        if (provider != null && !provider.isEmpty()) {
+            pollLimitsForProvider(provider);
+        }
     }
 
     private void pollLimitsForProvider(String provider) {
