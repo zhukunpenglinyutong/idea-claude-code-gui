@@ -615,6 +615,7 @@ public class ClaudeChatWindow {
         if (session == null) {
             return;
         }
+        session.onStreamCompleted();
         if ("claude".equals(session.getProvider()) && session.getError() == null) {
             com.github.claudecodegui.notifications.ClaudeNotifier.showSuccess(
                 project,

@@ -970,6 +970,7 @@ public class ClaudeMessageHandler implements MessageCallback {
     private void handleLimits(String content) {
         if (content == null || content.isEmpty() || !content.startsWith("{")) { return; }
         try {
+            com.github.claudecodegui.util.UsageLimitsCache.save(content);
             callbackHandler.notifyLimitsUpdate(content);
         } catch (Exception e) {
             LOG.warn("[ClaudeMessageHandler] Failed to forward limits: " + e.getMessage());
