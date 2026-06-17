@@ -174,16 +174,14 @@ public class PermissionHandler extends BaseMessageHandler {
             });
 
             scheduleSafetyNet(future, () -> {
-                if (future.complete(PermissionService.PermissionResponse.DENY.getValue())) {
+                if (pendingInteractions.timeout(UserInteractionType.PERMISSION, channelId)) {
                     LOG.warn("[PERM_SHOW] Safety-net timeout fired (webview unreachable) for channelId=" + channelId);
-                    pendingInteractions.removePermission(channelId);
                 }
             });
 
         } catch (Exception e) {
             LOG.error("[PERM_SHOW] ERROR: errorClass=" + errorClass(e), e);
-            pendingInteractions.removePermission(channelId);
-            future.complete(PermissionService.PermissionResponse.DENY.getValue());
+            pendingInteractions.dialogFailed(UserInteractionType.PERMISSION, channelId);
         }
 
         return future;
@@ -276,24 +274,11 @@ public class PermissionHandler extends BaseMessageHandler {
             LOG.info("[PERM_DECISION] pendingPermissionRequests size before remove: "
                     + pendingInteractions.count(UserInteractionType.PERMISSION));
 
-            PendingPermissionInteraction pendingInteraction = pendingInteractions.removePermission(channelId);
+            boolean handled = pendingInteractions.completeFromBridgeResponse(
+                    UserInteractionType.PERMISSION, channelId, decision);
 
-            if (pendingInteraction != null) {
-                LOG.info("[PERM_DECISION] Found pending future, completing with allow=" + allow);
-                int responseValue;
-                if (allow) {
-                    responseValue = remember ?
-                        PermissionService.PermissionResponse.ALLOW_ALWAYS.getValue() :
-                        PermissionService.PermissionResponse.ALLOW.getValue();
-                } else {
-                    responseValue = PermissionService.PermissionResponse.DENY.getValue();
-                }
-                pendingInteraction.complete(responseValue);
-                LOG.info("[PERM_DECISION] Future completed with value=" + responseValue);
-
-                if (!allow) {
-                    notifyPermissionDenied();
-                }
+            if (handled) {
+                LOG.info("[PERM_DECISION] Completed pending interaction for channelId=" + channelId);
             } else {
                 LOG.warn("[PERM_DECISION] No pending future found for channelId=" + channelId + ", falling back to session handler");
                 // Handle permission request from Session
@@ -302,9 +287,10 @@ public class PermissionHandler extends BaseMessageHandler {
                 } else {
                     context.getSession().handlePermissionDecision(channelId, allow, false, rejectMessage);
                 }
-                if (!allow) {
-                    notifyPermissionDenied();
-                }
+            }
+
+            if (!allow) {
+                notifyPermissionDenied();
             }
         } catch (Exception e) {
             LOG.error("[PERM_DECISION] ERROR: errorClass=" + errorClass(e), e);
@@ -374,16 +360,14 @@ public class PermissionHandler extends BaseMessageHandler {
             });
 
             scheduleSafetyNet(future, () -> {
-                if (future.complete(new JsonObject())) {
+                if (pendingInteractions.timeout(UserInteractionType.ASK_USER_QUESTION, requestId)) {
                     LOG.warn("[ASK_USER_QUESTION][SHOW_DIALOG] Safety-net timeout fired (webview unreachable) for requestId=" + requestId);
-                    pendingInteractions.removeAskUserQuestion(requestId);
                 }
             });
 
         } catch (Exception e) {
             LOG.error("[ASK_USER_QUESTION][SHOW_DIALOG] ERROR: errorClass=" + errorClass(e), e);
-            pendingInteractions.removeAskUserQuestion(requestId);
-            future.complete(new JsonObject());
+            pendingInteractions.dialogFailed(UserInteractionType.ASK_USER_QUESTION, requestId);
         }
 
         return future;
@@ -399,16 +383,12 @@ public class PermissionHandler extends BaseMessageHandler {
             JsonObject response = gson.fromJson(jsonContent, JsonObject.class);
 
             String requestId = response.get("requestId").getAsString();
-            JsonObject answers = response.has("answers") && !response.get("answers").isJsonNull()
-                ? response.get("answers").getAsJsonObject()
-                : new JsonObject();
 
-            PendingAskUserQuestionInteraction pendingInteraction =
-                    pendingInteractions.removeAskUserQuestion(requestId);
+            boolean handled = pendingInteractions.completeFromBridgeResponse(
+                    UserInteractionType.ASK_USER_QUESTION, requestId, response);
 
-            if (pendingInteraction != null) {
-                LOG.debug("[ASK_USER_QUESTION][HANDLE_RESPONSE] Completing future with answerCount=" + answers.size());
-                pendingInteraction.complete(answers);
+            if (handled) {
+                LOG.debug("[ASK_USER_QUESTION][HANDLE_RESPONSE] Completed pending interaction for requestId=" + requestId);
             } else {
                 LOG.warn("[ASK_USER_QUESTION][HANDLE_RESPONSE] No pending request found for requestId: " + requestId);
             }
@@ -450,24 +430,14 @@ public class PermissionHandler extends BaseMessageHandler {
             });
 
             scheduleSafetyNet(future, () -> {
-                JsonObject timeoutResponse = new JsonObject();
-                timeoutResponse.addProperty("approved", false);
-                timeoutResponse.addProperty("targetMode", "default");
-                timeoutResponse.addProperty("message", "Plan approval timed out");
-                if (future.complete(timeoutResponse)) {
+                if (pendingInteractions.timeout(UserInteractionType.PLAN_APPROVAL, requestId)) {
                     LOG.warn("[PLAN_APPROVAL][SHOW_DIALOG] Safety-net timeout fired (webview unreachable) for requestId=" + requestId);
-                    pendingInteractions.removePlanApproval(requestId);
                 }
             });
 
         } catch (Exception e) {
             LOG.error("[PLAN_APPROVAL][SHOW_DIALOG] ERROR: errorClass=" + errorClass(e), e);
-            pendingInteractions.removePlanApproval(requestId);
-            JsonObject errorResponse = new JsonObject();
-            errorResponse.addProperty("approved", false);
-            errorResponse.addProperty("targetMode", "default");
-            errorResponse.addProperty("message", "Error showing plan approval dialog");
-            future.complete(errorResponse);
+            pendingInteractions.dialogFailed(UserInteractionType.PLAN_APPROVAL, requestId);
         }
 
         return future;
@@ -483,18 +453,12 @@ public class PermissionHandler extends BaseMessageHandler {
             JsonObject response = gson.fromJson(jsonContent, JsonObject.class);
 
             String requestId = response.get("requestId").getAsString();
-            boolean approved = response.has("approved") && response.get("approved").getAsBoolean();
-            String targetMode = response.has("targetMode") ? response.get("targetMode").getAsString() : "default";
 
-            PendingPlanApprovalInteraction pendingInteraction =
-                    pendingInteractions.removePlanApproval(requestId);
+            boolean handled = pendingInteractions.completeFromBridgeResponse(
+                    UserInteractionType.PLAN_APPROVAL, requestId, response);
 
-            if (pendingInteraction != null) {
-                JsonObject result = new JsonObject();
-                result.addProperty("approved", approved);
-                result.addProperty("targetMode", targetMode);
-                LOG.debug("[PLAN_APPROVAL][HANDLE_RESPONSE] Completing future: approved=" + approved + ", targetMode=" + targetMode);
-                pendingInteraction.complete(result);
+            if (handled) {
+                LOG.debug("[PLAN_APPROVAL][HANDLE_RESPONSE] Completed pending interaction for requestId=" + requestId);
             } else {
                 LOG.warn("[PLAN_APPROVAL][HANDLE_RESPONSE] No pending request found for requestId: " + requestId);
             }

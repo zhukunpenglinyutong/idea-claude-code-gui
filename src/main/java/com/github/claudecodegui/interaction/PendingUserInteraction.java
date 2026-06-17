@@ -1,66 +1,34 @@
 package com.github.claudecodegui.interaction;
 
-import java.util.concurrent.CompletableFuture;
+import com.google.gson.JsonObject;
 
 /**
  * A single in-flight user interaction awaiting a response from the frontend.
  *
- * <p>Encapsulates the {@link CompletableFuture} that the backend caller is blocked on, together
- * with the interaction's {@link UserInteractionType type} and request id. Concrete subclasses
- * only have to declare the value used to resolve the future when the session changes underneath
- * a still-open dialog (see {@link #cancelSessionChanged()}).
+ * <p>The three concrete kinds (permission / askUserQuestion / planApproval) share one lifecycle —
+ * <em>registered -&gt; (answered | session-changed | timeout | dialog-failed)</em> — but each
+ * resolves its own {@code CompletableFuture} with a type-specific payload. That payload logic lives
+ * entirely in the concrete classes, so {@link PendingUserInteractions} and {@code PermissionHandler}
+ * only ever call these common lifecycle methods on the abstraction and never have to downcast.
  *
- * @param <T> the type the future completes with ({@code Integer} for permission decisions,
- *            {@code JsonObject} for question / plan responses).
+ * <p>Each method returns the result of the underlying {@code CompletableFuture.complete(...)} so the
+ * atomic winner/loser contract that the safety-net timers rely on is preserved.
  */
-public abstract class PendingUserInteraction<T> {
+public interface PendingUserInteraction {
 
-    private final UserInteractionType type;
-    private final String id;
-    private final CompletableFuture<T> future = new CompletableFuture<>();
+    UserInteractionType type();
 
-    protected PendingUserInteraction(UserInteractionType type, String id) {
-        if (type == null) {
-            throw new IllegalArgumentException("type must not be null");
-        }
-        if (id == null || id.trim().isEmpty()) {
-            throw new IllegalArgumentException("id must not be empty");
-        }
-        this.type = type;
-        this.id = id;
-    }
+    String id();
 
-    public UserInteractionType type() {
-        return type;
-    }
+    /** Resolve the future from a frontend bridge response payload. */
+    boolean completeFromBridgeResponse(JsonObject payload);
 
-    public String id() {
-        return id;
-    }
+    /** Resolve the future with a default-deny / reject payload because the session changed. */
+    boolean cancelSessionChanged();
 
-    public CompletableFuture<T> future() {
-        return future;
-    }
+    /** Resolve the future with a default-deny / reject payload because the dialog timed out. */
+    boolean timeout();
 
-    /**
-     * Resolve the future with the given value.
-     *
-     * <p>Returns the result of {@link CompletableFuture#complete(Object)} so callers can rely on
-     * the atomic winner/loser contract the safety-net timers depend on.
-     */
-    public boolean complete(T value) {
-        return future.complete(value);
-    }
-
-    /**
-     * The value used to resolve the future when the user switches sessions while this interaction
-     * is still on screen. Must be a default-deny / reject style payload so the issuing agent does
-     * not hang until the backend safety-net timer fires.
-     */
-    protected abstract T sessionChangedValue();
-
-    /** Resolve the future with {@link #sessionChangedValue()}. */
-    public void cancelSessionChanged() {
-        future.complete(sessionChangedValue());
-    }
+    /** Resolve the future with a default-deny / reject payload because the dialog failed to show. */
+    boolean dialogFailed();
 }
