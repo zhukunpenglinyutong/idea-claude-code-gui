@@ -11,13 +11,19 @@ import java.util.concurrent.CompletableFuture;
 public final class PendingPlanApprovalInteraction implements PendingUserInteraction {
 
     private final String requestId;
+    private final JsonObject planData;
     private final CompletableFuture<JsonObject> future = new CompletableFuture<>();
 
-    public PendingPlanApprovalInteraction(String requestId) {
+    public PendingPlanApprovalInteraction(String requestId, JsonObject planData) {
         if (requestId == null || requestId.trim().isEmpty()) {
             throw new IllegalArgumentException("requestId must not be empty");
         }
         this.requestId = requestId;
+        this.planData = planData;
+    }
+
+    public CompletableFuture<JsonObject> future() {
+        return future;
     }
 
     @Override
@@ -30,43 +36,49 @@ public final class PendingPlanApprovalInteraction implements PendingUserInteract
         return requestId;
     }
 
-    public CompletableFuture<JsonObject> future() {
-        return future;
+    @Override
+    public SessionChangePolicy sessionChangePolicy() {
+        return SessionChangePolicy.DENY_ON_SESSION_CHANGE;
     }
 
     @Override
-    public boolean completeFromBridgeResponse(JsonObject payload) {
+    public JsonObject toFrontendPayload() {
+        return planData;
+    }
+
+    @Override
+    public void completeFromBridgeResponse(JsonObject payload) {
         boolean approved = payload.has("approved") && payload.get("approved").getAsBoolean();
         String targetMode = payload.has("targetMode") ? payload.get("targetMode").getAsString() : "default";
         JsonObject result = new JsonObject();
         result.addProperty("approved", approved);
         result.addProperty("targetMode", targetMode);
-        return future.complete(result);
+        future.complete(result);
     }
 
     @Override
-    public boolean cancelSessionChanged() {
+    public void cancelSessionChanged() {
         JsonObject rejected = new JsonObject();
         rejected.addProperty("approved", false);
         rejected.addProperty("message", "Session changed");
-        return future.complete(rejected);
+        future.complete(rejected);
     }
 
     @Override
-    public boolean timeout() {
+    public void timeout() {
         JsonObject rejected = new JsonObject();
         rejected.addProperty("approved", false);
         rejected.addProperty("targetMode", "default");
         rejected.addProperty("message", "Plan approval timed out");
-        return future.complete(rejected);
+        future.complete(rejected);
     }
 
     @Override
-    public boolean dialogFailed() {
+    public void dialogFailed() {
         JsonObject rejected = new JsonObject();
         rejected.addProperty("approved", false);
         rejected.addProperty("targetMode", "default");
         rejected.addProperty("message", "Error showing plan approval dialog");
-        return future.complete(rejected);
+        future.complete(rejected);
     }
 }

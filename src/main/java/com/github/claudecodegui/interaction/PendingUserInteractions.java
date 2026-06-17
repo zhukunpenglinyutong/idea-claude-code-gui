@@ -53,7 +53,8 @@ public final class PendingUserInteractions {
         if (interaction == null) {
             return false;
         }
-        return interaction.timeout();
+        interaction.timeout();
+        return true;
     }
 
     /** Resolve the interaction with its dialog-failed payload, if it is still pending. */
@@ -65,14 +66,19 @@ public final class PendingUserInteractions {
     }
 
     /**
-     * Resolve every in-flight interaction with its session-changed payload and drain the registry.
-     * Called on session switch so issuing agents do not hang on dialogs from the old session.
+     * Resolve and drop every interaction whose {@link SessionChangePolicy} is
+     * {@link SessionChangePolicy#DENY_ON_SESSION_CHANGE}; leave {@code KEEP} interactions registered.
+     * Called on session switch so issuing agents do not hang on dialogs from the old session, while
+     * session-callback permissions (owned by the SDK session) are left untouched as they are today.
      */
     public void cancelAllSessionChanged() {
-        for (PendingUserInteraction interaction : interactions.values()) {
-            interaction.cancelSessionChanged();
-        }
-        interactions.clear();
+        interactions.values().removeIf(interaction -> {
+            if (interaction.sessionChangePolicy() == SessionChangePolicy.DENY_ON_SESSION_CHANGE) {
+                interaction.cancelSessionChanged();
+                return true;
+            }
+            return false;
+        });
     }
 
     public int size() {

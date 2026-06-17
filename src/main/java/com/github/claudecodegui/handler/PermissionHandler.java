@@ -3,10 +3,9 @@ package com.github.claudecodegui.handler;
 import com.github.claudecodegui.handler.core.BaseMessageHandler;
 import com.github.claudecodegui.handler.core.HandlerContext;
 
-import com.github.claudecodegui.interaction.PendingAskUserQuestionInteraction;
-import com.github.claudecodegui.interaction.PendingPermissionInteraction;
-import com.github.claudecodegui.interaction.PendingPlanApprovalInteraction;
-import com.github.claudecodegui.interaction.PendingUserInteractions;
+import com.github.claudecodegui.interaction.FuturePermissionDecisionTarget;
+import com.github.claudecodegui.interaction.SessionPermissionDecisionTarget;
+import com.github.claudecodegui.interaction.UserInteractionService;
 import com.github.claudecodegui.interaction.UserInteractionType;
 import com.github.claudecodegui.permission.PermissionRequest;
 import com.github.claudecodegui.permission.PermissionService;
@@ -61,8 +60,8 @@ public class PermissionHandler extends BaseMessageHandler {
 
     private final SafetyNetScheduler safetyNetScheduler;
 
-    // Registry of all in-flight user interactions (permission / askUserQuestion / planApproval).
-    private final PendingUserInteractions pendingInteractions = new PendingUserInteractions();
+    // Lifecycle of all in-flight user interactions (permission / askUserQuestion / planApproval).
+    private final UserInteractionService userInteractionService = new UserInteractionService();
 
     // Permission denied callback
     public interface PermissionDeniedCallback {
@@ -139,14 +138,14 @@ public class PermissionHandler extends BaseMessageHandler {
      */
     public CompletableFuture<Integer> showFrontendPermissionDialog(String toolName, JsonObject inputs) {
         String channelId = UUID.randomUUID().toString();
-        PendingPermissionInteraction interaction = new PendingPermissionInteraction(channelId);
-        CompletableFuture<Integer> future = interaction.future();
+        FuturePermissionDecisionTarget target = new FuturePermissionDecisionTarget();
+        CompletableFuture<Integer> future = target.future();
 
         LOG.info("[PERM_SHOW] showFrontendPermissionDialog called: channelId=" + channelId + ", toolName=" + toolName);
 
-        pendingInteractions.register(interaction);
+        userInteractionService.requestPermission(channelId, toolName, inputs, null, null, target);
         LOG.info("[PERM_SHOW] Stored pending request, total pending: "
-                + pendingInteractions.count(UserInteractionType.PERMISSION));
+                + userInteractionService.count(UserInteractionType.PERMISSION));
 
         try {
             Gson gson = new Gson();
@@ -174,14 +173,14 @@ public class PermissionHandler extends BaseMessageHandler {
             });
 
             scheduleSafetyNet(future, () -> {
-                if (pendingInteractions.timeout(UserInteractionType.PERMISSION, channelId)) {
+                if (userInteractionService.timeout(UserInteractionType.PERMISSION, channelId)) {
                     LOG.warn("[PERM_SHOW] Safety-net timeout fired (webview unreachable) for channelId=" + channelId);
                 }
             });
 
         } catch (Exception e) {
             LOG.error("[PERM_SHOW] ERROR: errorClass=" + errorClass(e), e);
-            pendingInteractions.dialogFailed(UserInteractionType.PERMISSION, channelId);
+            userInteractionService.dialogFailed(UserInteractionType.PERMISSION, channelId);
         }
 
         return future;
@@ -193,21 +192,10 @@ public class PermissionHandler extends BaseMessageHandler {
     public void showPermissionDialog(PermissionRequest request) {
         LOG.info("[PermissionHandler] 显示权限请求对话框: " + request.getToolName());
 
+        String channelId = request.getChannelId();
         try {
             Gson gson = new Gson();
-            JsonObject requestData = new JsonObject();
-            requestData.addProperty("channelId", request.getChannelId());
-            requestData.addProperty("toolName", request.getToolName());
-
             JsonObject inputsJson = gson.toJsonTree(request.getInputs()).getAsJsonObject();
-            requestData.add("inputs", inputsJson);
-
-            if (request.getSuggestions() != null) {
-                requestData.add("suggestions", request.getSuggestions());
-            }
-
-            String requestJson = gson.toJson(requestData);
-            String escapedJson = escapeJs(requestJson);
 
             // Get the project associated with the permission request
             Project targetProject = request.getProject();
@@ -222,32 +210,45 @@ public class PermissionHandler extends BaseMessageHandler {
 
             if (targetWindow == null) {
                 LOG.error("[PermissionHandler] Error: cannot find window instance for project " + targetProject.getName());
-                // If target window is not found, deny the permission request
+                // If target window is not found, deny the permission request (nothing registered yet)
                 this.context.getSession().handlePermissionDecision(
-                    request.getChannelId(),
-                    false,
-                    false,
-                    "Failed to show permission dialog: window not found"
-                );
+                    channelId, false, false, "Failed to show permission dialog: window not found");
                 notifyPermissionDenied();
                 return;
             }
 
-            // Execute JavaScript in the target window to show the dialog
-            String jsCode = "if (window.showPermissionDialog) { " +
-                "  window.showPermissionDialog('" + escapedJson + "'); " +
-                "}";
+            // Register through the service (session-callback path): same lifecycle, session target.
+            userInteractionService.requestPermission(
+                channelId, request.getToolName(), inputsJson, request.getSuggestions(), targetProject,
+                new SessionPermissionDecisionTarget(context::getSession, channelId));
 
-            targetWindow.executeJavaScriptCode(jsCode);
+            try {
+                JsonObject requestData = new JsonObject();
+                requestData.addProperty("channelId", channelId);
+                requestData.addProperty("toolName", request.getToolName());
+                requestData.add("inputs", inputsJson);
+                if (request.getSuggestions() != null) {
+                    requestData.add("suggestions", request.getSuggestions());
+                }
+                String escapedJson = escapeJs(gson.toJson(requestData));
+
+                // Execute JavaScript in the target window to show the dialog
+                String jsCode = "if (window.showPermissionDialog) { " +
+                    "  window.showPermissionDialog('" + escapedJson + "'); " +
+                    "}";
+
+                targetWindow.executeJavaScriptCode(jsCode);
+            } catch (Exception showError) {
+                LOG.error("[PermissionHandler] 显示权限弹窗失败: errorClass=" + errorClass(showError), showError);
+                // The interaction is already registered; resolve it via its session target.
+                userInteractionService.dialogFailed(UserInteractionType.PERMISSION, channelId);
+                notifyPermissionDenied();
+            }
 
         } catch (Exception e) {
             LOG.error("[PermissionHandler] 显示权限弹窗失败: errorClass=" + errorClass(e), e);
             this.context.getSession().handlePermissionDecision(
-                request.getChannelId(),
-                false,
-                false,
-                "Failed to show permission dialog"
-            );
+                channelId, false, false, "Failed to show permission dialog");
             notifyPermissionDenied();
         }
     }
@@ -272,9 +273,9 @@ public class PermissionHandler extends BaseMessageHandler {
 
             LOG.info("[PERM_DECISION] channelId=" + channelId + ", allow=" + allow + ", remember=" + remember);
             LOG.info("[PERM_DECISION] pendingPermissionRequests size before remove: "
-                    + pendingInteractions.count(UserInteractionType.PERMISSION));
+                    + userInteractionService.count(UserInteractionType.PERMISSION));
 
-            boolean handled = pendingInteractions.completeFromBridgeResponse(
+            boolean handled = userInteractionService.answer(
                     UserInteractionType.PERMISSION, channelId, decision);
 
             if (handled) {
@@ -313,12 +314,12 @@ public class PermissionHandler extends BaseMessageHandler {
     public void clearPendingRequests() {
         LOG.info("[PERM_CLEAR] Clearing all pending permission requests");
 
-        int permissionCount = pendingInteractions.count(UserInteractionType.PERMISSION);
-        int askUserCount = pendingInteractions.count(UserInteractionType.ASK_USER_QUESTION);
-        int planCount = pendingInteractions.count(UserInteractionType.PLAN_APPROVAL);
+        int permissionCount = userInteractionService.count(UserInteractionType.PERMISSION);
+        int askUserCount = userInteractionService.count(UserInteractionType.ASK_USER_QUESTION);
+        int planCount = userInteractionService.count(UserInteractionType.PLAN_APPROVAL);
 
-        // Resolve every in-flight interaction with its session-changed payload and drain the registry.
-        pendingInteractions.cancelAllSessionChanged();
+        // Resolve every in-flight interaction per its session-change policy and drain the registry.
+        userInteractionService.cancelAllSessionChanged();
 
         LOG.info("[PERM_CLEAR] Cleared: " + permissionCount + " permission, " +
                  askUserCount + " askUser, " + planCount + " plan requests");
@@ -328,8 +329,8 @@ public class PermissionHandler extends BaseMessageHandler {
      * Show AskUserQuestion dialog (implements PermissionService.AskUserQuestionDialogShower interface).
      */
     public CompletableFuture<JsonObject> showAskUserQuestionDialog(String requestId, JsonObject questionsData) {
-        PendingAskUserQuestionInteraction interaction = new PendingAskUserQuestionInteraction(requestId);
-        CompletableFuture<JsonObject> future = interaction.future();
+        CompletableFuture<JsonObject> future =
+                userInteractionService.requestAskUserQuestion(requestId, questionsData);
 
         LOG.debug("[ASK_USER_QUESTION][SHOW_DIALOG] Starting showAskUserQuestionDialog");
         LOG.debug("[ASK_USER_QUESTION][SHOW_DIALOG] requestId=" + requestId);
@@ -337,8 +338,6 @@ public class PermissionHandler extends BaseMessageHandler {
                 + (questionsData.has("questions") && questionsData.get("questions").isJsonArray()
                     ? questionsData.getAsJsonArray("questions").size()
                     : 0));
-
-        pendingInteractions.register(interaction);
 
         try {
             Gson gson = new Gson();
@@ -360,14 +359,14 @@ public class PermissionHandler extends BaseMessageHandler {
             });
 
             scheduleSafetyNet(future, () -> {
-                if (pendingInteractions.timeout(UserInteractionType.ASK_USER_QUESTION, requestId)) {
+                if (userInteractionService.timeout(UserInteractionType.ASK_USER_QUESTION, requestId)) {
                     LOG.warn("[ASK_USER_QUESTION][SHOW_DIALOG] Safety-net timeout fired (webview unreachable) for requestId=" + requestId);
                 }
             });
 
         } catch (Exception e) {
             LOG.error("[ASK_USER_QUESTION][SHOW_DIALOG] ERROR: errorClass=" + errorClass(e), e);
-            pendingInteractions.dialogFailed(UserInteractionType.ASK_USER_QUESTION, requestId);
+            userInteractionService.dialogFailed(UserInteractionType.ASK_USER_QUESTION, requestId);
         }
 
         return future;
@@ -384,7 +383,7 @@ public class PermissionHandler extends BaseMessageHandler {
 
             String requestId = response.get("requestId").getAsString();
 
-            boolean handled = pendingInteractions.completeFromBridgeResponse(
+            boolean handled = userInteractionService.answer(
                     UserInteractionType.ASK_USER_QUESTION, requestId, response);
 
             if (handled) {
@@ -401,14 +400,12 @@ public class PermissionHandler extends BaseMessageHandler {
      * Show PlanApproval dialog (implements PermissionService.PlanApprovalDialogShower interface).
      */
     public CompletableFuture<JsonObject> showPlanApprovalDialog(String requestId, JsonObject planData) {
-        PendingPlanApprovalInteraction interaction = new PendingPlanApprovalInteraction(requestId);
-        CompletableFuture<JsonObject> future = interaction.future();
+        CompletableFuture<JsonObject> future =
+                userInteractionService.requestPlanApproval(requestId, planData);
 
         LOG.debug("[PLAN_APPROVAL][SHOW_DIALOG] Starting showPlanApprovalDialog");
         LOG.debug("[PLAN_APPROVAL][SHOW_DIALOG] requestId=" + requestId);
         LOG.debug("[PLAN_APPROVAL][SHOW_DIALOG] fieldCount=" + planData.size());
-
-        pendingInteractions.register(interaction);
 
         try {
             Gson gson = new Gson();
@@ -430,14 +427,14 @@ public class PermissionHandler extends BaseMessageHandler {
             });
 
             scheduleSafetyNet(future, () -> {
-                if (pendingInteractions.timeout(UserInteractionType.PLAN_APPROVAL, requestId)) {
+                if (userInteractionService.timeout(UserInteractionType.PLAN_APPROVAL, requestId)) {
                     LOG.warn("[PLAN_APPROVAL][SHOW_DIALOG] Safety-net timeout fired (webview unreachable) for requestId=" + requestId);
                 }
             });
 
         } catch (Exception e) {
             LOG.error("[PLAN_APPROVAL][SHOW_DIALOG] ERROR: errorClass=" + errorClass(e), e);
-            pendingInteractions.dialogFailed(UserInteractionType.PLAN_APPROVAL, requestId);
+            userInteractionService.dialogFailed(UserInteractionType.PLAN_APPROVAL, requestId);
         }
 
         return future;
@@ -454,7 +451,7 @@ public class PermissionHandler extends BaseMessageHandler {
 
             String requestId = response.get("requestId").getAsString();
 
-            boolean handled = pendingInteractions.completeFromBridgeResponse(
+            boolean handled = userInteractionService.answer(
                     UserInteractionType.PLAN_APPROVAL, requestId, response);
 
             if (handled) {

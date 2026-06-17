@@ -1,10 +1,8 @@
 package com.github.claudecodegui.handler;
 
 import com.github.claudecodegui.handler.core.HandlerContext;
-import com.github.claudecodegui.interaction.PendingAskUserQuestionInteraction;
-import com.github.claudecodegui.interaction.PendingPermissionInteraction;
-import com.github.claudecodegui.interaction.PendingPlanApprovalInteraction;
-import com.github.claudecodegui.interaction.PendingUserInteractions;
+import com.github.claudecodegui.interaction.FuturePermissionDecisionTarget;
+import com.github.claudecodegui.interaction.UserInteractionService;
 import com.github.claudecodegui.interaction.UserInteractionType;
 import com.github.claudecodegui.permission.PermissionService;
 import com.github.claudecodegui.settings.CodemossSettingsService;
@@ -92,7 +90,7 @@ public class PermissionHandlerTest {
         Integer result = future.get(2, TimeUnit.SECONDS);
         assertEquals(PermissionService.PermissionResponse.ALLOW.getValue(), result.intValue());
         assertTrue("future should be removed from registry after dispatch",
-                getRegistry().count(UserInteractionType.PERMISSION) == 0);
+                getService().count(UserInteractionType.PERMISSION) == 0);
     }
 
     @Test
@@ -115,7 +113,7 @@ public class PermissionHandlerTest {
 
         JsonObject result = future.get(2, TimeUnit.SECONDS);
         assertEquals("red", result.get("color").getAsString());
-        assertTrue(getRegistry().count(UserInteractionType.ASK_USER_QUESTION) == 0);
+        assertTrue(getService().count(UserInteractionType.ASK_USER_QUESTION) == 0);
     }
 
     @Test
@@ -128,7 +126,7 @@ public class PermissionHandlerTest {
         JsonObject result = future.get(2, TimeUnit.SECONDS);
         assertTrue(result.get("approved").getAsBoolean());
         assertEquals("default", result.get("targetMode").getAsString());
-        assertTrue(getRegistry().count(UserInteractionType.PLAN_APPROVAL) == 0);
+        assertTrue(getService().count(UserInteractionType.PLAN_APPROVAL) == 0);
     }
 
     // The session-change safety net: when the user switches sessions while a permission dialog is
@@ -148,7 +146,7 @@ public class PermissionHandlerTest {
         assertEquals(PermissionService.PermissionResponse.DENY.getValue(),
                 f2.get(1, TimeUnit.SECONDS).intValue());
         assertTrue("permission registry must be drained after clear",
-                getRegistry().count(UserInteractionType.PERMISSION) == 0);
+                getService().count(UserInteractionType.PERMISSION) == 0);
     }
 
     @Test
@@ -163,7 +161,7 @@ public class PermissionHandlerTest {
         assertNull(f1.get(1, TimeUnit.SECONDS));
         assertNull(f2.get(1, TimeUnit.SECONDS));
         assertTrue("askUser registry must be drained after clear",
-                getRegistry().count(UserInteractionType.ASK_USER_QUESTION) == 0);
+                getService().count(UserInteractionType.ASK_USER_QUESTION) == 0);
     }
 
     @Test
@@ -177,14 +175,14 @@ public class PermissionHandlerTest {
         assertFalse("plan-approval default on session change must be reject", result.get("approved").getAsBoolean());
         assertEquals("Session changed", result.get("message").getAsString());
         assertTrue("planApproval registry must be drained after clear",
-                getRegistry().count(UserInteractionType.PLAN_APPROVAL) == 0);
+                getService().count(UserInteractionType.PLAN_APPROVAL) == 0);
     }
 
     @Test
     public void clearPendingRequestsOnEmptyMapsIsHarmless() throws Exception {
         // Called on every session switch including the very first one; must not throw.
         handler.clearPendingRequests();
-        assertTrue(getRegistry().size() == 0);
+        assertTrue(getService().size() == 0);
     }
 
     // Documents the atomic-complete contract that backstops the three safety-net handlers. Each
@@ -268,37 +266,33 @@ public class PermissionHandlerTest {
 
     // --- reflection helpers (the pending-interaction registry is private) ---
     //
-    // The handler now owns a single PendingUserInteractions registry instead of three maps, and
-    // each interaction encapsulates its own future. The helpers register a fresh interaction and
-    // hand back its future so the response/clear paths can be exercised without going through the
-    // EDT, mirroring the old inject-a-future-into-a-map approach.
+    // The handler now owns a UserInteractionService. The helpers register a fresh interaction
+    // through the service's public request* API and hand back its future, so the response/clear
+    // paths can be exercised without going through the EDT (mirroring the old inject approach).
+    // Permission uses the file-watcher path (FuturePermissionDecisionTarget).
 
-    private PendingUserInteractions getRegistry()
+    private UserInteractionService getService()
             throws NoSuchFieldException, IllegalAccessException {
-        Field f = PermissionHandler.class.getDeclaredField("pendingInteractions");
+        Field f = PermissionHandler.class.getDeclaredField("userInteractionService");
         f.setAccessible(true);
-        return (PendingUserInteractions) f.get(handler);
+        return (UserInteractionService) f.get(handler);
     }
 
     private CompletableFuture<Integer> injectPermissionFuture(String key)
             throws NoSuchFieldException, IllegalAccessException {
-        PendingPermissionInteraction interaction = new PendingPermissionInteraction(key);
-        getRegistry().register(interaction);
-        return interaction.future();
+        FuturePermissionDecisionTarget target = new FuturePermissionDecisionTarget();
+        getService().requestPermission(key, "tool", new JsonObject(), null, null, target);
+        return target.future();
     }
 
     private CompletableFuture<JsonObject> injectAskUserFuture(String key)
             throws NoSuchFieldException, IllegalAccessException {
-        PendingAskUserQuestionInteraction interaction = new PendingAskUserQuestionInteraction(key);
-        getRegistry().register(interaction);
-        return interaction.future();
+        return getService().requestAskUserQuestion(key, new JsonObject());
     }
 
     private CompletableFuture<JsonObject> injectPlanApprovalFuture(String key)
             throws NoSuchFieldException, IllegalAccessException {
-        PendingPlanApprovalInteraction interaction = new PendingPlanApprovalInteraction(key);
-        getRegistry().register(interaction);
-        return interaction.future();
+        return getService().requestPlanApproval(key, new JsonObject());
     }
 
     private HandlerContext contextStub() {

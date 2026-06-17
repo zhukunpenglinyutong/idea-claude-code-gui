@@ -1,18 +1,20 @@
 package com.github.claudecodegui.interaction;
 
 import com.google.gson.JsonObject;
+import com.intellij.openapi.project.Project;
 
 /**
  * A single in-flight user interaction awaiting a response from the frontend.
  *
  * <p>The three concrete kinds (permission / askUserQuestion / planApproval) share one lifecycle —
  * <em>registered -&gt; (answered | session-changed | timeout | dialog-failed)</em> — but each
- * resolves its own {@code CompletableFuture} with a type-specific payload. That payload logic lives
- * entirely in the concrete classes, so {@link PendingUserInteractions} and {@code PermissionHandler}
- * only ever call these common lifecycle methods on the abstraction and never have to downcast.
+ * resolves its own completion channel with a type-specific payload. That logic lives entirely in the
+ * concrete classes, so {@link PendingUserInteractions} and {@code UserInteractionService} only ever
+ * call these common methods and never have to downcast.
  *
- * <p>Each method returns the result of the underlying {@code CompletableFuture.complete(...)} so the
- * atomic winner/loser contract that the safety-net timers rely on is preserved.
+ * <p>{@link #toFrontendPayload()} and {@link #targetProject()} expose what a presenter needs to show
+ * the dialog, so the webview presentation can later move behind {@link UserInteractionListener}
+ * without re-plumbing.
  */
 public interface PendingUserInteraction {
 
@@ -20,15 +22,26 @@ public interface PendingUserInteraction {
 
     String id();
 
-    /** Resolve the future from a frontend bridge response payload. */
-    boolean completeFromBridgeResponse(JsonObject payload);
+    /** How this interaction should be treated on session change. */
+    SessionChangePolicy sessionChangePolicy();
 
-    /** Resolve the future with a default-deny / reject payload because the session changed. */
-    boolean cancelSessionChanged();
+    /** The JSON payload a presenter passes to the frontend dialog. */
+    JsonObject toFrontendPayload();
 
-    /** Resolve the future with a default-deny / reject payload because the dialog timed out. */
-    boolean timeout();
+    /** The project whose window should show the dialog, or {@code null} for the current window. */
+    default Project targetProject() {
+        return null;
+    }
 
-    /** Resolve the future with a default-deny / reject payload because the dialog failed to show. */
-    boolean dialogFailed();
+    /** Resolve from a frontend bridge response payload. */
+    void completeFromBridgeResponse(JsonObject payload);
+
+    /** Resolve with a default-deny / reject payload because the session changed. */
+    void cancelSessionChanged();
+
+    /** Resolve with a default-deny / reject payload because the dialog timed out. */
+    void timeout();
+
+    /** Resolve with a default-deny / reject payload because the dialog failed to show. */
+    void dialogFailed();
 }

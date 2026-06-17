@@ -12,13 +12,19 @@ import java.util.concurrent.CompletableFuture;
 public final class PendingAskUserQuestionInteraction implements PendingUserInteraction {
 
     private final String requestId;
+    private final JsonObject questionsData;
     private final CompletableFuture<JsonObject> future = new CompletableFuture<>();
 
-    public PendingAskUserQuestionInteraction(String requestId) {
+    public PendingAskUserQuestionInteraction(String requestId, JsonObject questionsData) {
         if (requestId == null || requestId.trim().isEmpty()) {
             throw new IllegalArgumentException("requestId must not be empty");
         }
         this.requestId = requestId;
+        this.questionsData = questionsData;
+    }
+
+    public CompletableFuture<JsonObject> future() {
+        return future;
     }
 
     @Override
@@ -31,30 +37,36 @@ public final class PendingAskUserQuestionInteraction implements PendingUserInter
         return requestId;
     }
 
-    public CompletableFuture<JsonObject> future() {
-        return future;
+    @Override
+    public SessionChangePolicy sessionChangePolicy() {
+        return SessionChangePolicy.DENY_ON_SESSION_CHANGE;
     }
 
     @Override
-    public boolean completeFromBridgeResponse(JsonObject payload) {
+    public JsonObject toFrontendPayload() {
+        return questionsData;
+    }
+
+    @Override
+    public void completeFromBridgeResponse(JsonObject payload) {
         JsonObject answers = payload.has("answers") && !payload.get("answers").isJsonNull()
                 ? payload.get("answers").getAsJsonObject()
                 : new JsonObject();
-        return future.complete(answers);
+        future.complete(answers);
     }
 
     @Override
-    public boolean cancelSessionChanged() {
-        return future.complete(null);
+    public void cancelSessionChanged() {
+        future.complete(null);
     }
 
     @Override
-    public boolean timeout() {
-        return future.complete(new JsonObject());
+    public void timeout() {
+        future.complete(new JsonObject());
     }
 
     @Override
-    public boolean dialogFailed() {
-        return future.complete(new JsonObject());
+    public void dialogFailed() {
+        future.complete(new JsonObject());
     }
 }
