@@ -65,9 +65,11 @@ public class SoundNotificationService {
     }
 
     /**
-     * Notification kinds. Each has its own selected sound but shares the enable / focus gates.
+     * Notification kinds. Each has its own selected sound; both share the global enable / focus
+     * gates, and MANUAL_ACTION additionally has its own enable toggle.
+     * Package-private so the gate decision can be unit-tested.
      */
-    private enum Kind { TASK_COMPLETE, MANUAL_ACTION }
+    enum Kind { TASK_COMPLETE, MANUAL_ACTION }
 
     /**
      * Play task completion notification sound based on user settings.
@@ -93,13 +95,7 @@ public class SoundNotificationService {
             try {
                 CodemossSettingsService settings = new CodemossSettingsService();
 
-                if (!settings.getSoundNotificationEnabled()) {
-                    LOG.debug("[SoundNotification] Sound notification is disabled");
-                    return;
-                }
-
-                if (settings.getSoundOnlyWhenUnfocused() && ApplicationManager.getApplication().isActive()) {
-                    LOG.debug("[SoundNotification] IDE window is focused, skipping notification sound");
+                if (!shouldPlay(settings, kind)) {
                     return;
                 }
 
@@ -114,6 +110,29 @@ public class SoundNotificationService {
                 LOG.warn("[SoundNotification] Failed to play notification sound: " + e.getMessage(), e);
             }
         });
+    }
+
+    /**
+     * Decide whether the sound for {@code kind} should play, given the current settings.
+     *
+     * <p>Both kinds share the global enable and only-when-unfocused gates; MANUAL_ACTION is
+     * additionally gated by its own {@code manualActionSoundEnabled} toggle, so the two sound events
+     * can be switched independently. Package-private for unit testing.
+     */
+    boolean shouldPlay(CodemossSettingsService settings, Kind kind) throws java.io.IOException {
+        if (!settings.getSoundNotificationEnabled()) {
+            LOG.debug("[SoundNotification] Sound notification is disabled");
+            return false;
+        }
+        if (settings.getSoundOnlyWhenUnfocused() && ApplicationManager.getApplication().isActive()) {
+            LOG.debug("[SoundNotification] IDE window is focused, skipping notification sound");
+            return false;
+        }
+        if (kind == Kind.MANUAL_ACTION && !settings.getManualActionSoundEnabled()) {
+            LOG.debug("[SoundNotification] Manual action sound is disabled");
+            return false;
+        }
+        return true;
     }
 
     /**

@@ -108,6 +108,8 @@ export interface BehaviorTabProps {
   onSaveCustomSoundPath?: () => void;
   onTestSound?: () => void;
   onBrowseSound?: () => void;
+  manualActionSoundEnabled?: boolean;
+  onManualActionSoundEnabledChange?: (enabled: boolean) => void;
   manualActionSoundId?: string;
   onManualActionSoundIdChange?: (soundId: string) => void;
   manualActionCustomSoundPath?: string;
@@ -151,6 +153,8 @@ const BehaviorTab = ({
   onSaveCustomSoundPath = () => {},
   onTestSound = () => {},
   onBrowseSound = () => {},
+  manualActionSoundEnabled = true,
+  onManualActionSoundEnabledChange = () => {},
   manualActionSoundId = 'bell',
   onManualActionSoundIdChange = () => {},
   manualActionCustomSoundPath = '',
@@ -555,61 +559,79 @@ const BehaviorTab = ({
               </div>
             )}
 
-            {/* Manual action required ("Claude needs input") sound */}
+            {/* Manual action required sound (permission / question / plan approval) */}
             <div className={styles.fieldHeader}>
               <span className="codicon codicon-bell" />
               <span className={styles.fieldLabel}>{t('settings.basic.soundNotification.manualActionLabel')}</span>
             </div>
+            <label className={styles.toggleWrapper}>
+              <input
+                type="checkbox"
+                className={styles.toggleInput}
+                checked={manualActionSoundEnabled}
+                onChange={(e) => onManualActionSoundEnabledChange(e.target.checked)}
+              />
+              <span className={styles.toggleSlider} />
+              <span className={styles.toggleLabel}>
+                {manualActionSoundEnabled
+                  ? t('settings.basic.soundNotification.enabled')
+                  : t('settings.basic.soundNotification.disabled')}
+              </span>
+            </label>
             <small className={styles.formHint}>
               <span className="codicon codicon-info" />
               <span>{t('settings.basic.soundNotification.manualActionHint')}</span>
             </small>
 
-            <div className={styles.fieldHeader}>
-              <span className="codicon codicon-library" />
-              <span className={styles.fieldLabel}>{t('settings.basic.soundNotification.manualActionSelectSound')}</span>
-            </div>
-            <SoundSelectUpward
-              value={manualActionSoundId}
-              onChange={onManualActionSoundIdChange}
-              options={soundOptions}
-              onTestSound={onTestManualActionSound}
-              testSoundLabel={t('settings.basic.soundNotification.testSound')}
-            />
-
-            {manualActionSoundId === 'custom' && (
-              <div className={styles.customSoundFileSection}>
+            {manualActionSoundEnabled && (
+              <>
                 <div className={styles.fieldHeader}>
-                  <span className="codicon codicon-file-media" />
-                  <span className={styles.fieldLabel}>{t('settings.basic.soundNotification.customSound')}</span>
+                  <span className="codicon codicon-library" />
+                  <span className={styles.fieldLabel}>{t('settings.basic.soundNotification.manualActionSelectSound')}</span>
                 </div>
-                <div className={styles.nodePathInputWrapper}>
-                  <input
-                    type="text"
-                    className={styles.nodePathInput}
-                    placeholder={t('settings.basic.soundNotification.customSoundPlaceholder')}
-                    value={manualActionCustomSoundPath}
-                    onChange={(e) => onManualActionCustomSoundPathChange(e.target.value)}
-                  />
-                  <button
-                    className={styles.saveBtn}
-                    onClick={onBrowseManualActionSound}
-                    title={t('settings.basic.soundNotification.browse')}
-                  >
-                    <span className="codicon codicon-folder-opened" />
-                  </button>
-                  <button
-                    className={styles.saveBtn}
-                    onClick={onSaveManualActionCustomSoundPath}
-                  >
-                    {t('common.save')}
-                  </button>
-                </div>
-                <small className={styles.formHint}>
-                  <span className="codicon codicon-info" />
-                  <span>{t('settings.basic.soundNotification.customSoundHint')}</span>
-                </small>
-              </div>
+                <SoundSelectUpward
+                  value={manualActionSoundId}
+                  onChange={onManualActionSoundIdChange}
+                  options={soundOptions}
+                  onTestSound={onTestManualActionSound}
+                  testSoundLabel={t('settings.basic.soundNotification.testSound')}
+                />
+
+                {manualActionSoundId === 'custom' && (
+                  <div className={styles.customSoundFileSection}>
+                    <div className={styles.fieldHeader}>
+                      <span className="codicon codicon-file-media" />
+                      <span className={styles.fieldLabel}>{t('settings.basic.soundNotification.customSound')}</span>
+                    </div>
+                    <div className={styles.nodePathInputWrapper}>
+                      <input
+                        type="text"
+                        className={styles.nodePathInput}
+                        placeholder={t('settings.basic.soundNotification.customSoundPlaceholder')}
+                        value={manualActionCustomSoundPath}
+                        onChange={(e) => onManualActionCustomSoundPathChange(e.target.value)}
+                      />
+                      <button
+                        className={styles.saveBtn}
+                        onClick={onBrowseManualActionSound}
+                        title={t('settings.basic.soundNotification.browse')}
+                      >
+                        <span className="codicon codicon-folder-opened" />
+                      </button>
+                      <button
+                        className={styles.saveBtn}
+                        onClick={onSaveManualActionCustomSoundPath}
+                      >
+                        {t('common.save')}
+                      </button>
+                    </div>
+                    <small className={styles.formHint}>
+                      <span className="codicon codicon-info" />
+                      <span>{t('settings.basic.soundNotification.customSoundHint')}</span>
+                    </small>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

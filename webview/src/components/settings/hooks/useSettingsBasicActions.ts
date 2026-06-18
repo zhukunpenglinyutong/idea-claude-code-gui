@@ -72,6 +72,7 @@ export interface UseSettingsBasicActionsReturn {
   soundOnlyWhenUnfocused: boolean;
   selectedSound: string;
   customSoundPath: string;
+  manualActionSoundEnabled: boolean;
   manualActionSoundId: string;
   manualActionCustomSoundPath: string;
   diffExpandedByDefault: boolean;
@@ -109,6 +110,7 @@ export interface UseSettingsBasicActionsReturn {
   handleSaveCustomSoundPath: () => void;
   handleTestSound: () => void;
   handleBrowseSound: () => void;
+  handleManualActionSoundEnabledChange: (enabled: boolean) => void;
   handleManualActionSoundIdChange: (soundId: string) => void;
   handleManualActionCustomSoundPathChange: (path: string) => void;
   handleSaveManualActionCustomSoundPath: () => void;
@@ -165,6 +167,7 @@ export interface UseSettingsBasicActionsReturn {
   /** @internal */ setSoundOnlyWhenUnfocused: (enabled: boolean) => void;
   /** @internal */ setSelectedSound: (soundId: string) => void;
   /** @internal */ setCustomSoundPath: (path: string) => void;
+  /** @internal */ setManualActionSoundEnabled: (enabled: boolean) => void;
   /** @internal */ setManualActionSoundId: (soundId: string) => void;
   /** @internal */ setManualActionCustomSoundPath: (path: string) => void;
   /** @internal */ setDiffExpandedByDefault: (expanded: boolean) => void;
@@ -244,6 +247,7 @@ export function useSettingsBasicActions({
   const [soundOnlyWhenUnfocused, setSoundOnlyWhenUnfocused] = useState<boolean>(false);
   const [selectedSound, setSelectedSound] = useState<string>('default');
   const [customSoundPath, setCustomSoundPath] = useState<string>('');
+  const [manualActionSoundEnabled, setManualActionSoundEnabled] = useState<boolean>(true);
   const [manualActionSoundId, setManualActionSoundId] = useState<string>('bell');
   const [manualActionCustomSoundPath, setManualActionCustomSoundPath] = useState<string>('');
 
@@ -475,7 +479,13 @@ export function useSettingsBasicActions({
     sendToJava('browse_sound_file:');
   }, []);
 
-  // Manual-action ("Claude needs input") sound handlers
+  // Manual-action ("user input required") sound handlers
+  const handleManualActionSoundEnabledChange = useCallback((enabled: boolean) => {
+    setManualActionSoundEnabled(enabled);
+    const payload = { enabled };
+    sendToJava(`set_manual_action_sound_enabled:${JSON.stringify(payload)}`);
+  }, []);
+
   const handleManualActionSoundIdChange = useCallback((soundId: string) => {
     setManualActionSoundId(soundId);
     const payload = { soundId };
@@ -702,6 +712,8 @@ export function useSettingsBasicActions({
     setSelectedSound,
     customSoundPath,
     setCustomSoundPath,
+    manualActionSoundEnabled,
+    setManualActionSoundEnabled,
     manualActionSoundId,
     setManualActionSoundId,
     manualActionCustomSoundPath,
@@ -730,6 +742,7 @@ export function useSettingsBasicActions({
     handleSelectedSoundChange,
     handleCustomSoundPathChange,
     handleSaveCustomSoundPath,
+    handleManualActionSoundEnabledChange,
     handleManualActionSoundIdChange,
     handleManualActionCustomSoundPathChange,
     handleSaveManualActionCustomSoundPath,

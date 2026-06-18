@@ -92,6 +92,8 @@ interface BasicConfigSectionProps {
   onSaveCustomSoundPath?: () => void;
   onTestSound?: () => void;
   onBrowseSound?: () => void;
+  manualActionSoundEnabled?: boolean;
+  onManualActionSoundEnabledChange?: (enabled: boolean) => void;
   manualActionSoundId?: string;
   onManualActionSoundIdChange?: (soundId: string) => void;
   manualActionCustomSoundPath?: string;
@@ -187,6 +189,8 @@ const BasicConfigSection = (props: BasicConfigSectionProps) => {
           onSaveCustomSoundPath={props.onSaveCustomSoundPath}
           onTestSound={props.onTestSound}
           onBrowseSound={props.onBrowseSound}
+          manualActionSoundEnabled={props.manualActionSoundEnabled}
+          onManualActionSoundEnabledChange={props.onManualActionSoundEnabledChange}
           manualActionSoundId={props.manualActionSoundId}
           onManualActionSoundIdChange={props.onManualActionSoundIdChange}
           manualActionCustomSoundPath={props.manualActionCustomSoundPath}

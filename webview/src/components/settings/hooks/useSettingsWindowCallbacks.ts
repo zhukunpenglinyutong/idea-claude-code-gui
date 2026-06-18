@@ -59,6 +59,7 @@ export interface SettingsWindowCallbacksDeps {
   setSoundOnlyWhenUnfocused?: (enabled: boolean) => void;
   setSelectedSound?: (soundId: string) => void;
   setCustomSoundPath?: (path: string) => void;
+  setManualActionSoundEnabled?: (enabled: boolean) => void;
   setManualActionSoundId?: (soundId: string) => void;
   setManualActionCustomSoundPath?: (path: string) => void;
 
@@ -395,6 +396,9 @@ export function useSettingsWindowCallbacks(deps: SettingsWindowCallbacksDeps) {
         }
         if (data.customSoundPath !== undefined) {
           d().setCustomSoundPath?.(data.customSoundPath);
+        }
+        if (data.manualActionSoundEnabled !== undefined) {
+          d().setManualActionSoundEnabled?.(data.manualActionSoundEnabled);
         }
         if (data.manualActionSoundId !== undefined) {
           d().setManualActionSoundId?.(data.manualActionSoundId);

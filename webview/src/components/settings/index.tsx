@@ -151,6 +151,8 @@ const SettingsView = ({
     setSelectedSound,
     customSoundPath,
     setCustomSoundPath,
+    manualActionSoundEnabled,
+    setManualActionSoundEnabled,
     manualActionSoundId,
     setManualActionSoundId,
     manualActionCustomSoundPath,
@@ -181,6 +183,7 @@ const SettingsView = ({
     handleSaveCustomSoundPath,
     handleTestSound,
     handleBrowseSound,
+    handleManualActionSoundEnabledChange,
     handleManualActionSoundIdChange,
     handleManualActionCustomSoundPathChange,
     handleSaveManualActionCustomSoundPath,
@@ -357,6 +360,7 @@ const SettingsView = ({
     setSoundOnlyWhenUnfocused,
     setSelectedSound,
     setCustomSoundPath,
+    setManualActionSoundEnabled,
     setManualActionSoundId,
     setManualActionCustomSoundPath,
     setCommitGenerationEnabled,
@@ -543,6 +547,8 @@ const SettingsView = ({
               onSaveCustomSoundPath={handleSaveCustomSoundPath}
               onTestSound={handleTestSound}
               onBrowseSound={handleBrowseSound}
+              manualActionSoundEnabled={manualActionSoundEnabled}
+              onManualActionSoundEnabledChange={handleManualActionSoundEnabledChange}
               manualActionSoundId={manualActionSoundId}
               onManualActionSoundIdChange={handleManualActionSoundIdChange}
               manualActionCustomSoundPath={manualActionCustomSoundPath}
