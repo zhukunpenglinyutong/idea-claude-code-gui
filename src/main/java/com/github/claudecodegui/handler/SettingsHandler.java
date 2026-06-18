@@ -89,8 +89,11 @@ public class SettingsHandler extends BaseMessageHandler {
         "set_sound_only_when_unfocused",
         "set_selected_sound",
         "set_custom_sound_path",
+        "set_manual_action_sound",
+        "set_manual_action_custom_sound_path",
         "test_sound",
         "browse_sound_file",
+        "browse_manual_action_sound_file",
         // User language preference
         "set_user_language",
         "get_user_language",
@@ -315,11 +318,20 @@ public class SettingsHandler extends BaseMessageHandler {
             case "set_custom_sound_path":
                 soundSettingsHandler.handleSetCustomSoundPath(content);
                 return true;
+            case "set_manual_action_sound":
+                soundSettingsHandler.handleSetManualActionSound(content);
+                return true;
+            case "set_manual_action_custom_sound_path":
+                soundSettingsHandler.handleSetManualActionCustomSoundPath(content);
+                return true;
             case "test_sound":
                 soundSettingsHandler.handleTestSound(content);
                 return true;
             case "browse_sound_file":
                 soundSettingsHandler.handleBrowseSoundFile();
+                return true;
+            case "browse_manual_action_sound_file":
+                soundSettingsHandler.handleBrowseManualActionSoundFile();
                 return true;
             // User language preference
             case "set_user_language":

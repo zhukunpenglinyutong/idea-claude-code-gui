@@ -151,6 +151,10 @@ const SettingsView = ({
     setSelectedSound,
     customSoundPath,
     setCustomSoundPath,
+    manualActionSoundId,
+    setManualActionSoundId,
+    manualActionCustomSoundPath,
+    setManualActionCustomSoundPath,
     diffExpandedByDefault,
     setDiffExpandedByDefault,
     historyCompletionEnabled,
@@ -177,6 +181,11 @@ const SettingsView = ({
     handleSaveCustomSoundPath,
     handleTestSound,
     handleBrowseSound,
+    handleManualActionSoundIdChange,
+    handleManualActionCustomSoundPathChange,
+    handleSaveManualActionCustomSoundPath,
+    handleTestManualActionSound,
+    handleBrowseManualActionSound,
     handleSaveCommitPrompt,
     projectCommitPrompt,
     setProjectCommitPrompt,
@@ -348,6 +357,8 @@ const SettingsView = ({
     setSoundOnlyWhenUnfocused,
     setSelectedSound,
     setCustomSoundPath,
+    setManualActionSoundId,
+    setManualActionCustomSoundPath,
     setCommitGenerationEnabled,
     setAiTitleGenerationEnabled,
     setStatusBarWidgetEnabled,
@@ -532,6 +543,13 @@ const SettingsView = ({
               onSaveCustomSoundPath={handleSaveCustomSoundPath}
               onTestSound={handleTestSound}
               onBrowseSound={handleBrowseSound}
+              manualActionSoundId={manualActionSoundId}
+              onManualActionSoundIdChange={handleManualActionSoundIdChange}
+              manualActionCustomSoundPath={manualActionCustomSoundPath}
+              onManualActionCustomSoundPathChange={handleManualActionCustomSoundPathChange}
+              onSaveManualActionCustomSoundPath={handleSaveManualActionCustomSoundPath}
+              onTestManualActionSound={handleTestManualActionSound}
+              onBrowseManualActionSound={handleBrowseManualActionSound}
               taskCompletionNotificationEnabled={taskCompletionNotificationEnabled}
               onTaskCompletionNotificationEnabledChange={handleTaskCompletionNotificationEnabledChange}
               askUserQuestionNotificationEnabled={askUserQuestionNotificationEnabled}

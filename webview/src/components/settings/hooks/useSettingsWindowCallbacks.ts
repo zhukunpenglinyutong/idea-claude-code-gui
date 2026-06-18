@@ -59,6 +59,8 @@ export interface SettingsWindowCallbacksDeps {
   setSoundOnlyWhenUnfocused?: (enabled: boolean) => void;
   setSelectedSound?: (soundId: string) => void;
   setCustomSoundPath?: (path: string) => void;
+  setManualActionSoundId?: (soundId: string) => void;
+  setManualActionCustomSoundPath?: (path: string) => void;
 
   // Hook functions
   updateProviders: (providers: ProviderConfig[]) => void;
@@ -393,6 +395,12 @@ export function useSettingsWindowCallbacks(deps: SettingsWindowCallbacksDeps) {
         }
         if (data.customSoundPath !== undefined) {
           d().setCustomSoundPath?.(data.customSoundPath);
+        }
+        if (data.manualActionSoundId !== undefined) {
+          d().setManualActionSoundId?.(data.manualActionSoundId);
+        }
+        if (data.manualActionCustomSoundPath !== undefined) {
+          d().setManualActionCustomSoundPath?.(data.manualActionCustomSoundPath);
         }
       } catch (error) {
         console.error('[SettingsView] Failed to parse sound notification config:', error);

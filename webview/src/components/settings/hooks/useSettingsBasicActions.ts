@@ -72,6 +72,8 @@ export interface UseSettingsBasicActionsReturn {
   soundOnlyWhenUnfocused: boolean;
   selectedSound: string;
   customSoundPath: string;
+  manualActionSoundId: string;
+  manualActionCustomSoundPath: string;
   diffExpandedByDefault: boolean;
   historyCompletionEnabled: boolean;
   /** Whether to skip the "create new session with existing messages" confirm dialog. */
@@ -107,6 +109,11 @@ export interface UseSettingsBasicActionsReturn {
   handleSaveCustomSoundPath: () => void;
   handleTestSound: () => void;
   handleBrowseSound: () => void;
+  handleManualActionSoundIdChange: (soundId: string) => void;
+  handleManualActionCustomSoundPathChange: (path: string) => void;
+  handleSaveManualActionCustomSoundPath: () => void;
+  handleTestManualActionSound: () => void;
+  handleBrowseManualActionSound: () => void;
   handleSaveCommitPrompt: () => void;
   handleSaveProjectCommitPrompt: () => void;
   handleCommitGenerationEnabledChange: (enabled: boolean) => void;
@@ -158,6 +165,8 @@ export interface UseSettingsBasicActionsReturn {
   /** @internal */ setSoundOnlyWhenUnfocused: (enabled: boolean) => void;
   /** @internal */ setSelectedSound: (soundId: string) => void;
   /** @internal */ setCustomSoundPath: (path: string) => void;
+  /** @internal */ setManualActionSoundId: (soundId: string) => void;
+  /** @internal */ setManualActionCustomSoundPath: (path: string) => void;
   /** @internal */ setDiffExpandedByDefault: (expanded: boolean) => void;
   /** @internal */ setHistoryCompletionEnabled: (enabled: boolean) => void;
   /** @internal */ setSkipNewSessionConfirm: (enabled: boolean) => void;
@@ -235,6 +244,8 @@ export function useSettingsBasicActions({
   const [soundOnlyWhenUnfocused, setSoundOnlyWhenUnfocused] = useState<boolean>(false);
   const [selectedSound, setSelectedSound] = useState<string>('default');
   const [customSoundPath, setCustomSoundPath] = useState<string>('');
+  const [manualActionSoundId, setManualActionSoundId] = useState<string>('bell');
+  const [manualActionCustomSoundPath, setManualActionCustomSoundPath] = useState<string>('');
 
   // Diff expanded by default configuration (localStorage-only)
   const [diffExpandedByDefault, setDiffExpandedByDefault] = useState<boolean>(() => {
@@ -464,6 +475,31 @@ export function useSettingsBasicActions({
     sendToJava('browse_sound_file:');
   }, []);
 
+  // Manual-action ("Claude needs input") sound handlers
+  const handleManualActionSoundIdChange = useCallback((soundId: string) => {
+    setManualActionSoundId(soundId);
+    const payload = { soundId };
+    sendToJava(`set_manual_action_sound:${JSON.stringify(payload)}`);
+  }, []);
+
+  const handleManualActionCustomSoundPathChange = useCallback((path: string) => {
+    setManualActionCustomSoundPath(path);
+  }, []);
+
+  const handleSaveManualActionCustomSoundPath = useCallback(() => {
+    const payload = { path: manualActionCustomSoundPath };
+    sendToJava(`set_manual_action_custom_sound_path:${JSON.stringify(payload)}`);
+  }, [manualActionCustomSoundPath]);
+
+  const handleTestManualActionSound = useCallback(() => {
+    const payload = { soundId: manualActionSoundId, path: manualActionCustomSoundPath };
+    sendToJava(`test_sound:${JSON.stringify(payload)}`);
+  }, [manualActionSoundId, manualActionCustomSoundPath]);
+
+  const handleBrowseManualActionSound = useCallback(() => {
+    sendToJava('browse_manual_action_sound_file:');
+  }, []);
+
   // AI commit generation toggle change handler
   const handleCommitGenerationEnabledChange = useCallback((enabled: boolean) => {
     setCommitGenerationEnabled(enabled);
@@ -666,6 +702,10 @@ export function useSettingsBasicActions({
     setSelectedSound,
     customSoundPath,
     setCustomSoundPath,
+    manualActionSoundId,
+    setManualActionSoundId,
+    manualActionCustomSoundPath,
+    setManualActionCustomSoundPath,
     diffExpandedByDefault,
     setDiffExpandedByDefault,
     historyCompletionEnabled,
@@ -690,6 +730,11 @@ export function useSettingsBasicActions({
     handleSelectedSoundChange,
     handleCustomSoundPathChange,
     handleSaveCustomSoundPath,
+    handleManualActionSoundIdChange,
+    handleManualActionCustomSoundPathChange,
+    handleSaveManualActionCustomSoundPath,
+    handleTestManualActionSound,
+    handleBrowseManualActionSound,
     handleTestSound,
     handleBrowseSound,
     handleSaveCommitPrompt,

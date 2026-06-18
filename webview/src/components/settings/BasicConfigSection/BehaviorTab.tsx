@@ -108,6 +108,13 @@ export interface BehaviorTabProps {
   onSaveCustomSoundPath?: () => void;
   onTestSound?: () => void;
   onBrowseSound?: () => void;
+  manualActionSoundId?: string;
+  onManualActionSoundIdChange?: (soundId: string) => void;
+  manualActionCustomSoundPath?: string;
+  onManualActionCustomSoundPathChange?: (path: string) => void;
+  onSaveManualActionCustomSoundPath?: () => void;
+  onTestManualActionSound?: () => void;
+  onBrowseManualActionSound?: () => void;
   taskCompletionNotificationEnabled?: boolean;
   onTaskCompletionNotificationEnabledChange?: (enabled: boolean) => void;
   askUserQuestionNotificationEnabled?: boolean;
@@ -144,6 +151,13 @@ const BehaviorTab = ({
   onSaveCustomSoundPath = () => {},
   onTestSound = () => {},
   onBrowseSound = () => {},
+  manualActionSoundId = 'bell',
+  onManualActionSoundIdChange = () => {},
+  manualActionCustomSoundPath = '',
+  onManualActionCustomSoundPathChange = () => {},
+  onSaveManualActionCustomSoundPath = () => {},
+  onTestManualActionSound = () => {},
+  onBrowseManualActionSound = () => {},
   taskCompletionNotificationEnabled = false,
   onTaskCompletionNotificationEnabledChange = () => {},
   askUserQuestionNotificationEnabled = false,
@@ -530,6 +544,63 @@ const BehaviorTab = ({
                   <button
                     className={styles.saveBtn}
                     onClick={onSaveCustomSoundPath}
+                  >
+                    {t('common.save')}
+                  </button>
+                </div>
+                <small className={styles.formHint}>
+                  <span className="codicon codicon-info" />
+                  <span>{t('settings.basic.soundNotification.customSoundHint')}</span>
+                </small>
+              </div>
+            )}
+
+            {/* Manual action required ("Claude needs input") sound */}
+            <div className={styles.fieldHeader}>
+              <span className="codicon codicon-bell" />
+              <span className={styles.fieldLabel}>{t('settings.basic.soundNotification.manualActionLabel')}</span>
+            </div>
+            <small className={styles.formHint}>
+              <span className="codicon codicon-info" />
+              <span>{t('settings.basic.soundNotification.manualActionHint')}</span>
+            </small>
+
+            <div className={styles.fieldHeader}>
+              <span className="codicon codicon-library" />
+              <span className={styles.fieldLabel}>{t('settings.basic.soundNotification.manualActionSelectSound')}</span>
+            </div>
+            <SoundSelectUpward
+              value={manualActionSoundId}
+              onChange={onManualActionSoundIdChange}
+              options={soundOptions}
+              onTestSound={onTestManualActionSound}
+              testSoundLabel={t('settings.basic.soundNotification.testSound')}
+            />
+
+            {manualActionSoundId === 'custom' && (
+              <div className={styles.customSoundFileSection}>
+                <div className={styles.fieldHeader}>
+                  <span className="codicon codicon-file-media" />
+                  <span className={styles.fieldLabel}>{t('settings.basic.soundNotification.customSound')}</span>
+                </div>
+                <div className={styles.nodePathInputWrapper}>
+                  <input
+                    type="text"
+                    className={styles.nodePathInput}
+                    placeholder={t('settings.basic.soundNotification.customSoundPlaceholder')}
+                    value={manualActionCustomSoundPath}
+                    onChange={(e) => onManualActionCustomSoundPathChange(e.target.value)}
+                  />
+                  <button
+                    className={styles.saveBtn}
+                    onClick={onBrowseManualActionSound}
+                    title={t('settings.basic.soundNotification.browse')}
+                  >
+                    <span className="codicon codicon-folder-opened" />
+                  </button>
+                  <button
+                    className={styles.saveBtn}
+                    onClick={onSaveManualActionCustomSoundPath}
                   >
                     {t('common.save')}
                   </button>

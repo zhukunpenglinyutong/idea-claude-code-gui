@@ -315,7 +315,10 @@
         "testSound": "Test",
         "browse": "Browse",
         "useDefault": "Use Default",
-        "customSoundSaved": "Custom sound saved"
+        "customSoundSaved": "Custom sound saved",
+        "manualActionLabel": "Sound When Claude Needs Input",
+        "manualActionHint": "When enabled, a sound plays whenever Claude needs you — a permission to confirm, a question to answer, or a plan to approve.",
+        "manualActionSelectSound": "Manual Action Sound"
       },
       "userMsgColor": {
         "label": "User Message Color",
