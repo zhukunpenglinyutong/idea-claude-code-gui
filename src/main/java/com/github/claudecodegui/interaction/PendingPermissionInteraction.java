@@ -54,6 +54,11 @@ public final class PendingPermissionInteraction implements PendingUserInteractio
     }
 
     @Override
+    public String frontendFunctionName() {
+        return "showPermissionDialog";
+    }
+
+    @Override
     public JsonObject toFrontendPayload() {
         JsonObject payload = new JsonObject();
         payload.addProperty("channelId", channelId);

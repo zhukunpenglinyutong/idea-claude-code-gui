@@ -43,6 +43,11 @@ public final class PendingAskUserQuestionInteraction implements PendingUserInter
     }
 
     @Override
+    public String frontendFunctionName() {
+        return "showAskUserQuestionDialog";
+    }
+
+    @Override
     public JsonObject toFrontendPayload() {
         return questionsData;
     }

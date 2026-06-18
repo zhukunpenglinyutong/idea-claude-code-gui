@@ -28,6 +28,9 @@ public interface PendingUserInteraction {
     /** The JSON payload a presenter passes to the frontend dialog. */
     JsonObject toFrontendPayload();
 
+    /** The {@code window.<name>} JS function a presenter calls to show this interaction's dialog. */
+    String frontendFunctionName();
+
     /** The project whose window should show the dialog, or {@code null} for the current window. */
     default Project targetProject() {
         return null;

@@ -8,11 +8,9 @@ import com.github.claudecodegui.interaction.SessionPermissionDecisionTarget;
 import com.github.claudecodegui.interaction.UserInteractionService;
 import com.github.claudecodegui.interaction.UserInteractionType;
 import com.github.claudecodegui.permission.PermissionRequest;
-import com.github.claudecodegui.permission.PermissionService;
 import com.github.claudecodegui.settings.CodemossSettingsService;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.util.concurrency.AppExecutorUtil;
@@ -77,6 +75,9 @@ public class PermissionHandler extends BaseMessageHandler {
     PermissionHandler(HandlerContext context, SafetyNetScheduler safetyNetScheduler) {
         super(context);
         this.safetyNetScheduler = safetyNetScheduler;
+        // The webview presenter is the consumer of the requested-interaction seam: it owns the
+        // window.show* JS so this handler no longer builds it.
+        this.userInteractionService.addListener(new WebviewUserInteractionPresenter(context, userInteractionService));
     }
 
     long getSafetyNetTimeoutSeconds() {
@@ -143,45 +144,16 @@ public class PermissionHandler extends BaseMessageHandler {
 
         LOG.info("[PERM_SHOW] showFrontendPermissionDialog called: channelId=" + channelId + ", toolName=" + toolName);
 
+        // Registering fires the webview presenter, which shows the dialog.
         userInteractionService.requestPermission(channelId, toolName, inputs, null, null, target);
         LOG.info("[PERM_SHOW] Stored pending request, total pending: "
                 + userInteractionService.count(UserInteractionType.PERMISSION));
 
-        try {
-            Gson gson = new Gson();
-            JsonObject requestData = new JsonObject();
-            requestData.addProperty("channelId", channelId);
-            requestData.addProperty("toolName", toolName);
-            requestData.add("inputs", inputs);
-
-            String requestJson = gson.toJson(requestData);
-            String escapedJson = escapeJs(requestJson);
-
-            ApplicationManager.getApplication().invokeLater(() -> {
-                LOG.info("[PERM_SHOW] Executing JS to show dialog for channelId=" + channelId);
-                String jsCode = "(function retryShowDialog(retries) { " +
-                    "  if (window.showPermissionDialog) { " +
-                    "    window.showPermissionDialog('" + escapedJson + "'); " +
-                    "  } else if (retries > 0) { " +
-                    "    setTimeout(function() { retryShowDialog(retries - 1); }, 200); " +
-                    "  } else { " +
-                    "    console.error('[PERM_DEBUG][JS] FAILED: showPermissionDialog not available!'); " +
-                    "  } " +
-                    "})(30);";
-
-                context.executeJavaScriptOnEDT(jsCode);
-            });
-
-            scheduleSafetyNet(future, () -> {
-                if (userInteractionService.timeout(UserInteractionType.PERMISSION, channelId)) {
-                    LOG.warn("[PERM_SHOW] Safety-net timeout fired (webview unreachable) for channelId=" + channelId);
-                }
-            });
-
-        } catch (Exception e) {
-            LOG.error("[PERM_SHOW] ERROR: errorClass=" + errorClass(e), e);
-            userInteractionService.dialogFailed(UserInteractionType.PERMISSION, channelId);
-        }
+        scheduleSafetyNet(future, () -> {
+            if (userInteractionService.timeout(UserInteractionType.PERMISSION, channelId)) {
+                LOG.warn("[PERM_SHOW] Safety-net timeout fired (webview unreachable) for channelId=" + channelId);
+            }
+        });
 
         return future;
     }
@@ -218,32 +190,10 @@ public class PermissionHandler extends BaseMessageHandler {
             }
 
             // Register through the service (session-callback path): same lifecycle, session target.
+            // Registering fires the webview presenter, which shows the dialog on targetProject's window.
             userInteractionService.requestPermission(
                 channelId, request.getToolName(), inputsJson, request.getSuggestions(), targetProject,
                 new SessionPermissionDecisionTarget(context::getSession, channelId));
-
-            try {
-                JsonObject requestData = new JsonObject();
-                requestData.addProperty("channelId", channelId);
-                requestData.addProperty("toolName", request.getToolName());
-                requestData.add("inputs", inputsJson);
-                if (request.getSuggestions() != null) {
-                    requestData.add("suggestions", request.getSuggestions());
-                }
-                String escapedJson = escapeJs(gson.toJson(requestData));
-
-                // Execute JavaScript in the target window to show the dialog
-                String jsCode = "if (window.showPermissionDialog) { " +
-                    "  window.showPermissionDialog('" + escapedJson + "'); " +
-                    "}";
-
-                targetWindow.executeJavaScriptCode(jsCode);
-            } catch (Exception showError) {
-                LOG.error("[PermissionHandler] 显示权限弹窗失败: errorClass=" + errorClass(showError), showError);
-                // The interaction is already registered; resolve it via its session target.
-                userInteractionService.dialogFailed(UserInteractionType.PERMISSION, channelId);
-                notifyPermissionDenied();
-            }
 
         } catch (Exception e) {
             LOG.error("[PermissionHandler] 显示权限弹窗失败: errorClass=" + errorClass(e), e);
@@ -339,35 +289,11 @@ public class PermissionHandler extends BaseMessageHandler {
                     ? questionsData.getAsJsonArray("questions").size()
                     : 0));
 
-        try {
-            Gson gson = new Gson();
-            String requestJson = gson.toJson(questionsData);
-            String escapedJson = escapeJs(requestJson);
-
-            ApplicationManager.getApplication().invokeLater(() -> {
-                String jsCode = "(function retryShowAskUserQuestion(retries) { " +
-                    "  if (window.showAskUserQuestionDialog) { " +
-                    "    window.showAskUserQuestionDialog('" + escapedJson + "'); " +
-                    "  } else if (retries > 0) { " +
-                    "    setTimeout(function() { retryShowAskUserQuestion(retries - 1); }, 200); " +
-                    "  } else { " +
-                    "    console.error('[ASK_USER_QUESTION][JS] FAILED: showAskUserQuestionDialog not available!'); " +
-                    "  } " +
-                    "})(30);";
-
-                context.executeJavaScriptOnEDT(jsCode);
-            });
-
-            scheduleSafetyNet(future, () -> {
-                if (userInteractionService.timeout(UserInteractionType.ASK_USER_QUESTION, requestId)) {
-                    LOG.warn("[ASK_USER_QUESTION][SHOW_DIALOG] Safety-net timeout fired (webview unreachable) for requestId=" + requestId);
-                }
-            });
-
-        } catch (Exception e) {
-            LOG.error("[ASK_USER_QUESTION][SHOW_DIALOG] ERROR: errorClass=" + errorClass(e), e);
-            userInteractionService.dialogFailed(UserInteractionType.ASK_USER_QUESTION, requestId);
-        }
+        scheduleSafetyNet(future, () -> {
+            if (userInteractionService.timeout(UserInteractionType.ASK_USER_QUESTION, requestId)) {
+                LOG.warn("[ASK_USER_QUESTION][SHOW_DIALOG] Safety-net timeout fired (webview unreachable) for requestId=" + requestId);
+            }
+        });
 
         return future;
     }
@@ -407,35 +333,11 @@ public class PermissionHandler extends BaseMessageHandler {
         LOG.debug("[PLAN_APPROVAL][SHOW_DIALOG] requestId=" + requestId);
         LOG.debug("[PLAN_APPROVAL][SHOW_DIALOG] fieldCount=" + planData.size());
 
-        try {
-            Gson gson = new Gson();
-            String requestJson = gson.toJson(planData);
-            String escapedJson = escapeJs(requestJson);
-
-            ApplicationManager.getApplication().invokeLater(() -> {
-                String jsCode = "(function retryShowPlanApproval(retries) { " +
-                    "  if (window.showPlanApprovalDialog) { " +
-                    "    window.showPlanApprovalDialog('" + escapedJson + "'); " +
-                    "  } else if (retries > 0) { " +
-                    "    setTimeout(function() { retryShowPlanApproval(retries - 1); }, 200); " +
-                    "  } else { " +
-                    "    console.error('[PLAN_APPROVAL][JS] FAILED: showPlanApprovalDialog not available!'); " +
-                    "  } " +
-                    "})(30);";
-
-                context.executeJavaScriptOnEDT(jsCode);
-            });
-
-            scheduleSafetyNet(future, () -> {
-                if (userInteractionService.timeout(UserInteractionType.PLAN_APPROVAL, requestId)) {
-                    LOG.warn("[PLAN_APPROVAL][SHOW_DIALOG] Safety-net timeout fired (webview unreachable) for requestId=" + requestId);
-                }
-            });
-
-        } catch (Exception e) {
-            LOG.error("[PLAN_APPROVAL][SHOW_DIALOG] ERROR: errorClass=" + errorClass(e), e);
-            userInteractionService.dialogFailed(UserInteractionType.PLAN_APPROVAL, requestId);
-        }
+        scheduleSafetyNet(future, () -> {
+            if (userInteractionService.timeout(UserInteractionType.PLAN_APPROVAL, requestId)) {
+                LOG.warn("[PLAN_APPROVAL][SHOW_DIALOG] Safety-net timeout fired (webview unreachable) for requestId=" + requestId);
+            }
+        });
 
         return future;
     }

@@ -42,6 +42,11 @@ public final class PendingPlanApprovalInteraction implements PendingUserInteract
     }
 
     @Override
+    public String frontendFunctionName() {
+        return "showPlanApprovalDialog";
+    }
+
+    @Override
     public JsonObject toFrontendPayload() {
         return planData;
     }
