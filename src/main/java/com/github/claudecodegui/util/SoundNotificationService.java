@@ -105,6 +105,13 @@ public class SoundNotificationService {
                 String customPath = kind == Kind.TASK_COMPLETE
                         ? settings.getCustomSoundPath()
                         : settings.getManualActionCustomSoundPath();
+
+                // "custom" with no saved path: fall back to this kind's own default rather than the
+                // shared built-in default playBySelection would otherwise use (the task-complete sound).
+                if ("custom".equals(soundId) && (customPath == null || customPath.trim().isEmpty())) {
+                    soundId = kind == Kind.TASK_COMPLETE ? "default" : "bell";
+                }
+
                 playBySelection(soundId, customPath);
             } catch (Exception e) {
                 LOG.warn("[SoundNotification] Failed to play notification sound: " + e.getMessage(), e);

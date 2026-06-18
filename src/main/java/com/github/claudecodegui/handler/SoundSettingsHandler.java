@@ -406,7 +406,13 @@ public class SoundSettingsHandler {
                             } catch (Exception e) {
                                 LOG.warn("[SoundSettingsHandler] Failed to auto-save manual action sound path: " + e.getMessage());
                             }
-                            dispatchSoundConfigUpdate();
+                            // Push only the changed fields (the frontend merges) instead of
+                            // dispatchSoundConfigUpdate(), which would read the whole config from disk on the EDT.
+                            JsonObject response = new JsonObject();
+                            response.addProperty("manualActionSoundId", "custom");
+                            response.addProperty("manualActionCustomSoundPath", path);
+                            context.callJavaScript("window.updateSoundNotificationConfig",
+                                context.escapeJs(gson.toJson(response)));
                             context.callJavaScript("window.showSuccessI18n",
                                 context.escapeJs("settings.basic.soundNotification.customSoundSaved"));
                         }

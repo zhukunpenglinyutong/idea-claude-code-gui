@@ -274,11 +274,14 @@ public class PermissionHandler extends BaseMessageHandler {
         int askUserCount = userInteractionService.count(UserInteractionType.ASK_USER_QUESTION);
         int planCount = userInteractionService.count(UserInteractionType.PLAN_APPROVAL);
 
-        // Resolve every in-flight interaction per its session-change policy and drain the registry.
+        // Resolve every in-flight interaction per its session-change policy. Deny-policy
+        // interactions (file-watcher permission / ask / plan) are resolved and dropped;
+        // session-callback permissions are kept by policy, so they may remain registered.
         userInteractionService.cancelAllSessionChanged();
 
-        LOG.info("[PERM_CLEAR] Cleared: " + permissionCount + " permission, " +
-                 askUserCount + " askUser, " + planCount + " plan requests");
+        LOG.info("[PERM_CLEAR] Session change processed (pending before: " + permissionCount
+                + " permission, " + askUserCount + " askUser, " + planCount + " plan); "
+                + userInteractionService.count(UserInteractionType.PERMISSION) + " permission kept by policy");
     }
 
     /**

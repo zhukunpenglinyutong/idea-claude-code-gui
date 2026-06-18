@@ -53,7 +53,9 @@ public final class SessionPermissionDecisionTarget implements PermissionDecision
     public void deny() {
         ClaudeSession session = sessionSupplier.get();
         if (session != null) {
-            session.handlePermissionDecision(channelId, false, false, "Permission denied");
+            // deny() is the failure path (dialog could not be shown), not an explicit user denial,
+            // so report a reason that reflects that rather than a normal rejection.
+            session.handlePermissionDecision(channelId, false, false, "Failed to show permission dialog");
         }
         if (deniedCallback != null) {
             deniedCallback.run();
