@@ -193,7 +193,7 @@ public class PermissionHandler extends BaseMessageHandler {
             // Registering fires the webview presenter, which shows the dialog on targetProject's window.
             userInteractionService.requestPermission(
                 channelId, request.getToolName(), inputsJson, request.getSuggestions(), targetProject,
-                new SessionPermissionDecisionTarget(context::getSession, channelId));
+                new SessionPermissionDecisionTarget(context::getSession, channelId, this::notifyPermissionDenied));
 
         } catch (Exception e) {
             LOG.error("[PermissionHandler] 显示权限弹窗失败: errorClass=" + errorClass(e), e);

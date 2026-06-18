@@ -21,10 +21,19 @@ public final class SessionPermissionDecisionTarget implements PermissionDecision
 
     private final Supplier<ClaudeSession> sessionSupplier;
     private final String channelId;
+    private final Runnable deniedCallback;
 
-    public SessionPermissionDecisionTarget(Supplier<ClaudeSession> sessionSupplier, String channelId) {
+    /**
+     * @param deniedCallback run when the request is denied via {@link #deny()} (dialog failure),
+     *                       mirroring the {@code notifyPermissionDenied()} the handler used to call
+     *                       inline. Not run on a normal {@link #decide} — that deny path is already
+     *                       notified by {@code PermissionHandler.handlePermissionDecision}.
+     */
+    public SessionPermissionDecisionTarget(Supplier<ClaudeSession> sessionSupplier, String channelId,
+                                           Runnable deniedCallback) {
         this.sessionSupplier = sessionSupplier;
         this.channelId = channelId;
+        this.deniedCallback = deniedCallback;
     }
 
     @Override
@@ -45,6 +54,9 @@ public final class SessionPermissionDecisionTarget implements PermissionDecision
         ClaudeSession session = sessionSupplier.get();
         if (session != null) {
             session.handlePermissionDecision(channelId, false, false, "Permission denied");
+        }
+        if (deniedCallback != null) {
+            deniedCallback.run();
         }
     }
 
