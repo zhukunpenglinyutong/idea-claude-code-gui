@@ -65,9 +65,30 @@ public class SoundNotificationService {
     }
 
     /**
+     * Notification kinds. Each has its own selected sound but shares the enable / focus gates.
+     */
+    private enum Kind { TASK_COMPLETE, MANUAL_ACTION }
+
+    /**
      * Play task completion notification sound based on user settings.
      */
     public void playTaskCompleteSound() {
+        playConfigured(Kind.TASK_COMPLETE);
+    }
+
+    /**
+     * Play the "manual action required" notification sound (permission / question / plan approval)
+     * based on user settings. Shares the enable / only-when-unfocused gates with the task-complete
+     * sound, but uses its own selected sound.
+     */
+    public void playManualActionRequiredSound() {
+        playConfigured(Kind.MANUAL_ACTION);
+    }
+
+    /**
+     * Read settings and, if enabled and not gated by focus, play the sound configured for {@code kind}.
+     */
+    private void playConfigured(Kind kind) {
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             try {
                 CodemossSettingsService settings = new CodemossSettingsService();
@@ -82,8 +103,13 @@ public class SoundNotificationService {
                     return;
                 }
 
-                String selectedSound = settings.getSelectedSound();
-                playBySelection(selectedSound, settings.getCustomSoundPath());
+                String soundId = kind == Kind.TASK_COMPLETE
+                        ? settings.getSelectedSound()
+                        : settings.getManualActionSoundId();
+                String customPath = kind == Kind.TASK_COMPLETE
+                        ? settings.getCustomSoundPath()
+                        : settings.getManualActionCustomSoundPath();
+                playBySelection(soundId, customPath);
             } catch (Exception e) {
                 LOG.warn("[SoundNotification] Failed to play notification sound: " + e.getMessage(), e);
             }

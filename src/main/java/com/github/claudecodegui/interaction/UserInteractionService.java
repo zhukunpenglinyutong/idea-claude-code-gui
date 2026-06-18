@@ -1,6 +1,7 @@
 package com.github.claudecodegui.interaction;
 
 import com.google.gson.JsonObject;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 
 import java.util.List;
@@ -20,6 +21,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * not schedule safety nets — those remain the caller's responsibility for now.
  */
 public final class UserInteractionService {
+
+    private static final Logger LOG = Logger.getInstance(UserInteractionService.class);
 
     private final PendingUserInteractions pendingInteractions = new PendingUserInteractions();
     private final List<UserInteractionListener> listeners = new CopyOnWriteArrayList<>();
@@ -56,8 +59,14 @@ public final class UserInteractionService {
 
     private void register(PendingUserInteraction interaction) {
         pendingInteractions.register(interaction);
+        // A faulty observer must never corrupt the (safety-critical) interaction lifecycle.
         for (UserInteractionListener listener : listeners) {
-            listener.userInteractionRequested(interaction);
+            try {
+                listener.userInteractionRequested(interaction);
+            } catch (Exception e) {
+                LOG.warn("[UserInteraction] Listener failed for " + interaction.type() + " "
+                        + interaction.id() + ": " + e.getClass().getSimpleName(), e);
+            }
         }
     }
 

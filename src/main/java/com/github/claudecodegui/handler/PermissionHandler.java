@@ -7,8 +7,10 @@ import com.github.claudecodegui.interaction.FuturePermissionDecisionTarget;
 import com.github.claudecodegui.interaction.SessionPermissionDecisionTarget;
 import com.github.claudecodegui.interaction.UserInteractionService;
 import com.github.claudecodegui.interaction.UserInteractionType;
+import com.github.claudecodegui.notifications.SoundUserInteractionListener;
 import com.github.claudecodegui.permission.PermissionRequest;
 import com.github.claudecodegui.settings.CodemossSettingsService;
+import com.github.claudecodegui.util.SoundNotificationService;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.intellij.openapi.diagnostic.Logger;
@@ -78,6 +80,10 @@ public class PermissionHandler extends BaseMessageHandler {
         // The webview presenter is the consumer of the requested-interaction seam: it owns the
         // window.show* JS so this handler no longer builds it.
         this.userInteractionService.addListener(new WebviewUserInteractionPresenter(context, userInteractionService));
+        // #1336: the manual-action sound is just another observer on the same seam. The handler only
+        // registers the listener; SoundNotificationService decides when and which sound to play.
+        this.userInteractionService.addListener(new SoundUserInteractionListener(
+                SoundNotificationService.getInstance()::playManualActionRequiredSound));
     }
 
     long getSafetyNetTimeoutSeconds() {
