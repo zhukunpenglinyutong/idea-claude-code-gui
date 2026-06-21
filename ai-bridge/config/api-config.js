@@ -219,6 +219,7 @@ const NETWORK_ENV_VARS = [
 
 const LOCAL_SETTINGS_PROVIDER_ID = '__local_settings_json__';
 const CLI_LOGIN_PROVIDER_ID = '__cli_login__';
+const CLI_ACCOUNT_PROVIDER_PREFIX = '__cli_account__:';
 const CODEX_CLI_LOGIN_PROVIDER_ID = '__codex_cli_login__';
 const injectedNetworkEnvVars = new Map();
 
@@ -274,7 +275,7 @@ export function getClaudeRuntimeState() {
     return { access: 'local', currentId };
   }
 
-  if (currentId === CLI_LOGIN_PROVIDER_ID) {
+  if (currentId === CLI_LOGIN_PROVIDER_ID || currentId.startsWith(CLI_ACCOUNT_PROVIDER_PREFIX)) {
     return { access: 'cli_login', currentId };
   }
 

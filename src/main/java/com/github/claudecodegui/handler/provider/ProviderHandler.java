@@ -20,6 +20,8 @@ public class ProviderHandler extends BaseMessageHandler {
             "update_provider",
             "delete_provider",
             "switch_provider",
+            "save_current_claude_account",
+            "delete_claude_account",
             "get_active_provider",
             "preview_cc_switch_import",
             "open_file_chooser_for_cc_switch",
@@ -82,6 +84,12 @@ public class ProviderHandler extends BaseMessageHandler {
                 return true;
             case "switch_provider":
                 claudeOps.handleSwitchProvider(content);
+                return true;
+            case "save_current_claude_account":
+                claudeOps.handleSaveCurrentClaudeAccount();
+                return true;
+            case "delete_claude_account":
+                claudeOps.handleDeleteClaudeAccount(content);
                 return true;
             case "get_active_provider":
                 claudeOps.handleGetActiveProvider();

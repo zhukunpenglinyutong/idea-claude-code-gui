@@ -36,6 +36,7 @@ public class ProviderManager {
     private final java.util.function.Consumer<JsonObject> configWriter;
     private final ConfigPathManager pathManager;
     private final ClaudeSettingsManager claudeSettingsManager;
+    private final ClaudeOAuthAccountManager oauthAccountManager;
 
     public ProviderManager(
             Gson gson,
@@ -43,11 +44,22 @@ public class ProviderManager {
             java.util.function.Consumer<JsonObject> configWriter,
             ConfigPathManager pathManager,
             ClaudeSettingsManager claudeSettingsManager) {
+        this(gson, configReader, configWriter, pathManager, claudeSettingsManager, null);
+    }
+
+    public ProviderManager(
+            Gson gson,
+            Function<Void, JsonObject> configReader,
+            java.util.function.Consumer<JsonObject> configWriter,
+            ConfigPathManager pathManager,
+            ClaudeSettingsManager claudeSettingsManager,
+            ClaudeOAuthAccountManager oauthAccountManager) {
         this.gson = gson;
         this.configReader = configReader;
         this.configWriter = configWriter;
         this.pathManager = pathManager;
         this.claudeSettingsManager = claudeSettingsManager;
+        this.oauthAccountManager = oauthAccountManager;
     }
 
     /**
@@ -64,6 +76,9 @@ public class ProviderManager {
 
         // Add CLI login provider
         result.add(createCliLoginProviderObject(CLI_LOGIN_PROVIDER_ID.equals(currentId)));
+        if (oauthAccountManager != null) {
+            result.addAll(oauthAccountManager.getAccounts(currentId));
+        }
 
         if (!claude.has("providers")) {
             return result;
@@ -125,6 +140,9 @@ public class ProviderManager {
         // Return CLI login provider
         if (CLI_LOGIN_PROVIDER_ID.equals(currentId)) {
             return createCliLoginProviderObject(true);
+        }
+        if (oauthAccountManager != null && oauthAccountManager.isAccountId(currentId)) {
+            return oauthAccountManager.getAccount(currentId, true);
         }
 
         if (!claude.has("providers")) {
@@ -361,6 +379,13 @@ public class ProviderManager {
      * Switch to a different provider.
      */
     public void switchClaudeProvider(String id) throws IOException {
+        if (oauthAccountManager != null) {
+            oauthAccountManager.refreshActiveAccountIfNeeded();
+        }
+        if (oauthAccountManager != null && oauthAccountManager.isAccountId(id)) {
+            oauthAccountManager.switchToAccount(id);
+            return;
+        }
         JsonObject config = configReader.apply(null);
 
         if (!config.has("claude")) {
@@ -468,7 +493,8 @@ public class ProviderManager {
         if (config.has("claude") &&
                 config.getAsJsonObject("claude").has("current")) {
             String currentId = config.getAsJsonObject("claude").get("current").getAsString();
-            if (LOCAL_SETTINGS_PROVIDER_ID.equals(currentId) || CLI_LOGIN_PROVIDER_ID.equals(currentId)) {
+            if (LOCAL_SETTINGS_PROVIDER_ID.equals(currentId) || CLI_LOGIN_PROVIDER_ID.equals(currentId)
+                    || (oauthAccountManager != null && oauthAccountManager.isAccountId(currentId))) {
                 LOG.info("[ProviderManager] " + currentId + " provider active, skipping sync to settings.json");
                 return;
             }
@@ -760,6 +786,8 @@ public class ProviderManager {
         boolean invalidCurrent = currentId == null
                 || (!LOCAL_SETTINGS_PROVIDER_ID.equals(currentId)
                     && !CLI_LOGIN_PROVIDER_ID.equals(currentId)
+                    && !(oauthAccountManager != null && oauthAccountManager.isAccountId(currentId)
+                        && oauthAccountManager.getAccount(currentId, false) != null)
                     && !providers.has(currentId));
 
         // Marketplace-safe default:
@@ -805,6 +833,8 @@ public class ProviderManager {
         if (!claude.has("current")) {
             return false;
         }
-        return CLI_LOGIN_PROVIDER_ID.equals(claude.get("current").getAsString());
+        String currentId = claude.get("current").getAsString();
+        return CLI_LOGIN_PROVIDER_ID.equals(currentId)
+                || (oauthAccountManager != null && oauthAccountManager.isAccountId(currentId));
     }
 }

@@ -10,10 +10,12 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.util.concurrency.AppExecutorUtil;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.concurrent.Executor;
 
 /**
  * Handles Claude provider CRUD operations and switching.
@@ -23,6 +25,16 @@ public class ClaudeProviderOperations {
     private static final Gson GSON = new Gson();
 
     private final HandlerContext context;
+
+    // Serialize all Claude provider operations on a single background thread.
+    // Callers invoke these handlers from invokeLater (EDT), and getClaudeProviders()
+    // now touches PasswordSafe / keychain / disk per saved account — running that on
+    // the EDT would freeze the UI ("Slow operations are prohibited on EDT").
+    // A single-thread executor also serializes read-modify-write on
+    // ~/.codemoss/config.json, preventing lost updates from interleaved operations.
+    private final Executor providerOpsExecutor =
+            AppExecutorUtil.createBoundedApplicationPoolExecutor(
+                    "ClaudeCodeGUI Claude provider operations", 1);
 
     public ClaudeProviderOperations(HandlerContext context) {
         this.context = context;
@@ -89,16 +101,18 @@ public class ClaudeProviderOperations {
      * Get all providers.
      */
     public void handleGetProviders() {
-        try {
-            java.util.List<JsonObject> providers = context.getSettingsService().getClaudeProviders();
-            String providersJson = GSON.toJson(providers);
+        providerOpsExecutor.execute(() -> {
+            try {
+                java.util.List<JsonObject> providers = context.getSettingsService().getClaudeProviders();
+                String providersJson = GSON.toJson(providers);
 
-            ApplicationManager.getApplication().invokeLater(() -> {
-                context.callJavaScript("window.updateProviders", context.escapeJs(providersJson));
-            });
-        } catch (Exception e) {
-            LOG.error("[ProviderHandler] Failed to get providers: " + e.getMessage(), e);
-        }
+                ApplicationManager.getApplication().invokeLater(() -> {
+                    context.callJavaScript("window.updateProviders", context.escapeJs(providersJson));
+                });
+            } catch (Exception e) {
+                LOG.error("[ProviderHandler] Failed to get providers: " + e.getMessage(), e);
+            }
+        });
     }
 
     /**
@@ -226,9 +240,71 @@ public class ClaudeProviderOperations {
     }
 
     /**
+     * Save the account currently authenticated in Claude CLI into PasswordSafe.
+     */
+    public void handleSaveCurrentClaudeAccount() {
+        providerOpsExecutor.execute(() -> {
+            try {
+                JsonObject account = context.getSettingsService().saveCurrentClaudeOAuthAccount();
+                String email = account != null && account.has("emailAddress")
+                        ? account.get("emailAddress").getAsString()
+                        : "";
+                try {
+                    context.getClaudeSDKBridge().shutdownDaemon();
+                } catch (Exception e) {
+                    LOG.warn("[ProviderHandler] Failed to shut down daemon after saving OAuth account", e);
+                }
+                ApplicationManager.getApplication().invokeLater(() -> {
+                    context.callJavaScript("window.showSwitchSuccess",
+                            context.escapeJs("Claude account saved" + (email.isBlank() ? "" : ": " + email)));
+                    handleGetProviders();
+                });
+            } catch (Exception e) {
+                LOG.error("[ProviderHandler] Failed to save current Claude OAuth account", e);
+                ApplicationManager.getApplication().invokeLater(() ->
+                        context.callJavaScript("window.showError", context.escapeJs(e.getMessage())));
+            }
+        });
+    }
+
+    /**
+     * Remove a saved OAuth account from plugin metadata and PasswordSafe.
+     */
+    public void handleDeleteClaudeAccount(String content) {
+        providerOpsExecutor.execute(() -> handleDeleteClaudeAccountInBackground(content));
+    }
+
+    private void handleDeleteClaudeAccountInBackground(String content) {
+        try {
+            JsonObject data = GSON.fromJson(content, JsonObject.class);
+            String id = data.get("id").getAsString();
+            context.getSettingsService().deleteClaudeOAuthAccount(id);
+            try {
+                context.getClaudeSDKBridge().shutdownDaemon();
+            } catch (Exception e) {
+                LOG.warn("[ProviderHandler] Failed to shut down daemon after deleting OAuth account", e);
+            }
+            ApplicationManager.getApplication().invokeLater(() -> {
+                context.callJavaScript("window.showSwitchSuccess",
+                        context.escapeJs("Claude account removed"));
+                handleGetProviders();
+                handleGetActiveProvider();
+            });
+        } catch (Exception e) {
+            LOG.error("[ProviderHandler] Failed to delete Claude OAuth account", e);
+            ApplicationManager.getApplication().invokeLater(() ->
+                    context.callJavaScript("window.showError", context.escapeJs(e.getMessage())));
+        }
+    }
+
+    /**
      * Switch provider.
      */
     public void handleSwitchProvider(String content) {
+        providerOpsExecutor.execute(() -> handleSwitchProviderInBackground(content));
+    }
+
+    private void handleSwitchProviderInBackground(String content) {
         try {
             JsonObject data = GSON.fromJson(content, JsonObject.class);
             String id = data.get("id").getAsString();
@@ -250,6 +326,7 @@ public class ClaudeProviderOperations {
             } catch (Exception e) {
                 LOG.warn("[ProviderHandler] Failed to shut down Claude daemon during switch", e);
             }
+            context.getSettingsService().refreshActiveClaudeOAuthAccount();
 
             if (ProviderManager.DISABLED_PROVIDER_ID.equals(id)) {
                 context.getSettingsService().deactivateClaudeProvider();
@@ -375,15 +452,17 @@ public class ClaudeProviderOperations {
      * Get the currently active provider.
      */
     public void handleGetActiveProvider() {
-        try {
-            JsonObject provider = context.getSettingsService().getActiveClaudeProvider();
-            String providerJson = GSON.toJson(provider);
+        providerOpsExecutor.execute(() -> {
+            try {
+                JsonObject provider = context.getSettingsService().getActiveClaudeProvider();
+                String providerJson = GSON.toJson(provider);
 
-            ApplicationManager.getApplication().invokeLater(() -> {
-                context.callJavaScript("window.updateActiveProvider", context.escapeJs(providerJson));
-            });
-        } catch (Exception e) {
-            LOG.error("[ProviderHandler] Failed to get active provider: " + e.getMessage(), e);
-        }
+                ApplicationManager.getApplication().invokeLater(() -> {
+                    context.callJavaScript("window.updateActiveProvider", context.escapeJs(providerJson));
+                });
+            } catch (Exception e) {
+                LOG.error("[ProviderHandler] Failed to get active provider: " + e.getMessage(), e);
+            }
+        });
     }
 }

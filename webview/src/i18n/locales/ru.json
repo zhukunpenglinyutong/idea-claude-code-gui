@@ -489,6 +489,10 @@
       "cliLoginDisableTitle": "Отозвать авторизацию входа CLI",
       "cliLoginDisableMessage": "Это прекратит использование состояния входа CLI и оставит Claude без активного провайдера, пока вы явно не включите другой.",
       "cliLoginAccountInfo": "Вошел как: {{email}}",
+      "saveCurrentAccount": "Сохранить аккаунт",
+      "saveCurrentAccountHint": "Сохранить текущий аккаунт Claude CLI",
+      "oauthAccount": "OAuth-аккаунт Claude",
+      "multiAccountHint": "Чтобы добавить аккаунт, войдите в него через Claude CLI и нажмите «Сохранить аккаунт».",
       "subscriptionTutorial": {
         "entry": "Руководство по подписке",
         "dialogTitle": "Как использовать аккаунт подписки",

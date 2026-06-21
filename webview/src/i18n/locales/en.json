@@ -563,6 +563,10 @@
       "cliLoginDisableTitle": "Revoke CLI Login Authorization",
       "cliLoginDisableMessage": "This will stop using CLI login state and leave Claude with no active provider until you explicitly enable another one.",
       "cliLoginAccountInfo": "Logged in as: {{email}}",
+      "saveCurrentAccount": "Save account",
+      "saveCurrentAccountHint": "Save the Claude CLI account that is currently logged in",
+      "oauthAccount": "Claude OAuth account",
+      "multiAccountHint": "To add another account, sign in with Claude CLI, then click Save account.",
       "subscriptionTutorial": {
         "entry": "Subscription Account Guide",
         "dialogTitle": "How to use a subscription account",

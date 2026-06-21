@@ -61,7 +61,11 @@ export default function ProviderList({
   } = useDragSort({
     items: providers,
     onSort,
-    pinnedIds: [SPECIAL_PROVIDER_IDS.LOCAL_SETTINGS, SPECIAL_PROVIDER_IDS.CLI_LOGIN],
+    pinnedIds: [
+      SPECIAL_PROVIDER_IDS.LOCAL_SETTINGS,
+      SPECIAL_PROVIDER_IDS.CLI_LOGIN,
+      ...providers.filter((provider) => provider.isCliAccountProvider).map((provider) => provider.id),
+    ],
   });
 
   useEffect(() => {
@@ -555,6 +559,9 @@ export default function ProviderList({
               <div className={styles.website} title={t('settings.provider.cliLoginProviderDescription')}>
                 {t('settings.provider.cliLoginProviderDescription')}
               </div>
+              <div className={styles.website} style={CLI_ACCOUNT_INFO_STYLE}>
+                {t('settings.provider.multiAccountHint')}
+              </div>
               {cliLoginAccountEmail && localProviders.some(p => p.id === SPECIAL_PROVIDER_IDS.CLI_LOGIN && p.isActive) && (
                 <div className={styles.website} style={CLI_ACCOUNT_INFO_STYLE}>
                   {t('settings.provider.cliLoginAccountInfo', { email: cliLoginAccountEmail })}
@@ -563,6 +570,15 @@ export default function ProviderList({
             </div>
 
             <div className={styles.cardActions}>
+              <button
+                className={styles.useButton}
+                onClick={() => sendToJava('save_current_claude_account', {})}
+                title={t('settings.provider.saveCurrentAccountHint')}
+              >
+                <span className="codicon codicon-account" />
+                {t('settings.provider.saveCurrentAccount')}
+              </button>
+
               {localProviders.some(p => p.id === SPECIAL_PROVIDER_IDS.CLI_LOGIN && p.isActive) ? (
                 <button
                   className={styles.revokeButton}
@@ -583,8 +599,57 @@ export default function ProviderList({
             </div>
           </div>
 
+          {localProviders
+            .filter((provider) => provider.isCliAccountProvider)
+            .map((account) => (
+              <div
+                key={account.id}
+                className={`${styles.card} ${account.isActive ? styles.active : ''} ${styles.localProviderCard}`}
+              >
+                <div className={styles.cardInfo}>
+                  <div className={styles.name}>
+                    <span className="codicon codicon-account" style={ICON_MR_8_STYLE} />
+                    {account.name}
+                  </div>
+                  <div className={styles.website}>
+                    {account.emailAddress || t('settings.provider.oauthAccount')}
+                  </div>
+                </div>
+
+                <div className={styles.cardActions}>
+                  {account.isActive ? (
+                    <div className={styles.activeBadge}>
+                      <span className="codicon codicon-check" />
+                      {t('settings.provider.inUse')}
+                    </div>
+                  ) : (
+                    <button
+                      className={styles.useButton}
+                      disabled={!account.isAuthenticated}
+                      onClick={() => onSwitch(account.id)}
+                    >
+                      <span className="codicon codicon-arrow-swap" />
+                      {t('settings.provider.enable')}
+                    </button>
+                  )}
+                  <div className={styles.divider} />
+                  <button
+                    className={styles.iconBtn}
+                    onClick={() => onDelete(account)}
+                    title={t('common.delete')}
+                  >
+                    <span className="codicon codicon-trash" />
+                  </button>
+                </div>
+              </div>
+            ))}
+
           {(() => {
-            const regularProviders = localProviders.filter(p => p.id !== SPECIAL_PROVIDER_IDS.LOCAL_SETTINGS && p.id !== SPECIAL_PROVIDER_IDS.CLI_LOGIN);
+            const regularProviders = localProviders.filter(
+              p => p.id !== SPECIAL_PROVIDER_IDS.LOCAL_SETTINGS
+                && p.id !== SPECIAL_PROVIDER_IDS.CLI_LOGIN
+                && !p.isCliAccountProvider
+            );
             return regularProviders.length > 0 ? (
               regularProviders.map((provider) => (
             <div

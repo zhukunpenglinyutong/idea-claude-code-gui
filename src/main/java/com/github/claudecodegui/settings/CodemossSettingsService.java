@@ -16,7 +16,6 @@ import com.intellij.openapi.project.Project;
 
 import java.io.File;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -81,6 +80,7 @@ public class CodemossSettingsService {
     private final SkillManager skillManager;
     private final McpServerManager mcpServerManager;
     private final ProviderManager providerManager;
+    private final ClaudeOAuthAccountManager claudeOAuthAccountManager;
     private final CodexProviderManager codexProviderManager;
 
     public CodemossSettingsService() {
@@ -153,6 +153,24 @@ public class CodemossSettingsService {
         );
 
         // Initialize ProviderManager
+        this.claudeOAuthAccountManager = new ClaudeOAuthAccountManager(
+                gson,
+                (ignored) -> {
+                    try {
+                        return readConfig();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                },
+                (config) -> {
+                    try {
+                        writeConfig(config);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+        );
+
         this.providerManager = new ProviderManager(
                 gson,
                 (ignored) -> {
@@ -170,7 +188,8 @@ public class CodemossSettingsService {
                     }
                 },
                 pathManager,
-                claudeSettingsManager
+                claudeSettingsManager,
+                claudeOAuthAccountManager
         );
 
         // Initialize CodexSettingsManager
@@ -241,13 +260,28 @@ public class CodemossSettingsService {
         // Back up existing config
         backupConfig();
 
-        String configPath = getConfigPath();
-        try (FileWriter writer = new FileWriter(configPath, StandardCharsets.UTF_8)) {
-            gson.toJson(config, writer);
+        Path configPath = Paths.get(getConfigPath());
+        String serialized = gson.toJson(config);
+        // Write to a temp file and atomically swap it in. A plain FileWriter truncates
+        // the target before writing, so a concurrent reader could observe an empty or
+        // half-written file — and readConfig() silently falls back to a default config
+        // on a parse error, which would wipe the in-memory provider list.
+        Path parent = configPath.getParent();
+        Path temp = Files.createTempFile(parent, configPath.getFileName().toString(), ".tmp");
+        try {
+            Files.writeString(temp, serialized, StandardCharsets.UTF_8);
+            try {
+                Files.move(temp, configPath,
+                        StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (java.nio.file.AtomicMoveNotSupportedException ignored) {
+                Files.move(temp, configPath, StandardCopyOption.REPLACE_EXISTING);
+            }
             LOG.info("[CodemossSettings] Successfully wrote config to: " + configPath);
         } catch (Exception e) {
             LOG.warn("[CodemossSettings] Failed to write config: " + e.getMessage());
             throw e;
+        } finally {
+            Files.deleteIfExists(temp);
         }
     }
 
@@ -855,6 +889,22 @@ public class CodemossSettingsService {
 
     public void switchClaudeProvider(String id) throws IOException {
         providerManager.switchClaudeProvider(id);
+    }
+
+    public JsonObject saveCurrentClaudeOAuthAccount() throws IOException {
+        return claudeOAuthAccountManager.saveCurrentAccount();
+    }
+
+    public void deleteClaudeOAuthAccount(String id) throws IOException {
+        claudeOAuthAccountManager.deleteAccount(id);
+    }
+
+    public boolean isClaudeOAuthAccountId(String id) {
+        return claudeOAuthAccountManager.isAccountId(id);
+    }
+
+    public void refreshActiveClaudeOAuthAccount() {
+        claudeOAuthAccountManager.refreshActiveAccountIfNeeded();
     }
 
     public void deactivateClaudeProvider() throws IOException {

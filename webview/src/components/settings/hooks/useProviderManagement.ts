@@ -213,7 +213,10 @@ export function useProviderManagement(options: UseProviderManagementOptions = {}
     if (!provider) return;
 
     const data = { id: provider.id };
-    sendToJava(`delete_provider:${JSON.stringify(data)}`);
+    const messageType = provider.isCliAccountProvider
+      ? 'delete_claude_account'
+      : 'delete_provider';
+    sendToJava(`${messageType}:${JSON.stringify(data)}`);
     onSuccess?.(t('toast.providerDeleted'));
     setLoading(true);
     setDeleteConfirm({ isOpen: false, provider: null });

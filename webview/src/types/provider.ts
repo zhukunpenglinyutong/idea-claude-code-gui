@@ -130,6 +130,12 @@ export interface ProviderConfig {
   source?: 'cc-switch' | string;
   isLocalProvider?: boolean;
   isCliLoginProvider?: boolean;
+  /** Saved Claude CLI OAuth account backed by JetBrains PasswordSafe. */
+  isCliAccountProvider?: boolean;
+  /** Safe display-only account email. */
+  emailAddress?: string;
+  /** Whether PasswordSafe still contains credentials for this account. */
+  isAuthenticated?: boolean;
   /** Custom model list (displayed before built-in models in the selector) */
   customModels?: CodexCustomModel[];
   settingsConfig?: {

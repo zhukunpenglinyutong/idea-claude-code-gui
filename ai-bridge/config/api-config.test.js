@@ -312,6 +312,19 @@ test('setupApiKey enters CLI login when config.json sets claude.current=__cli_lo
   assert.equal(result.result.apiKey, null);
 });
 
+test('setupApiKey enters CLI login for a saved multi-account profile', () => {
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-gui-api-config-'));
+  const claudeDir = path.join(tempHome, '.claude');
+  fs.mkdirSync(claudeDir, { recursive: true });
+  writeCodemossClaudeConfig(tempHome, '__cli_account__:account-1');
+  fs.writeFileSync(path.join(claudeDir, 'settings.json'), JSON.stringify({ env: {} }), 'utf8');
+
+  const result = runSetupApiKey(tempHome);
+  assert.equal(result.ok, true);
+  assert.equal(result.result.authType, 'cli_login');
+  assert.equal(result.result.apiKey, null);
+});
+
 test('setupApiKey CLI login takes priority over existing API keys (no fallback)', () => {
   const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-gui-api-config-'));
   const claudeDir = path.join(tempHome, '.claude');
