@@ -86,6 +86,9 @@ describe('useWindowCallbacks integration', () => {
     openPermissionDialog: vi.fn(),
     openAskUserQuestionDialog: vi.fn(),
     openPlanApprovalDialog: vi.fn(),
+    forceClosePermissionDialog: vi.fn(),
+    forceCloseAskUserQuestionDialog: vi.fn(),
+    forceClosePlanApprovalDialog: vi.fn(),
     openContextUsageDialog: vi.fn(),
     updateContextUsageData: vi.fn(),
     closeContextUsageDialog: vi.fn(),
@@ -128,6 +131,22 @@ describe('useWindowCallbacks integration', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
+
+  /**
+   * Builds opts whose setMessages mock actually runs the updater against a shared
+   * messages buffer, so the production reducer logic is exercised end to end.
+   * Shared by the "marks unresolved tool_use as interrupted" and Issue #1315 suites.
+   */
+  const createOptsWithMessages = (messages: ClaudeMessage[]) => {
+    const buffer = { current: messages };
+    const setMessages = vi.fn((value: ClaudeMessage[] | ((prev: ClaudeMessage[]) => ClaudeMessage[])) => {
+      buffer.current = typeof value === 'function'
+        ? (value as (prev: ClaudeMessage[]) => ClaudeMessage[])(buffer.current)
+        : value;
+    });
+    const opts = createOptions({ setMessages: setMessages as never });
+    return { opts, buffer };
+  };
 
   // ===== historyLoadComplete releases transition guard =====
 
@@ -885,23 +904,6 @@ describe('useWindowCallbacks integration', () => {
 
   // ===== Interrupted tool_use cleanup on stream end =====
   describe('onStreamEnd marks unresolved tool_use as interrupted', () => {
-    /**
-     * Builds opts whose setMessages mock actually runs the updater against a
-     * shared messages buffer, so the production reducer logic is exercised.
-     */
-    const createOptsWithMessages = (messages: ClaudeMessage[]) => {
-      const buffer = { current: messages };
-      const setMessages = vi.fn((value: ClaudeMessage[] | ((prev: ClaudeMessage[]) => ClaudeMessage[])) => {
-        buffer.current = typeof value === 'function'
-          ? (value as (prev: ClaudeMessage[]) => ClaudeMessage[])(buffer.current)
-          : value;
-      });
-      const opts = createOptions({ setMessages: setMessages as never });
-      opts.streamingTurnIdRef.current = 0;
-      opts.turnIdCounterRef.current = 0;
-      return { opts, buffer };
-    };
-
     it('adds tool_use IDs without matching tool_result to __deniedToolIds', () => {
       // Setup: last assistant has 3 tool_use blocks, but the following user
       // message only carries the first one's tool_result. This mirrors the
@@ -963,6 +965,41 @@ describe('useWindowCallbacks integration', () => {
       act(() => { window.onStreamEnd!('5'); });
 
       expect(window.__deniedToolIds?.has('tool-x')).toBe(false);
+    });
+
+    it('REGRESSION: parallel tool_use with SEPARATE tool_result user messages are not falsely denied', () => {
+      // Backend (ClaudeMessageHandler.handleToolResult) creates ONE user message
+      // per tool_result — so 3 parallel tool_use produce 3 consecutive user
+      // messages, each carrying a single tool_result. collectUnresolvedToolUseIds
+      // 'lastTurn' only inspects messages[i+1]; if it does not look beyond the
+      // first result message it will falsely flag tool-2 / tool-3 as interrupted.
+      const assistant: ClaudeMessage = {
+        type: 'assistant',
+        content: 'running parallel batch',
+        raw: {
+          content: [
+            { type: 'tool_use', id: 'tool-1', name: 'bash', input: { command: 'echo a' } },
+            { type: 'tool_use', id: 'tool-2', name: 'bash', input: { command: 'echo b' } },
+            { type: 'tool_use', id: 'tool-3', name: 'bash', input: { command: 'echo c' } },
+          ],
+        } as never,
+        timestamp: new Date().toISOString(),
+      };
+      const resultFor = (id: string): ClaudeMessage => ({
+        type: 'user',
+        content: '',
+        raw: { content: [{ type: 'tool_result', tool_use_id: id, content: 'ok' }] } as never,
+        timestamp: new Date().toISOString(),
+      });
+      const { opts } = createOptsWithMessages([assistant, resultFor('tool-1'), resultFor('tool-2'), resultFor('tool-3')]);
+      renderHook(() => useWindowCallbacks(opts));
+
+      act(() => { window.onStreamStart!(); });
+      act(() => { window.onStreamEnd!('5'); });
+
+      expect(window.__deniedToolIds?.has('tool-1')).toBe(false);
+      expect(window.__deniedToolIds?.has('tool-2')).toBe(false);
+      expect(window.__deniedToolIds?.has('tool-3')).toBe(false);
     });
 
     it('historyLoadComplete scans ALL turns and marks orphan tool_use as denied', () => {
@@ -1055,26 +1092,13 @@ describe('useWindowCallbacks integration', () => {
       expect(window.__deniedToolIds?.has('old-A')).toBe(false);
     });
 
-    it('onPermissionDenied still marks unresolved tool_use (regression guard)', () => {
-      // Sanity check that refactoring onPermissionDenied to share the helper
-      // did not change its observable behavior.
-      const assistant: ClaudeMessage = {
-        type: 'assistant',
-        content: '',
-        raw: {
-          content: [
-            { type: 'tool_use', id: 'denied-1', name: 'bash', input: { command: 'rm' } },
-          ],
-        } as never,
-        timestamp: new Date().toISOString(),
-      };
-      const { opts } = createOptsWithMessages([assistant]);
-      renderHook(() => useWindowCallbacks(opts));
-
-      act(() => { window.onPermissionDenied!(); });
-
-      expect(window.__deniedToolIds?.has('denied-1')).toBe(true);
-    });
+    // NOTE: The legacy `onPermissionDenied still marks unresolved tool_use`
+    // test was removed. It asserted that onPermissionDenied works in isolation,
+    // but the backend (ClaudeChatWindow.interruptDueToPermissionDenial) ALWAYS
+    // calls onStreamEnd immediately after onPermissionDenied in the same EDT
+    // block, so the isolated scenario never happens in production. The real
+    // sequence is now covered by the integration test in the
+    // "onPermissionDenied → onStreamEnd integration" describe block below.
 
     it('stale backend snapshot during streaming must not redirect streamingMessageIndexRef to prior-turn assistant', () => {
       stubSynchronousTimers();
@@ -1225,7 +1249,7 @@ describe('useWindowCallbacks integration', () => {
       });
     });
 
-    it('onBlockReset clears streaming refs to prevent cross-turn content merging', () => {
+    it('onBlockReset keeps streaming refs cumulative across turns (single assistant message)', () => {
       stubSynchronousTimers();
 
       const opts = createOptions();
@@ -1235,33 +1259,33 @@ describe('useWindowCallbacks integration', () => {
       act(() => { window.onStreamStart!(); });
       expect(opts.isStreamingRef.current).toBe(true);
 
-      // Simulate first turn's thinking delta
+      // Simulate first turn's thinking + content deltas
       act(() => { window.onThinkingDelta!('Turn1Thinking'); });
-      expect(opts.streamingThinkingRef.current).toBe('Turn1Thinking');
-
-      // Simulate first turn's content delta
       act(() => { window.onContentDelta!('Turn1Content'); });
-      expect(opts.streamingContentRef.current).toBe('Turn1Content');
 
-      // Block reset signal arrives (new assistant message in stream)
+      // Block reset signal arrives (a new assistant turn within the same
+      // stream). The Java layer keeps ONE assistant message for the whole
+      // turn and appends each turn's text/thinking as additional raw blocks,
+      // so the frontend must keep accumulating to preserve the prefix earlier
+      // turns contributed. Clearing here would break prefix reconciliation.
       act(() => { window.onBlockReset!(); });
 
-      // Streaming refs should be cleared
-      expect(opts.streamingThinkingRef.current).toBe('');
-      expect(opts.streamingContentRef.current).toBe('');
-
-      // But streaming should still be active
+      // Refs are intentionally retained, NOT cleared.
+      expect(opts.streamingThinkingRef.current).toBe('Turn1Thinking');
+      expect(opts.streamingContentRef.current).toBe('Turn1Content');
       expect(opts.isStreamingRef.current).toBe(true);
 
-      // Second turn's deltas arrive - should NOT merge with first turn
+      // Second turn's deltas append to the cumulative buffer.
       act(() => { window.onThinkingDelta!('Turn2Thinking'); });
-      expect(opts.streamingThinkingRef.current).toBe('Turn2Thinking');
+      expect(opts.streamingThinkingRef.current).toBe('Turn1ThinkingTurn2Thinking');
 
       act(() => { window.onContentDelta!('Turn2Content'); });
-      expect(opts.streamingContentRef.current).toBe('Turn2Content');
+      expect(opts.streamingContentRef.current).toBe('Turn1ContentTurn2Content');
 
-      // If onBlockReset was NOT called, we would have "Turn1ThinkingTurn2Thinking"
-      // and "Turn1ContentTurn2Content" (merged content)
+      // Cross-turn separation is enforced downstream by the sync functions'
+      // trailing-block guard (see useStreamingMessages.test.ts: "does not
+      // overwrite a finalized thinking block when the new turn's own block has
+      // not arrived yet"), NOT by clearing the buffers here.
     });
 
     it('onBlockReset is ignored when stream is not active', () => {
@@ -1411,6 +1435,414 @@ describe('useWindowCallbacks integration', () => {
       expect(recovered).toBeDefined();
       expect(recovered!.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
       expect(Number.isNaN(Date.parse(recovered!.timestamp as string))).toBe(false);
+    });
+  });
+
+  // ===== Issue #1315 regression test: React 18 batching fix =====
+  //
+  // These tests exercise the production code path with a REAL setMessages mock that
+  // applies the updater (via createOptsWithMessages), so the side effects inside the
+  // updater — including the __deniedToolIds mutation that must live INSIDE the updater
+  // under React 18 batching — are exercised exactly as they run in production.
+
+  describe('onStreamEnd React 18 batching fix (Issue #1315)', () => {
+    it('should not lose assistant message when interrupted tools exist', () => {
+      // Initial state: streaming assistant with an unresolved tool_use.
+      const initialMessages: ClaudeMessage[] = [
+        {
+          type: 'assistant',
+          content: 'Running command...',
+          isStreaming: true,
+          timestamp: '2026-06-14T10:00:00.000Z',
+          raw: {
+            message: {
+              content: [
+                { type: 'text', text: 'Running command...' },
+                { type: 'tool_use', id: 'tool-1', name: 'Bash', input: { command: 'ls' } },
+              ],
+            },
+          } as never,
+        },
+      ];
+
+      const { opts, buffer } = createOptsWithMessages(initialMessages);
+      opts.isStreamingRef.current = true;
+      opts.streamingMessageIndexRef.current = 0;
+      opts.streamingTurnIdRef.current = 10;
+      opts.turnIdCounterRef.current = 10;
+
+      renderHook(() => useWindowCallbacks(opts));
+
+      // Simulate: pending snapshot has final content but no tool_result (interrupted).
+      window.__pendingUpdateJson = JSON.stringify([
+        {
+          type: 'assistant',
+          content: 'Running command... [interrupted]',
+          raw: {
+            message: {
+              content: [
+                { type: 'text', text: 'Running command... [interrupted]' },
+                { type: 'tool_use', id: 'tool-1', name: 'Bash', input: { command: 'ls' } },
+              ],
+            },
+          },
+        },
+      ]);
+
+      act(() => {
+        window.onStreamEnd!('20');
+      });
+
+      // The buffer holds the state React would have committed.
+      const result = buffer.current;
+
+      // Verify: assistant message should be finalized, not lost.
+      expect(result).toHaveLength(1);
+      expect(result[0].content).toContain('interrupted');
+      expect(result[0].isStreaming).toBe(false);
+
+      // Verify: interrupted tool should be marked as denied.
+      expect(window.__deniedToolIds?.has('tool-1')).toBe(true);
+
+      // Cleanup
+      delete window.__pendingUpdateJson;
+    });
+
+    it('should handle tool_result recovery and interrupted tool detection together', () => {
+      // Initial state: streaming assistant with two tool_use blocks.
+      const initialMessages: ClaudeMessage[] = [
+        {
+          type: 'assistant',
+          content: 'Running commands...',
+          isStreaming: true,
+          timestamp: '2026-06-14T10:00:00.000Z',
+          raw: {
+            message: {
+              content: [
+                { type: 'text', text: 'Running commands...' },
+                { type: 'tool_use', id: 'tool-1', name: 'Bash', input: { command: 'ls' } },
+                { type: 'tool_use', id: 'tool-2', name: 'Read', input: { path: 'file.txt' } },
+              ],
+            },
+          } as never,
+        },
+      ];
+
+      const { opts, buffer } = createOptsWithMessages(initialMessages);
+      opts.isStreamingRef.current = true;
+      opts.streamingMessageIndexRef.current = 0;
+      opts.streamingTurnIdRef.current = 11;
+      opts.turnIdCounterRef.current = 11;
+
+      renderHook(() => useWindowCallbacks(opts));
+
+      // Simulate: pending snapshot has final content with one tool_result, one interrupted.
+      window.__pendingUpdateJson = JSON.stringify([
+        {
+          type: 'assistant',
+          content: 'Running commands... Done',
+          raw: {
+            message: {
+              content: [
+                { type: 'text', text: 'Running commands... Done' },
+                { type: 'tool_use', id: 'tool-1', name: 'Bash', input: { command: 'ls' } },
+                { type: 'tool_use', id: 'tool-2', name: 'Read', input: { path: 'file.txt' } },
+              ],
+            },
+          },
+        },
+        {
+          type: 'user',
+          content: '[tool_result]',
+          raw: {
+            content: [
+              { type: 'tool_result', tool_use_id: 'tool-1', content: 'file1.txt\nfile2.js' },
+            ],
+          },
+        },
+      ]);
+
+      act(() => {
+        window.onStreamEnd!('30');
+      });
+
+      const result = buffer.current;
+
+      // Verify: should have assistant + tool_result.
+      expect(result.length).toBeGreaterThanOrEqual(2);
+      expect(result[0].isStreaming).toBe(false);
+
+      // Verify: tool_result should be recovered.
+      const toolResult = result.find((m: ClaudeMessage) => m.content === '[tool_result]');
+      expect(toolResult).toBeDefined();
+
+      // Verify: only tool-2 should be marked as interrupted (tool-1 has a result).
+      expect(window.__deniedToolIds?.has('tool-1')).toBe(false);
+      expect(window.__deniedToolIds?.has('tool-2')).toBe(true);
+
+      // Cleanup
+      delete window.__pendingUpdateJson;
+    });
+
+    it('should not mark tools as interrupted when all have results', () => {
+      // Initial state already carries the tool_result (the normal-completion path:
+      // the SDK delivers results before onStreamEnd).  We do NOT set
+      // __pendingUpdateJson here because onStreamStart() clears it.
+      const initialMessages: ClaudeMessage[] = [
+        {
+          type: 'assistant',
+          content: 'Running command...',
+          isStreaming: true,
+          timestamp: '2026-06-14T10:00:00.000Z',
+          raw: {
+            message: {
+              content: [
+                { type: 'tool_use', id: 'tool-1', name: 'Bash', input: { command: 'ls' } },
+              ],
+            },
+          } as never,
+        },
+        {
+          type: 'user',
+          content: '[tool_result]',
+          timestamp: '2026-06-14T10:00:01.000Z',
+          raw: {
+            content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'ok' }],
+          } as never,
+        },
+      ];
+
+      const { opts } = createOptsWithMessages(initialMessages);
+      opts.streamingTurnIdRef.current = 12;
+      opts.turnIdCounterRef.current = 12;
+
+      renderHook(() => useWindowCallbacks(opts));
+
+      act(() => {
+        window.onStreamStart!();
+        window.onStreamEnd!('40');
+      });
+
+      // Verify: no tools should be marked as interrupted.
+      expect(window.__deniedToolIds?.has('tool-1')).toBe(false);
+    });
+  });
+
+  // ===== onPermissionDenied → onStreamEnd integration =====
+  //
+  // The backend (ClaudeChatWindow.interruptDueToPermissionDenial) ALWAYS calls
+  // onStreamEnd immediately after onPermissionDenied in the same EDT block.
+  // onPermissionDenied is therefore a no-op in production; the interrupted-tool
+  // scan is owned by onStreamEnd's merged updater. These tests simulate the real
+  // backend sequence so the scan coverage is preserved.
+
+  describe('onPermissionDenied → onStreamEnd integration', () => {
+    it('marks denied tool ids and finalizes assistant when backend calls the real sequence', () => {
+      // Initial state: streaming assistant with an unresolved tool_use that will
+      // be interrupted by the permission denial.
+      const initialMessages: ClaudeMessage[] = [
+        {
+          type: 'assistant',
+          content: 'About to run...',
+          isStreaming: true,
+          timestamp: '2026-06-14T11:00:00.000Z',
+          raw: {
+            message: {
+              content: [
+                { type: 'text', text: 'About to run...' },
+                { type: 'tool_use', id: 'perm-1', name: 'Bash', input: { command: 'rm -rf /' } },
+              ],
+            },
+          } as never,
+        },
+      ];
+
+      const { opts, buffer } = createOptsWithMessages(initialMessages);
+      opts.isStreamingRef.current = true;
+      opts.streamingMessageIndexRef.current = 0;
+      opts.streamingTurnIdRef.current = 20;
+      opts.turnIdCounterRef.current = 20;
+
+      renderHook(() => useWindowCallbacks(opts));
+
+      // The pending snapshot carries the final (interrupted) assistant content.
+      window.__pendingUpdateJson = JSON.stringify([
+        {
+          type: 'assistant',
+          content: 'About to run... [denied]',
+          raw: {
+            message: {
+              content: [
+                { type: 'text', text: 'About to run... [denied]' },
+                { type: 'tool_use', id: 'perm-1', name: 'Bash', input: { command: 'rm -rf /' } },
+              ],
+            },
+          },
+        },
+      ]);
+
+      // Simulate the real backend sequence: onPermissionDenied THEN onStreamEnd
+      // in the same synchronous EDT block (same React batch).
+      act(() => {
+        window.onPermissionDenied!();
+        window.onStreamEnd!('50');
+      });
+
+      const result = buffer.current;
+
+      // The denied tool id must be marked (onStreamEnd's scan owns this now).
+      expect(window.__deniedToolIds?.has('perm-1')).toBe(true);
+
+      // The assistant message must be finalized (last-writer = onStreamEnd wins
+      // the batch and preserves the merged content).
+      expect(result).toHaveLength(1);
+      expect(result[0].content).toContain('denied');
+      expect(result[0].isStreaming).toBe(false);
+
+      delete window.__pendingUpdateJson;
+    });
+
+    it('onPermissionDenied alone does NOT mutate __deniedToolIds (no-op contract)', () => {
+      // Guards the no-op refactor: without the follow-up onStreamEnd, the scan
+      // must not run. (This mirrors a hypothetical future caller that fires
+      // onPermissionDenied in isolation; today the backend never does this.)
+      const initialMessages: ClaudeMessage[] = [
+        {
+          type: 'assistant',
+          content: '',
+          isStreaming: true,
+          timestamp: '2026-06-14T11:00:00.000Z',
+          raw: {
+            message: {
+              content: [
+                { type: 'tool_use', id: 'solo-1', name: 'Bash', input: { command: 'ls' } },
+              ],
+            },
+          } as never,
+        },
+      ];
+
+      const { opts } = createOptsWithMessages(initialMessages);
+      opts.isStreamingRef.current = true;
+      opts.streamingMessageIndexRef.current = 0;
+      opts.streamingTurnIdRef.current = 21;
+      opts.turnIdCounterRef.current = 21;
+
+      renderHook(() => useWindowCallbacks(opts));
+
+      act(() => {
+        window.onPermissionDenied!();
+      });
+
+      // No scan ran — the id is NOT marked.
+      expect(window.__deniedToolIds?.has('solo-1')).toBe(false);
+      // And setMessages was not called by onPermissionDenied (no wasted render).
+      expect((opts.setMessages as any)).not.toHaveBeenCalled();
+    });
+  });
+
+  // ===== onStreamEnd index-guard __turnId fallback (residual risk A) =====
+  //
+  // When an interleaved updateMessages reorders/shrinks the message list so the
+  // snapshot index no longer points at the streaming assistant, onStreamEnd must
+  // fall back to a __turnId re-scan to avoid silently dropping the final content.
+
+  describe('onStreamEnd index-guard __turnId fallback', () => {
+    it('finalizes the assistant found via __turnId when the snapshot index is stale', () => {
+      // Initial state: prev[0] is a user message (simulating a reordered list),
+      // and the streaming assistant (__turnId=30) sits at index 1.
+      const initialMessages: ClaudeMessage[] = [
+        { type: 'user', content: 'reordered question', timestamp: '2026-06-14T12:00:00.000Z' },
+        {
+          type: 'assistant',
+          content: 'partial stream',
+          isStreaming: true,
+          timestamp: '2026-06-14T12:00:01.000Z',
+          __turnId: 30,
+          raw: {
+            message: {
+              content: [
+                { type: 'text', text: 'partial stream' },
+                { type: 'tool_use', id: 'fallback-1', name: 'Bash', input: { command: 'ls' } },
+              ],
+            },
+          } as never,
+        },
+      ];
+
+      const { opts, buffer } = createOptsWithMessages(initialMessages);
+      opts.isStreamingRef.current = true;
+      // Snapshot index points at the user message (index 0) — stale/wrong.
+      opts.streamingMessageIndexRef.current = 0;
+      opts.streamingTurnIdRef.current = 30;
+      opts.turnIdCounterRef.current = 30;
+
+      renderHook(() => useWindowCallbacks(opts));
+
+      // Pending snapshot carries the final assistant content.
+      window.__pendingUpdateJson = JSON.stringify([
+        {
+          type: 'assistant',
+          content: 'partial stream [final]',
+          raw: {
+            message: {
+              content: [
+                { type: 'text', text: 'partial stream [final]' },
+                { type: 'tool_use', id: 'fallback-1', name: 'Bash', input: { command: 'ls' } },
+              ],
+            },
+          },
+        },
+      ]);
+
+      act(() => {
+        window.onStreamEnd!('60');
+      });
+
+      const result = buffer.current;
+
+      // The __turnId=30 assistant at index 1 must be finalized — NOT silently dropped.
+      const finalized = result.find(
+        (m) => m.type === 'assistant' && m.__turnId === 30,
+      );
+      expect(finalized).toBeDefined();
+      expect(finalized!.content).toContain('final');
+      expect(finalized!.isStreaming).toBe(false);
+
+      // The interrupted tool is still flagged by the scan.
+      expect(window.__deniedToolIds?.has('fallback-1')).toBe(true);
+
+      delete window.__pendingUpdateJson;
+    });
+
+    it('does not throw and preserves state when neither index nor __turnId matches', () => {
+      // Snapshot index invalid AND no assistant carries the ended __turnId.
+      // onStreamEnd must degrade gracefully (same no-op behavior as today).
+      const initialMessages: ClaudeMessage[] = [
+        { type: 'user', content: 'orphan state', timestamp: '2026-06-14T12:30:00.000Z' },
+      ];
+
+      const { opts, buffer } = createOptsWithMessages(initialMessages);
+      opts.isStreamingRef.current = true;
+      opts.streamingMessageIndexRef.current = 5; // out of range
+      opts.streamingTurnIdRef.current = 31;
+      opts.turnIdCounterRef.current = 31;
+
+      renderHook(() => useWindowCallbacks(opts));
+
+      // No pending snapshot — nothing to recover.
+      window.__pendingUpdateJson = JSON.stringify([]);
+
+      expect(() => {
+        act(() => {
+          window.onStreamEnd!('70');
+        });
+      }).not.toThrow();
+
+      // No assistant was finalized/added (nothing matched).
+      expect(buffer.current.every((m) => m.type !== 'assistant')).toBe(true);
+
+      delete window.__pendingUpdateJson;
     });
   });
 });

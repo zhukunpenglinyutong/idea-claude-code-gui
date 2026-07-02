@@ -80,6 +80,35 @@ describe('PermissionDialog', () => {
     expect(screen.getByRole('link', { name: 'https://example.com/docs' })).toBeTruthy();
   });
 
+  it('formats non-string command payloads before rendering markdown', () => {
+    const request: PermissionRequest = {
+      channelId: 'perm-2',
+      toolName: 'bash',
+      inputs: {
+        cwd: 'src/components',
+        command: [
+          { text: 'Read src/components/App.tsx' },
+          { content: 'Reference https://example.com/docs' },
+          7,
+        ],
+      },
+    };
+
+    render(
+      <PermissionDialog
+        isOpen
+        request={request}
+        onApprove={() => {}}
+        onSkip={() => {}}
+        onApproveAlways={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole('link', { name: 'src/components/App.tsx' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'https://example.com/docs' })).toBeTruthy();
+    expect(document.querySelector('.permission-dialog-v3-command-content')?.textContent).toContain('7');
+  });
+
   it('auto-denies with the original channelId after timeoutSeconds elapses', () => {
     vi.useFakeTimers();
     const onApprove = vi.fn();

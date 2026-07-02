@@ -143,6 +143,22 @@ describe('MarkdownBlock linkify integration', () => {
     expect(classLink.getAttribute('data-linkify')).toBe('class');
   });
 
+  it('coerces structured non-string content into readable text', () => {
+    render(
+      <MarkdownBlock
+        content={[
+          { text: 'Open src/components/App.tsx' },
+          { content: 'Visit https://example.com/docs' },
+          42,
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole('link', { name: 'src/components/App.tsx' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'https://example.com/docs' })).toBeTruthy();
+    expect(document.querySelector('.markdown-content')?.textContent).toContain('42');
+  });
+
   it('adds url-link styling to plain URLs and markdown links', () => {
     render(
       <MarkdownBlock content={'Visit https://example.com/docs and [guide](https://example.com/guide)'} />,

@@ -1,0 +1,148 @@
+name: Tests
+
+# CI test coverage for every component of the plugin:
+#   - ai-bridge unit tests (node:test)
+#   - webview unit tests (vitest + tsc typecheck)
+#   - Java unit tests (Linux)
+#   - WSL integration tests (Windows + WSL)
+# All jobs run in parallel and are intentionally independent of build.yml, so a
+# test failure can never block the Build Plugin job.
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
+    branches: [ '**' ]
+
+jobs:
+  # ai-bridge tests use Node's built-in test runner (node:test). They are
+  # invoked from the repository root because api-config.test.js resolves modules
+  # via path.resolve('ai-bridge/...') relative to the working directory.
+  ai-bridge:
+    name: ai-bridge unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.12.0'
+
+      - name: Run ai-bridge tests
+        run: node --test "ai-bridge/**/*.test.js"
+
+  # webview unit tests: vitest run plus a typecheck of the test sources.
+  # No build step is needed — the vitest suite operates against source, not dist.
+  webview:
+    name: webview unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.12.0'
+
+      - name: Install dependencies
+        working-directory: webview
+        run: npm ci
+
+      - name: Generate version file
+        # src/version/version.ts is auto-generated from build.gradle by the
+        # prebuild script and is gitignored, so it is absent on a fresh
+        # checkout. Tests import it (e.g. WelcomeScreen.tsx), so generate it
+        # before running vitest.
+        working-directory: webview
+        run: npm run prebuild
+
+      - name: Run webview tests
+        working-directory: webview
+        run: npm run test
+
+  # Full Java unit-test suite on Linux. The NodeDetectorWslTest integration
+  # tests are Windows+WSL-gated (they Assume Windows+WSL) and are SKIPPED here;
+  # they run in the java-wsl job below so the WSL path behaviour is actually
+  # exercised.
+  java-linux:
+    name: Java unit tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.12.0'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Install webview dependencies
+        working-directory: webview
+        run: npm ci
+
+      - name: Install ai-bridge dependencies
+        working-directory: ai-bridge
+        run: npm ci
+
+      - name: Run tests
+        run: ./gradlew test
+
+  # Runs the Windows+WSL integration tests that the Linux job cannot exercise.
+  # Vampire/setup-wsl installs a real WSL distro so isWslPath /
+  # resolveWslHomeUncPath / resolveHomeForFileOps behave as on a developer's
+  # Windows+WSL machine. The tests still Assume WSL availability, so they
+  # self-skip if the distro fails to come up rather than producing false
+  # failures.
+  java-wsl:
+    name: WSL integration tests (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.12.0'
+
+      - name: Set up WSL
+        uses: Vampire/setup-wsl@v7
+        with:
+          distribution: Ubuntu-22.04
+
+      - name: Install Node.js inside WSL
+        shell: wsl-bash {0}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nodejs
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Install webview dependencies
+        working-directory: webview
+        run: npm ci
+
+      - name: Install ai-bridge dependencies
+        working-directory: ai-bridge
+        run: npm ci
+
+      - name: Run WSL integration tests
+        run: ./gradlew test --tests "com.github.claudecodegui.bridge.NodeDetectorWslTest"

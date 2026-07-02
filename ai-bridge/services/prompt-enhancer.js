@@ -316,13 +316,17 @@ async function enhancePromptWithClaude(originalPrompt, systemPrompt, model, cont
   const claudeCliOverride = getClaudeCliPathOverride();
   const options = {
     cwd: workingDirectory,
-    permissionMode: 'bypassPermissions',
+    // Prompt enhancement only rewrites text — it must never execute tools. Use default
+    // mode with a deny-all canUseTool, and do NOT load project/local settings (whose
+    // permissions.allow could otherwise auto-approve a prompt-injected tool call).
+    permissionMode: 'default',
     model: sdkModelName,
     maxTurns: 1,
     env: buildCliEnv(),
     settings: buildWebviewControlledSettingsOverride(model),
     systemPrompt,
-    settingSources: ['user', 'project', 'local'],
+    settingSources: ['user'],
+    canUseTool: async () => ({ behavior: 'deny', message: 'Prompt enhancement does not execute tools' }),
     ...(claudeCliOverride && { pathToClaudeCodeExecutable: claudeCliOverride }),
   };
 

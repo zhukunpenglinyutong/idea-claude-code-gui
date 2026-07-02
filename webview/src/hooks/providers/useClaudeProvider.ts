@@ -9,7 +9,7 @@ import type { PermissionMode } from '../../components/ChatInputBox/types';
  */
 export function useClaudeProvider() {
   const [selectedClaudeModel, setSelectedClaudeModel] = useState(CLAUDE_MODELS[0].id);
-  const [claudePermissionMode, setClaudePermissionMode] = useState<PermissionMode>('bypassPermissions');
+  const [claudePermissionMode, setClaudePermissionMode] = useState<PermissionMode>('default');
   const [longContextEnabled, setLongContextEnabled] = useState(true);
   const [claudeSettingsAlwaysThinkingEnabled, setClaudeSettingsAlwaysThinkingEnabled] = useState(true);
 

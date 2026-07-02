@@ -19,6 +19,7 @@ interface UseDialogManagementReturn {
   handlePermissionApprove: (channelId: string) => void;
   handlePermissionApproveAlways: (channelId: string) => void;
   handlePermissionSkip: (channelId: string) => void;
+  forceClosePermissionDialog: (channelId?: string | null) => void;
 
   // AskUserQuestion dialog
   askUserQuestionDialogOpen: boolean;
@@ -26,6 +27,7 @@ interface UseDialogManagementReturn {
   openAskUserQuestionDialog: (request: AskUserQuestionRequest) => void;
   handleAskUserQuestionSubmit: (requestId: string, answers: Record<string, string | string[]>) => void;
   handleAskUserQuestionCancel: (requestId: string) => void;
+  forceCloseAskUserQuestionDialog: (requestId?: string | null) => void;
 
   // PlanApproval dialog
   planApprovalDialogOpen: boolean;
@@ -33,6 +35,7 @@ interface UseDialogManagementReturn {
   openPlanApprovalDialog: (request: PlanApprovalRequest) => void;
   handlePlanApprovalApprove: (requestId: string, targetMode: string) => void;
   handlePlanApprovalReject: (requestId: string) => void;
+  forceClosePlanApprovalDialog: (requestId?: string | null) => void;
 
   // Rewind dialog
   rewindDialogOpen: boolean;
@@ -307,6 +310,59 @@ export function useDialogManagement({ t }: UseDialogManagementOptions): UseDialo
     setCurrentPlanApprovalRequest(null);
   }, []);
 
+  // Force-close helpers — invoked by the backend safety-net handlers when the
+  // Java side has already resolved the pending future and we must tear the
+  // WebView dialog down to free the queue. We deliberately do NOT send any
+  // response back to the backend (it has already written one); doing so would
+  // race with the safety-net's empty answer / DENY. The refs are reset
+  // synchronously so a new request arriving in the same tick is not silently
+  // enqueued behind the now-orphaned dialog. Pending-queue entries for the
+  // targeted id (or the entire queue when no id is given) are dropped so a
+  // stale request cannot re-open after the dialog is force-closed.
+  const forceCloseAskUserQuestionDialog = useCallback((requestId?: string | null) => {
+    const targetId = requestId && requestId.length > 0 ? requestId : null;
+    pendingAskUserQuestionRequestsRef.current = targetId === null
+      ? []
+      : pendingAskUserQuestionRequestsRef.current.filter((item) => item.requestId !== targetId);
+    // If the targeted ID doesn't match the active dialog, the item was only in
+    // the queue (now pruned above) — don't close an unrelated active dialog.
+    if (targetId !== null && currentAskUserQuestionRequestRef.current?.requestId !== targetId) {
+      return;
+    }
+    askUserQuestionDialogOpenRef.current = false;
+    currentAskUserQuestionRequestRef.current = null;
+    setAskUserQuestionDialogOpen(false);
+    setCurrentAskUserQuestionRequest(null);
+  }, []);
+
+  const forceClosePermissionDialog = useCallback((channelId?: string | null) => {
+    const targetId = channelId && channelId.length > 0 ? channelId : null;
+    pendingPermissionRequestsRef.current = targetId === null
+      ? []
+      : pendingPermissionRequestsRef.current.filter((item) => item.channelId !== targetId);
+    if (targetId !== null && currentPermissionRequestRef.current?.channelId !== targetId) {
+      return;
+    }
+    permissionDialogOpenRef.current = false;
+    currentPermissionRequestRef.current = null;
+    setPermissionDialogOpen(false);
+    setCurrentPermissionRequest(null);
+  }, []);
+
+  const forceClosePlanApprovalDialog = useCallback((requestId?: string | null) => {
+    const targetId = requestId && requestId.length > 0 ? requestId : null;
+    pendingPlanApprovalRequestsRef.current = targetId === null
+      ? []
+      : pendingPlanApprovalRequestsRef.current.filter((item) => item.requestId !== targetId);
+    if (targetId !== null && currentPlanApprovalRequestRef.current?.requestId !== targetId) {
+      return;
+    }
+    planApprovalDialogOpenRef.current = false;
+    currentPlanApprovalRequestRef.current = null;
+    setPlanApprovalDialogOpen(false);
+    setCurrentPlanApprovalRequest(null);
+  }, []);
+
   // Context usage dialog handlers
   const isCurrentContextUsageRequest = useCallback((requestId?: string | null) => {
     if (requestId == null || requestId === '') {
@@ -350,6 +406,7 @@ export function useDialogManagement({ t }: UseDialogManagementOptions): UseDialo
     handlePermissionApprove,
     handlePermissionApproveAlways,
     handlePermissionSkip,
+    forceClosePermissionDialog,
 
     // AskUserQuestion dialog
     askUserQuestionDialogOpen,
@@ -357,6 +414,7 @@ export function useDialogManagement({ t }: UseDialogManagementOptions): UseDialo
     openAskUserQuestionDialog,
     handleAskUserQuestionSubmit,
     handleAskUserQuestionCancel,
+    forceCloseAskUserQuestionDialog,
 
     // PlanApproval dialog
     planApprovalDialogOpen,
@@ -364,6 +422,7 @@ export function useDialogManagement({ t }: UseDialogManagementOptions): UseDialo
     openPlanApprovalDialog,
     handlePlanApprovalApprove,
     handlePlanApprovalReject,
+    forceClosePlanApprovalDialog,
 
     // Rewind dialog
     rewindDialogOpen,

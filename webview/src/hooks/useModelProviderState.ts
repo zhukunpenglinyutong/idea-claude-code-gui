@@ -38,7 +38,7 @@ export interface UseModelProviderStateOptions {
 export function useModelProviderState({ addToast, t }: UseModelProviderStateOptions) {
   // ── Cross-slice state owned by the orchestrator ──
   const [currentProvider, setCurrentProvider] = useState('claude');
-  const [permissionMode, setPermissionMode] = useState<PermissionMode>('bypassPermissions');
+  const [permissionMode, setPermissionMode] = useState<PermissionMode>('default');
 
   // External-facing ref so window callbacks can read the latest provider
   // without re-binding. Render-time assignment avoids the useRef + useEffect

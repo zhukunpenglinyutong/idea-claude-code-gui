@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -184,6 +185,10 @@ public class CodexSettingsManager {
         String prefix = target.getFileName() != null ? target.getFileName() + "-" : "codex-";
         Path tmp = Files.createTempFile(parent, prefix, ".tmp");
         try {
+            // Security (J): restrict to owner read/write (0600) before writing secrets
+            // (auth.json holds OAuth tokens; config.toml may hold API keys). The atomic
+            // move below preserves these permissions on the target file.
+            hardenFilePermissions(tmp);
             Files.writeString(tmp, content, StandardCharsets.UTF_8);
             try {
                 Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
@@ -196,6 +201,18 @@ public class CodexSettingsManager {
             } catch (Exception e) {
                 LOG.debug("[CodexSettingsManager] Failed to cleanup temp file: " + tmp + " (" + e.getMessage() + ")");
             }
+        }
+    }
+
+    /**
+     * Best-effort restrict a file to owner read/write (0600). No-op on non-POSIX
+     * filesystems (e.g. Windows), where the per-user home directory ACL applies. (Security J)
+     */
+    private static void hardenFilePermissions(Path path) {
+        try {
+            Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rw-------"));
+        } catch (UnsupportedOperationException | IOException e) {
+            LOG.debug("[CodexSettingsManager] Could not set 0600 on " + path + ": " + e.getMessage());
         }
     }
 

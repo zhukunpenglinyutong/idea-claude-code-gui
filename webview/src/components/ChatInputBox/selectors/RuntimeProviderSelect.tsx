@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SPECIAL_PROVIDER_IDS, type CodexProviderConfig, type ProviderConfig } from '../../../types/provider';
 import { sendBridgeEvent } from '../../../utils/bridge';
@@ -8,6 +8,7 @@ import {
   subscribeCodexProviderList,
   subscribeProviderList,
 } from '../../../utils/runtimeProviderCapabilities';
+import { useDropdownPosition } from '../../../hooks/useDropdownPosition';
 
 const DISABLED_OPTION_STYLE: React.CSSProperties = { cursor: 'default' };
 const PROVIDER_INFO_STYLE: React.CSSProperties = { display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 };
@@ -17,6 +18,7 @@ const CHEVRON_ICON_STYLE: React.CSSProperties = { fontSize: '10px', marginLeft: 
 interface RuntimeProviderSelectProps {
   currentProvider: string;
   embedded?: boolean;
+  triggerRef?: React.RefObject<HTMLElement | null>;
   onClose?: () => void;
   onProviderSwitched?: (providerName: string) => void;
 }
@@ -36,7 +38,7 @@ const parseProviderList = (json: string): RuntimeProvider[] => {
  * RuntimeProviderSelect - lightweight active-provider switcher for current engine.
  * Claude mode switches Claude Code providers; Codex mode switches Codex providers.
  */
-export const RuntimeProviderSelect = ({ currentProvider, embedded = false, onClose, onProviderSwitched }: RuntimeProviderSelectProps) => {
+export const RuntimeProviderSelect = ({ currentProvider, embedded = false, triggerRef, onClose, onProviderSwitched }: RuntimeProviderSelectProps) => {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -46,6 +48,12 @@ export const RuntimeProviderSelect = ({ currentProvider, embedded = false, onClo
   });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { positionedStyle, maxHeight: viewportMaxHeight, recalculate } = useDropdownPosition({
+    buttonRef: (embedded ? triggerRef : buttonRef) as React.RefObject<HTMLElement | null>,
+    dropdownRef,
+    submenu: embedded,
+    minWidth: embedded ? 260 : 200,
+  });
 
   const providerKind: ProviderKind = currentProvider === 'codex' ? 'codex' : 'claude';
   const visibleProviders = providersByKind[providerKind];
@@ -87,9 +95,10 @@ export const RuntimeProviderSelect = ({ currentProvider, embedded = false, onClo
     const nextOpen = !isOpen;
     setIsOpen(nextOpen);
     if (nextOpen) {
+      recalculate();
       requestProviders(providerKind);
     }
-  }, [currentProvider, isOpen, providerKind, requestProviders]);
+  }, [currentProvider, isOpen, providerKind, recalculate, requestProviders]);
 
   const handleSelect = useCallback((provider: RuntimeProvider) => {
     const eventName = providerKind === 'codex' ? 'switch_codex_provider' : 'switch_provider';
@@ -198,23 +207,29 @@ export const RuntimeProviderSelect = ({ currentProvider, embedded = false, onClo
     requestProviders(providerKind);
   }, [embedded, providerKind, requestProviders]);
 
+  useLayoutEffect(() => {
+    if (!embedded) return;
+    recalculate();
+  }, [embedded, recalculate, visibleProviders.length, loading]);
+
+  useLayoutEffect(() => {
+    if (embedded || !isOpen) return;
+    recalculate();
+  }, [embedded, isOpen, recalculate, visibleProviders.length, loading]);
+
   if (!isProviderKind(currentProvider)) {
     return null;
   }
 
   const activeName = activeProvider ? getProviderDisplayName(activeProvider, providerKind) : t('config.runtimeProvider.title');
 
+  const dropdownMaxHeight = viewportMaxHeight ? `${Math.min(300, viewportMaxHeight)}px` : '300px';
   const dropdownStyle: React.CSSProperties = {
-    position: 'absolute',
-    bottom: embedded ? 0 : '100%',
-    left: embedded ? '100%' : 0,
-    marginLeft: embedded ? '-30px' : undefined,
-    marginBottom: embedded ? undefined : '4px',
-    zIndex: 10001,
     minWidth: '260px',
     maxWidth: '360px',
-    maxHeight: '300px',
+    maxHeight: dropdownMaxHeight,
     overflowY: 'auto',
+    ...positionedStyle,
   };
 
   const renderProviderDropdown = () => (

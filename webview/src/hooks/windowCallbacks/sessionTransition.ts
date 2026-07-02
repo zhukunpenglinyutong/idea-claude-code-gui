@@ -65,6 +65,14 @@ export const buildResetTransientUiState = (opts: ResetTransientUiStateOptions) =
       cancelAnimationFrame(opts.thinkingUpdateTimeoutRef.current);
       opts.thinkingUpdateTimeoutRef.current = null;
     }
+    // Cancel any updateMessages deferred during the outgoing session's streaming.
+    // beginSessionTransition reaches this via window.__resetTransientUiState
+    // (not clearMessages, which cancels them itself), so without this a buffered
+    // frame would later fire its deferred processUpdateMessages — with
+    // isStreamingRef already cleared here — and resurrect the cleared messages.
+    if (typeof window.__cancelPendingUpdateMessages === 'function') {
+      window.__cancelPendingUpdateMessages();
+    }
     // Clear JCEF native-rendering ghosting left by the outgoing session's overlays
     // and input-box content after the transition unmounts/reflows them.
     forceWebviewRepaint('session-transition');

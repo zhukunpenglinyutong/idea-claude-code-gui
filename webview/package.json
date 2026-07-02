@@ -9,9 +9,11 @@
     "build": "tsc && vite build",
     "postbuild": "node scripts/copy-dist.mjs",
     "test": "vitest run && tsc -p tsconfig.test.json --noEmit",
+    "test:e2e": "playwright test",
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/react": "^16.3.0",
     "@types/dompurify": "^3.0.5",

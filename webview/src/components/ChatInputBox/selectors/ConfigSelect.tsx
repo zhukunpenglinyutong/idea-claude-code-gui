@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import Switch from 'antd/es/switch';
@@ -11,6 +11,7 @@ import {
   subscribeNodeProcesses,
   type NodeProcessSnapshot,
 } from '../../../utils/nodeProcessCapabilities';
+import { useDropdownPosition } from '../../../hooks/useDropdownPosition';
 
 interface ConfigSelectProps {
   alwaysThinkingEnabled?: boolean;
@@ -33,11 +34,10 @@ const TOGGLE_BUTTON_STYLE: React.CSSProperties = {
   marginRight: '-2px',
 };
 
-const SUBMENU_STYLE: React.CSSProperties = {
+const SUBMENU_BASE_STYLE: React.CSSProperties = {
   position: 'absolute',
   left: '100%',
-  bottom: 0,
-  marginLeft: '-30px',
+  top: 0,
   zIndex: 10001,
   minWidth: '320px',
   maxWidth: '360px',
@@ -75,13 +75,14 @@ const AGENT_DESC_PLAIN_STYLE: React.CSSProperties = {
 const DROPDOWN_STYLE: React.CSSProperties = {
   position: 'absolute',
   bottom: '100%',
-  left: 0,
   marginBottom: '4px',
   zIndex: 10000,
   minWidth: '200px',
+  maxWidth: 'calc(100vw - 16px)',
+  overflow: 'visible',
 };
 
-const SELECTOR_OPTION_RELATIVE_STYLE: React.CSSProperties = { position: 'relative' };
+const SELECTOR_OPTION_RELATIVE_STYLE: React.CSSProperties = { position: 'relative', overflow: 'visible' };
 
 const ITEM_INFO_STYLE: React.CSSProperties = {
   display: 'flex',
@@ -152,16 +153,34 @@ export const ConfigSelect = ({
 
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const agentSubmenuRef = useRef<HTMLDivElement>(null);
+  const agentTriggerRef = useRef<HTMLDivElement>(null);
+  const runtimeProviderTriggerRef = useRef<HTMLDivElement>(null);
   const agentAbortControllerRef = useRef<AbortController | null>(null);
   const toastTimerRef = useRef<number | undefined>(undefined);
 
+  const { positionedStyle: mainPositionedStyle, recalculate: mainRecalculate } = useDropdownPosition({
+    buttonRef,
+    dropdownRef,
+  });
+  const { positionedStyle: agentSubmenuPositionedStyle, maxHeight: agentSubmenuMaxHeight, recalculate: agentSubmenuRecalculate } = useDropdownPosition({
+    buttonRef: agentTriggerRef,
+    dropdownRef: agentSubmenuRef,
+    submenu: true,
+    minWidth: 320,
+    submenuMaxHeight: 300,
+    submenuBottomClearance: 96,
+  });
+
   const handleToggle = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsOpen(!isOpen);
-    if (!isOpen) {
+    const nextOpen = !isOpen;
+    setIsOpen(nextOpen);
+    if (nextOpen) {
       setActiveSubmenu('none');
+      mainRecalculate();
     }
-  }, [isOpen]);
+  }, [isOpen, mainRecalculate]);
 
   const loadAgents = useCallback(async () => {
     if (agentAbortControllerRef.current) {
@@ -264,6 +283,17 @@ export const ConfigSelect = ({
     loadAgents();
   }, [activeSubmenu, loadAgents]);
 
+  useLayoutEffect(() => {
+    if (isOpen) {
+      mainRecalculate();
+    }
+  }, [isOpen, mainRecalculate]);
+
+  useLayoutEffect(() => {
+    if (activeSubmenu !== 'agent') return;
+    agentSubmenuRecalculate();
+  }, [activeSubmenu, agentItems.length, agentsLoading, agentSubmenuRecalculate]);
+
   useEffect(() => {
     return () => {
       if (agentAbortControllerRef.current) {
@@ -275,10 +305,17 @@ export const ConfigSelect = ({
     };
   }, []);
 
-  const renderAgentSubmenu = () => (
+  const renderAgentSubmenu = () => {
+    const submenuMaxHeightPx = agentSubmenuMaxHeight ? `${Math.min(300, agentSubmenuMaxHeight)}px` : '300px';
+    return (
     <div
+      ref={agentSubmenuRef}
       className="selector-dropdown"
-      style={SUBMENU_STYLE}
+      style={{
+        ...SUBMENU_BASE_STYLE,
+        ...agentSubmenuPositionedStyle,
+        maxHeight: submenuMaxHeightPx,
+      }}
       onMouseEnter={(e) => {
         e.stopPropagation();
         setActiveSubmenu('agent');
@@ -333,7 +370,8 @@ export const ConfigSelect = ({
         })
       )}
     </div>
-  );
+    );
+  };
 
   return (
     <div style={WRAPPER_STYLE}>
@@ -351,12 +389,17 @@ export const ConfigSelect = ({
         <div
           ref={dropdownRef}
           className="selector-dropdown"
-          style={DROPDOWN_STYLE}
+          style={{ ...DROPDOWN_STYLE, ...mainPositionedStyle }}
         >
           {/* Agent Item */}
           <div
+            ref={agentTriggerRef}
             className="selector-option"
-            onMouseEnter={() => setActiveSubmenu('agent')}
+            data-testid="config-option-agent"
+            onMouseEnter={() => {
+              setActiveSubmenu('agent');
+              agentSubmenuRecalculate();
+            }}
             onMouseLeave={() => setActiveSubmenu('none')}
             style={SELECTOR_OPTION_RELATIVE_STYLE}
           >
@@ -380,7 +423,9 @@ export const ConfigSelect = ({
 
           {/* Runtime Provider Item */}
           <div
+            ref={runtimeProviderTriggerRef}
             className="selector-option"
+            data-testid="config-option-runtime-provider"
             onMouseEnter={() => setActiveSubmenu('runtimeProvider')}
             onMouseLeave={() => setActiveSubmenu('none')}
             style={SELECTOR_OPTION_RELATIVE_STYLE}
@@ -397,6 +442,7 @@ export const ConfigSelect = ({
               <RuntimeProviderSelect
                 currentProvider={currentProvider}
                 embedded
+                triggerRef={runtimeProviderTriggerRef}
                 onProviderSwitched={showProviderToast}
                 onClose={() => {
                   setIsOpen(false);
@@ -411,6 +457,7 @@ export const ConfigSelect = ({
           {/* Node Process Management Item */}
           <div
             className="selector-option"
+            data-testid="config-option-node-processes"
             onMouseEnter={() => setActiveSubmenu('nodeProcesses')}
             onMouseLeave={() => setActiveSubmenu('none')}
             style={SELECTOR_OPTION_RELATIVE_STYLE}

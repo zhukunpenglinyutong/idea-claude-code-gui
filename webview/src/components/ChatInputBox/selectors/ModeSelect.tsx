@@ -1,17 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AVAILABLE_MODES, type PermissionMode } from '../types';
+import { useDropdownPosition } from '../../../hooks/useDropdownPosition';
 
 const RELATIVE_INLINE_BLOCK_STYLE: React.CSSProperties = { position: 'relative', display: 'inline-block' };
 const CHEVRON_ICON_STYLE: React.CSSProperties = { fontSize: '10px', marginLeft: '2px' };
 const DROPDOWN_STYLE: React.CSSProperties = {
   position: 'absolute',
   bottom: '100%',
-  left: 0,
   marginBottom: '4px',
   zIndex: 10000,
+  maxWidth: 'calc(100vw - 16px)',
+  overflowX: 'hidden',
 };
-const MODE_INFO_STYLE: React.CSSProperties = { display: 'flex', flexDirection: 'column', flex: 1 };
+const MODE_INFO_STYLE: React.CSSProperties = { display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, overflow: 'hidden' };
+const MODE_TEXT_STYLE: React.CSSProperties = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
 
 function getModeOptionStyle(disabled: boolean): React.CSSProperties {
   return {
@@ -35,6 +38,11 @@ export const ModeSelect = ({ value, onChange, provider }: ModeSelectProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { positionedStyle, recalculate } = useDropdownPosition({
+    buttonRef,
+    dropdownRef,
+    preferredAlignment: 'right',
+  });
 
   const modeOptions = useMemo(() => {
     if (provider === 'codex') {
@@ -62,8 +70,12 @@ export const ModeSelect = ({ value, onChange, provider }: ModeSelectProps) => {
    */
   const handleToggle = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsOpen(!isOpen);
-  }, [isOpen]);
+    const nextOpen = !isOpen;
+    setIsOpen(nextOpen);
+    if (nextOpen) {
+      recalculate();
+    }
+  }, [isOpen, recalculate]);
 
   /**
    * Select mode
@@ -102,6 +114,12 @@ export const ModeSelect = ({ value, onChange, provider }: ModeSelectProps) => {
     };
   }, [isOpen]);
 
+  useLayoutEffect(() => {
+    if (isOpen) {
+      recalculate();
+    }
+  }, [isOpen, recalculate]);
+
   return (
     <div style={RELATIVE_INLINE_BLOCK_STYLE}>
       <button
@@ -119,11 +137,12 @@ export const ModeSelect = ({ value, onChange, provider }: ModeSelectProps) => {
         <div
           ref={dropdownRef}
           className="selector-dropdown"
-          style={DROPDOWN_STYLE}
+          style={{ ...DROPDOWN_STYLE, ...positionedStyle }}
         >
           {modeOptions.map((mode) => (
             <div
               key={mode.id}
+              data-testid={`mode-option-${mode.id}`}
               className={`selector-option ${mode.id === value ? 'selected' : ''} ${mode.disabled ? 'disabled' : ''}`}
               onClick={() => handleSelect(mode.id, mode.disabled)}
               title={getModeText(mode.id, 'tooltip')}
@@ -131,8 +150,8 @@ export const ModeSelect = ({ value, onChange, provider }: ModeSelectProps) => {
             >
               <span className={`codicon ${mode.icon}`} />
               <div style={MODE_INFO_STYLE}>
-                <span>{getModeText(mode.id, 'label')}</span>
-                <span className="mode-description">{getModeText(mode.id, 'description')}</span>
+                <span style={MODE_TEXT_STYLE}>{getModeText(mode.id, 'label')}</span>
+                <span className="mode-description" style={MODE_TEXT_STYLE}>{getModeText(mode.id, 'description')}</span>
               </div>
               {mode.id === value && (
                 <span className="codicon codicon-check check-mark" />

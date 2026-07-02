@@ -243,6 +243,11 @@ public class NpmPermissionHelper {
         command.add(npmPath);
         command.add("install");
         command.add("--include=optional");
+        // Security (I): never run package lifecycle scripts (pre/post/install) of the SDK or
+        // any transitive dependency — the classic npm-postinstall supply-chain RCE vector.
+        // Verified: the Claude/Codex SDKs and their dependency trees declare no install
+        // scripts, so this changes nothing functionally while closing the vector.
+        command.add("--ignore-scripts");
         command.add("--prefix");
         command.add(prefixPath);
 

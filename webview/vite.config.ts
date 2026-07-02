@@ -7,11 +7,12 @@ export default defineConfig({
     react(),
     viteSingleFile(),
   ],
+  esbuild: {
+    drop: ['debugger'],
+    keepNames: true,
+  },
   build: {
     minify: 'esbuild',
-    esbuild: {
-      drop: ['console', 'debugger'],
-    },
     assetsInlineLimit: 1024 * 1024,
     cssCodeSplit: false,
     sourcemap: false,

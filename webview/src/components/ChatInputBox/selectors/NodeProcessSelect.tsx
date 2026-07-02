@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import ConfirmDialog from '../../ConfirmDialog';
+import { getAppViewport } from '../../../utils/viewport';
 import {
   fetchNodeProcesses,
   killAllOrphanProcesses,
@@ -19,44 +20,20 @@ interface NodeProcessSelectProps {
   onToast?: (message: string) => void;
 }
 
-const DROPDOWN_SIDE_OVERLAP_PX = 30;
-const VIEWPORT_EDGE_MARGIN_PX = 8;
-
 const DROPDOWN_STYLE_EMBEDDED: React.CSSProperties = {
   position: 'absolute',
-  bottom: 0,
+  top: 0,
   left: '100%',
-  marginLeft: -DROPDOWN_SIDE_OVERLAP_PX,
+  marginLeft: 0,
   zIndex: 10001,
   minWidth: '260px',
   width: 'max-content',
-  maxWidth: 'min(360px, calc(100vw - 60px))',
-  maxHeight: 'min(380px, calc(100vh - 100px))',
+  maxWidth: '360px',
+  maxHeight: '380px',
   overflowY: 'auto',
   overflowX: 'hidden',
   padding: '6px 0',
 };
-
-export interface NodeProcessDropdownPositionInput {
-  anchorRect: { left: number; right: number };
-  dropdownWidth: number;
-  viewportWidth: number;
-  overlapPx?: number;
-  edgeMarginPx?: number;
-}
-
-export function shouldFlipNodeProcessDropdownLeft({
-  anchorRect,
-  dropdownWidth,
-  viewportWidth,
-  overlapPx = DROPDOWN_SIDE_OVERLAP_PX,
-  edgeMarginPx = VIEWPORT_EDGE_MARGIN_PX,
-}: NodeProcessDropdownPositionInput): boolean {
-  const rightStart = anchorRect.right - overlapPx;
-  const rightAvailable = viewportWidth - edgeMarginPx - rightStart;
-  const leftAvailable = anchorRect.left + overlapPx - edgeMarginPx;
-  return dropdownWidth > rightAvailable && leftAvailable > rightAvailable;
-}
 
 const GROUP_HEADER_STYLE: React.CSSProperties = {
   display: 'flex',
@@ -185,6 +162,14 @@ const REFRESH_BUTTON_STYLE: React.CSSProperties = {
   padding: '2px 6px',
 };
 
+const DROPDOWN_SIDE_OVERLAP_PX = 30;
+const DROPDOWN_VIEWPORT_PADDING_PX = 8;
+const DROPDOWN_MIN_WIDTH_PX = 260;
+const DROPDOWN_MIN_FLUSH_WIDTH_PX = 180;
+const DROPDOWN_MAX_WIDTH_PX = 360;
+const DROPDOWN_MAX_HEIGHT_PX = 380;
+const DROPDOWN_BOTTOM_CLEARANCE_PX = 72;
+
 // Pending PIDs are per-component-instance state. Each ConfigSelect (one per tab)
 // owns its own pending set — sharing across instances would surface
 // "still working..." spinners in tabs that never issued the kill.
@@ -193,6 +178,62 @@ type PendingConfirm =
   | { kind: 'kill'; proc: NodeProcessInfo }
   | { kind: 'restart'; proc: NodeProcessInfo }
   | { kind: 'killAll'; orphans: NodeProcessInfo[] };
+
+export interface EmbeddedNodeProcessDropdownLayout {
+  flipToLeft: boolean;
+  maxWidth: number;
+  maxHeight: number;
+  topOffset: number;
+  horizontalOverlap: number;
+}
+
+export interface EmbeddedNodeProcessDropdownLayoutInput {
+  parentRect: { left: number; right: number; top: number };
+  viewportWidth: number;
+  viewportHeight: number;
+  dropdownHeight: number;
+}
+
+export function getEmbeddedNodeProcessDropdownLayout({
+  parentRect,
+  viewportWidth,
+  viewportHeight,
+  dropdownHeight,
+}: EmbeddedNodeProcessDropdownLayoutInput): EmbeddedNodeProcessDropdownLayout {
+  const normalAvailableWidth = Math.max(
+    0,
+    viewportWidth - DROPDOWN_VIEWPORT_PADDING_PX - parentRect.right,
+  );
+  const flippedAvailableWidth = Math.max(
+    0,
+    parentRect.left - DROPDOWN_VIEWPORT_PADDING_PX,
+  );
+  const normalShortfall = Math.max(0, DROPDOWN_MIN_FLUSH_WIDTH_PX - normalAvailableWidth);
+  const flippedShortfall = Math.max(0, DROPDOWN_MIN_FLUSH_WIDTH_PX - flippedAvailableWidth);
+  const flipToLeft = normalShortfall > 0 && flippedShortfall < normalShortfall;
+  const availableWidthWithoutOverlap = flipToLeft ? flippedAvailableWidth : normalAvailableWidth;
+  const horizontalOverlap = Math.min(
+    DROPDOWN_SIDE_OVERLAP_PX,
+    Math.max(0, DROPDOWN_MIN_FLUSH_WIDTH_PX - availableWidthWithoutOverlap),
+  );
+  const availableWidth = availableWidthWithoutOverlap + horizontalOverlap;
+  const desiredHeight = Math.min(DROPDOWN_MAX_HEIGHT_PX, Math.max(1, Math.ceil(dropdownHeight)));
+  const availableBelow = viewportHeight - DROPDOWN_VIEWPORT_PADDING_PX - parentRect.top;
+  const minTopOffset = DROPDOWN_VIEWPORT_PADDING_PX - parentRect.top;
+  const topOffset = Math.max(
+    minTopOffset,
+    Math.min(0, availableBelow - desiredHeight - DROPDOWN_BOTTOM_CLEARANCE_PX),
+  );
+  const availableHeight = viewportHeight - DROPDOWN_VIEWPORT_PADDING_PX - parentRect.top - topOffset;
+
+  return {
+    flipToLeft,
+    maxWidth: Math.max(1, Math.min(DROPDOWN_MAX_WIDTH_PX, Math.floor(availableWidth))),
+    maxHeight: Math.max(1, Math.min(DROPDOWN_MAX_HEIGHT_PX, Math.floor(availableHeight))),
+    topOffset,
+    horizontalOverlap,
+  };
+}
 
 function formatUptime(ms: number): string {
   if (ms <= 0) return '—';
@@ -239,28 +280,50 @@ export const NodeProcessSelect = ({ embedded = false, onClose, onToast }: NodePr
   const [snapshot, setSnapshot] = useState<NodeProcessSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingPids, setPendingPids] = useState<Set<number>>(() => new Set());
-  const [flipToLeft, setFlipToLeft] = useState(false);
+  const [embeddedLayout, setEmbeddedLayout] = useState<EmbeddedNodeProcessDropdownLayout>(() => ({
+    flipToLeft: false,
+    maxWidth: DROPDOWN_MAX_WIDTH_PX,
+    maxHeight: DROPDOWN_MAX_HEIGHT_PX,
+    topOffset: 0,
+    horizontalOverlap: 0,
+  }));
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
   const refreshTimerRef = useRef<number | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Decide the submenu side from the parent menu item, not from the current
-  // rendered dropdown position. Measuring the rendered position can oscillate
-  // right -> left -> right in narrow tool windows.
+  // Detect when the dropdown would overflow the viewport on the right side and
+  // flip it to render on the left of the parent menu item instead. Runs after
+  // every snapshot update because the dropdown height/width can change.
   useLayoutEffect(() => {
     if (!embedded) return;
     const node = dropdownRef.current;
     if (!node) return;
-    const anchor = node.parentElement;
-    if (!anchor) return;
-    const anchorRect = anchor.getBoundingClientRect();
-    const rect = node.getBoundingClientRect();
-    const nextFlipToLeft = shouldFlipNodeProcessDropdownLeft({
-      anchorRect,
-      dropdownWidth: rect.width,
-      viewportWidth: window.innerWidth,
+    const parent = node.parentElement;
+    if (!parent) return;
+
+    const viewport = getAppViewport();
+    const parentRect = parent.getBoundingClientRect();
+    const nodeRect = node.getBoundingClientRect();
+    const nextLayout = getEmbeddedNodeProcessDropdownLayout({
+      parentRect: {
+        left: parentRect.left - viewport.left,
+        right: parentRect.right - viewport.left,
+        top: parentRect.top - viewport.top,
+      },
+      viewportWidth: viewport.width,
+      viewportHeight: viewport.height,
+      dropdownHeight: Math.max(nodeRect.height, node.scrollHeight),
     });
-    setFlipToLeft((prev) => (prev === nextFlipToLeft ? prev : nextFlipToLeft));
+
+    setEmbeddedLayout((current) => (
+      current.flipToLeft === nextLayout.flipToLeft
+      && current.maxWidth === nextLayout.maxWidth
+      && current.maxHeight === nextLayout.maxHeight
+      && current.topOffset === nextLayout.topOffset
+      && current.horizontalOverlap === nextLayout.horizontalOverlap
+        ? current
+        : nextLayout
+    ));
   }, [embedded, snapshot]);
 
   const requestRefresh = useCallback(() => {
@@ -516,18 +579,29 @@ export const NodeProcessSelect = ({ embedded = false, onClose, onToast }: NodePr
     );
   };
 
-  // When the right edge would overflow the viewport, anchor the dropdown to
-  // the parent menu item's LEFT side instead so it grows leftward and stays
-  // entirely visible on narrow IDE windows.
-  const dropdownStyle: React.CSSProperties = flipToLeft
+  const embeddedWidthStyle: React.CSSProperties = embedded
+    ? {
+        minWidth: `${Math.min(DROPDOWN_MIN_WIDTH_PX, embeddedLayout.maxWidth)}px`,
+        maxWidth: `${embeddedLayout.maxWidth}px`,
+        maxHeight: `${embeddedLayout.maxHeight}px`,
+        top: `${embeddedLayout.topOffset}px`,
+      }
+    : {};
+
+  const dropdownStyle: React.CSSProperties = embeddedLayout.flipToLeft
     ? {
         ...DROPDOWN_STYLE_EMBEDDED,
+        ...embeddedWidthStyle,
         left: 'auto',
         right: '100%',
         marginLeft: 0,
-        marginRight: -DROPDOWN_SIDE_OVERLAP_PX,
+        marginRight: `-${embeddedLayout.horizontalOverlap}px`,
       }
-    : DROPDOWN_STYLE_EMBEDDED;
+    : {
+        ...DROPDOWN_STYLE_EMBEDDED,
+        ...embeddedWidthStyle,
+        marginLeft: `-${embeddedLayout.horizontalOverlap}px`,
+      };
 
   const renderDropdown = () => (
     <div

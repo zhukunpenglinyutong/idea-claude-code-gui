@@ -23,6 +23,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -251,16 +252,33 @@ public class CodemossSettingsService {
             LOG.warn("[CodemossSettings] Failed to write config: " + e.getMessage());
             throw e;
         }
+        // Security (J): config.json holds provider API keys/tokens; restrict to 0600.
+        hardenFilePermissions(Paths.get(configPath));
     }
 
     private void backupConfig() {
         try {
             Path configPath = pathManager.getConfigFilePath();
             if (Files.exists(configPath)) {
-                Files.copy(configPath, Paths.get(pathManager.getBackupPath()), StandardCopyOption.REPLACE_EXISTING);
+                Path backupPath = Paths.get(pathManager.getBackupPath());
+                Files.copy(configPath, backupPath, StandardCopyOption.REPLACE_EXISTING);
+                // Security (J): the .bak copy also contains secrets; restrict to 0600.
+                hardenFilePermissions(backupPath);
             }
         } catch (Exception e) {
             LOG.warn("[CodemossSettings] Failed to backup config: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Best-effort restrict a file to owner read/write (0600). No-op on non-POSIX
+     * filesystems (e.g. Windows), where the per-user home directory ACL applies. (Security J)
+     */
+    private static void hardenFilePermissions(Path path) {
+        try {
+            Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rw-------"));
+        } catch (UnsupportedOperationException | IOException e) {
+            LOG.debug("[CodemossSettings] Could not set 0600 on " + path + ": " + e.getMessage());
         }
     }
 
@@ -872,7 +890,14 @@ public class CodemossSettingsService {
     }
 
     private String getDefaultCodexSandboxMode() {
-        return CODEX_SANDBOX_MODE_DANGER_FULL_ACCESS;
+        // Security (F): default to workspace-write (sandboxed to the project) instead of
+        // danger-full-access (no sandbox), so a prompt-injected Codex command is contained
+        // to the project by default; full access must be an explicit opt-in. Windows keeps
+        // danger-full-access as a platform fallback because the Codex sandbox is experimental
+        // there (mirrors CodexSDKBridge.resolveCodexSandboxMode).
+        return com.github.claudecodegui.util.PlatformUtils.isWindows()
+                ? CODEX_SANDBOX_MODE_DANGER_FULL_ACCESS
+                : CODEX_SANDBOX_MODE_WORKSPACE_WRITE;
     }
 
     // ==================== Provider Management ====================

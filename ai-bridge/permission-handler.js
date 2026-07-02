@@ -14,7 +14,7 @@ import {
   requestPermissionFromJava,
   requestPlanApproval,
 } from './permission-ipc.js';
-import { rewriteToolInputPaths, isDangerousPath } from './permission-safety.js';
+import { rewriteToolInputPaths, isDangerousPath, collectToolInputPaths } from './permission-safety.js';
 
 // ========== Tool categories for permission control ==========
 
@@ -143,16 +143,19 @@ export async function canUseTool(toolName, input, options = {}) {
     };
   }
 
-  // Check for dangerous paths before allowing
-  const filePath = input.file_path || input.path;
-  if (filePath && isDangerousPath(filePath)) {
+  // Check for dangerous paths before allowing.
+  // Security (K): screen ALL path-bearing fields (file_path, path, notebook_path,
+  // MultiEdit edits[]) and Bash command strings — not just file_path/path — so e.g.
+  // `cat ~/.ssh/id_rsa` issued via Bash is also denied, closing the shell-bypass gap.
+  const dangerousPath = collectToolInputPaths(toolName, input).find(isDangerousPath);
+  if (dangerousPath) {
     debugLog('SECURITY', 'Dangerous path detected, denying', {
       toolName,
-      pathLength: String(filePath).length,
+      pathLength: String(dangerousPath).length,
     });
     return {
       behavior: 'deny',
-      message: `Access to ${filePath} is not allowed for security reasons`
+      message: 'Access to a sensitive path is not allowed for security reasons'
     };
   }
 

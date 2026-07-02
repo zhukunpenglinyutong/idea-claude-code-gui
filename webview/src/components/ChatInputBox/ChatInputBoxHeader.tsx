@@ -4,6 +4,10 @@ import { AttachmentList } from './AttachmentList.js';
 import { ContextBar } from './ContextBar.js';
 import { MessageQueue } from './MessageQueue.js';
 import { useIsCoDriverTheme } from '../../hooks/useActiveThemeMode';
+import { useUIState } from '../../contexts/UIStateContext';
+import { copyToClipboard } from '../../utils/copyUtils';
+
+const GITHUB_REPO_URL = 'https://github.com/zhukunpenglinyutong/jetbrains-cc-gui';
 
 export function ChatInputBoxHeader({
   sdkStatusLoading,
@@ -63,12 +67,35 @@ export function ChatInputBoxHeader({
   onRequestEnableFileContext?: () => void;
 }) {
   const isCoDriver = useIsCoDriverTheme();
+  const { addToast } = useUIState();
+
+  const handleStarProject = async () => {
+    const copied = await copyToClipboard(GITHUB_REPO_URL);
+    if (copied) {
+      addToast(t('chat.openSourceBannerStarToast'), 'success');
+    }
+  };
+
   return (
     <>
       {/* Open source banner */}
       {showOpenSourceBanner && (
         <div className="open-source-banner">
           <span className="banner-text">{t('chat.openSourceBanner')}</span>
+          <button
+            type="button"
+            className="banner-star"
+            aria-label={t('chat.openSourceBannerStarAria')}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleStarProject();
+            }}
+          >
+            <svg className="star-icon" viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">
+              <path d="M12 2.5l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.9l-5.8 3.05 1.11-6.46-4.7-4.58 6.49-.94z" />
+            </svg>
+            <span className="banner-star-text">{t('chat.openSourceBannerStar')}</span>
+          </button>
           <button
             className="banner-close"
             aria-label="Close"

@@ -6,7 +6,7 @@
 import { spawn } from 'child_process';
 import { MCP_TOOLS_TIMEOUT, createSafeEnv, STDIO_TOOLS_MAX_LINE_LENGTH } from './config.js';
 import { log } from './logger.js';
-import { validateCommand } from './command-validator.js';
+import { validateCommand, hasUnsafeShellMetacharacters } from './command-validator.js';
 import { safeKillProcess } from './process-manager.js';
 import { MCP_PROTOCOL_VERSION, MCP_CLIENT_INFO } from './mcp-protocol.js';
 
@@ -92,6 +92,15 @@ export async function getStdioServerTools(serverName, serverConfig) {
       };
 
       if (useShell) {
+        // Security (G): with shell:true Node concatenates command+args into one string that
+        // cmd.exe re-parses, so a metacharacter in any externally-sourced arg becomes command
+        // injection. Refuse to launch when that risk is present instead of executing it.
+        const unsafe = [command, ...args].find(hasUnsafeShellMetacharacters);
+        if (unsafe) {
+          log('warn', `[MCP Tools] Refusing shell launch for ${serverName}: command/args contain shell metacharacters`);
+          finalize(null, 'Command or args contain unsafe shell metacharacters');
+          return;
+        }
         spawnOptions.shell = true;
         log('debug', '[MCP Tools] Using shell for command:', command);
       }

@@ -36,9 +36,10 @@ import {
   shutdownPersistentRuntimes,
   abortCurrentTurn,
   resetRuntimePersistent,
-  getContextUsagePersistent
+  getContextUsagePersistent,
+  setPermissionModePersistent
 } from './services/claude/persistent-query-service.js';
-import { injectStartupEnvVars, isWebviewControlledEnvVar } from './config/api-config.js';
+import { injectStartupEnvVars, isWebviewControlledEnvVar, isDangerousEnvVar } from './config/api-config.js';
 import { cleanupStaleTempImages } from './services/claude/attachment-service.js';
 
 // =============================================================================
@@ -234,6 +235,18 @@ process.stdout.write = function (chunk, encoding, callback) {
   return true;
 };
 
+// Expose the pre-interception writer so out-of-band emitters can write
+// process-level NDJSON that must NOT be wrapped with activeRequestId.
+// The per-runtime perpetual reader (runtime-lifecycle.js) uses this to emit
+// inter-turn 'session_updated' events; without it those events would be
+// misrouted to whatever request happens to be active. See startPerpetualReader().
+process.stdout._originalStdoutWrite = _originalStdoutWrite;
+// Expose the pre-interception stderr writer so out-of-band code (notably the
+// queue-bypassing setPermissionMode path, which runs while another turn's
+// processRequest is active) can log without being tagged with that turn's
+// activeRequestId and corrupting its stdout stream.
+process.stderr._originalStderrWrite = _originalStderrWrite;
+
 /**
  * Override console.log to go through our tagged stdout.
  */
@@ -407,6 +420,14 @@ async function processRequest(request) {
         // environment controls override the webview's per-turn model, context,
         // or reasoning selections.
         if (isWebviewControlledEnvVar(key)) {
+          continue;
+        }
+        // Security (C): never let request/settings.json env inject code-execution or
+        // library-injection variables (NODE_OPTIONS, LD_PRELOAD, DYLD_*, …). A malicious
+        // project's .claude/settings.json env block would otherwise run arbitrary code in
+        // the daemon or any child process the SDK spawns.
+        if (isDangerousEnvVar(key)) {
+          console.warn(`[SECURITY] Ignoring dangerous env var from request: ${key}`);
           continue;
         }
         if (value !== undefined && value !== null) {
@@ -587,6 +608,31 @@ async function processRequest(request) {
         });
       }
       writeRawLine({ id: request.id || '0', done: true, success: true });
+      return;
+    }
+
+    // Live permission-mode switch bypasses the command queue: it targets the
+    // runtime backing the in-progress turn and must apply before that turn's
+    // next tool call. Queuing it behind the turn's own processRequest would
+    // defer the switch until the turn ends, defeating the purpose. Like abort,
+    // it runs fire-and-forget and emits its own done signal via writeRawLine.
+    if (request.method === 'claude.setPermissionMode') {
+      const switchId = request.id || '0';
+      if (!request.id) {
+        // Without a real request id the done signal carries id='0', which the
+        // Java side has no pending handler for — it would silently drop the
+        // signal and only surface via the 10s timeout. Warn so this is visible.
+        _originalStderrWrite(
+          '[daemon] setPermissionMode arrived without request.id; done signal may be orphaned\n',
+          'utf8'
+        );
+      }
+      setPermissionModePersistent(request.params || {})
+        .then(() => writeRawLine({ id: switchId, done: true, success: true }))
+        .catch((e) => {
+          _originalStderrWrite(`[daemon] setPermissionMode error: ${e.message}\n`, 'utf8');
+          writeRawLine({ id: switchId, done: true, success: false, error: e.message || String(e) });
+        });
       return;
     }
 

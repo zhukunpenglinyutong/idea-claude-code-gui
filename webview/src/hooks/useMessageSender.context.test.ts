@@ -12,6 +12,7 @@ describe('useMessageSender - /context command', () => {
     selectedModel: 'claude-opus-4-7',
     permissionMode: 'default',
     reasoningEffort: 'high',
+    codexFastMode: 'normal',
     selectedAgent: null,
     sdkStatusLoaded: true,
     currentSdkInstalled: true,

@@ -76,6 +76,22 @@ public class CodexSDKBridge extends BaseSDKBridge {
         PROTECTED_ENV_KEYS.add("IDEA_PROJECT_PATH");
         PROTECTED_ENV_KEYS.add("PROJECT_PATH");
         PROTECTED_ENV_KEYS.add("CLAUDE_USE_STDIN");
+        // Security (C): code-execution / library-injection variables must never be
+        // overridable by a (possibly imported/malicious) provider's custom env vars.
+        PROTECTED_ENV_KEYS.add("NODE_OPTIONS");
+        PROTECTED_ENV_KEYS.add("NODE_EXTRA_CA_CERTS");
+        PROTECTED_ENV_KEYS.add("ELECTRON_RUN_AS_NODE");
+        PROTECTED_ENV_KEYS.add("LD_PRELOAD");
+        PROTECTED_ENV_KEYS.add("LD_LIBRARY_PATH");
+        PROTECTED_ENV_KEYS.add("LD_AUDIT");
+        PROTECTED_ENV_KEYS.add("DYLD_INSERT_LIBRARIES");
+        PROTECTED_ENV_KEYS.add("DYLD_LIBRARY_PATH");
+        PROTECTED_ENV_KEYS.add("DYLD_FRAMEWORK_PATH");
+        PROTECTED_ENV_KEYS.add("BASH_ENV");
+        PROTECTED_ENV_KEYS.add("PERL5LIB");
+        PROTECTED_ENV_KEYS.add("PYTHONPATH");
+        PROTECTED_ENV_KEYS.add("GIT_SSH_COMMAND");
+        PROTECTED_ENV_KEYS.add("GIT_EXTERNAL_DIFF");
     }
 
     public CodexSDKBridge() {

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AVAILABLE_MODELS, normalizeClaudeModelId, modelSupports1MContext, strip1MContextSuffix } from '../types';
 import type { ModelInfo } from '../types';
 import { readClaudeModelMapping } from '../../../utils/claudeModelMapping';
 import { ProviderModelIcon } from '../../shared/ProviderModelIcon';
+import { useDropdownPosition } from '../../../hooks/useDropdownPosition';
 import Switch from 'antd/es/switch';
 
 const RELATIVE_INLINE_BLOCK_STYLE: React.CSSProperties = { position: 'relative', display: 'inline-block' };
@@ -11,13 +12,16 @@ const CHEVRON_ICON_STYLE: React.CSSProperties = { fontSize: '10px', marginLeft: 
 const DROPDOWN_STYLE: React.CSSProperties = {
   position: 'absolute',
   bottom: '100%',
-  left: 0,
   marginBottom: '4px',
   zIndex: 10000,
+  maxWidth: 'calc(100vw - 16px)',
+  overflowX: 'hidden',
 };
-const MODEL_OPTION_INFO_STYLE: React.CSSProperties = { display: 'flex', flexDirection: 'column', flex: 1 };
+const MODEL_OPTION_INFO_STYLE: React.CSSProperties = { display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, overflow: 'hidden' };
+const MODEL_TEXT_STYLE: React.CSSProperties = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
 const LONG_CONTEXT_OPTION_STYLE: React.CSSProperties = { justifyContent: 'space-between', cursor: 'default' };
 const LONG_CONTEXT_LABEL_STYLE: React.CSSProperties = { fontSize: '12px' };
+const MAX_VISIBLE_MODEL_OPTIONS = 100;
 
 interface ModelSelectProps {
   value: string;
@@ -131,8 +135,15 @@ const resolveModelIdForIcon = (
 export const ModelSelect = ({ value, onChange, models = AVAILABLE_MODELS, currentProvider = 'claude', onAddModel, longContextEnabled = true, onLongContextChange }: ModelSelectProps) => {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { positionedStyle, maxHeight, recalculate } = useDropdownPosition({
+    buttonRef,
+    dropdownRef,
+    preferredAlignment: 'right',
+  });
 
   // Strip [1m] suffix for finding the model in the list
   const strippedValue = strip1MContextSuffix(value);
@@ -187,13 +198,32 @@ export const ModelSelect = ({ value, onChange, models = AVAILABLE_MODELS, curren
     return model.description;
   };
 
+  const normalizedSearchQuery = deferredSearchQuery.trim().toLowerCase();
+  const filteredModels = normalizedSearchQuery
+    ? models.filter((model) => {
+        const label = getModelLabel(model, false);
+        const description = getModelDescription(model) ?? '';
+        return [model.id, label, description].some((value) => value.toLowerCase().includes(normalizedSearchQuery));
+      })
+    : models;
+  const visibleModels = filteredModels.slice(0, MAX_VISIBLE_MODEL_OPTIONS);
+  const hiddenModelCount = Math.max(0, filteredModels.length - visibleModels.length);
+  const showSearch = models.length > MAX_VISIBLE_MODEL_OPTIONS || searchQuery.length > 0;
+
   /**
    * Toggle dropdown
    */
   const handleToggle = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsOpen(!isOpen);
-  }, [isOpen]);
+    const nextOpen = !isOpen;
+    setIsOpen(nextOpen);
+    if (!nextOpen) {
+      setSearchQuery('');
+    }
+    if (nextOpen) {
+      recalculate();
+    }
+  }, [isOpen, recalculate]);
 
   /**
    * Select model
@@ -201,6 +231,7 @@ export const ModelSelect = ({ value, onChange, models = AVAILABLE_MODELS, curren
   const handleSelect = useCallback((modelId: string) => {
     onChange(modelId);
     setIsOpen(false);
+    setSearchQuery('');
   }, [onChange]);
 
   /**
@@ -217,6 +248,7 @@ export const ModelSelect = ({ value, onChange, models = AVAILABLE_MODELS, curren
         !buttonRef.current.contains(e.target as Node)
       ) {
         setIsOpen(false);
+        setSearchQuery('');
       }
     };
 
@@ -230,6 +262,12 @@ export const ModelSelect = ({ value, onChange, models = AVAILABLE_MODELS, curren
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isOpen]);
+
+  useLayoutEffect(() => {
+    if (isOpen) {
+      recalculate();
+    }
+  }, [isOpen, filteredModels.length, recalculate]);
 
   return (
     <div style={RELATIVE_INLINE_BLOCK_STYLE}>
@@ -253,9 +291,21 @@ export const ModelSelect = ({ value, onChange, models = AVAILABLE_MODELS, curren
         <div
           ref={dropdownRef}
           className="selector-dropdown"
-          style={DROPDOWN_STYLE}
+          style={{ ...DROPDOWN_STYLE, ...positionedStyle, maxHeight, overflowY: 'auto' }}
         >
-          {models.map((model) => (
+          {showSearch && (
+            <div className="selector-search-row">
+              <input
+                className="selector-search-input"
+                data-testid="model-search-input"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder={t('models.searchPlaceholder', { defaultValue: 'Search models' })}
+                autoFocus
+              />
+            </div>
+          )}
+          {visibleModels.map((model) => (
             <div
               key={model.id}
               className={`selector-option ${isSelectedModel(model.id) ? 'selected' : ''}`}
@@ -268,9 +318,9 @@ export const ModelSelect = ({ value, onChange, models = AVAILABLE_MODELS, curren
                 colored
               />
               <div style={MODEL_OPTION_INFO_STYLE}>
-                <span>{getModelLabel(model, false)}</span>
+                <span style={MODEL_TEXT_STYLE}>{getModelLabel(model, false)}</span>
                 {getModelDescription(model) && (
-                  <span className="model-description">{getModelDescription(model)}</span>
+                  <span className="model-description" style={MODEL_TEXT_STYLE}>{getModelDescription(model)}</span>
                 )}
               </div>
               {isSelectedModel(model.id) && (
@@ -278,6 +328,19 @@ export const ModelSelect = ({ value, onChange, models = AVAILABLE_MODELS, curren
               )}
             </div>
           ))}
+          {visibleModels.length === 0 && (
+            <div className="selector-option selector-option-status">
+              {t('models.noModelsFound', { defaultValue: 'No models found' })}
+            </div>
+          )}
+          {hiddenModelCount > 0 && (
+            <div className="selector-option selector-option-status" data-testid="model-hidden-count">
+              {t('models.hiddenModelCount', {
+                count: hiddenModelCount,
+                defaultValue: `+ ${hiddenModelCount} more models. Type to search.`,
+              })}
+            </div>
+          )}
           {currentProvider === 'claude' && onLongContextChange && (
             <>
               <div className="selector-divider" />
@@ -301,7 +364,7 @@ export const ModelSelect = ({ value, onChange, models = AVAILABLE_MODELS, curren
               <div className="selector-divider" />
               <div
                 className="selector-option selector-option-add"
-                onClick={() => { onAddModel(); setIsOpen(false); }}
+                onClick={() => { onAddModel(); setIsOpen(false); setSearchQuery(''); }}
               >
                 <span className="codicon codicon-add selector-add-icon" />
                 <span>{t('models.addModel')}</span>

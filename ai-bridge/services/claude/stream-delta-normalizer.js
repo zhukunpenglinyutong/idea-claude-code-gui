@@ -21,7 +21,7 @@ function modeKey(kind, blockIndex) {
   return `${kind}:${blockIndex}`;
 }
 
-function computeNovelDelta(previous, incoming, mode) {
+function computeNovelDelta(previous, incoming, mode, origin) {
   if (!incoming) {
     return { novel: '', next: previous, mode };
   }
@@ -31,8 +31,35 @@ function computeNovelDelta(previous, incoming, mode) {
 
   // Cumulative-snapshot path: incoming is previous + new content. Confirms the
   // block is in snapshot mode for any subsequent corrective rewrites.
+  //
+  // Special case `incoming === previous` (novel === ''): meaning depends on
+  // which path the caller is on, distinguished by `origin`:
+  //
+  //   • origin === 'snapshot' — assistant-message snapshot re-delivering the
+  //     fully-accumulated block. The whole block has already been emitted via
+  //     live deltas. Always absorb: re-emitting would duplicate the entire
+  //     block in the UI (issue tracker streaming-duplication-fix). This was
+  //     the legacy unconditional behavior, and is correct for THIS path.
+  //
+  //   • origin === 'stream' — a live content_block_delta. Each call is one
+  //     fresh delta from the provider. An identical delta is a real duplicate
+  //     (repeated characters like "刚刚", "谢谢", "慢慢", or any token
+  //     boundary that emits the same token twice). The legacy code wrongly
+  //     absorbed these AND locked snapshot mode, swallowing the rest of the
+  //     reply — issue #1371's "除第一个字都会被吞掉". Treat it as an
+  //     incremental delta: emit the duplicate as novel content and DO NOT
+  //     lock snapshot mode. A real snapshot provider would never emit an
+  //     identical re-send as its first ambiguous signal — its defining trait
+  //     is monotonically GROWING accumulated content.
   if (incoming.startsWith(previous)) {
-    return { novel: incoming.slice(previous.length), next: incoming, mode: 'snapshot' };
+    const novel = incoming.slice(previous.length);
+    if (!novel) {
+      if (origin === 'snapshot' || mode === 'snapshot' || mode === 'incremental') {
+        return { novel: '', next: previous, mode };
+      }
+      return { novel: incoming, next: previous + incoming, mode };
+    }
+    return { novel, next: incoming, mode: 'snapshot' };
   }
 
   // Stale replay: incoming is fully contained at the start or end of previous.
@@ -71,7 +98,32 @@ function computeNovelDelta(previous, incoming, mode) {
   return { novel: incoming, next: previous + incoming, mode: 'incremental' };
 }
 
-export function normalizeStreamDelta(turnState, kind, index, incoming) {
+/**
+ * Normalise an incoming delta against the block's accumulated content and
+ * return the novel slice to emit (empty string when nothing new to deliver).
+ *
+ * Maintains two pieces of per-block state on `turnState`:
+ *   • blockMap (kind+index → accumulated content)
+ *   • modeMap  (kind+index → 'snapshot' | 'incremental' | undefined)
+ *
+ * @param {object} turnState  Per-turn streaming state (see createTurnState).
+ * @param {'text'|'thinking'} kind  Which block channel.
+ * @param {number|string} index  Content block index from the SDK event.
+ * @param {string} incoming  The payload to normalise.
+ * @param {'stream'|'snapshot'} [origin='stream']  Call-site semantics —
+ *   determines how `incoming === previous` is interpreted:
+ *     • 'stream'   — one fresh content_block_delta from the provider; an
+ *                    identical re-send is a real duplicate token (e.g. "刚刚",
+ *                    "谢谢") and must emit. Pass this from the live event
+ *                    handler. Default.
+ *     • 'snapshot' — an assistant-message snapshot re-delivering the fully
+ *                    accumulated block; an identical match means "nothing new"
+ *                    and must absorb to avoid duplicating the whole block in
+ *                    the UI. Used internally by {@link resolveSnapshotDelta} —
+ *                    direct callers should prefer that wrapper.
+ * @returns {string}  The novel suffix to emit, or '' to skip emission.
+ */
+export function normalizeStreamDelta(turnState, kind, index, incoming, origin = 'stream') {
   const text = typeof incoming === 'string' ? incoming : '';
   const key = kind === 'thinking' ? 'thinkingBlockContentByIndex' : 'textBlockContentByIndex';
   const blockMap = getBlockMap(turnState, key);
@@ -82,7 +134,7 @@ export function normalizeStreamDelta(turnState, kind, index, incoming) {
   const mKey = modeKey(kind, blockIndex);
   const mode = modeMap.get(mKey);
 
-  const result = computeNovelDelta(previous, text, mode);
+  const result = computeNovelDelta(previous, text, mode, origin);
   blockMap.set(blockIndex, result.next);
   if (result.mode && result.mode !== mode) {
     modeMap.set(mKey, result.mode);
@@ -111,7 +163,7 @@ export function resolveSnapshotDelta(turnState, kind, index, snapshot) {
   const blockMap = getBlockMap(turnState, key);
   const blockIndex = getBlockIndex(index);
   const hadPrevious = (blockMap.get(blockIndex) || '').length > 0;
-  const delta = normalizeStreamDelta(turnState, kind, index, snapshot);
+  const delta = normalizeStreamDelta(turnState, kind, index, snapshot, 'snapshot');
   return { delta, hadPrevious };
 }
 

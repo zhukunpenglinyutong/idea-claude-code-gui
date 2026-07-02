@@ -42,7 +42,7 @@ tasks.named('checkstyleTest') {
 }
 
 group = 'com.github.idea-claude-code-gui'
-version = '0.4.5'
+version = '0.4.6'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17

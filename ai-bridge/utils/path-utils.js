@@ -4,7 +4,8 @@
  */
 
 import fs from 'fs';
-import { resolve, join } from 'path';
+import { resolve, join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { homedir, tmpdir, platform } from 'os';
 
 // Cache the resolved home directory path to avoid redundant computation
@@ -119,6 +120,7 @@ export function getTempPathPrefixes() {
 /**
  * Normalize a path for comparison purposes.
  * On Windows: converts to lowercase and uses forward slashes.
+ * @internal Exposed for unit testing; not part of the public API.
  */
 export function normalizePathForComparison(pathValue) {
   if (!pathValue) return '';
@@ -163,6 +165,49 @@ export function isTempDirectory(pathValue) {
   });
 }
 
+// Cache the resolved ai-bridge install directory path.
+let cachedBridgeDir = null;
+
+/**
+ * Resolve the ai-bridge install directory from this module's own location.
+ * This file lives at <bridge>/utils/path-utils.js, so the bridge root is one
+ * level up from its directory. Deriving it from import.meta.url is reliable
+ * regardless of process.cwd(), which the daemon mutates via process.chdir()
+ * between turns.
+ * @returns {string} The resolved physical ai-bridge directory path
+ */
+function getBridgeDir() {
+  if (cachedBridgeDir) {
+    return cachedBridgeDir;
+  }
+  const bridgeDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+  try {
+    // Match getRealHomeDir(): resolve symlinks/junctions so comparisons against
+    // a possibly-realpath'd process.cwd() stay consistent.
+    cachedBridgeDir = fs.realpathSync(bridgeDir);
+  } catch (err) {
+    console.warn('[WARN] getBridgeDir: realpathSync failed, using unresolved path:', err.message);
+    cachedBridgeDir = bridgeDir;
+  }
+  return cachedBridgeDir;
+}
+
+/**
+ * Check whether a path points at the ai-bridge install directory itself.
+ *
+ * The daemon launches with process.cwd() === the bridge dir, and a per-process
+ * worker falls back to it when no valid cwd is supplied. Resolving the working
+ * directory to it makes the Claude SDK persist sessions under
+ * ~/.claude/projects/<sanitized-bridge-dir>/, scattering every project's history
+ * into one bogus folder (issue #1343). Such a candidate must always be rejected.
+ * @param {string} pathValue - The path to check
+ * @returns {boolean}
+ */
+export function isBridgeDirectory(pathValue) {
+  if (!pathValue) return false;
+  return normalizePathForComparison(pathValue) === normalizePathForComparison(getBridgeDir());
+}
+
 /**
  * Intelligently select the working directory.
  * @param {string} requestedCwd - The requested working directory
@@ -189,6 +234,16 @@ export function selectWorkingDirectory(requestedCwd) {
     const normalized = sanitizePath(candidate);
     if (!normalized) continue;
 
+    // Never resolve the working directory to the ai-bridge install dir itself
+    // (issue #1343). The daemon launches with process.cwd() === the bridge dir,
+    // so an empty requestedCwd + missing IDEA_PROJECT_PATH would otherwise land
+    // here and make the SDK persist sessions under
+    // ~/.claude/projects/<sanitized-bridge-dir>/, hiding every project's history.
+    if (isBridgeDirectory(normalized)) {
+      console.log('[DEBUG] Skipping ai-bridge directory candidate:', normalized);
+      continue;
+    }
+
     if (isTempDirectory(normalized) && envProjectPath) {
       console.log('[DEBUG] Skipping temp directory candidate:', normalized);
       continue;
@@ -207,5 +262,12 @@ export function selectWorkingDirectory(requestedCwd) {
   }
 
   console.log('[DEBUG] selectWorkingDirectory fallback triggered');
-  return envProjectPath || getRealHomeDir();
+  // Guard: reject the bridge dir even from IDEA_PROJECT_PATH (e.g. when the user
+  // is developing the bridge itself). The home dir is always a safe fallback.
+  const fallback = envProjectPath || getRealHomeDir();
+  if (isBridgeDirectory(fallback)) {
+    console.log('[DEBUG] Fallback env path is bridge dir, using home dir instead');
+    return getRealHomeDir();
+  }
+  return fallback;
 }

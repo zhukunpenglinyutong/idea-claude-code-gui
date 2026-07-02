@@ -13,6 +13,68 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
+    version: '0.4.6',
+    date: '2026-06-28',
+    content: {
+      en: `✨ Features
+- Add **live permission-mode hot-swap**: switching the permission mode mid-turn now takes effect immediately for the current turn's subsequent tool calls — no runtime restart, no waiting for the next message (by @gadfly3173, closes #1380)
+- Add a **GitHub Star button** to the open-source promo banner: click to copy the repo URL; main copy now reads "100% open-source and free", localized across 10 languages (by @zkpaiminmin)
+
+🔒 Security Hardening
+- Default permission mode changed from \`bypassPermissions\` to \`default\` — tool calls are confirmed by default instead of auto-approved
+- PreToolUse hook returns \`ask\` for Bash/Agent to override permissive \`settings.json\` allow-rules; "Always allow" scoped to the command level
+- Block \`NODE_OPTIONS\` / \`LD_PRELOAD\` / \`DYLD_*\` env-var injection; refuse MCP stdio launches with shell metacharacters
+- \`npm install\` runs with \`--ignore-scripts\` (supply-chain RCE guard); \`settings.json\` / \`config.json\` hardened to \`0600\`
+- Codex default sandbox changed from \`danger-full-access\` to \`workspace-write\`
+- (all by @zkpaiminmin)
+
+🐛 Fixes
+- Fix **Bedrock/Vertex/Foundry 403** since v0.4.5: only set \`CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST\` when no cloud-provider switch is active (by @gadfly3173, closes #1328)
+- Fix **cloud-provider credentials** (\`AWS_PROFILE\`, \`AWS_REGION\`, …) missing when the IDE is launched from the Dock / Start Menu / launcher (by @sandeepyadav1478, closes #1310)
+- Fix **blank tool window on Android Studio 2026.x** whose bundled JBR predates b1373 and lacks \`JCefAppConfig.isRemoteEnabled()\`; show a targeted upgrade panel (by @zkpaiminmin)
+- Fix **whole-turn message / \`tool_result\` loss** from React 18 automatic batching: merge the two \`onStreamEnd\` updaters into one (by @gadfly3173, closes #1315)
+- Fix **cross-turn thinking deltas** no longer streaming, and characters vanishing after a duplicated leading delta (e.g. "刚刚", "咕咕嘎嘎") (by @gadfly3173, closes #1369 #1371)
+- Fix **dialogs not reappearing** after a timeout, the tab provider type swapping after restart, and a stale rAF snapshot on new-session clear (by @gadfly3173, closes #1360 #1353 #1339)
+- Fix the **AI working directory** resolving to the bridge install dir, which hid all real project history (by @gadfly3173, closes #1343)
+- Fix new sessions reusing the previous **session ID** (by @commingling, hardened by @zkpaiminmin, closes #1192)
+- Fix CLI-initiated session updates not rendering in the background (by @gadfly3173, closes #1305)
+- Fix parallel \`tool_use\` falsely flagged interrupted with a red badge; \`.replace is not a function\` crashes on non-string content (by @gadfly3173)
+- Fix selector dropdowns overflowing the viewport, the model list growing unbounded, and inline code font-size mismatch (by @moritzfl, @gadfly3173)
+
+🔧 Improvements
+- Rename the "Agent" terminology to "Prompt" across all locales (by @zkpaiminmin)
+- Add a \`SECURITY.md\` security policy (by @zkpaiminmin)`,
+      zh: `✨ 新功能
+- 新增**权限模式实时热切换**：对话进行中切换权限模式即时对当前轮次后续工具调用生效，无需重启 runtime、无需等待下一条消息（by @gadfly3173，关闭 #1380）
+- 开源推广 banner 新增 **GitHub Star 按钮**：点击复制仓库地址，主文案更新为「本项目保证 100% 开源和免费」，覆盖 10 种语言（by @zkpaiminmin）
+
+🔒 安全加固
+- 默认权限模式从 \`bypassPermissions\` 改为 \`default\` —— 工具调用默认需确认而非自动放行
+- PreToolUse hook 对 Bash/Agent 返回 \`ask\`，覆盖 \`settings.json\` 过宽的 allow 规则；「始终允许」限定到命令级
+- 阻止 \`NODE_OPTIONS\` / \`LD_PRELOAD\` / \`DYLD_*\` 环境变量注入；拒绝含 shell 元字符的 MCP stdio 启动
+- \`npm install\` 增加 \`--ignore-scripts\`（供应链 RCE 防护）；\`settings.json\` / \`config.json\` 收紧到 \`0600\`
+- Codex 默认 sandbox 从 \`danger-full-access\` 改为 \`workspace-write\`
+- （以上均 by @zkpaiminmin）
+
+🐛 修复
+- 修复自 v0.4.5 起 **Bedrock/Vertex/Foundry 403**：仅在未启用云 provider 开关时设置 \`CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST\`（by @gadfly3173，关闭 #1328）
+- 修复从 Dock / 开始菜单 / 启动器打开 IDE 时**云 provider 凭证**（\`AWS_PROFILE\`、\`AWS_REGION\` 等）缺失（by @sandeepyadav1478，关闭 #1310）
+- 修复 **Android Studio 2026.x 工具窗空白**：内置 JBR 早于 b1373、缺失 \`JCefAppConfig.isRemoteEnabled()\`，显示专属升级提示面板（by @zkpaiminmin）
+- 修复 React 18 自动批处理导致**整轮消息 / \`tool_result\` 丢失**：将 \`onStreamEnd\` 两次 updater 合并为一个（by @gadfly3173，关闭 #1315）
+- 修复**跨轮 thinking delta** 不再流式，以及重复首个 delta 导致后续字符消失（如「刚刚」「咕咕嘎嘎」）（by @gadfly3173，关闭 #1369 #1371）
+- 修复超时后**对话框不再弹出**、重启后 tab provider 类型互换、新会话清空时陈旧 rAF 快照（by @gadfly3173，关闭 #1360 #1353 #1339）
+- 修复 **AI 工作目录**被解析为 bridge 安装目录，导致所有真实项目历史被隐藏（by @gadfly3173，关闭 #1343）
+- 修复新会话复用上一个 **session ID**（by @commingling，@zkpaiminmin 加固，关闭 #1192）
+- 修复 CLI 发起的会话更新不在后台渲染（by @gadfly3173，关闭 #1305）
+- 修复并行 \`tool_use\` 被误判中断显示红色 badge；非字符串内容触发 \`.replace is not a function\` 崩溃（by @gadfly3173）
+- 修复选择器下拉菜单超出视口、模型列表无限撑高、行内代码字号不一致（by @moritzfl，@gadfly3173）
+
+🔧 改进
+- 将全部语言中的「Agent」术语改名为「Prompt」（by @zkpaiminmin）
+- 新增 \`SECURITY.md\` 安全策略文档（by @zkpaiminmin）`,
+    },
+  },
+  {
     version: '0.4.5',
     date: '2026-06-11',
     content: {

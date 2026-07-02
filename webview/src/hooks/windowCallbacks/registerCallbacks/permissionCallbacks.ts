@@ -13,6 +13,9 @@ export function registerPermissionCallbacks(options: UseWindowCallbacksOptions):
     openPermissionDialog,
     openAskUserQuestionDialog,
     openPlanApprovalDialog,
+    forceClosePermissionDialog,
+    forceCloseAskUserQuestionDialog,
+    forceClosePlanApprovalDialog,
   } = options;
 
   window.showPermissionDialog = (json) => {
@@ -22,6 +25,24 @@ export function registerPermissionCallbacks(options: UseWindowCallbacksOptions):
     } catch (error) {
       console.error('[Frontend] Failed to parse permission request:', error);
     }
+  };
+
+  // The Java backend calls these when its safety-net timer fires after the
+  // permission/ask/plan dialog future has already been resolved with a default
+  // (DENY / empty answers). Without an explicit close signal the WebView's
+  // openRefs stay true, every subsequent show*Dialog enqueues silently behind
+  // the orphaned dialog, and the user appears to "lose" all further prompts
+  // until they reload the tab — see issue #1360.
+  window.forceClosePermissionDialog = (channelId) => {
+    forceClosePermissionDialog(channelId ?? null);
+  };
+
+  window.forceCloseAskUserQuestionDialog = (requestId) => {
+    forceCloseAskUserQuestionDialog(requestId ?? null);
+  };
+
+  window.forceClosePlanApprovalDialog = (requestId) => {
+    forceClosePlanApprovalDialog(requestId ?? null);
   };
 
   if (

@@ -72,7 +72,27 @@
 }
 
 /* Container query for Claude: hide text when narrow (< 400px) */
-@container button-area (max-width: 350px) {
+@container button-area (max-width: 400px) {
+  .button-area[data-provider="claude"] .selector-button-text {
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    margin: 0;
+  }
+
+  .button-area[data-provider="claude"] .selector-button {
+    gap: 2px;
+    padding: 4px 6px;
+    min-width: 28px;
+  }
+
+  .button-area[data-provider="claude"] .selector-button > .codicon-chevron-up,
+  .button-area[data-provider="claude"] .selector-button > .codicon-chevron-down {
+    display: none;
+  }
+}
+
+@media (max-width: 450px) {
   .button-area[data-provider="claude"] .selector-button-text {
     max-width: 0;
     opacity: 0;
@@ -205,6 +225,38 @@
   color: var(--text-secondary);
   font-family: inherit;
   margin-top: 2px;
+}
+
+.selector-search-row {
+  padding: 4px 8px;
+}
+
+.selector-search-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 180px;
+  padding: 5px 8px;
+  border: 1px solid var(--dropdown-border);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+
+.selector-search-input:focus {
+  border-color: var(--accent-color);
+}
+
+.selector-option-status {
+  cursor: default;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.selector-option-status:hover {
+  background: transparent;
 }
 
 .selector-option .mode-description {

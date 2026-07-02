@@ -58,9 +58,11 @@ interface Window {
   onExportSessionData?: (json: string) => void;
 
   /**
-   * Clear all messages
+   * Clear all messages. The optional barrier sequence (the backend coalescer's
+   * post-reset updateSequence) advances __minAcceptedUpdateSequence so stale
+   * in-flight updateMessages from the previous session are rejected.
    */
-  clearMessages?: () => void;
+  clearMessages?: (barrierSequence?: string | number) => void;
 
   /**
    * Add error message
@@ -168,6 +170,30 @@ interface Window {
    * Show PlanApproval dialog
    */
   showPlanApprovalDialog?: (json: string) => void;
+
+  /**
+   * Force-close the open AskUserQuestion dialog matching the given requestId.
+   * Sent by the Java backend when its safety-net timer fires and resolves the
+   * pending future with an empty answer — the WebView dialog (if still visible)
+   * must be torn down too, otherwise its open-refs stay set and every
+   * subsequent showAskUserQuestionDialog call is silently enqueued behind the
+   * orphaned dialog (issue #1360). When requestId is null/empty, every open
+   * dialog is closed.
+   */
+  forceCloseAskUserQuestionDialog?: (requestId?: string | null) => void;
+
+  /**
+   * Force-close the open permission dialog matching the given channelId, or
+   * every open dialog when channelId is null/empty. Same rationale as
+   * forceCloseAskUserQuestionDialog.
+   */
+  forceClosePermissionDialog?: (channelId?: string | null) => void;
+
+  /**
+   * Force-close the open plan approval dialog matching the given requestId, or
+   * every open dialog when requestId is null/empty.
+   */
+  forceClosePlanApprovalDialog?: (requestId?: string | null) => void;
 
   /**
    * Add selection info (file and line numbers) - auto-tracked, only updates ContextBar
@@ -930,6 +956,21 @@ interface Window {
    * Used by useThemeInit to avoid a flash of incorrect theme.
    */
   __INITIAL_IDE_THEME__?: 'light' | 'dark';
+
+  /**
+   * Per-tab provider id ("claude" / "codex") injected by Java into the HTML
+   * before React boots. Used by useModelStatePersistence to override the
+   * global localStorage snapshot ("model-selection-state") when the backend
+   * has already restored a provider for this tab. Empty / unset means no
+   * backend preference — fall back to localStorage. See issue #1353.
+   */
+  __INITIAL_TAB_PROVIDER__?: string;
+
+  /**
+   * Per-tab model id injected by Java, used the same way as
+   * __INITIAL_TAB_PROVIDER__. Empty / unset means no backend preference.
+   */
+  __INITIAL_TAB_MODEL__?: string;
 
   // ============================================================================
   // Provider settings panel callbacks (registered by ProviderList)

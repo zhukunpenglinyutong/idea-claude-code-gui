@@ -76,6 +76,25 @@ const CAUSES_LIST_STYLE: React.CSSProperties = {
   lineHeight: '1.6',
 };
 
+const HINTS_BOX_STYLE: React.CSSProperties = {
+  padding: '12px',
+  marginBottom: '16px',
+  backgroundColor: 'var(--vscode-textBlockQuote-background, rgba(127, 127, 127, 0.12))',
+  borderLeft: '3px solid var(--vscode-focusBorder, #4ea1ff)',
+  borderRadius: '4px',
+};
+
+const HINTS_TITLE_STYLE: React.CSSProperties = {
+  fontWeight: 600,
+  marginBottom: '8px',
+};
+
+const HINTS_LIST_STYLE: React.CSSProperties = {
+  margin: 0,
+  paddingLeft: '20px',
+  lineHeight: '1.6',
+};
+
 const DETAILS_STYLE: React.CSSProperties = {
   marginBottom: '16px',
 };
@@ -186,23 +205,64 @@ function getSystemInfo(): string {
   return info.join('\n');
 }
 
+function extractComponentNames(componentStack?: string | null): string[] {
+  if (!componentStack) {
+    return [];
+  }
+
+  return componentStack
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const match = line.match(/^at\s+([^\s(]+)/);
+      return match?.[1] ?? '';
+    })
+    .filter(Boolean);
+}
+
+function getErrorHints(error?: Error): string[] {
+  const message = error?.message ?? '';
+  const hints: string[] = [];
+
+  if (/\.replace is not a function/i.test(message)) {
+    hints.push('A non-string value reached code that expects plain text and calls string.replace().');
+    hints.push('Check dialog/message payload fields such as command, content, text, or markdown props for arrays/objects.');
+  }
+
+  if (/Cannot read properties of undefined/i.test(message) || /Cannot read properties of null/i.test(message)) {
+    hints.push('A required object was missing at render time; inspect optional chaining and async data guards.');
+  }
+
+  return hints;
+}
+
 /**
  * Format error details for display and copy
  */
 function formatErrorDetails(error?: Error, errorInfo?: React.ErrorInfo): string {
   const parts: string[] = [];
+  const componentNames = extractComponentNames(errorInfo?.componentStack ?? undefined);
+  const hints = getErrorHints(error);
 
-  parts.push('=== Error Information ===');
+  parts.push('=== Error Summary ===');
   if (error) {
     parts.push(`Error: ${error.name}`);
     parts.push(`Message: ${error.message}`);
+    if (hints.length > 0) {
+      parts.push('Likely Cause(s):');
+      hints.forEach((hint) => parts.push(`- ${hint}`));
+    }
+    if (componentNames.length > 0) {
+      parts.push(`Component Chain: ${componentNames.join(' -> ')}`);
+    }
     if (error.stack) {
-      parts.push(`\nStack Trace:\n${error.stack}`);
+      parts.push(`\nRaw Stack Trace:\n${error.stack}`);
     }
   }
 
   if (errorInfo?.componentStack) {
-    parts.push(`\nComponent Stack:${errorInfo.componentStack}`);
+    parts.push(`\nRaw Component Stack:${errorInfo.componentStack}`);
   }
 
   parts.push('\n=== System Information ===');
@@ -307,6 +367,8 @@ class ErrorBoundary extends Component<Props, State> {
 
       const errorDetails = formatErrorDetails(this.state.error, this.state.errorInfo);
       const copyButtonStyle = getCopyButtonStyle(this.state.copied);
+      const errorHints = getErrorHints(this.state.error);
+      const componentNames = extractComponentNames(this.state.errorInfo?.componentStack ?? undefined);
 
       // Default fallback UI — role/aria-live announce the error to assistive
       // tech, otherwise screen-reader users have no signal that the surface
@@ -348,6 +410,24 @@ class ErrorBoundary extends Component<Props, State> {
                 <li>{t('errorBoundary.cause4', 'Insufficient system resources')}</li>
               </ul>
             </div>
+
+            {(errorHints.length > 0 || componentNames.length > 0) && (
+              <div style={HINTS_BOX_STYLE}>
+                <div style={HINTS_TITLE_STYLE}>
+                  {t('errorBoundary.debugHints', 'Debug hints')}
+                </div>
+                <ul style={HINTS_LIST_STYLE}>
+                  {errorHints.map((hint) => (
+                    <li key={hint}>{hint}</li>
+                  ))}
+                  {componentNames.length > 0 && (
+                    <li>
+                      {t('errorBoundary.componentChain', 'Component chain')}: {componentNames.join(' → ')}
+                    </li>
+                  )}
+                </ul>
+              </div>
+            )}
 
             {/* Error Details */}
             {this.state.error && (

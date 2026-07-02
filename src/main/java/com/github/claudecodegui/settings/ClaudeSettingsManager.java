@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Set;
 
 /**
@@ -132,6 +133,20 @@ public class ClaudeSettingsManager {
         try (FileWriter writer = new FileWriter(settingsPath.toFile(), StandardCharsets.UTF_8)) {
             gson.toJson(settings, writer);
             LOG.info("[ClaudeSettingsManager] Synced settings to: " + settingsPath);
+        }
+        // Security (J): settings.json may hold ANTHROPIC_AUTH_TOKEN; restrict to 0600.
+        hardenFilePermissions(settingsPath);
+    }
+
+    /**
+     * Best-effort restrict a file to owner read/write (0600). No-op on non-POSIX
+     * filesystems (e.g. Windows), where the per-user home directory ACL applies. (Security J)
+     */
+    private static void hardenFilePermissions(Path path) {
+        try {
+            Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rw-------"));
+        } catch (UnsupportedOperationException | IOException e) {
+            LOG.debug("[ClaudeSettingsManager] Could not set 0600 on " + path + ": " + e.getMessage());
         }
     }
 

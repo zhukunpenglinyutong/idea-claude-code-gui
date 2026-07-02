@@ -163,6 +163,61 @@ function writeCodemossClaudeConfig(homeDir, current, providers = {}) {
   );
 }
 
+function writeClaudeSettingsEnv(homeDir, env) {
+  const claudeDir = path.join(homeDir, '.claude');
+  fs.mkdirSync(claudeDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(claudeDir, 'settings.json'),
+    JSON.stringify({ env }),
+    'utf8'
+  );
+}
+
+// Run buildCliEnv() in an isolated child process whose HOME points at tempHome,
+// so the provider-management decision is driven solely by the temp settings.json
+// — never by the developer's real ~/.claude/settings.json.
+function runBuildCliEnv(tempHome) {
+  const script = `
+    import { buildCliEnv } from ${JSON.stringify(API_CONFIG_MODULE)};
+    const env = buildCliEnv();
+    console.log(JSON.stringify({
+      ENTRYPOINT: env.CLAUDE_CODE_ENTRYPOINT,
+      USER_TYPE: env.USER_TYPE,
+      HOST_MANAGED: env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST,
+      EFFORT: env.CLAUDE_CODE_EFFORT_LEVEL,
+      MAX_THINKING: env.MAX_THINKING_TOKENS,
+      DISABLE_1M: env.CLAUDE_CODE_DISABLE_1M_CONTEXT,
+      SDK_VERSION: env.CLAUDE_AGENT_SDK_VERSION,
+    }));
+  `;
+
+  const output = execFileSync(
+    process.execPath,
+    ['--input-type=module', '--eval', script],
+    {
+      cwd: path.resolve('.'),
+      env: {
+        ...buildChildEnv(tempHome),
+        // Verify the "drop inherited copy" path: the daemon may itself carry
+        // the flag from a parent host. buildCliEnv must clear it for cloud
+        // providers even when it is already in process.env.
+        CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST: '1',
+        CLAUDE_CODE_EFFORT_LEVEL: 'max',
+        MAX_THINKING_TOKENS: '64000',
+        CLAUDE_CODE_DISABLE_1M_CONTEXT: '1',
+        CLAUDE_AGENT_SDK_VERSION: 'should-not-leak',
+        ANTHROPIC_MODEL: 'current-webview-model',
+        ANTHROPIC_DEFAULT_SONNET_MODEL: 'current-webview-model',
+        HTTPS_PROXY: 'http://proxy.example.com:8080',
+      },
+      encoding: 'utf8',
+    }
+  );
+
+  const lastLine = output.trim().split('\n').filter(Boolean).pop();
+  return JSON.parse(lastLine);
+}
+
 test('isWebviewControlledEnvVar classifies model, context, and reasoning controls correctly', () => {
   assert.equal(isWebviewControlledEnvVar('ANTHROPIC_MODEL'), true);
   assert.equal(isWebviewControlledEnvVar('anthropic_model'), true); // case-insensitive
@@ -173,47 +228,26 @@ test('isWebviewControlledEnvVar classifies model, context, and reasoning control
   assert.equal(isWebviewControlledEnvVar('ANTHROPIC_API_KEY'), false);
 });
 
-test('buildCliEnv preserves current model env but strips stale CLI override env vars', () => {
-  const previous = {
-    ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL,
-    ANTHROPIC_DEFAULT_SONNET_MODEL: process.env.ANTHROPIC_DEFAULT_SONNET_MODEL,
-    CLAUDE_CODE_EFFORT_LEVEL: process.env.CLAUDE_CODE_EFFORT_LEVEL,
-    MAX_THINKING_TOKENS: process.env.MAX_THINKING_TOKENS,
-    CLAUDE_CODE_DISABLE_1M_CONTEXT: process.env.CLAUDE_CODE_DISABLE_1M_CONTEXT,
-    HTTPS_PROXY: process.env.HTTPS_PROXY,
-    CLAUDE_AGENT_SDK_VERSION: process.env.CLAUDE_AGENT_SDK_VERSION,
-  };
+test('buildCliEnv strips stale CLI override env vars and sets host-managed for first-party auth', () => {
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-gui-api-config-'));
+  // Active managed provider so loadClaudeSettings() returns settings; no cloud
+  // flag set → host-managed should be '1'.
+  writeCodemossClaudeConfig(tempHome, 'provider-a', {
+    'provider-a': { name: 'Provider A', settingsConfig: { env: { ANTHROPIC_AUTH_TOKEN: 'sk-test' } } },
+  });
+  writeClaudeSettingsEnv(tempHome, { ANTHROPIC_AUTH_TOKEN: 'sk-test' });
 
-  try {
-    process.env.ANTHROPIC_MODEL = 'current-webview-model';
-    process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = 'current-webview-model';
-    process.env.CLAUDE_CODE_EFFORT_LEVEL = 'max';
-    process.env.MAX_THINKING_TOKENS = '64000';
-    process.env.CLAUDE_CODE_DISABLE_1M_CONTEXT = '1';
-    process.env.HTTPS_PROXY = 'http://proxy.example.com:8080';
-    process.env.CLAUDE_AGENT_SDK_VERSION = 'should-not-leak';
+  const env = runBuildCliEnv(tempHome);
 
-    const env = buildCliEnv();
-
-    assert.equal(env.ANTHROPIC_MODEL, 'current-webview-model');
-    assert.equal(env.ANTHROPIC_DEFAULT_SONNET_MODEL, 'current-webview-model');
-    assert.equal(env.CLAUDE_CODE_EFFORT_LEVEL, undefined);
-    assert.equal(env.MAX_THINKING_TOKENS, undefined);
-    assert.equal(env.CLAUDE_CODE_DISABLE_1M_CONTEXT, undefined);
-    assert.equal(env.CLAUDE_AGENT_SDK_VERSION, undefined);
-    assert.equal(env.HTTPS_PROXY, 'http://proxy.example.com:8080');
-    assert.equal(env.CLAUDE_CODE_ENTRYPOINT, 'cli');
-    assert.equal(env.USER_TYPE, 'external');
-    assert.equal(env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST, '1');
-  } finally {
-    for (const [key, value] of Object.entries(previous)) {
-      if (value === undefined) {
-        delete process.env[key];
-      } else {
-        process.env[key] = value;
-      }
-    }
-  }
+  // Reasoning/context controls stripped from the child env
+  assert.equal(env.EFFORT, undefined);
+  assert.equal(env.MAX_THINKING, undefined);
+  assert.equal(env.DISABLE_1M, undefined);
+  assert.equal(env.SDK_VERSION, undefined);
+  // Identity + host-managed flag set for first-party auth
+  assert.equal(env.ENTRYPOINT, 'cli');
+  assert.equal(env.USER_TYPE, 'external');
+  assert.equal(env.HOST_MANAGED, '1');
 });
 
 test('buildWebviewControlledSettingsOverride neutralizes Claude CLI settings env precedence', () => {
@@ -239,6 +273,27 @@ test('buildWebviewControlledSettingsOverride neutralizes Claude CLI settings env
       MAX_THINKING_TOKENS: '',
     },
   });
+});
+
+test('buildCliEnv leaves CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST unset for cloud providers', () => {
+  // Bedrock/Vertex/Foundry: the user's settings.json owns the provider switch.
+  // The host-managed flag would make Claude Code strip it → 403, so it must be
+  // absent — even when process.env already carries an inherited copy.
+  for (const flag of ['CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY']) {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-gui-api-config-'));
+    writeCodemossClaudeConfig(tempHome, 'provider-a', {
+      'provider-a': { name: 'Provider A', settingsConfig: { env: { [flag]: '1' } } },
+    });
+    writeClaudeSettingsEnv(tempHome, { [flag]: '1' });
+
+    const env = runBuildCliEnv(tempHome);
+
+    assert.equal(env.HOST_MANAGED, undefined,
+      `${flag} should suppress the host-managed flag (and clear any inherited copy)`);
+    // Identity env must still be present regardless of provider mode.
+    assert.equal(env.ENTRYPOINT, 'cli');
+    assert.equal(env.USER_TYPE, 'external');
+  }
 });
 
 test('setupApiKey does not fall back to Claude CLI credentials on disk', () => {

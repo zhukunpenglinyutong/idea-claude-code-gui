@@ -623,6 +623,27 @@ public class DaemonBridge {
                 break;
             }
 
+            case "session_updated": {
+                // Extract and validate sessionId
+                String sessionId = obj.has("sessionId") ? obj.get("sessionId").getAsString() : null;
+                if (sessionId == null || sessionId.isEmpty()) {
+                    LOG.warn("[DaemonBridge] session_updated event missing sessionId, skipping");
+                    break;
+                }
+
+                LOG.info("[DaemonBridge] Session updated: sessionId=" + sessionId);
+
+                // Iterate through registered eventListeners and dispatch
+                for (DaemonEventListener listener : eventListeners) {
+                    try {
+                        listener.onDaemonEvent(event, obj);
+                    } catch (Exception ex) {
+                        LOG.warn("[DaemonBridge] Listener threw while handling " + event, ex);
+                    }
+                }
+                break;
+            }
+
             default:
                 LOG.debug("[DaemonBridge] Unhandled daemon event: " + event);
         }

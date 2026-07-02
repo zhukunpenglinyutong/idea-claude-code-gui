@@ -1,4 +1,4 @@
-import { canUseTool, requestPlanApproval, SAFE_ALWAYS_ALLOW_TOOLS, EDIT_TOOLS } from '../../permission-handler.js';
+import { canUseTool, requestPlanApproval, SAFE_ALWAYS_ALLOW_TOOLS, EDIT_TOOLS, EXECUTION_TOOLS } from '../../permission-handler.js';
 import { debugLog } from '../../permission-ipc.js';
 
 /**
@@ -277,6 +277,44 @@ export function createPreToolUseHook(permissionModeState, cwd = null, onModeChan
       };
     }
 
+    // ======== DEFAULT MODE ========
+    // Read-only / inherently-safe tools yield to the SDK so that settings.json DENY rules
+    // (e.g. deny Read(./.env)) still apply; an allow-rule for a read-only tool is harmless.
+    // Every other tool (Bash, Write/Edit, Agent, write-capable MCP, …) is forced through
+    // our own canUseTool gate via a hook 'ask' decision, which OVERRIDES any allow-rule in
+    // a project/local .claude/settings.json (attacker-controllable when a malicious repo is
+    // opened). This closes the silent-auto-approve path without weakening deny-rules.
+    if (currentPermissionMode === 'default') {
+      const isReadOnlyMcp = toolName?.startsWith('mcp__')
+        && !toolName.includes('Write') && !toolName.includes('Edit');
+      if (SAFE_ALWAYS_ALLOW_TOOLS.has(toolName) || isReadOnlyMcp) {
+        return YIELD_TO_SDK;
+      }
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'ask',
+          permissionDecisionReason: 'Default mode: settings.json allow-rules are not honored for this tool; explicit confirmation required.'
+        }
+      };
+    }
+
+    // ======== acceptEdits MODE ========
+    // acceptEdits auto-accepts FILE EDITS only. Command execution (Bash) and sub-agent
+    // launches (Agent) must still be confirmed and must NOT be auto-approved by a project
+    // allow-rule, so route them through canUseTool via 'ask'. Edits fall through to the
+    // SDK's native acceptEdits handling below.
+    if (currentPermissionMode === 'acceptEdits' && EXECUTION_TOOLS.has(toolName)) {
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'ask',
+          permissionDecisionReason: 'acceptEdits mode: command execution still requires explicit confirmation.'
+        }
+      };
+    }
+
+    // acceptEdits (file edits) and bypassPermissions yield to the SDK's native flow.
     return YIELD_TO_SDK;
   };
 }

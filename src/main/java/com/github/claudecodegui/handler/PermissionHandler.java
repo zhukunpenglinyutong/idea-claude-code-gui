@@ -107,6 +107,30 @@ public class PermissionHandler extends BaseMessageHandler {
         future.whenComplete((ignored, error) -> cancellableTask.cancel());
     }
 
+    /**
+     * Push a force-close signal to the webview's dialog manager. Used after the
+     * Java side has auto-resolved a permission/ask/plan dialog future (e.g.
+     * safety-net timeout) so the React dialog state cannot stay stuck on a
+     * resolved request and silently block every subsequent show*Dialog call.
+     *
+     * @param fnName       webview function: forceClosePermissionDialog /
+     *                     forceCloseAskUserQuestionDialog /
+     *                     forceClosePlanApprovalDialog
+     * @param targetId     channelId (permission) or requestId (ask/plan);
+     *                     null clears every open dialog of that kind.
+     */
+    private void forceCloseFrontendDialog(String fnName, String targetId) {
+        String safeId = targetId == null ? "" : targetId;
+        String escapedId = escapeJs(safeId);
+        String jsCode = "if (typeof window." + fnName + " === 'function') { "
+                + "window." + fnName + "('" + escapedId + "'); }";
+        // executeJavaScriptOnEDT already marshals to the EDT and no-ops when the
+        // browser is absent, so call it directly. Wrapping it in another
+        // invokeLater would both double-post and NPE in unit tests, where
+        // ApplicationManager.getApplication() is null.
+        context.executeJavaScriptOnEDT(jsCode);
+    }
+
     public void setPermissionDeniedCallback(PermissionDeniedCallback callback) {
         this.deniedCallback = callback;
     }
@@ -178,6 +202,12 @@ public class PermissionHandler extends BaseMessageHandler {
                 if (future.complete(PermissionService.PermissionResponse.DENY.getValue())) {
                     LOG.warn("[PERM_SHOW] Safety-net timeout fired (webview unreachable) for channelId=" + channelId);
                     pendingPermissionRequests.remove(channelId);
+                    // The webview may still have the dialog open (with its own
+                    // longer countdown finishing later, or stuck in an invisible
+                    // state from a JCEF render issue). Tell it to drop the
+                    // current dialog so the queue can drain for the next
+                    // request — see issue #1360.
+                    forceCloseFrontendDialog("forceClosePermissionDialog", channelId);
                 }
             });
 
@@ -353,6 +383,19 @@ public class PermissionHandler extends BaseMessageHandler {
         }
         pendingPlanApprovalRequests.clear();
 
+        // Match the Java-side teardown by closing any dialogs still open in the
+        // webview. Pass null/empty to close every dialog of each kind — same
+        // semantics as forceClose*Dialog called from the safety net.
+        if (permissionCount > 0) {
+            forceCloseFrontendDialog("forceClosePermissionDialog", null);
+        }
+        if (askUserCount > 0) {
+            forceCloseFrontendDialog("forceCloseAskUserQuestionDialog", null);
+        }
+        if (planCount > 0) {
+            forceCloseFrontendDialog("forceClosePlanApprovalDialog", null);
+        }
+
         LOG.info("[PERM_CLEAR] Cleared: " + permissionCount + " permission, " +
                  askUserCount + " askUser, " + planCount + " plan requests");
     }
@@ -395,6 +438,7 @@ public class PermissionHandler extends BaseMessageHandler {
                 if (future.complete(new JsonObject())) {
                     LOG.warn("[ASK_USER_QUESTION][SHOW_DIALOG] Safety-net timeout fired (webview unreachable) for requestId=" + requestId);
                     pendingAskUserQuestionRequests.remove(requestId);
+                    forceCloseFrontendDialog("forceCloseAskUserQuestionDialog", requestId);
                 }
             });
 
@@ -473,6 +517,7 @@ public class PermissionHandler extends BaseMessageHandler {
                 if (future.complete(timeoutResponse)) {
                     LOG.warn("[PLAN_APPROVAL][SHOW_DIALOG] Safety-net timeout fired (webview unreachable) for requestId=" + requestId);
                     pendingPlanApprovalRequests.remove(requestId);
+                    forceCloseFrontendDialog("forceClosePlanApprovalDialog", requestId);
                 }
             });
 

@@ -13,7 +13,6 @@ import com.github.claudecodegui.provider.common.MessageCallback;
 import com.github.claudecodegui.session.ClaudeSession;
 import com.github.claudecodegui.session.SessionCallbackAdapter;
 import com.github.claudecodegui.session.SessionLifecycleManager;
-import com.github.claudecodegui.session.SessionLoadService;
 import com.github.claudecodegui.session.StreamMessageCoalescer;
 import com.github.claudecodegui.settings.CodemossSettingsService;
 import com.github.claudecodegui.settings.TabStateService;
@@ -64,7 +63,9 @@ public class ClaudeChatWindow {
     private String permissionServiceKey = null;
 
     private JBCefBrowser browser;
-    private ClaudeSession session;
+    // volatile: read from the daemon reader thread by the session_updated listener
+    // and its loadFromServer continuation, while reassigned on the EDT.
+    private volatile ClaudeSession session;
     private final WebviewWatchdog webviewWatchdog;
     private final StreamMessageCoalescer streamCoalescer;
 
@@ -78,6 +79,13 @@ public class ClaudeChatWindow {
     // Daemon event listener for AI title forwarding. Held so it can be removed on dispose.
     private DaemonBridge.DaemonEventListener titleEventListener;
     private volatile int fetchedSlashCommandsCount = 0;
+
+    // Coalesces session_updated reloads. SessionState's message list is not
+    // thread-safe and loadFromServer() runs async, so concurrent background-task
+    // completions must not reload at the same time. Guarded by sessionReloadLock.
+    private final Object sessionReloadLock = new Object();
+    private boolean sessionReloadInFlight = false;
+    private boolean sessionReloadPending = false;
 
     private HandlerContext handlerContext;
     private MessageDispatcher messageDispatcher;
@@ -262,7 +270,6 @@ public class ClaudeChatWindow {
         ToolWindowManager.getInstance(this.project).invokeLater(() -> {
             if (!this.disposed) {
                 this.webviewInitializer.createUIComponents();
-                registerSessionLoadListener();
                 this.initialized = true;
                 LOG.info("Window instance fully initialized, project: " + this.project.getName());
             }
@@ -374,6 +381,17 @@ public class ClaudeChatWindow {
         }
         if (savedState.provider != null && !savedState.provider.trim().isEmpty()) {
             session.setProvider(savedState.provider);
+            // HandlerContext keeps its own currentProvider (read by
+            // getCurrentProvider() and by handlers that don't go through the
+            // session). Sync it here so the backend stays consistent until the
+            // webview echoes its own provider selection — without this, the
+            // very first message in a restored Codex tab still routes to the
+            // Claude bridge until the frontend's localStorage hydration sends
+            // set_provider, which itself can be wrong on multi-tab restarts
+            // (issue #1353).
+            if (handlerContext != null) {
+                handlerContext.setCurrentProvider(savedState.provider);
+            }
         }
         if (savedState.model != null && !savedState.model.trim().isEmpty()) {
             session.setModel(savedState.model);
@@ -625,12 +643,165 @@ public class ClaudeChatWindow {
                             }
                         });
                     }
+                } else if ("session_updated".equals(event)) {
+                    // Handle inter-turn session updates (background task completion)
+                    String updatedSessionId = data.has("sessionId") ? data.get("sessionId").getAsString() : null;
+                    if (updatedSessionId == null) {
+                        LOG.warn("[ClaudeChatWindow] session_updated event missing sessionId");
+                        return;
+                    }
+
+                    // Compare with current active session
+                    String currentSessionId = session != null ? session.getSessionId() : null;
+                    if (currentSessionId == null || !currentSessionId.equals(updatedSessionId)) {
+                        // Event is for a different session, ignore
+                        return;
+                    }
+
+                    // Check if session has active turn in progress; skip reload if true
+                    if (sessionCallbackAdapter != null && streamCoalescer != null && streamCoalescer.isStreamActive()) {
+                        LOG.info("[ClaudeChatWindow] session_updated event received during active turn, skipping reload");
+                        return;
+                    }
+
+                    LOG.info("[ClaudeChatWindow] session_updated for sessionId=" + updatedSessionId + ", reloading from server");
+
+                    // Reuse the canonical reload path (same as history-load / rewind):
+                    // loadFromServer() reads the session via the bridge, converts each
+                    // record with MessageParser.parseServerMessage(), and pushes a full
+                    // refresh through the callback facade. Coalesced so overlapping
+                    // background-task completions never reload concurrently.
+                    //
+                    // Pass updatedSessionId as the reload target: the session field can
+                    // be reassigned on the EDT (new-session / restart flows) between the
+                    // currentSessionId check above and the reload actually running.
+                    // driveSessionReload() re-validates the id at entry and after
+                    // loadFromServer() returns, so a reload never lands on a session
+                    // that the user has navigated away from.
+                    requestSessionReload(updatedSessionId);
                 }
             };
             this.claudeSDKBridge.addDaemonEventListener(this.titleEventListener);
         }
 
         persistTabSessionState();
+    }
+
+    /**
+     * Request a reload of the current session from the server, coalescing
+     * concurrent requests. Multiple session_updated events (e.g. several
+     * background tasks finishing at once) must not run loadFromServer()
+     * concurrently — SessionState's message list is not thread-safe and the
+     * reload runs on a background thread. At most one reload is in flight;
+     * requests arriving during a reload collapse into a single follow-up reload
+     * that reflects the latest JSONL.
+     *
+     * @param targetSessionId the session id this reload is bound to. Carried
+     *     through the whole coalesced chain and re-validated at every step so a
+     *     reload never runs against a session the user has navigated away from
+     *     (the session field is reassigned on the EDT by new-session / restart).
+     */
+    private void requestSessionReload(String targetSessionId) {
+        synchronized (sessionReloadLock) {
+            if (sessionReloadInFlight) {
+                sessionReloadPending = true;
+                return;
+            }
+            sessionReloadInFlight = true;
+        }
+        driveSessionReload(targetSessionId);
+    }
+
+    private void driveSessionReload(String targetSessionId) {
+        // Re-validate at entry: the session may have been replaced on the EDT
+        // between the listener's sessionId check and this call.
+        if (disposed || !isSessionActive(targetSessionId)) {
+            synchronized (sessionReloadLock) {
+                sessionReloadInFlight = false;
+                sessionReloadPending = false;
+            }
+            return;
+        }
+        // A narrow window remains: the EDT can reassign `session` between the
+        // isSessionActive() check above and the `current = session` read below,
+        // so `current` may be a session the user has navigated away from. This is
+        // safe by design: loadFromServer() pushes its result through `current`'s
+        // own callbackFacade → SessionCallbackAdapter, and that adapter is
+        // deactivated by setupSessionCallbacks() when the new session is bound
+        // (volatile `active` flag, checked in every on* callback). So a stale
+        // reload's onMessageUpdate/onStateChange are silently dropped, and the
+        // isSessionActive() check in the continuation additionally blocks any
+        // follow-up reload. Two independent guards; neither alone is sufficient.
+        ClaudeSession current = session;
+        current.loadFromServer().whenComplete((v, ex) -> {
+            if (ex != null) {
+                LOG.warn("[ClaudeChatWindow] session reload failed", ex);
+            }
+            boolean runAgain;
+            synchronized (sessionReloadLock) {
+                runAgain = decideReloadCompletion(
+                        sessionReloadPending, disposed, isSessionActive(targetSessionId));
+                // Always clear sessionReloadPending: on the runAgain path the
+                // pending request is consumed; on the finish path any stale flag
+                // (possibly bound to a session the user navigated away from) must
+                // be dropped so the next same-session reload does not inherit it.
+                sessionReloadPending = false;
+                if (!runAgain) {
+                    sessionReloadInFlight = false;
+                }
+            }
+            if (runAgain) {
+                driveSessionReload(targetSessionId);
+            }
+        });
+    }
+
+    /**
+     * Pure decision function for what to do when an in-flight
+     * {@code loadFromServer()} reload completes. Extracted so the coalescing
+     * state machine is unit-testable without constructing a full
+     * ClaudeChatWindow (which needs a Project, JBCefBrowser, etc.).
+     *
+     * <p>Returns {@code true} (run another reload) only when ALL of:
+     * <ul>
+     *   <li>a follow-up is pending ({@code sessionReloadPending}), AND</li>
+     *   <li>the window is still alive ({@code !disposed}), AND</li>
+     *   <li>the session the reload was started for is still active
+     *       ({@code sessionMatches}). If the user navigated to a different
+     *       session, the pending flag belongs to the old session and must not
+     *       trigger a reload against the new one — the new session drives its
+     *       own lifecycle.</li>
+     * </ul>
+     *
+     * <p>Either way the caller clears {@code sessionReloadPending}; this
+     * function only decides whether to re-run.
+     *
+     * @param pending        current value of {@code sessionReloadPending}
+     * @param disposed       whether the window has been disposed
+     * @param sessionMatches whether {@code session} still identifies the
+     *                       session this reload was bound to
+     * @return {@code true} to collapse the pending request into another reload;
+     *         {@code false} to finish (the in-flight flag is cleared by the
+     *         caller)
+     */
+    static boolean decideReloadCompletion(
+            boolean pending, boolean disposed, boolean sessionMatches) {
+        return pending && !disposed && sessionMatches;
+    }
+
+    /**
+     * Returns true iff the window currently holds the session identified by
+     * {@code sessionId} (i.e. it has not been replaced by a new-session /
+     * restart flow on the EDT). The session field is volatile, so this read is
+     * safe from the daemon-reader and loadFromServer() continuation threads.
+     */
+    private boolean isSessionActive(String sessionId) {
+        ClaudeSession current = session;
+        if (current == null || sessionId == null) {
+            return false;
+        }
+        String currentId = current.getSessionId();
+        return sessionId.equals(currentId);
     }
 
     private void onStreamEnded() {
@@ -650,13 +821,6 @@ public class ClaudeChatWindow {
         session.setSessionInfo(null, workingDirectory);
         persistTabSessionState();
         LOG.info("Initialized with working directory: " + workingDirectory);
-    }
-
-    private void registerSessionLoadListener() {
-        SessionLoadService.getInstance().setListener((sessionId, projectPath) -> {
-            ApplicationManager.getApplication().invokeLater(() ->
-                    sessionLifecycleManager.loadHistorySession(sessionId, projectPath));
-        });
     }
 
     private void registerInstance() {

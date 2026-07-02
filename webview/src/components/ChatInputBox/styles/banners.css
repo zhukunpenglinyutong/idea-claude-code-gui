@@ -110,6 +110,39 @@
   flex: 1;
 }
 
+.open-source-banner .banner-star {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: 12px;
+  padding: 2px 8px;
+  background: rgba(33, 150, 243, 0.18);
+  border: 1px solid rgba(33, 150, 243, 0.4);
+  border-radius: 4px;
+  color: #64b5f6;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.open-source-banner .banner-star:hover {
+  background: rgba(33, 150, 243, 0.3);
+  border-color: rgba(33, 150, 243, 0.6);
+}
+
+.open-source-banner .banner-star .star-icon {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+.open-source-banner .banner-star-text {
+  font-weight: 500;
+}
+
 .open-source-banner .banner-close {
   background: none;
   border: none;
@@ -130,6 +163,17 @@
   background: rgba(33, 150, 243, 0.08);
   border-bottom-color: rgba(33, 150, 243, 0.15);
   color: #1976d2;
+}
+
+[data-theme="light"] .open-source-banner .banner-star {
+  background: rgba(33, 150, 243, 0.12);
+  border-color: rgba(33, 150, 243, 0.3);
+  color: #1976d2;
+}
+
+[data-theme="light"] .open-source-banner .banner-star:hover {
+  background: rgba(33, 150, 243, 0.22);
+  border-color: rgba(33, 150, 243, 0.5);
 }
 
 [data-theme="light"] .open-source-banner .banner-close {

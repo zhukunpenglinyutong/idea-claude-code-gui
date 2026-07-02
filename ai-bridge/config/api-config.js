@@ -93,6 +93,32 @@ export function getCliUserAgent() {
   return `claude-cli/${version} (${userType}, ${entrypoint})`;
 }
 
+// Cloud-provider routing switches in settings.json. When any of these is
+// enabled, the user's settings.json — not the plugin — owns inference routing,
+// so the plugin must NOT advertise host-managed provider control (see
+// shouldHostManageProvider / buildCliEnv).
+const CLOUD_PROVIDER_FLAGS = [
+  'CLAUDE_CODE_USE_BEDROCK',
+  'CLAUDE_CODE_USE_VERTEX',
+  'CLAUDE_CODE_USE_FOUNDRY',
+];
+
+/**
+ * Whether a settings.json env flag is enabled.
+ *
+ * Claude Code reads these switches from both JSON booleans and stringified
+ * truthy values ("1"/"true"), so this normalizes every accepted spelling in one
+ * place. Shared by auth detection (setupApiKey) and provider-management gating
+ * (shouldHostManageProvider) so the two can never disagree on what "enabled"
+ * means.
+ *
+ * @param {*} value - Raw value from settings.json env.
+ * @returns {boolean} true for any accepted truthy spelling.
+ */
+function isEnvFlagEnabled(value) {
+  return value === '1' || value === 1 || value === 'true' || value === true;
+}
+
 // Env vars whose value the webview owns per request. Settings.json copies of
 // these must never be applied on top of the current request's selections.
 //
@@ -138,6 +164,36 @@ export function isWebviewControlledEnvVar(varName) {
   return WEBVIEW_CONTROLLED_ENV_VAR_SET.has(String(varName ?? '').toUpperCase());
 }
 
+// Security (C): environment variables that can hijack process startup or load arbitrary
+// native/JS code. These must NEVER be accepted from request params / settings.json env,
+// otherwise a malicious project's .claude/settings.json {env:{NODE_OPTIONS:'--require ...'}}
+// would achieve code execution in the daemon or any child process the SDK spawns.
+// NOTE: PATH is intentionally NOT listed — the daemon's legitimate PATH is supplied by the
+// Java EnvironmentConfigurator, and blanket-rejecting PATH would risk breaking it.
+const DANGEROUS_ENV_VAR_SET = new Set([
+  'NODE_OPTIONS',
+  'NODE_REPL_EXTERNAL_MODULE',
+  'NODE_EXTRA_CA_CERTS',
+  'ELECTRON_RUN_AS_NODE',
+  'LD_PRELOAD',
+  'LD_LIBRARY_PATH',
+  'LD_AUDIT',
+  'DYLD_INSERT_LIBRARIES',
+  'DYLD_LIBRARY_PATH',
+  'DYLD_FRAMEWORK_PATH',
+  'BASH_ENV',
+  'ENV',
+  'PERL5LIB',
+  'PYTHONPATH',
+  'PYTHONSTARTUP',
+  'GIT_SSH_COMMAND',
+  'GIT_EXTERNAL_DIFF',
+]);
+
+export function isDangerousEnvVar(varName) {
+  return DANGEROUS_ENV_VAR_SET.has(String(varName ?? '').toUpperCase());
+}
+
 export function buildWebviewControlledSettingsOverride(modelId) {
   const env = {
     // Empty strings intentionally override settings.json env values while
@@ -155,6 +211,34 @@ export function buildWebviewControlledSettingsOverride(modelId) {
 }
 
 /**
+ * Whether the host should hand off provider routing to Claude Code itself.
+ *
+ * When truthy, the CLI strips provider/model routing vars (CLAUDE_CODE_USE_BEDROCK,
+ * ANTHROPIC_*_BASE_URL, ANTHROPIC_API_KEY/AUTH_TOKEN, …) from every settings
+ * source, so a user's ~/.claude/settings.json cannot redirect requests away
+ * from the host-configured provider. That is exactly what we want when the
+ * plugin owns the API key and base URL.
+ *
+ * It is NOT what we want for cloud-provider auth (Bedrock/Vertex/Foundry):
+ * there the user's settings.json IS the source of truth for
+ * CLAUDE_CODE_USE_BEDROCK and its peers. Setting the flag there would make the
+ * CLI silently drop the very switch that turns Bedrock on → 403.
+ *
+ * The plugin's "host" role is conditional on who actually holds the
+ * credentials — for cloud providers that owner is AWS/GCP/Azure, so the plugin
+ * must step back and let Claude Code honor the user's settings.json switch.
+ *
+ * Reads settings via loadClaudeSettings() (same source as setupApiKey) so the
+ * auth-decision and the provider-management-decision always see the same env.
+ *
+ * @returns {boolean} true unless a cloud provider switch is active in settings.
+ */
+function shouldHostManageProvider() {
+  const settings = loadClaudeSettings();
+  return !CLOUD_PROVIDER_FLAGS.some((flag) => isEnvFlagEnabled(settings?.env?.[flag]));
+}
+
+/**
  * Build a clean env object for SDK child processes that identifies as CLI.
  *
  * The SDK's query() checks `options.env` — if absent, it copies process.env
@@ -165,7 +249,16 @@ export function buildWebviewControlledSettingsOverride(modelId) {
  */
 export function buildCliEnv() {
   const env = {};
+  // When a cloud provider owns routing, the host must NOT advertise provider
+  // management: otherwise Claude Code strips CLAUDE_CODE_USE_BEDROCK (and
+  // peers) from settings → 403. We skip setting it AND drop any copy inherited
+  // from this process's own env (the daemon may itself have been spawned under
+  // the flag, e.g. when run from inside another Claude Code host).
+  const hostManaged = shouldHostManageProvider();
   const skipKeys = new Set([...CLI_ENV_OVERRIDE_VAR_SET, 'CLAUDE_AGENT_SDK_VERSION']);
+  if (!hostManaged) {
+    skipKeys.add('CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST');
+  }
   for (const [key, value] of Object.entries(process.env)) {
     if (!skipKeys.has(key.toUpperCase())) {
       env[key] = value;
@@ -175,8 +268,12 @@ export function buildCliEnv() {
   env.USER_TYPE = 'external';
   // Claude Code applies settings.json env with overwrite semantics. This flag
   // makes the CLI strip settings-sourced provider/model vars so the host's
-  // request-scoped routing wins.
-  env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST = '1';
+  // request-scoped routing wins — but only when the plugin owns routing. For
+  // cloud-provider modes (Bedrock/Vertex/Foundry) the CLI must honor the
+  // user's settings.json switch, so we leave the flag unset there.
+  if (hostManaged) {
+    env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST = '1';
+  }
   return env;
 }
 
@@ -471,7 +568,7 @@ export function setupApiKey() {
     apiKey = settings.env.ANTHROPIC_API_KEY;
     authType = 'api_key';  // x-api-key authentication
     apiKeySource = 'settings.json (ANTHROPIC_API_KEY)';
-  } else if (settings?.env?.CLAUDE_CODE_USE_BEDROCK === '1' || settings?.env?.CLAUDE_CODE_USE_BEDROCK === 1 || settings?.env?.CLAUDE_CODE_USE_BEDROCK === 'true' || settings?.env?.CLAUDE_CODE_USE_BEDROCK === true) {
+  } else if (isEnvFlagEnabled(settings?.env?.CLAUDE_CODE_USE_BEDROCK)) {
     apiKey = settings?.env?.CLAUDE_CODE_USE_BEDROCK;
     authType = 'aws_bedrock';  // AWS Bedrock authentication
     apiKeySource = 'settings.json (AWS_BEDROCK)';

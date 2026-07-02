@@ -1,3 +1,95 @@
+##### **2026年6月28日（v0.4.6）**
+
+English:
+
+✨ Features
+- Add live permission-mode hot-swap: switching the permission mode mid-turn now takes effect immediately for the current turn's subsequent tool calls — no runtime restart, no waiting for the next message. Claude pushes the new mode straight to the live runtime; Codex rebuilds thread options per turn (by @gadfly3173, closes #1380)
+- Add a GitHub Star button to the open-source promo banner: click to copy the repository URL for pasting into a browser; the main copy now reads "100% open-source and free", with full localization across 10 languages (by @zkpaiminmin)
+
+🔒 Security Hardening
+- Change the default permission mode from `bypassPermissions` to `default`, so tool calls are confirmed by default instead of auto-approved
+- PreToolUse hook now returns `ask` for Bash/Agent, overriding permissive `settings.json` allow-rules
+- Block `NODE_OPTIONS` / `LD_PRELOAD` / `DYLD_*` and similar environment variables from request-side injection
+- Scope "Always allow" for Bash/Agent to the command level instead of the whole tool
+- `acceptEdits` mode still requires explicit confirmation for command execution
+- Refuse MCP stdio shell launches whose command/args contain shell metacharacters
+- Add `--ignore-scripts` to `npm install` to prevent supply-chain RCE via install hooks
+- Harden `settings.json` / `config.json` file permissions to `0600`
+- Extend the dangerous-path check to Bash command strings and `~` expansion
+- Change the Codex default sandbox from `danger-full-access` to `workspace-write`
+- Restrict the prompt enhancer to the user settings source with a deny-all `canUseTool`
+- (all by @zkpaiminmin)
+
+🐛 Fixes
+- Fix Bedrock/Vertex/Foundry returning 403 since v0.4.5: gate `CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST=1` on `shouldHostManageProvider()` so it is set only when no cloud-provider switch is active in `settings.json`, and drop any copy inherited from the daemon's own env (by @gadfly3173, closes #1328)
+- Fix cloud-provider credentials (`AWS_PROFILE`, `AWS_REGION`, …) being absent when the IDE is launched from the macOS Dock / Windows Start Menu / Linux launcher: inject them at daemon startup so all child processes inherit the correct environment (by @sandeepyadav1478, closes #1310)
+- Fix blank tool window on Android Studio 2026.x whose bundled JBR predates b1373 and lacks `JCefAppConfig.isRemoteEnabled()`: detect the platform/JBR mismatch via reflection, widen `create()` to catch `LinkageError`, and show a targeted "upgrade your Boot JBR to b1373+" panel (all 9 locales); fall back to a native confirm dialog when the JCEF permission dialog cannot be created (by @zkpaiminmin)
+- Fix background rendering of CLI-initiated session updates: add a TurnSink channel and a perpetual reader so inter-turn results route as `session_updated` events and render without a manual reload (by @gadfly3173, closes #1305)
+- Fix whole-turn assistant message / `tool_result` loss caused by React 18 automatic batching: merge the two `onStreamEnd` `setMessages` updaters into one, and add a `__turnId` fallback to the snapshot index guard (by @gadfly3173, closes #1315)
+- Fix stale `updateMessages` writing into a freshly cleared session: advance an update-sequence barrier on `clearMessages`, cancel deferred rAF callbacks, and re-check the transition guard in the deferred path (by @gadfly3173, closes #1339)
+- Fix new sessions reusing the previous session ID in `TabStateService` / `getSessionId()`: reset `sessionId` in `setupSessionCallbacks()` and split the PermissionService routing key from the exposed session ID (by @commingling, hardened by @zkpaiminmin, closes #1192)
+- Fix cross-turn thinking deltas no longer streaming (and a new turn briefly overwriting the previous turn's thinking block): stop clearing the content/thinking buffers on `onBlockReset` and add a trailing-block guard to both the thinking and content sync paths (by @gadfly3173, closes #1369)
+- Fix characters vanishing after a duplicated leading delta (e.g. "刚刚", "咕咕嘎嘎"): thread a `stream` / `snapshot` origin through `normalizeStreamDelta` so a zero-novel match no longer locks snapshot mode on the live streaming path (by @gadfly3173, closes #1371)
+- Fix dialogs not reappearing after a safety-net timeout, the tab provider type swapping after an IDE restart, and a stale rAF snapshot on new-session clear; force-close now drains the entire pending dialog queue (by @gadfly3173, closes #1360 #1353)
+- Fix background reload binding to the wrong session by binding it to the target session ID (by @gadfly3173)
+- Fix N parallel `tool_use` (whose results arrive as N separate user messages) being falsely flagged interrupted with a red badge: sweep every consecutive trailing user message until a non-user message is reached (by @gadfly3173)
+- Fix the AI working directory resolving to the bridge install dir when the daemon starts without a project, which hid all real project history under a sanitized bridge path (by @gadfly3173, closes #1343)
+- Fix `.replace is not a function` crashes when non-string content (arrays, content blocks, numbers) reaches `MarkdownBlock` / `PermissionDialog`: normalize to readable text before rendering (by @gadfly3173)
+- Fix tab actions forcing lazy tool-window content creation while the window is closed: use `getContentManagerIfCreated()` with null guards (by @gadfly3173)
+- Fix action UI state updates not running on the EDT (by @gadfly3173)
+- Fix inline code font-size not matching the surrounding text: use `inherit` instead of a hardcoded 12.5px and keep monospace on syntax-highlighted spans (by @gadfly3173, closes #1304)
+- Fix selector dropdowns overflowing the viewport, the large model list growing unbounded, and the node-process submenu flip loop (by @moritzfl)
+
+🔧 Improvements
+- Rename the "Agent" terminology to "Prompt" across all locales (by @zkpaiminmin)
+- Add a `SECURITY.md` security policy (by @zkpaiminmin)
+
+中文：
+
+✨ 新功能
+- 新增权限模式实时热切换：对话进行中切换权限模式即时对当前轮次后续工具调用生效，无需重启 runtime、无需等待下一条消息。Claude 将新模式直接推送到运行中的 runtime；Codex 每轮重建 thread 选项（by @gadfly3173，关闭 #1380）
+- 开源推广 banner 新增 GitHub Star 按钮：点击复制仓库地址，粘贴到浏览器即可访问；主文案更新为「本项目保证 100% 开源和免费」，补全全部 10 种语言（by @zkpaiminmin）
+
+🔒 安全加固
+- 默认权限模式从 `bypassPermissions` 改为 `default`，工具调用默认需确认而非自动放行
+- PreToolUse hook 对 Bash/Agent 返回 `ask`，覆盖 `settings.json` 中过于宽松的 allow 规则
+- 阻止 `NODE_OPTIONS` / `LD_PRELOAD` / `DYLD_*` 等环境变量经请求侧注入
+- 「始终允许」对 Bash/Agent 限定到命令级，而非整个工具
+- `acceptEdits` 模式下命令执行仍要求显式确认
+- 拒绝 command/args 含 shell 元字符的 MCP stdio shell 启动
+- `npm install` 增加 `--ignore-scripts`，防止经安装钩子的供应链 RCE
+- 收紧 `settings.json` / `config.json` 文件权限到 `0600`
+- 危险路径检查扩展到 Bash 命令字符串与 `~` 展开
+- Codex 默认 sandbox 从 `danger-full-access` 改为 `workspace-write`
+- prompt enhancer 限制到 user settings 源，并使用 deny-all `canUseTool`
+- （以上均 by @zkpaiminmin）
+
+🐛 修复
+- 修复自 v0.4.5 起 Bedrock/Vertex/Foundry 返回 403：将 `CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST=1` 收敛到 `shouldHostManageProvider()`，仅在 `settings.json` 未启用云 provider 开关时设置，并清除从 daemon 自身环境继承的副本（by @gadfly3173，关闭 #1328）
+- 修复从 macOS Dock / Windows 开始菜单 / Linux 启动器打开 IDE 时云 provider 凭证（`AWS_PROFILE`、`AWS_REGION` 等）缺失：在 daemon 启动时注入，使所有子进程继承正确环境（by @sandeepyadav1478，关闭 #1310）
+- 修复 Android Studio 2026.x 工具窗空白：其内置 JBR 早于 b1373、缺失 `JCefAppConfig.isRemoteEnabled()`，通过反射检测平台/JBR 不匹配，`create()` 捕获范围放宽到 `LinkageError`，并显示「请升级 Boot JBR 到 b1373+」专属面板（全部 9 种语言）；JCEF 权限弹窗无法创建时回退到原生确认对话框（by @zkpaiminmin）
+- 修复 CLI 发起的会话更新不在后台渲染：新增 TurnSink 通道与持续 reader，将轮次间结果作为 `session_updated` 事件路由，无需手动重载即可渲染（by @gadfly3173，关闭 #1305）
+- 修复 React 18 自动批处理导致整轮助手消息 / `tool_result` 丢失：将 `onStreamEnd` 的两次 `setMessages` 合并为单个 updater，并为快照索引守卫增加 `__turnId` 回退（by @gadfly3173，关闭 #1315）
+- 修复新会话清空后陈旧 `updateMessages` 写入：在 `clearMessages` 时推进更新序列屏障、取消延迟的 rAF 回调，并在延迟路径重新校验切换守卫（by @gadfly3173，关闭 #1339）
+- 修复新会话在 `TabStateService` / `getSessionId()` 中复用上一个 session ID：在 `setupSessionCallbacks()` 重置 `sessionId`，并将 PermissionService 路由 key 与对外暴露的 session ID 拆分（by @commingling，@zkpaiminmin 加固，关闭 #1192）
+- 修复跨轮 thinking delta 不再流式（以及新一轮 thinking 短暂覆盖上一轮的 thinking 块）：`onBlockReset` 不再清空内容/thinking 缓冲，并为 thinking 与 content 同步路径都加上 trailing-block 守卫（by @gadfly3173，关闭 #1369）
+- 修复重复的首个 delta 导致后续字符消失（如「刚刚」「咕咕嘎嘎」）：为 `normalizeStreamDelta` 串入 `stream` / `snapshot` 来源，使零新增匹配在实时流路径上不再锁定 snapshot 模式（by @gadfly3173，关闭 #1371）
+- 修复安全网超时后对话框不再弹出、IDE 重启后 tab provider 类型互换、以及新会话清空时陈旧 rAF 快照；force-close 现会排空整个待处理对话框队列（by @gadfly3173，关闭 #1360 #1353）
+- 修复后台 reload 绑定到错误会话，改为绑定到目标 session ID（by @gadfly3173）
+- 修复 N 个并行 `tool_use`（其结果作为 N 条独立 user 消息到达）被误判为中断而显示红色 badge：扫描所有连续的 trailing user 消息直到遇到非 user 消息（by @gadfly3173）
+- 修复 daemon 无项目上下文启动时 AI 工作目录被解析为 bridge 安装目录，导致所有真实项目历史被隐藏在 sanitized bridge 路径下（by @gadfly3173，关闭 #1343）
+- 修复非字符串内容（数组、content block、数字）到达 `MarkdownBlock` / `PermissionDialog` 时触发 `.replace is not a function` 崩溃：渲染前归一化为可读文本（by @gadfly3173）
+- 修复 tab action 在工具窗关闭时强制懒创建工具窗内容：改用带 null 守卫的 `getContentManagerIfCreated()`（by @gadfly3173）
+- 修复 action UI 状态更新未在 EDT 线程执行（by @gadfly3173）
+- 修复行内代码字号与周围文本不一致：用 `inherit` 替代硬编码 12.5px，并保持高亮 span 的等宽字体（by @gadfly3173，关闭 #1304）
+- 修复选择器下拉菜单超出视口、大模型列表无限撑高、以及 node 进程子菜单翻转循环（by @moritzfl）
+
+🔧 改进
+- 将全部语言中的「Agent」术语改名为「Prompt」（by @zkpaiminmin）
+- 新增 `SECURITY.md` 安全策略文档（by @zkpaiminmin）
+
+---
+
 ##### **2026年6月11日（v0.4.5）**
 
 English:

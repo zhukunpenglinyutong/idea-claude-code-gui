@@ -129,8 +129,16 @@ public class StreamMessageCoalescer {
 
     /**
      * Reset stream state (e.g., on new session creation).
+     *
+     * @return the post-reset update sequence, to be forwarded to the frontend as
+     *     a "sequence barrier". Any stale updateMessages from the previous
+     *     session that were already dispatched to JS (and are queued in the JCEF
+     *     IPC channel) carry a strictly smaller sequence, so the frontend's
+     *     {@code __minAcceptedUpdateSequence} guard rejects them. This closes the
+     *     race where a delayed old snapshot repopulates a list that "new session"
+     *     just cleared.
      */
-    public void resetStreamState() {
+    public long resetStreamState() {
         updateAlarm.cancelAllRequests();
         heartbeatAlarm.cancelAllRequests();
         synchronized (lock) {
@@ -140,7 +148,7 @@ public class StreamMessageCoalescer {
             lastSnapshot = null;
             lastUpdateAtMs = 0L;
             lastPayloadChars = 0;
-            ++updateSequence;
+            return ++updateSequence;
         }
     }
 

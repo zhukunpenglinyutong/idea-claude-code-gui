@@ -148,6 +148,16 @@ export function registerMessageCallbacks(
   window.__cancelPendingUpdateMessages = cancelPendingUpdateMessages;
 
   const processUpdateMessages = (json: string, sequence: number | null = null) => {
+    // Re-check the session-transition guard inside processUpdateMessages so the
+    // rAF-deferred path (window.updateMessages → setTimeout → processUpdateMessages)
+    // cannot resurrect cleared messages when a transition starts between the
+    // entry-point check and the deferred fire. This also catches synchronous
+    // callers that bypass the entry point — addHistoryMessage / addUserMessage
+    // already guard, but processUpdateMessages is the canonical setter and
+    // should be self-defending.
+    if (window.__sessionTransitioning) {
+      return;
+    }
     const minAcceptedSequence = window.__minAcceptedUpdateSequence ?? 0;
     if (sequence != null && sequence < minAcceptedSequence) {
       return;
@@ -407,6 +417,13 @@ export function registerMessageCallbacks(
           pendingUpdateSequence = null;
           window.__pendingUpdateJson = null;
           window.__pendingUpdateSequence = null;
+          // A session transition may have begun while this frame was buffered.
+          // processUpdateMessages re-checks the transition guard itself now, so
+          // this early return is defense-in-depth — without either check, a
+          // stale snapshot deferred during the outgoing session's streaming
+          // would run down the non-streaming path (isStreamingRef was cleared
+          // by beginSessionTransition) and resurrect the cleared messages.
+          if (window.__sessionTransitioning) return;
           if (latestJson) {
             processUpdateMessages(latestJson, latestSequence);
           }
@@ -555,7 +572,21 @@ export function registerMessageCallbacks(
     });
   };
 
-  window.clearMessages = () => {
+  window.clearMessages = (barrierSequenceArg) => {
+    // Advance the sequence barrier so any updateMessages still in flight from
+    // the previous session are rejected. Such a snapshot may already have been
+    // dispatched to JS and be sitting in the JCEF IPC channel, so neither the
+    // backend's post-reset sequence check nor the __sessionTransitioning
+    // time-window guard can stop it once that guard is released. The barrier is
+    // the backend coalescer's post-reset updateSequence; stale snapshots carry a
+    // strictly smaller sequence. Closes the "new session does not clear" race.
+    const barrierSequence = parseSequence(barrierSequenceArg);
+    if (barrierSequence != null) {
+      window.__minAcceptedUpdateSequence = Math.max(
+        window.__minAcceptedUpdateSequence ?? 0,
+        barrierSequence,
+      );
+    }
     // Cancel any pending deferred updateMessages to prevent stale data from
     // being applied after messages are cleared.
     if (pendingUpdateRaf !== null) {

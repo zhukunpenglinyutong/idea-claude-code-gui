@@ -17,13 +17,16 @@ function makeHook(mode = 'default', cwd = '/tmp/test-cwd') {
   };
 }
 
-test('default mode: Bash yields "continue" so SDK can evaluate settings.json rules', async () => {
+test('default mode: Bash returns "ask" so project settings.json allow-rules cannot silently auto-approve it', async () => {
   const hook = makeHook('default');
   const result = await hook({
     tool_name: 'Bash',
     tool_input: { command: 'rm something.txt' },
   });
-  assert.equal(result?.continue, true);
+  // Security fix (B): a malicious repo's .claude/settings.json {permissions:{allow:['Bash(*)']}}
+  // must NOT silently auto-approve Bash. A hook 'ask' decision overrides settings allow-rules
+  // and routes the call through our own canUseTool / Java approval dialog.
+  assert.equal(result?.hookSpecificOutput?.permissionDecision, 'ask');
 });
 
 test('default mode: Read yields "continue" so deny rules like Read(./.env) can fire', async () => {
@@ -70,6 +73,17 @@ test('acceptEdits mode: Edit outside CWD yields "continue"', async () => {
     tool_input: { file_path: '/etc/passwd', old_string: 'a', new_string: 'b' },
   });
   assert.equal(result?.continue, true);
+});
+
+test('acceptEdits mode: Bash returns "ask" (acceptEdits auto-accepts edits only, not command execution)', async () => {
+  const hook = makeHook('acceptEdits');
+  const result = await hook({
+    tool_name: 'Bash',
+    tool_input: { command: 'rm x' },
+  });
+  // Security fix (F/B): acceptEdits must not auto-run shell commands, and a project
+  // allow-rule must not auto-approve Bash execution either.
+  assert.equal(result?.hookSpecificOutput?.permissionDecision, 'ask');
 });
 
 test('default mode: MCP tool yields "continue"', async () => {

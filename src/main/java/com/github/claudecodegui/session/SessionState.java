@@ -79,7 +79,10 @@ public class SessionState {
     // Configuration fields below are volatile because set_mode / set_model / set_provider
     // and send_message may execute on different async handler threads with no other
     // happens-before guarantee between them.
-    private volatile String permissionMode = "bypassPermissions";
+    // Default to "default" (prompt on each tool call). "bypassPermissions" must be an
+    // explicit, informed opt-in — see security remediation A: shipping bypass as the
+    // out-of-the-box default removed the only confirmation gate for AI-issued commands.
+    private volatile String permissionMode = "default";
     private volatile String model = "claude-sonnet-4-6";
     private volatile String provider = "claude";
     // Reasoning effort (thinking depth). Null means "do not override SDK/settings".

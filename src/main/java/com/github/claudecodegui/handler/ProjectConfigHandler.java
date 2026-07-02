@@ -218,7 +218,7 @@ public class ProjectConfigHandler {
     public void handleGetCodexSandboxMode() {
         respondWithJson("window.updateCodexSandboxMode",
             () -> jsonOf("sandboxMode", settingsService.getCodexSandboxMode(context.getProject().getBasePath())),
-            jsonOf("sandboxMode", "danger-full-access"),
+            jsonOf("sandboxMode", "workspace-write"),
             "Failed to get Codex sandbox mode");
     }
 
@@ -226,7 +226,7 @@ public class ProjectConfigHandler {
         try {
             String projectPath = context.getProject().getBasePath();
             JsonObject json = gson.fromJson(content, JsonObject.class);
-            String sandboxMode = readString(json, "sandboxMode", "danger-full-access");
+            String sandboxMode = readString(json, "sandboxMode", "workspace-write");
             settingsService.setCodexSandboxMode(projectPath, sandboxMode);
             LOG.info("[ProjectConfigHandler] Set Codex sandbox mode: " + sandboxMode);
             ApplicationManager.getApplication().invokeLater(() -> {

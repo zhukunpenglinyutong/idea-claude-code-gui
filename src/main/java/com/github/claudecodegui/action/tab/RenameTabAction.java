@@ -43,27 +43,31 @@ public class RenameTabAction extends AnAction implements DumbAware {
 
     @Override
     public @NotNull ActionUpdateThread getActionUpdateThread() {
-        return ActionUpdateThread.BGT;
+        return ActionUpdateThread.EDT;
     }
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
         Project project = e.getProject();
         if (project == null) {
-            LOG.error("[RenameTabAction] Project is null");
+            LOG.warn("[RenameTabAction] Project is null");
             return;
         }
 
         ToolWindow toolWindow = ToolWindowManager.getInstance(project).getToolWindow("CCG");
         if (toolWindow == null) {
-            LOG.error("[RenameTabAction] Tool window not found");
+            LOG.warn("[RenameTabAction] Tool window not found");
             return;
         }
 
-        ContentManager contentManager = toolWindow.getContentManager();
+        ContentManager contentManager = toolWindow.getContentManagerIfCreated();
+        if (contentManager == null) {
+            LOG.warn("[RenameTabAction] Tool window content manager is not created");
+            return;
+        }
         Content selectedContent = contentManager.getSelectedContent();
         if (selectedContent == null) {
-            LOG.error("[RenameTabAction] No tab selected");
+            LOG.warn("[RenameTabAction] No tab selected");
             return;
         }
 
@@ -120,7 +124,14 @@ public class RenameTabAction extends AnAction implements DumbAware {
             return;
         }
 
-        Content selectedContent = toolWindow.getContentManager().getSelectedContent();
+        // Avoid lazily creating tool window contents during action updates.
+        ContentManager contentManager = toolWindow.getContentManagerIfCreated();
+        if (contentManager == null) {
+            e.getPresentation().setEnabledAndVisible(false);
+            return;
+        }
+
+        Content selectedContent = contentManager.getSelectedContent();
         e.getPresentation().setEnabledAndVisible(selectedContent != null);
     }
 

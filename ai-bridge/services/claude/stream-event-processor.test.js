@@ -964,3 +964,201 @@ test('BLOCK_RESET: emitted at each message_start in multi-turn tool_use loop', (
   const blockResetLines = tagLines(captured, '[BLOCK_RESET]');
   assert.equal(blockResetLines.length, 2, 'BLOCK_RESET must be emitted at each message_start in multi-turn loop');
 });
+
+// =========================================================================
+// REGRESSION (issue #1371 — duplicate-leading-char absorber lock).
+//
+// Pre-fix: computeNovelDelta's `incoming.startsWith(previous)` branch
+// unconditionally locked the block into 'snapshot' mode, EVEN WHEN the
+// computed novel slice was empty (incoming === previous). That ambiguous
+// signal — far more often a coincidental duplicate from an incremental
+// provider (repeated characters like "刚刚", "谢谢", "慢慢", or any
+// tokenizer that emits the same delta twice) than an actual snapshot
+// heartbeat — flipped the absorber on, and every following genuine
+// incremental delta hit the snapshot-mode correction branch and was
+// silently swallowed. User-visible: only the first character of the reply
+// rendered. Keep these green.
+// =========================================================================
+
+test('REGRESSION (#1371): duplicate-leading-char incremental stream "刚","刚","我","在" streams every char', () => {
+  // The exact reproduction from the bug report. "刚刚我在" — the first two
+  // deltas are identical ("刚"), then truly novel content follows. Pre-fix
+  // the second "刚" locked snapshot mode and the rest of the message was
+  // absorbed. After the fix, the second "刚" is recognised as zero-novel
+  // and mode stays unconfirmed, so subsequent incremental deltas flow.
+  const state = makeTurnState(true);
+
+  const captured = captureStdout(() => {
+    for (const fragment of ['刚', '刚', '我', '在']) {
+      processStreamEvent(
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'text_delta', text: fragment },
+          },
+        },
+        state,
+      );
+    }
+  });
+
+  const emitted = tagLines(captured, '[CONTENT_DELTA]')
+    .map((line) => JSON.parse(line.replace(/^\[CONTENT_DELTA\]\s+/, '').trim()))
+    .join('');
+
+  assert.equal(emitted, '刚刚我在', `expected full stream "刚刚我在", got "${emitted}"`);
+  assert.equal(state.lastAssistantContent, '刚刚我在');
+});
+
+test('REGRESSION (#1371): repeated-token thinking deltas "谢谢" must not lock absorber and drop later content', () => {
+  // Same shape on the thinking channel. A model that starts a chain-of-thought
+  // with "谢谢" + further reasoning must not have the reasoning dropped.
+  const state = makeTurnState(true);
+
+  const captured = captureStdout(() => {
+    for (const fragment of ['谢', '谢', '，让我想想']) {
+      processStreamEvent(
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'thinking_delta', thinking: fragment },
+          },
+        },
+        state,
+      );
+    }
+  });
+
+  const emitted = tagLines(captured, '[THINKING_DELTA]')
+    .map((line) => JSON.parse(line.replace(/^\[THINKING_DELTA\]\s+/, '').trim()))
+    .join('');
+
+  assert.equal(emitted, '谢谢，让我想想', `expected full thinking stream, got "${emitted}"`);
+  assert.equal(state.lastThinkingContent, '谢谢，让我想想');
+});
+
+test('REGRESSION (#1371): forced-prefix CLAUDE.md scenario "咕咕嘎嘎..." streams intact', () => {
+  // From the bug report's repro steps: CLAUDE.md forces the model to prefix
+  // every reply with "咕咕嘎嘎". The first two deltas duplicate ("咕"), which
+  // pre-fix vaporised everything after them.
+  const state = makeTurnState(true);
+
+  const captured = captureStdout(() => {
+    for (const fragment of ['咕', '咕', '嘎', '嘎', '，我开始处理']) {
+      processStreamEvent(
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'text_delta', text: fragment },
+          },
+        },
+        state,
+      );
+    }
+  });
+
+  const emitted = tagLines(captured, '[CONTENT_DELTA]')
+    .map((line) => JSON.parse(line.replace(/^\[CONTENT_DELTA\]\s+/, '').trim()))
+    .join('');
+
+  assert.equal(emitted, '咕咕嘎嘎，我开始处理', `expected full reply, got "${emitted}"`);
+});
+
+test('REGRESSION (#1371): ambiguous zero-novel duplicate is treated as incremental until a non-empty extension confirms snapshot mode', () => {
+  // Documents the tie-breaker introduced by the #1371 fix. When the first
+  // ambiguous signal (incoming === previous, novel === '') arrives BEFORE the
+  // block's stream mode has been confirmed, we now treat it as an incremental
+  // duplicate (emit the delta, do NOT lock snapshot mode). Rationale:
+  //   1. Anthropic-standard incremental is the dominant protocol.
+  //   2. Real snapshot providers progressively GROW their cumulative content;
+  //      sending an identical re-send as the first non-bootstrap delta is not
+  //      a documented behavior for any provider we support.
+  //   3. The user-visible cost of guessing wrong incremental→snapshot is one
+  //      lost character. The cost of guessing wrong snapshot→incremental is
+  //      one duplicated character. Both are tiny and self-correcting on the
+  //      very next non-empty extension. Whereas the LEGACY behavior (always
+  //      lock snapshot) destroyed the entire rest of the message — issue #1371.
+  //
+  // Once a later delta extends the accumulated content with non-empty novel
+  // bytes, snapshot mode locks correctly and corrective rewrites are absorbed
+  // — that path is already covered by the
+  // "snapshot-mode block absorbs corrective rewrites" test above.
+  const state = makeTurnState(true);
+
+  const captured = captureStdout(() => {
+    processStreamEvent(
+      { type: 'stream_event', event: { type: 'content_block_delta', index: 0,
+        delta: { type: 'text_delta', text: 'Hello' } } },
+      state,
+    );
+    // Duplicate before mode confirmation → treated as incremental, emitted.
+    processStreamEvent(
+      { type: 'stream_event', event: { type: 'content_block_delta', index: 0,
+        delta: { type: 'text_delta', text: 'Hello' } } },
+      state,
+    );
+  });
+
+  const emitted = tagLines(captured, '[CONTENT_DELTA]')
+    .map((line) => JSON.parse(line.replace(/^\[CONTENT_DELTA\]\s+/, '').trim()))
+    .join('');
+
+  assert.equal(emitted, 'HelloHello', `duplicate before mode lock must emit; got "${emitted}"`);
+});
+
+test('REGRESSION (#1371) companion: snapshot path absorbs incoming === previous even when mode is unconfirmed', () => {
+  // Dual of the stream-path tie-breaker above. The two paths interpret
+  // `incoming === previous` in OPPOSITE directions:
+  //
+  //   • stream path: identical incoming = a real duplicate provider delta →
+  //     EMIT (the #1371 fix).
+  //   • snapshot path: identical incoming = "nothing new to deliver beyond
+  //     what's already accumulated" → ABSORB.
+  //
+  // This test pins the snapshot side of that contract independently from the
+  // cross-turn-pollution tests (eb1786) so a future refactor of those cannot
+  // accidentally unlock duplicate snapshot emits.
+  //
+  // Scenario: a fully-streamed block ('Hello world') is then re-delivered by
+  // the assistant snapshot. processMessageContent calls resolveSnapshotDelta
+  // which threads origin='snapshot' into the normalizer. Mode is still
+  // 'incremental' (locked by the second stream delta), but even if it weren't,
+  // origin='snapshot' alone must trigger absorb.
+  const state = makeTurnState(true);
+
+  const captured = captureStdout(() => {
+    processStreamEvent(
+      { type: 'stream_event', event: { type: 'content_block_delta', index: 0,
+        delta: { type: 'text_delta', text: 'Hello' } } },
+      state,
+    );
+    processStreamEvent(
+      { type: 'stream_event', event: { type: 'content_block_delta', index: 0,
+        delta: { type: 'text_delta', text: ' world' } } },
+      state,
+    );
+    state.hasStreamEvents = true;
+
+    // Assistant snapshot carries the full accumulated text. Must absorb —
+    // re-emitting would duplicate the entire block in the UI.
+    processMessageContent(
+      { type: 'assistant', message: { content: [{ type: 'text', text: 'Hello world' }] } },
+      state,
+    );
+  });
+
+  const deltaLines = tagLines(captured, '[CONTENT_DELTA]');
+  const emitted = deltaLines
+    .map((line) => JSON.parse(line.replace(/^\[CONTENT_DELTA\]\s+/, '').trim()))
+    .join('');
+
+  // Exactly two stream deltas emitted; snapshot replay added nothing.
+  assert.equal(deltaLines.length, 2, `snapshot replay must not emit; got ${JSON.stringify(deltaLines)}`);
+  assert.equal(emitted, 'Hello world', `accumulated content must remain "Hello world"; got "${emitted}"`);
+});

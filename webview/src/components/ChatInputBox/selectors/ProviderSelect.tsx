@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { AVAILABLE_PROVIDERS } from '../types';
@@ -8,28 +8,28 @@ import {
   subscribeCodexSubscriptionQuota,
   type CodexSubscriptionQuotaSnapshot,
 } from '../../../utils/codexSubscriptionQuotaCapabilities';
+import { useDropdownPosition } from '../../../hooks/useDropdownPosition';
 
 const RELATIVE_INLINE_BLOCK_STYLE: React.CSSProperties = { position: 'relative', display: 'inline-block' };
 const CHEVRON_ICON_STYLE: React.CSSProperties = { fontSize: '10px', marginLeft: '2px' };
 const DROPDOWN_STYLE: React.CSSProperties = {
   position: 'absolute',
   bottom: '100%',
-  left: 0,
   marginBottom: '4px',
   zIndex: 10000,
+  maxWidth: 'calc(100vw - 16px)',
+  overflowX: 'hidden',
 };
 const TOAST_STYLE: React.CSSProperties = { zIndex: 20000 };
-const SUBMENU_MAX_WIDTH_PX = 360;
-/** How much the submenu overlaps its parent row so the cursor can travel into it. */
-const SUBMENU_OVERLAP_PX = 30;
-const SUBMENU_VIEWPORT_MARGIN_PX = 8;
+/** Gap (px) between the floating quota panel and the top of the provider dropdown. */
+const SUBMENU_GAP_PX = 4;
 const SUBMENU_STYLE: React.CSSProperties = {
+  // Float the quota panel above the whole dropdown (full-width, never overlapping rows).
   position: 'absolute',
-  left: '100%',
-  bottom: 0,
+  left: 0,
+  right: 0,
   zIndex: 10001,
-  minWidth: '300px',
-  maxWidth: `${SUBMENU_MAX_WIDTH_PX}px`,
+  whiteSpace: 'normal',
 };
 const SUBMENU_ROW_STYLE: React.CSSProperties = {
   display: 'flex',
@@ -77,10 +77,12 @@ export const ProviderSelect = ({ value, onChange, compact = false }: ProviderSel
   const [activeSubmenu, setActiveSubmenu] = useState<'none' | 'codexQuota'>('none');
   const [codexQuota, setCodexQuota] = useState<CodexSubscriptionQuotaSnapshot | null>(null);
   const [quotaLoading, setQuotaLoading] = useState(false);
-  // Extra left shift (px) applied to the quota submenu so it stays inside the viewport on narrow panels.
-  const [submenuShiftX, setSubmenuShiftX] = useState(0);
+  // Distance (px) from the Codex row's bottom edge up to the floating quota panel,
+  // so it hovers just above the entire dropdown instead of overlapping provider rows.
+  const [submenuBottom, setSubmenuBottom] = useState(0);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { positionedStyle, recalculate } = useDropdownPosition({ buttonRef, dropdownRef });
 
   const currentProvider = AVAILABLE_PROVIDERS.find(p => p.id === value) || AVAILABLE_PROVIDERS[0];
 
@@ -94,9 +96,13 @@ export const ProviderSelect = ({ value, onChange, compact = false }: ProviderSel
    */
   const handleToggle = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsOpen(!isOpen);
+    const nextOpen = !isOpen;
+    setIsOpen(nextOpen);
     setActiveSubmenu('none');
-  }, [isOpen]);
+    if (nextOpen) {
+      recalculate();
+    }
+  }, [isOpen, recalculate]);
 
   /**
    * Show toast message
@@ -175,6 +181,12 @@ export const ProviderSelect = ({ value, onChange, compact = false }: ProviderSel
     requestCodexQuota();
   }, [activeSubmenu, isOpen, requestCodexQuota]);
 
+  useLayoutEffect(() => {
+    if (isOpen) {
+      recalculate();
+    }
+  }, [isOpen, recalculate]);
+
   const renderCodexQuotaSubmenu = () => {
     const fiveHour = codexQuota?.windows.fiveHour;
     const weekly = codexQuota?.windows.weekly;
@@ -237,7 +249,7 @@ export const ProviderSelect = ({ value, onChange, compact = false }: ProviderSel
     return (
       <div
         className="selector-dropdown"
-        style={{ ...SUBMENU_STYLE, marginLeft: `${-SUBMENU_OVERLAP_PX - submenuShiftX}px` }}
+        style={{ ...SUBMENU_STYLE, bottom: `${submenuBottom}px` }}
         onClick={(e) => e.stopPropagation()}
         onMouseEnter={(e) => {
           e.stopPropagation();
@@ -295,7 +307,7 @@ export const ProviderSelect = ({ value, onChange, compact = false }: ProviderSel
           <div
             ref={dropdownRef}
             className="selector-dropdown"
-            style={DROPDOWN_STYLE}
+            style={{ ...DROPDOWN_STYLE, ...positionedStyle }}
           >
             {AVAILABLE_PROVIDERS.map((provider) => (
               <div
@@ -309,12 +321,14 @@ export const ProviderSelect = ({ value, onChange, compact = false }: ProviderSel
                 data-provider-id={provider.id}
                 onMouseEnter={(e) => {
                   if (provider.id === 'codex') {
-                    // Shift the submenu back into view when the panel is too
-                    // narrow for it to fit on the right of the row.
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const overflow = rect.right - SUBMENU_OVERLAP_PX + SUBMENU_MAX_WIDTH_PX
-                      - (window.innerWidth - SUBMENU_VIEWPORT_MARGIN_PX);
-                    setSubmenuShiftX(overflow > 0 ? Math.round(overflow) : 0);
+                    // Float the quota panel just above the entire dropdown so it
+                    // never overlaps the provider rows, regardless of panel width.
+                    const rowRect = e.currentTarget.getBoundingClientRect();
+                    const dropdownRect = dropdownRef.current?.getBoundingClientRect();
+                    const bottomOffset = dropdownRect
+                      ? rowRect.bottom - dropdownRect.top + SUBMENU_GAP_PX
+                      : rowRect.height + SUBMENU_GAP_PX;
+                    setSubmenuBottom(Math.round(bottomOffset));
                     setActiveSubmenu('codexQuota');
                   } else {
                     setActiveSubmenu('none');

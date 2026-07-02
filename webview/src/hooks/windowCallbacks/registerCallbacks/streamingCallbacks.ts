@@ -14,13 +14,39 @@ import { parseSequence } from '../parseSequence';
 import { getStreamEndHandlingMode } from '../messageSync';
 
 /**
+ * Pour every tool_use_id carried by tool_result blocks inside one message's raw
+ * into the supplied accumulator.
+ *
+ * Writing into a caller-provided Set (instead of returning a fresh one) lets
+ * {@link collectUnresolvedToolUseIds} fold every message into a single pass
+ * without per-message intermediate allocations. A no-op when the message has
+ * no usable raw or no tool_result blocks.
+ */
+const harvestToolResultIdsInto = (
+  message: ClaudeMessage | undefined,
+  target: Set<string>,
+): void => {
+  if (!message?.raw) return;
+  const rawObj = typeof message.raw === 'string' ? JSON.parse(message.raw) : message.raw;
+  const content = rawObj?.content ?? rawObj?.message?.content;
+  if (!Array.isArray(content)) return;
+  for (const block of content as Array<{ type?: string; tool_use_id?: string }>) {
+    if (block?.type === 'tool_result' && block.tool_use_id) {
+      target.add(block.tool_use_id);
+    }
+  }
+};
+
+/**
  * Scans assistant messages containing tool_use blocks and returns IDs that have
  * no matching tool_result anywhere in the conversation.
  *
  * scope: 'lastTurn'  — only inspect the most recent assistant tool_use group and
- *                       its immediate user follow-up (default; used by
- *                       onPermissionDenied + onStreamEnd, where only the active
- *                       turn can have stragglers).
+ *                       every consecutive user message trailing it (default;
+ *                       used by onPermissionDenied + onStreamEnd, where only the
+ *                       active turn can have stragglers). The trailing sweep
+ *                       stops at the first non-user message so results from a
+ *                       later turn never leak into this turn's resolution set.
  * scope: 'all'       — collect every tool_use ID across the whole message list
  *                       and check against every tool_result block anywhere.
  *                       Required by historyLoadComplete because a replayed
@@ -42,15 +68,7 @@ export function collectUnresolvedToolUseIds(
       // Pass 1: gather every tool_result id present anywhere in the conversation.
       const resolvedIds = new Set<string>();
       for (const msg of messages) {
-        if (!msg.raw) continue;
-        const rawObj = typeof msg.raw === 'string' ? JSON.parse(msg.raw) : msg.raw;
-        const content = rawObj?.content ?? rawObj?.message?.content;
-        if (!Array.isArray(content)) continue;
-        for (const block of content as Array<{ type?: string; tool_use_id?: string }>) {
-          if (block?.type === 'tool_result' && block.tool_use_id) {
-            resolvedIds.add(block.tool_use_id);
-          }
-        }
+        harvestToolResultIdsInto(msg, resolvedIds);
       }
       // Pass 2: flag every assistant tool_use without a matching result.
       for (const msg of messages) {
@@ -83,19 +101,19 @@ export function collectUnresolvedToolUseIds(
       ) as Array<{ type: string; id: string; name?: string }>;
       if (toolUses.length === 0) continue;
 
-      const nextMsg = messages[i + 1];
+      // Collect tool_result ids from EVERY user message trailing this assistant,
+      // not just messages[i + 1]. The backend (ClaudeMessageHandler.handleToolResult)
+      // emits one user message per tool_result, so N parallel tool_use fan out into
+      // N consecutive user messages. Stopping at the first result message would
+      // strand the remaining tool_use ids and mark them as interrupted (red badge)
+      // even though their results are present further down the list. The sweep
+      // halts at the first non-user message (e.g. the next assistant) so results
+      // belonging to a later turn never leak into this turn's resolution set.
       const existingResultIds = new Set<string>();
-      if (nextMsg?.type === 'user' && nextMsg.raw) {
-        const nextRaw =
-          typeof nextMsg.raw === 'string' ? JSON.parse(nextMsg.raw) : nextMsg.raw;
-        const nextContent = nextRaw.content || nextRaw.message?.content;
-        if (Array.isArray(nextContent)) {
-          nextContent.forEach((block: { type?: string; tool_use_id?: string }) => {
-            if (block.type === 'tool_result' && block.tool_use_id) {
-              existingResultIds.add(block.tool_use_id);
-            }
-          });
-        }
+      for (let j = i + 1; j < messages.length; j++) {
+        const follower = messages[j];
+        if (follower?.type !== 'user') break;
+        harvestToolResultIdsInto(follower, existingResultIds);
       }
 
       for (const tu of toolUses) {
@@ -125,6 +143,32 @@ export function collectUnresolvedToolUseIds(
  */
 const STREAM_STALL_TIMEOUT_MS = 60_000;
 const STREAM_STALL_CHECK_INTERVAL_MS = 5_000;
+
+// Helper to measure total text length from raw blocks (for comparing completeness).
+// Handles both object and JSON string formats of raw.
+type TextBlock = { type: 'text'; text: string };
+const hasTextBlocks = (value: unknown): value is { message: { content: TextBlock[] } } => {
+  if (!value || typeof value !== 'object') return false;
+  const msg = (value as { message?: unknown }).message;
+  if (!msg || typeof msg !== 'object') return false;
+  const content = (msg as { content?: unknown }).content;
+  return Array.isArray(content);
+};
+const getTextLenFromRaw = (raw: unknown): number => {
+  let parsedRaw: unknown = raw;
+  if (typeof raw === 'string') {
+    try {
+      parsedRaw = JSON.parse(raw);
+    } catch (error) {
+      console.warn('[Frontend] Failed to parse raw JSON for length comparison:', error);
+      return 0;
+    }
+  }
+  if (!hasTextBlocks(parsedRaw)) return 0;
+  return parsedRaw.message.content
+    .filter((b): b is TextBlock => b?.type === 'text' && typeof b.text === 'string')
+    .reduce((sum, b) => sum + b.text.length, 0);
+};
 
 export function registerStreamingCallbacks(options: UseWindowCallbacksOptions): void {
   const {
@@ -429,41 +473,28 @@ export function registerStreamingCallbacks(options: UseWindowCallbacksOptions): 
     // Snapshot turn start time BEFORE entering the updater
     const turnStartedAt = window.__turnStartedAt;
     window.__turnStartedAt = undefined;
+    // Snapshot stream-end time and derived values BEFORE the updater to keep it pure.
+    // Date.now() / new Date() inside an updater are impure: React StrictMode double-invokes
+    // updaters and would produce two different timestamps for the same stream end.
+    const streamEndedAt = Date.now();
+    const durationMs = (typeof turnStartedAt === 'number' && turnStartedAt > 0)
+      ? streamEndedAt - turnStartedAt
+      : undefined;
+    const toolResultTimestamp = new Date(streamEndedAt).toISOString();
 
     // Snapshot streaming state BEFORE clearing refs - used for post-stream merge guard
     const endedStreamingTurnId = streamingTurnIdRef.current;
     const endedStreamingMessageIndex = streamingMessageIndexRef.current;
+
+    // Initialize denied tool ids set if not exists
+    if (!window.__deniedToolIds) {
+      window.__deniedToolIds = new Set<string>();
+    }
     // FIX: Prioritize streaming content over backend snapshot to prevent digit loss
     // Streaming content has all the latest deltas (including the final one just flushed).
     // Backend snapshot might be from an earlier coalescer push and may be incomplete.
     const endedStreamingContent = streamingContentRef.current || backendSnapshotContent || '';
     const endedBackendRaw = backendSnapshotRaw;
-
-    // Helper to measure total text length from raw blocks (for comparing completeness).
-    // Handles both object and JSON string formats of raw.
-    type TextBlock = { type: 'text'; text: string };
-    const hasTextBlocks = (value: unknown): value is { message: { content: TextBlock[] } } => {
-      if (!value || typeof value !== 'object') return false;
-      const msg = (value as { message?: unknown }).message;
-      if (!msg || typeof msg !== 'object') return false;
-      const content = (msg as { content?: unknown }).content;
-      return Array.isArray(content);
-    };
-    const getTextLenFromRaw = (raw: unknown): number => {
-      let parsedRaw: unknown = raw;
-      if (typeof raw === 'string') {
-        try {
-          parsedRaw = JSON.parse(raw);
-        } catch (error) {
-          console.warn('[Frontend] Failed to parse raw JSON for length comparison:', error);
-          return 0;
-        }
-      }
-      if (!hasTextBlocks(parsedRaw)) return 0;
-      return parsedRaw.message.content
-        .filter((b): b is TextBlock => b?.type === 'text' && typeof b.text === 'string')
-        .reduce((sum, b) => sum + b.text.length, 0);
-    };
 
     // FIX: Clear streaming refs BEFORE setMessages updater to prevent race conditions.
     //
@@ -499,19 +530,44 @@ export function registerStreamingCallbacks(options: UseWindowCallbacksOptions): 
     window.__lastStreamEndedAt = Date.now();
 
     // Flush final content and finalize the streaming message.
+    // FIX (Issue #1315): Merge interrupted tool detection AND the denied-tool side
+    // effect into this single setMessages call.
+    //
+    // Context: React 18 batches multiple setState calls within the same event handler.
+    // Each updater receives the SAME previous state, and React uses only the LAST
+    // return value for the final state. Previously a second setMessages() that
+    // scanned for interrupted tool_use IDs received stale state and overwrote the
+    // updates made here.
+    //
+    // CRITICAL: the __deniedToolIds mutation MUST also happen inside the updater,
+    // not after setMessages() returns. React 18 does NOT run updaters synchronously
+    // during the setState call — they run later during the render phase. Any value
+    // captured in a closure variable after setMessages() would be empty.
     setMessages((prev) => {
       let newMessages = prev;
-      const idx = endedStreamingMessageIndex;
-      if (prev.length > 0 && idx >= 0 && idx < prev.length && prev[idx]?.type === 'assistant') {
+      // FIX (Issue #1315 investigation, residual risk A): Prefer the snapshot
+      // index, but fall back to a __turnId scan when an interleaved
+      // updateMessages reordered/shrank the list so prev[idx] is no longer the
+      // streaming assistant. Without this, the final content flush is silently
+      // dropped. The re-scan only runs when the primary index is invalid, so the
+      // hot path (index still valid) pays no cost.
+      let idx = endedStreamingMessageIndex;
+      if (!(idx >= 0 && idx < prev.length && prev[idx]?.type === 'assistant')
+          && endedStreamingTurnId > 0) {
+        for (let i = prev.length - 1; i >= 0; i--) {
+          const msg = prev[i];
+          if (msg?.type === 'assistant' && msg.__turnId === endedStreamingTurnId) {
+            idx = i;
+            break;
+          }
+        }
+      }
+      if (idx >= 0 && idx < prev.length && prev[idx]?.type === 'assistant') {
         newMessages = [...prev];
         // FIX: Keep __turnId on the message for a short period to prevent
         // incorrect merging with history messages. The __turnId will be
         // removed later when history is loaded or a new turn starts.
         const finalContent = endedStreamingContent || newMessages[idx].content || '';
-        // Calculate durationMs and stamp it on the assistant message
-        const durationMs = (typeof turnStartedAt === 'number' && turnStartedAt > 0)
-          ? Date.now() - turnStartedAt
-          : undefined;
         // Use backend raw blocks only if they are more complete than the existing raw.
         // The backend snapshot may be from an earlier coalescer flush, so the existing
         // raw (updated by subsequent deltas) could actually be more up-to-date.
@@ -574,7 +630,7 @@ export function registerStreamingCallbacks(options: UseWindowCallbacksOptions): 
             (block) => block?.type === 'tool_result' && typeof block.tool_use_id === 'string' && !existingToolResultIds.has(block.tool_use_id),
           );
           if (hasNewToolResult) {
-            newMessages.push({ ...trMsg, type: 'user' as const, timestamp: new Date().toISOString() });
+            newMessages.push({ ...trMsg, type: 'user' as const, timestamp: toolResultTimestamp });
             // Register the freshly-pushed ids so a duplicate tool_result carrying the same
             // tool_use_id later in this snapshot isn't appended a second time.
             for (const block of content) {
@@ -584,6 +640,34 @@ export function registerStreamingCallbacks(options: UseWindowCallbacksOptions): 
             }
           }
         }
+      }
+
+      // FIX (Issue #1315): Collect interrupted tool_use IDs and mark them as denied
+      // INSIDE this updater. This runs against the fully-merged newMessages (finalized
+      // assistant + recovered tool_results), which is the authoritative state — a
+      // second setMessages call would only see stale state under React 18 batching.
+      //
+      // The scan cost matches the pre-fix behavior (collectUnresolvedToolUseIds was
+      // always called on stream end); we did NOT add a second pass. On the common
+      // fully-resolved turn it returns [] and the for-loop below is a no-op.
+      try {
+        const interruptedIds = collectUnresolvedToolUseIds(newMessages);
+        // __deniedToolIds is initialized at the top of onStreamEnd (alongside the
+        // streaming-ref snapshots), so the non-null assertion is safe. Cache the
+        // reference to avoid re-reading the window property on each iteration.
+        //
+        // NOTE: mutating a window global inside an updater is intentionally impure.
+        // React StrictMode double-invokes updaters in development, but Set.add() is
+        // idempotent — adding the same id twice leaves the Set in the correct state.
+        // Moving this mutation outside setMessages() is not feasible: React 18 does
+        // not run updaters synchronously, so any closure variable captured after
+        // setMessages() returns would still be empty when the for-loop executes.
+        const deniedToolIds = window.__deniedToolIds!;
+        for (const id of interruptedIds) {
+          deniedToolIds.add(id);
+        }
+      } catch (error) {
+        console.error('[Frontend] Failed to collect interrupted tool ids:', error);
       }
 
       return newMessages;
@@ -612,29 +696,6 @@ export function registerStreamingCallbacks(options: UseWindowCallbacksOptions): 
     setLoadingStartTime(null);
     setIsThinking(false);
 
-    // FIX: When stream ends (normal completion, user interrupt, or backend abort),
-    // any tool_use without a matching tool_result will otherwise render as a
-    // perpetual loading spinner in BashToolGroupBlock / EditToolGroupBlock /
-    // ReadToolGroupBlock. Treat them as interrupted by reusing the denied-tool
-    // mechanism so the UI shows a definitive (error) state instead of pending.
-    //
-    // For a normal turn the SDK delivers all tool_results before onStreamEnd,
-    // so collectUnresolvedToolUseIds returns []. The cost is only paid when the
-    // turn was actually cut short (interrupt / <turn_aborted>).
-    if (!window.__deniedToolIds) {
-      window.__deniedToolIds = new Set<string>();
-    }
-    let interruptedIds: string[] = [];
-    setMessages((currentMessages) => {
-      interruptedIds = collectUnresolvedToolUseIds(currentMessages);
-      // Return a new reference only when there is something to surface — avoids
-      // an extra ChatMessages re-render on the hot path of every normal turn.
-      return interruptedIds.length > 0 ? [...currentMessages] : currentMessages;
-    });
-    for (const id of interruptedIds) {
-      window.__deniedToolIds.add(id);
-    }
-
     // Mark this turn as processed — idempotency guard for dual-path delivery
     window.__streamEndProcessedTurnId = endedStreamingTurnId;
   };
@@ -647,22 +708,16 @@ export function registerStreamingCallbacks(options: UseWindowCallbacksOptions): 
     }
   };
 
-  // Permission denied callback — marks incomplete tool calls as "interrupted"
-  window.onPermissionDenied = () => {
-    if (!window.__deniedToolIds) {
-      window.__deniedToolIds = new Set<string>();
-    }
-
-    let idsToAdd: string[] = [];
-    setMessages((currentMessages) => {
-      idsToAdd = collectUnresolvedToolUseIds(currentMessages);
-      return [...currentMessages];
-    });
-
-    for (const id of idsToAdd) {
-      window.__deniedToolIds!.add(id);
-    }
-  };
+  // Permission denied callback — kept as a no-op for backward compatibility.
+  //
+  // The backend (ClaudeChatWindow.interruptDueToPermissionDenial) always calls
+  // onStreamEnd() immediately after this in the same EDT invokeLater block.
+  // The merged onStreamEnd updater performs the interrupted-tool scan against
+  // the authoritative finalized state, which supersedes anything this handler
+  // could do against pre-finalize state. Running a second setMessages here
+  // would only produce a wasted re-render (React 18 batches the two calls, and
+  // onStreamEnd is the last writer). See Issue #1315 investigation for details.
+  window.onPermissionDenied = () => {};
 
   // Block reset callback — clears streaming content refs when a new assistant
   // message starts within an ongoing stream (e.g., after tool_use loop iteration).
@@ -673,13 +728,18 @@ export function registerStreamingCallbacks(options: UseWindowCallbacksOptions): 
       // Stream not active, ignore (could be stale signal after stream ended)
       return;
     }
-    // Clear content buffers - new deltas will start fresh
-    streamingContentRef.current = '';
-    streamingThinkingRef.current = '';
-    // Intentionally NOT resetting streamingMessageIndexRef here: the backend will
-    // send a new updateMessages snapshot for this turn, which will eventually set
-    // the correct index via the isStaleSnapshot guard. Resetting the index now
-    // would leave a window where incoming deltas have nowhere to land.
+    // NOTE: content/thinking buffers are intentionally NOT cleared here.
+    // The Java layer keeps ONE assistant message for the whole turn (including
+    // every tool_use loop iteration), appending each turn's text/thinking as
+    // additional raw blocks. Clearing the buffers on BLOCK_RESET would discard
+    // the prefix carried by earlier turns and break sync*BlocksWithContent's
+    // prefix reconciliation: a multi-block turn would drop new deltas (prefix
+    // no longer matches) and a single-block turn would overwrite the prior
+    // turn's block with the new turn's content. Keep the cumulative buffer; the
+    // sync functions' trailing-block guard routes each turn's content into its
+    // own block once the backend snapshot delivers it.
+    // Intentionally NOT resetting streamingMessageIndexRef either: the assistant
+    // message is shared across turns, so the index already points at it.
     // Reset throttle timeouts to ensure clean state for new deltas
     if (contentUpdateTimeoutRef.current != null) {
       cancelAnimationFrame(contentUpdateTimeoutRef.current);

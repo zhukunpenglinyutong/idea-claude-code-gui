@@ -22,43 +22,28 @@ vi.mock('../../../utils/nodeProcessCapabilities', () => ({
   subscribeNodeProcessKillResult: vi.fn(() => () => undefined),
 }));
 
-function rect(left: number, right: number, width = right - left): DOMRect {
+vi.mock('../../../utils/viewport', () => ({
+  getAppViewport: () => ({ left: 0, top: 0, width: 410, height: 700 }),
+}));
+
+function rect(left: number, right: number, width = right - left, top = 0, height = 200): DOMRect {
   return {
     x: left,
-    y: 0,
+    y: top,
     left,
     right,
-    top: 0,
-    bottom: 200,
+    top,
+    bottom: top + height,
     width,
-    height: 200,
+    height,
     toJSON: () => ({}),
   } as DOMRect;
 }
 
 describe('NodeProcessSelect render positioning', () => {
   let getBoundingClientRectSpy: ReturnType<typeof vi.spyOn>;
-  let originalInnerWidth: number;
 
   beforeEach(() => {
-    originalInnerWidth = window.innerWidth;
-    Object.defineProperty(window, 'innerWidth', {
-      configurable: true,
-      writable: true,
-      value: 410,
-    });
-  });
-
-  afterEach(() => {
-    getBoundingClientRectSpy?.mockRestore();
-    Object.defineProperty(window, 'innerWidth', {
-      configurable: true,
-      writable: true,
-      value: originalInnerWidth,
-    });
-  });
-
-  it('does not enter a layout update loop when the flipped dropdown has different measured bounds', async () => {
     getBoundingClientRectSpy = vi
       .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
       .mockImplementation(function getMockRect(this: HTMLElement) {
@@ -72,7 +57,13 @@ describe('NodeProcessSelect render positioning', () => {
         }
         return rect(0, 0, 0);
       });
+  });
 
+  afterEach(() => {
+    getBoundingClientRectSpy.mockRestore();
+  });
+
+  it('does not enter a layout update loop when the flipped dropdown has different measured bounds', async () => {
     const { container } = render(
       <div data-testid="node-process-anchor">
         <NodeProcessSelect embedded />
