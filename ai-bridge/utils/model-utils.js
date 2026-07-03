@@ -16,15 +16,19 @@ export function mapModelIdToSdkName(modelId) {
   const lowerModel = modelId.toLowerCase();
 
   // Mapping rules:
-  // - Contains 'opus' -> 'opus'
-  // - Contains 'haiku' -> 'haiku'
-  // - Otherwise (contains 'sonnet' or unknown) -> 'sonnet'
+  // - Contains 'opus'   -> 'opus'
+  // - Contains 'haiku'  -> 'haiku'
+  // - Contains 'sonnet' -> 'sonnet'
+  // - Otherwise (e.g. 'claude-fable-5'): return the full model ID so the SDK
+  //   uses it directly and the runtime signature stays distinct from 'sonnet'.
   if (lowerModel.includes('opus')) {
     return 'opus';
   } else if (lowerModel.includes('haiku')) {
     return 'haiku';
-  } else {
+  } else if (lowerModel.includes('sonnet')) {
     return 'sonnet';
+  } else {
+    return modelId;
   }
 }
 
@@ -60,8 +64,10 @@ export function resolveModelFromSettings(modelId, userEnv) {
     return requestHas1M ? `${base}[1m]` : base;
   };
 
-  // ANTHROPIC_MODEL is a global override that applies to all model types
-  if (userEnv.ANTHROPIC_MODEL && String(userEnv.ANTHROPIC_MODEL).trim()) {
+  // ANTHROPIC_MODEL in settings.json is a global default, but an explicit model
+  // selection from the webview UI takes precedence over it. Only apply the global
+  // override when no model ID was provided (e.g. prewarm calls with empty model).
+  if (!modelId && userEnv.ANTHROPIC_MODEL && String(userEnv.ANTHROPIC_MODEL).trim()) {
     return applySuffix(String(userEnv.ANTHROPIC_MODEL).trim());
   }
 

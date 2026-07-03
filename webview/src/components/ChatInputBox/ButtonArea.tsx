@@ -72,7 +72,7 @@ export const ButtonArea = ({
   isLoading = false,
   isEnhancing = false,
   selectedModel = 'claude-sonnet-4-6',
-  permissionMode = 'default',
+  permissionMode = 'bypassPermissions',
   currentProvider = 'claude',
   reasoningEffort = 'high',
   codexFastMode = 'normal',
@@ -139,7 +139,7 @@ export const ButtonArea = ({
     };
 
     const key = modelKeyMap[model.id];
-    const resolvedMapping = (key ? mapping[key] : undefined) || mapping.main;
+    const resolvedMapping = key ? (mapping[key] || mapping.main) : undefined;
     if (resolvedMapping) {
       const actualModel = String(resolvedMapping).trim();
       if (actualModel.length > 0) {
