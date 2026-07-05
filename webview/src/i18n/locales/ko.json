@@ -288,7 +288,10 @@
         "testSound": "테스트",
         "browse": "찾아보기",
         "useDefault": "기본값 사용",
-        "customSoundSaved": "사용자 지정 알림음 저장됨"
+        "customSoundSaved": "사용자 지정 알림음 저장됨",
+        "manualActionLabel": "사용자 작업 필요 알림음",
+        "manualActionHint": "활성화하면 사용자 입력이 필요할 때 알림음이 재생됩니다 — 권한 확인, 질문 답변 또는 계획 승인 시.",
+        "manualActionSelectSound": "작업 알림음"
       },
       "userMsgColor": {
         "label": "사용자 메시지 색상",

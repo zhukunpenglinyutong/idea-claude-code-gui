@@ -315,7 +315,10 @@
         "testSound": "试听",
         "browse": "浏览",
         "useDefault": "使用默认",
-        "customSoundSaved": "自定义提示音已保存"
+        "customSoundSaved": "自定义提示音已保存",
+        "manualActionLabel": "需要用户操作提示音",
+        "manualActionHint": "开启后，当需要用户操作时会播放提示音，例如确认权限、回答问题或批准计划。",
+        "manualActionSelectSound": "操作提示音"
       },
       "userMsgColor": {
         "label": "用户消息颜色",
