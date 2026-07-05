@@ -7,10 +7,12 @@ import com.github.claudecodegui.interaction.FuturePermissionDecisionTarget;
 import com.github.claudecodegui.interaction.SessionPermissionDecisionTarget;
 import com.github.claudecodegui.interaction.UserInteractionService;
 import com.github.claudecodegui.interaction.UserInteractionType;
+import com.github.claudecodegui.notifications.AskUserQuestionReminderToastListener;
 import com.github.claudecodegui.notifications.SoundUserInteractionListener;
 import com.github.claudecodegui.permission.PermissionRequest;
 import com.github.claudecodegui.settings.CodemossSettingsService;
 import com.github.claudecodegui.util.SoundNotificationService;
+import com.github.claudecodegui.util.SystemNotificationService;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.intellij.openapi.diagnostic.Logger;
@@ -84,6 +86,10 @@ public class PermissionHandler extends BaseMessageHandler {
         // registers the listener; SoundNotificationService decides when and which sound to play.
         this.userInteractionService.addListener(new SoundUserInteractionListener(
                 SoundNotificationService.getInstance()::playManualActionRequiredSound));
+        // v0.4.7 AskUserQuestion reminder toast, re-integrated as an observer (not an inline call).
+        // Uses the handler context project, matching the v0.4.7 inline call; gating stays in the service.
+        this.userInteractionService.addListener(new AskUserQuestionReminderToastListener(
+                () -> SystemNotificationService.getInstance().showAskUserQuestionReminderToast(context.getProject())));
     }
 
     long getSafetyNetTimeoutSeconds() {

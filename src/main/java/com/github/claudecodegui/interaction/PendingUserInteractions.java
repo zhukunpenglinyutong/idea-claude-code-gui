@@ -2,7 +2,9 @@ package com.github.claudecodegui.interaction;
 
 import com.google.gson.JsonObject;
 
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -47,14 +49,18 @@ public final class PendingUserInteractions {
         return true;
     }
 
-    /** Resolve the interaction with its timeout payload. @return whether one was found. */
-    public boolean timeout(UserInteractionType type, String id) {
+    /**
+     * Resolve the interaction with its timeout payload.
+     * @return the removed interaction, or {@code null} if none was pending (already answered — the
+     *         atomic {@code remove} is the race-guard, so a late timeout never touches a new dialog).
+     */
+    public PendingUserInteraction timeout(UserInteractionType type, String id) {
         PendingUserInteraction interaction = interactions.remove(key(type, id));
         if (interaction == null) {
-            return false;
+            return null;
         }
         interaction.timeout();
-        return true;
+        return interaction;
     }
 
     /** Resolve the interaction with its dialog-failed payload, if it is still pending. */
@@ -74,15 +80,22 @@ public final class PendingUserInteractions {
      * <p>Note: {@code KEEP} entries that are never answered remain in this map for the registry's
      * lifetime (a small, bounded accumulation; see {@link SessionChangePolicy#KEEP_ON_SESSION_CHANGE}).
      * This method is the natural place for an eviction policy should that ever need bounding.
+     *
+     * @return the set of interaction types that had at least one interaction actually drained (only
+     *         {@code DENY_ON_SESSION_CHANGE}). Drives the type-based webview force-close sweep; a type
+     *         with only {@code KEEP} interactions is not included (matching pre-existing behaviour).
      */
-    public void cancelAllSessionChanged() {
+    public Set<UserInteractionType> cancelAllSessionChanged() {
+        Set<UserInteractionType> drainedTypes = EnumSet.noneOf(UserInteractionType.class);
         interactions.values().removeIf(interaction -> {
             if (interaction.sessionChangePolicy() == SessionChangePolicy.DENY_ON_SESSION_CHANGE) {
                 interaction.cancelSessionChanged();
+                drainedTypes.add(interaction.type());
                 return true;
             }
             return false;
         });
+        return drainedTypes;
     }
 
     public int size() {

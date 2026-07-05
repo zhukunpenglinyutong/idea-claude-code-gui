@@ -5,6 +5,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -77,7 +78,12 @@ public final class UserInteractionService {
 
     /** @return whether a pending interaction was found and resolved. */
     public boolean timeout(UserInteractionType type, String id) {
-        return pendingInteractions.timeout(type, id);
+        PendingUserInteraction interaction = pendingInteractions.timeout(type, id);
+        if (interaction == null) {
+            return false;
+        }
+        notifyTimedOut(interaction);
+        return true;
     }
 
     public void dialogFailed(UserInteractionType type, String id) {
@@ -85,7 +91,32 @@ public final class UserInteractionService {
     }
 
     public void cancelAllSessionChanged() {
-        pendingInteractions.cancelAllSessionChanged();
+        Set<UserInteractionType> drainedTypes = pendingInteractions.cancelAllSessionChanged();
+        if (!drainedTypes.isEmpty()) {
+            notifyClearedBySessionChange(drainedTypes);
+        }
+    }
+
+    private void notifyTimedOut(PendingUserInteraction interaction) {
+        for (UserInteractionListener listener : listeners) {
+            try {
+                listener.userInteractionTimedOut(interaction);
+            } catch (Exception e) {
+                LOG.warn("[UserInteraction] Listener failed on timeout for " + interaction.type() + " "
+                        + interaction.id() + ": " + e.getClass().getSimpleName(), e);
+            }
+        }
+    }
+
+    private void notifyClearedBySessionChange(Set<UserInteractionType> drainedTypes) {
+        for (UserInteractionListener listener : listeners) {
+            try {
+                listener.userInteractionsClearedBySessionChange(drainedTypes);
+            } catch (Exception e) {
+                LOG.warn("[UserInteraction] Listener failed on session-change clear "
+                        + drainedTypes + ": " + e.getClass().getSimpleName(), e);
+            }
+        }
     }
 
     public int size() {
