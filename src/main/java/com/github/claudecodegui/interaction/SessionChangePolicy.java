@@ -13,6 +13,16 @@ package com.github.claudecodegui.interaction;
 public enum SessionChangePolicy {
     /** Resolve with a default-deny / reject payload and drop on session change. */
     DENY_ON_SESSION_CHANGE,
-    /** Leave registered and untouched on session change. */
+    /**
+     * Leave registered and untouched on session change.
+     *
+     * <p>Trade-off (accepted): a session-callback permission that is never answered keeps its
+     * (small) registry entry for the handler's lifetime, since we deliberately do not auto-resolve
+     * it — its completion is owned by the SDK session (matching the pre-existing behaviour where
+     * these prompts were not tracked here at all). The accumulation is bounded in practice and its
+     * impact is negligible; if it ever needs bounding, an eviction hook belongs in
+     * {@link PendingUserInteractions#cancelAllSessionChanged()}. We intentionally avoid auto-denying
+     * these here to not change permission-decision behaviour.
+     */
     KEEP_ON_SESSION_CHANGE
 }

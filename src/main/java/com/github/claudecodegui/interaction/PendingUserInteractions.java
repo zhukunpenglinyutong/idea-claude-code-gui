@@ -70,6 +70,10 @@ public final class PendingUserInteractions {
      * {@link SessionChangePolicy#DENY_ON_SESSION_CHANGE}; leave {@code KEEP} interactions registered.
      * Called on session switch so issuing agents do not hang on dialogs from the old session, while
      * session-callback permissions (owned by the SDK session) are left untouched as they are today.
+     *
+     * <p>Note: {@code KEEP} entries that are never answered remain in this map for the registry's
+     * lifetime (a small, bounded accumulation; see {@link SessionChangePolicy#KEEP_ON_SESSION_CHANGE}).
+     * This method is the natural place for an eviction policy should that ever need bounding.
      */
     public void cancelAllSessionChanged() {
         interactions.values().removeIf(interaction -> {
