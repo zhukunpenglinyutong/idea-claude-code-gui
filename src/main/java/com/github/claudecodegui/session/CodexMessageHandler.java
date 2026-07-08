@@ -4,6 +4,7 @@ import com.github.claudecodegui.handler.CodexMessageConverter;
 import com.github.claudecodegui.provider.common.MessageCallback;
 import com.github.claudecodegui.provider.common.SDKResult;
 import com.github.claudecodegui.session.ClaudeSession.Message;
+import com.github.claudecodegui.util.UsageCostCalculator;
 import com.intellij.openapi.diagnostic.Logger;
 
 /**
@@ -299,15 +300,24 @@ public class CodexMessageHandler implements MessageCallback {
      * @since 1.0.0
      */
     private static com.google.gson.JsonObject buildTurnUsage(com.google.gson.JsonObject usage) {
-        int input = usage.has("input_tokens") ? usage.get("input_tokens").getAsInt() : 0;
-        int output = usage.has("output_tokens") ? usage.get("output_tokens").getAsInt() : 0;
-        int cacheRead = usage.has("cache_read_input_tokens") ? usage.get("cache_read_input_tokens").getAsInt() : 0;
+        int input = readInt(usage, "input_tokens");
+        int output = readInt(usage, "output_tokens");
+        int cacheRead = readInt(usage, "cache_read_input_tokens", "cached_input_tokens");
         com.google.gson.JsonObject turnUsage = new com.google.gson.JsonObject();
         turnUsage.addProperty("input_tokens", Math.max(0, input - cacheRead));
         turnUsage.addProperty("cache_creation_input_tokens", 0);
         turnUsage.addProperty("cache_read_input_tokens", cacheRead);
         turnUsage.addProperty("output_tokens", output);
         return turnUsage;
+    }
+
+    private static int readInt(com.google.gson.JsonObject json, String... keys) {
+        for (String key : keys) {
+            if (json.has(key) && !json.get(key).isJsonNull()) {
+                return Math.max(0, json.get(key).getAsInt());
+            }
+        }
+        return 0;
     }
 
     /**
@@ -383,6 +393,10 @@ public class CodexMessageHandler implements MessageCallback {
                 msg.raw.add("usage", usage);
                 if (turnUsage != null) {
                     msg.raw.add("turnUsage", turnUsage);
+                    Double turnCostUsd = UsageCostCalculator.calculateTurnCostUsd("codex", turnUsage, state.getModel());
+                    if (turnCostUsd != null) {
+                        msg.raw.addProperty("turnCostUsd", turnCostUsd);
+                    }
                 }
                 return true;
             }

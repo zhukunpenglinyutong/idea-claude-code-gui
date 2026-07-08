@@ -96,6 +96,7 @@
     "totalDuration": "Esta resposta levou",
     "tokenUsage": "{{input}} entrada / {{output}} saída",
     "tokenUsageDetail": "Total do turno — entrada {{input}} · gravação de cache {{cacheWrite}} · leitura de cache {{cacheRead}} · saída {{output}}",
+    "cacheHitsWithRatio": "{{tokens}} acertos de cache ({{ratio}})",
     "search": {
       "ariaLabel": "Pesquisar na conversa",
       "placeholder": "Pesquisar na conversa…",

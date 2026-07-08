@@ -37,6 +37,7 @@ const t = ((key: string, opts?: Record<string, string>) => {
     'chat.totalDuration': '本次耗时',
     'chat.tokenUsage': '输入 {{input}} / 输出 {{output}}',
     'chat.tokenUsageDetail': '本轮合计 — 输入 {{input}} · 缓存写入 {{cacheWrite}} · 缓存读取 {{cacheRead}} · 输出 {{output}}',
+    'chat.cacheHitsWithRatio': '缓存命中 {{tokens}} ({{ratio}})',
   };
   let result = translations[key] ?? key;
   if (opts) {
@@ -176,13 +177,14 @@ describe('MessageItem token usage display', () => {
           input_tokens: 1200,
           output_tokens: 456,
         },
+        turnCostUsd: 0.006,
       } as any,
     };
 
     renderMessageItem(message);
 
     expect(screen.getByText('0:16')).toBeTruthy();
-    expect(screen.getByText('输入 1.2K / 输出 456')).toBeTruthy();
+    expect(screen.getByText(/输入 1\.2K \/ 输出 456 \/ \$0\.0060/)).toBeTruthy();
   });
 
   it('counts cache tokens in the input total and details them in the tooltip', () => {
@@ -212,6 +214,7 @@ describe('MessageItem token usage display', () => {
     expect(tokens.getAttribute('title')).toBe(
       '本轮合计 — 输入 37 · 缓存写入 0 · 缓存读取 36.3K · 输出 353'
     );
+    expect(screen.getByText('缓存命中 36.3K (100%)')).toBeTruthy();
   });
 
   it('ignores per-call usage fields (message.usage / top-level usage)', () => {

@@ -283,6 +283,7 @@ public class CodexMessageHandlerTest {
     @Test
     public void resultMessageStampsNormalizedTurnUsageOnLastAssistant() {
         SessionState state = new SessionState();
+        state.setModel("gpt-5.1");
 
         CallbackHandler callbackHandler = new CallbackHandler();
         RecordingCallback callback = new RecordingCallback();
@@ -304,6 +305,47 @@ public class CodexMessageHandlerTest {
         assertEquals(36310, turnUsage.get("cache_read_input_tokens").getAsInt());
         assertEquals(0, turnUsage.get("cache_creation_input_tokens").getAsInt());
         assertEquals(353, turnUsage.get("output_tokens").getAsInt());
+        assertEquals(0.00893125, message.raw.get("turnCostUsd").getAsDouble(), 0.0000001);
+    }
+
+    @Test
+    public void resultMessageAcceptsCodexCachedInputTokenAlias() {
+        SessionState state = new SessionState();
+        state.setModel("gpt-5.1");
+
+        CallbackHandler callbackHandler = new CallbackHandler();
+        RecordingCallback callback = new RecordingCallback();
+        callbackHandler.setCallback(callback);
+
+        CodexMessageHandler handler = new CodexMessageHandler(state, callbackHandler);
+        handler.onMessage("assistant", "{\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"done\"}]}}");
+        handler.onMessage("result", "{\"type\":\"result\",\"subtype\":\"usage\",\"usage\":{"
+                + "\"input_tokens\":37000,\"output_tokens\":353,\"cached_input_tokens\":36310}}");
+
+        Message message = state.getMessages().get(0);
+        var turnUsage = message.raw.getAsJsonObject("turnUsage");
+        assertEquals(690, turnUsage.get("input_tokens").getAsInt());
+        assertEquals(36310, turnUsage.get("cache_read_input_tokens").getAsInt());
+        assertEquals(0.00893125, message.raw.get("turnCostUsd").getAsDouble(), 0.0000001);
+    }
+
+    @Test
+    public void resultMessageDoesNotStampTurnCostWhenModelHasNoPricing() {
+        SessionState state = new SessionState();
+        state.setModel("custom-codex-without-pricing");
+
+        CallbackHandler callbackHandler = new CallbackHandler();
+        RecordingCallback callback = new RecordingCallback();
+        callbackHandler.setCallback(callback);
+
+        CodexMessageHandler handler = new CodexMessageHandler(state, callbackHandler);
+        handler.onMessage("assistant", "{\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"done\"}]}}");
+        handler.onMessage("result", "{\"type\":\"result\",\"subtype\":\"usage\",\"usage\":{"
+                + "\"input_tokens\":1200,\"output_tokens\":456}}");
+
+        Message message = state.getMessages().get(0);
+        assertTrue(message.raw.has("turnUsage"));
+        assertFalse(message.raw.has("turnCostUsd"));
     }
 
     @Test

@@ -96,6 +96,7 @@
     "totalDuration": "今回の応答時間",
     "tokenUsage": "入力 {{input}} / 出力 {{output}}",
     "tokenUsageDetail": "ターン合計 — 入力 {{input}} · キャッシュ書き込み {{cacheWrite}} · キャッシュ読み取り {{cacheRead}} · 出力 {{output}}",
+    "cacheHitsWithRatio": "キャッシュヒット {{tokens}} ({{ratio}})",
     "search": {
       "ariaLabel": "会話内を検索",
       "placeholder": "会話内を検索...",

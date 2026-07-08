@@ -96,6 +96,7 @@
     "totalDuration": "本次耗時",
     "tokenUsage": "輸入 {{input}} / 輸出 {{output}}",
     "tokenUsageDetail": "本輪合計 — 輸入 {{input}} · 快取寫入 {{cacheWrite}} · 快取讀取 {{cacheRead}} · 輸出 {{output}}",
+    "cacheHitsWithRatio": "快取命中 {{tokens}} ({{ratio}})",
     "search": {
       "ariaLabel": "在對話中搜尋",
       "placeholder": "在對話中搜尋...",

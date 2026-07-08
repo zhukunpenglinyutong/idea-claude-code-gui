@@ -96,6 +96,7 @@
     "totalDuration": "이번 응답 소요 시간",
     "tokenUsage": "입력 {{input}} / 출력 {{output}}",
     "tokenUsageDetail": "턴 합계 — 입력 {{input}} · 캐시 쓰기 {{cacheWrite}} · 캐시 읽기 {{cacheRead}} · 출력 {{output}}",
+    "cacheHitsWithRatio": "캐시 히트 {{tokens}} ({{ratio}})",
     "search": {
       "ariaLabel": "대화에서 검색",
       "placeholder": "대화에서 검색...",

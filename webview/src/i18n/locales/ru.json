@@ -96,6 +96,7 @@
     "totalDuration": "Этот ответ занял",
     "tokenUsage": "вход {{input}} / выход {{output}}",
     "tokenUsageDetail": "Итог хода — вход {{input}} · запись кэша {{cacheWrite}} · чтение кэша {{cacheRead}} · выход {{output}}",
+    "cacheHitsWithRatio": "{{tokens}} попаданий в кэш ({{ratio}})",
     "search": {
       "ariaLabel": "Поиск в беседе",
       "placeholder": "Поиск в беседе…",

@@ -96,6 +96,7 @@
     "totalDuration": "Cette réponse a pris",
     "tokenUsage": "{{input}} entrée / {{output}} sortie",
     "tokenUsageDetail": "Total du tour — entrée {{input}} · écriture cache {{cacheWrite}} · lecture cache {{cacheRead}} · sortie {{output}}",
+    "cacheHitsWithRatio": "{{tokens}} cache touché ({{ratio}})",
     "search": {
       "ariaLabel": "Rechercher dans la conversation",
       "placeholder": "Rechercher dans la conversation…",

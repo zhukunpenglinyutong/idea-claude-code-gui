@@ -112,6 +112,7 @@ interface TokenUsageInfo {
   nonCacheInputTokens: number;
   cacheCreationTokens: number;
   cacheReadTokens: number;
+  costUsd?: number;
 }
 
 /**
@@ -140,12 +141,15 @@ function extractTokenUsage(raw: ClaudeMessage['raw']): TokenUsageInfo | null {
   const output = num(usage.output_tokens);
   const input = nonCacheInput + cacheCreation + cacheRead;
   if (input === 0 && output === 0) return null;
+  const rawCost = (raw as Record<string, unknown>).turnCostUsd;
+  const costUsd = typeof rawCost === 'number' && Number.isFinite(rawCost) && rawCost > 0 ? rawCost : undefined;
   return {
     inputTokens: input,
     outputTokens: output,
     nonCacheInputTokens: nonCacheInput,
     cacheCreationTokens: cacheCreation,
     cacheReadTokens: cacheRead,
+    ...(costUsd !== undefined ? { costUsd } : {}),
   };
 }
 
@@ -154,6 +158,19 @@ function formatTokenCount(count: number): string {
   if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
   if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`;
   return String(count);
+}
+
+function formatUsdCost(cost: number): string {
+  if (cost > 0 && cost < 0.0001) return '<$0.0001';
+  if (cost < 0.01) return `$${cost.toFixed(4)}`;
+  if (cost < 1) return `$${cost.toFixed(3)}`;
+  return `$${cost.toFixed(2)}`;
+}
+
+function formatCacheHitRatio(tokenInfo: TokenUsageInfo): string | null {
+  if (tokenInfo.cacheReadTokens <= 0 || tokenInfo.inputTokens <= 0) return null;
+  const ratio = Math.round((tokenInfo.cacheReadTokens / tokenInfo.inputTokens) * 100);
+  return `${Math.min(100, Math.max(0, ratio))}%`;
 }
 
 function isToolBlockOfType(block: ClaudeContentBlock, toolNames: Set<string>): boolean {
@@ -742,6 +759,7 @@ export const MessageItem = memo(function MessageItem({
             {(() => {
               const tokenInfo = extractTokenUsage(message.raw);
               if (!tokenInfo) return null;
+              const cacheHitRatio = formatCacheHitRatio(tokenInfo);
               return (
                 <>
                   <span className="message-duration-separator">·</span>
@@ -758,7 +776,19 @@ export const MessageItem = memo(function MessageItem({
                       input: formatTokenCount(tokenInfo.inputTokens),
                       output: formatTokenCount(tokenInfo.outputTokens),
                     })}
+                    {tokenInfo.costUsd !== undefined ? ` / ${formatUsdCost(tokenInfo.costUsd)}` : ''}
                   </span>
+                  {cacheHitRatio && (
+                    <>
+                      <span className="message-duration-separator">·</span>
+                      <span className="message-duration-tokens">
+                        {t('chat.cacheHitsWithRatio', {
+                          tokens: formatTokenCount(tokenInfo.cacheReadTokens),
+                          ratio: cacheHitRatio,
+                        })}
+                      </span>
+                    </>
+                  )}
                 </>
               );
             })()}
