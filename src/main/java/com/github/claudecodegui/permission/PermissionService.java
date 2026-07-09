@@ -1,5 +1,6 @@
 package com.github.claudecodegui.permission;
 
+import com.github.claudecodegui.util.SoundNotificationService;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.intellij.openapi.application.ApplicationManager;
@@ -575,6 +576,34 @@ public class PermissionService {
 
     // ── Diff Review ────────────────────────────────────────────────────
 
+    /**
+     * Play the manual-action sound for a diff-review prompt that is actually being shown.
+     *
+     * <p>The Apply/Reject diff prompt does not flow through {@code UserInteractionService}, so the
+     * {@code SoundUserInteractionListener} never fires for it. This mirrors that sound for the diff
+     * prompt, reusing the same gated {@code playManualActionRequiredSound()} (so
+     * enabled / manualActionSoundEnabled / onlyWhenUnfocused all still apply) — no new visual
+     * notification, and no duplicate sound: the normal webview permission path returns before this
+     * one, and keeps its own {@code SoundUserInteractionListener} sound.
+     *
+     * <p>Package-private with a {@link Runnable} seam for unit testing; a sound failure must never
+     * break the permission flow.
+     *
+     * @return {@code true} if a prompt is being shown ({@code reviewFuture != null}) and the sound fired.
+     */
+    static boolean playSoundIfDiffReviewShown(CompletableFuture<DiffReviewResult> reviewFuture,
+                                              Runnable manualActionSound) {
+        if (reviewFuture == null) {
+            return false;
+        }
+        try {
+            manualActionSound.run();
+        } catch (Exception e) {
+            LOG.warn("[DIFF_REVIEW] Failed to play manual-action sound: " + e.getMessage());
+        }
+        return true;
+    }
+
     private boolean tryDiffReview(JsonObject request, Path requestFile, String fileName,
                                   String requestId, String toolName, JsonObject inputs) {
         LOG.info("[DIFF_REVIEW] File-modifying tool: " + toolName
@@ -587,7 +616,12 @@ public class PermissionService {
 
         CompletableFuture<DiffReviewResult> reviewFuture =
                 DiffReviewService.reviewFileChange(matched, toolName, inputs);
-        if (reviewFuture == null) {
+        // The visible Apply/Reject diff prompt is an IDE-native approval path that bypasses
+        // UserInteractionService, so the SoundUserInteractionListener never sees it. Play the same
+        // gated manual-action sound here (issue #1336: "confirming an action") — only when a review
+        // prompt is actually shown (reviewFuture != null), so we don't sound on the fallback path.
+        if (!playSoundIfDiffReviewShown(reviewFuture,
+                () -> SoundNotificationService.getInstance().playManualActionRequiredSound())) {
             LOG.info("[DIFF_REVIEW] Not available for " + toolName + ", falling back");
             return false;
         }

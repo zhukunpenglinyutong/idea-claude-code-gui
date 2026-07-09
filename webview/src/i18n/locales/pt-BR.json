@@ -311,7 +311,10 @@
         "testSound": "Testar",
         "browse": "Procurar",
         "useDefault": "Usar Padrão",
-        "customSoundSaved": "Som personalizado salvo"
+        "customSoundSaved": "Som personalizado salvo",
+        "manualActionLabel": "Som de Ação Manual Necessária",
+        "manualActionHint": "Quando ativado, um som é reproduzido quando uma ação do usuário é necessária — confirmar uma permissão, responder a uma pergunta ou aprovar um plano.",
+        "manualActionSelectSound": "Som de Ação Manual"
       },
       "userMsgColor": {
         "label": "Cor da Mensagem do Usuário",

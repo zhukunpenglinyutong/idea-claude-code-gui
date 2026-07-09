@@ -65,29 +65,81 @@ public class SoundNotificationService {
     }
 
     /**
+     * Notification kinds. Each has its own selected sound; both share the global enable / focus
+     * gates, and MANUAL_ACTION additionally has its own enable toggle.
+     * Package-private so the gate decision can be unit-tested.
+     */
+    enum Kind { TASK_COMPLETE, MANUAL_ACTION }
+
+    /**
      * Play task completion notification sound based on user settings.
      */
     public void playTaskCompleteSound() {
+        playConfigured(Kind.TASK_COMPLETE);
+    }
+
+    /**
+     * Play the "manual action required" notification sound (permission / question / plan approval)
+     * based on user settings. Shares the enable / only-when-unfocused gates with the task-complete
+     * sound, but uses its own selected sound.
+     */
+    public void playManualActionRequiredSound() {
+        playConfigured(Kind.MANUAL_ACTION);
+    }
+
+    /**
+     * Read settings and, if enabled and not gated by focus, play the sound configured for {@code kind}.
+     */
+    private void playConfigured(Kind kind) {
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             try {
                 CodemossSettingsService settings = new CodemossSettingsService();
 
-                if (!settings.getSoundNotificationEnabled()) {
-                    LOG.debug("[SoundNotification] Sound notification is disabled");
+                if (!shouldPlay(settings, kind)) {
                     return;
                 }
 
-                if (settings.getSoundOnlyWhenUnfocused() && ApplicationManager.getApplication().isActive()) {
-                    LOG.debug("[SoundNotification] IDE window is focused, skipping notification sound");
-                    return;
+                String soundId = kind == Kind.TASK_COMPLETE
+                        ? settings.getSelectedSound()
+                        : settings.getManualActionSoundId();
+                String customPath = kind == Kind.TASK_COMPLETE
+                        ? settings.getCustomSoundPath()
+                        : settings.getManualActionCustomSoundPath();
+
+                // "custom" with no saved path: fall back to this kind's own default rather than the
+                // shared built-in default playBySelection would otherwise use (the task-complete sound).
+                if ("custom".equals(soundId) && (customPath == null || customPath.trim().isEmpty())) {
+                    soundId = kind == Kind.TASK_COMPLETE ? "default" : "bell";
                 }
 
-                String selectedSound = settings.getSelectedSound();
-                playBySelection(selectedSound, settings.getCustomSoundPath());
+                playBySelection(soundId, customPath);
             } catch (Exception e) {
                 LOG.warn("[SoundNotification] Failed to play notification sound: " + e.getMessage(), e);
             }
         });
+    }
+
+    /**
+     * Decide whether the sound for {@code kind} should play, given the current settings.
+     *
+     * <p>Both kinds share the global enable and only-when-unfocused gates; MANUAL_ACTION is
+     * additionally gated by its own {@code manualActionSoundEnabled} toggle, so the two sound events
+     * can be switched independently. Package-private for unit testing.
+     */
+    boolean shouldPlay(CodemossSettingsService settings, Kind kind) throws java.io.IOException {
+        if (!settings.getSoundNotificationEnabled()) {
+            LOG.debug("[SoundNotification] Sound notification is disabled");
+            return false;
+        }
+        if (settings.getSoundOnlyWhenUnfocused() && ApplicationManager.getApplication().isActive()) {
+            LOG.debug("[SoundNotification] IDE window is focused, skipping notification sound");
+            return false;
+        }
+        if (kind == Kind.MANUAL_ACTION && !settings.getManualActionSoundEnabled()) {
+            LOG.debug("[SoundNotification] Manual action sound is disabled");
+            return false;
+        }
+        return true;
     }
 
     /**

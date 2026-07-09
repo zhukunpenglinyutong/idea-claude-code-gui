@@ -92,6 +92,15 @@ interface BasicConfigSectionProps {
   onSaveCustomSoundPath?: () => void;
   onTestSound?: () => void;
   onBrowseSound?: () => void;
+  manualActionSoundEnabled?: boolean;
+  onManualActionSoundEnabledChange?: (enabled: boolean) => void;
+  manualActionSoundId?: string;
+  onManualActionSoundIdChange?: (soundId: string) => void;
+  manualActionCustomSoundPath?: string;
+  onManualActionCustomSoundPathChange?: (path: string) => void;
+  onSaveManualActionCustomSoundPath?: () => void;
+  onTestManualActionSound?: () => void;
+  onBrowseManualActionSound?: () => void;
   // Task completion notification configuration
   taskCompletionNotificationEnabled?: boolean;
   onTaskCompletionNotificationEnabledChange?: (enabled: boolean) => void;
@@ -180,6 +189,15 @@ const BasicConfigSection = (props: BasicConfigSectionProps) => {
           onSaveCustomSoundPath={props.onSaveCustomSoundPath}
           onTestSound={props.onTestSound}
           onBrowseSound={props.onBrowseSound}
+          manualActionSoundEnabled={props.manualActionSoundEnabled}
+          onManualActionSoundEnabledChange={props.onManualActionSoundEnabledChange}
+          manualActionSoundId={props.manualActionSoundId}
+          onManualActionSoundIdChange={props.onManualActionSoundIdChange}
+          manualActionCustomSoundPath={props.manualActionCustomSoundPath}
+          onManualActionCustomSoundPathChange={props.onManualActionCustomSoundPathChange}
+          onSaveManualActionCustomSoundPath={props.onSaveManualActionCustomSoundPath}
+          onTestManualActionSound={props.onTestManualActionSound}
+          onBrowseManualActionSound={props.onBrowseManualActionSound}
           taskCompletionNotificationEnabled={props.taskCompletionNotificationEnabled}
           onTaskCompletionNotificationEnabledChange={props.onTaskCompletionNotificationEnabledChange}
           askUserQuestionNotificationEnabled={props.askUserQuestionNotificationEnabled}

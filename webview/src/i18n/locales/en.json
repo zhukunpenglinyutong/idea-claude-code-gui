@@ -315,7 +315,10 @@
         "testSound": "Test",
         "browse": "Browse",
         "useDefault": "Use Default",
-        "customSoundSaved": "Custom sound saved"
+        "customSoundSaved": "Custom sound saved",
+        "manualActionLabel": "Manual Action Required Sound",
+        "manualActionHint": "When enabled, a sound plays when user input is required — a permission to confirm, a question to answer, or a plan to approve.",
+        "manualActionSelectSound": "Manual Action Sound"
       },
       "userMsgColor": {
         "label": "User Message Color",

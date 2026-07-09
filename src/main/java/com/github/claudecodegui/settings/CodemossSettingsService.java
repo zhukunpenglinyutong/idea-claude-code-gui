@@ -1339,6 +1339,138 @@ public class CodemossSettingsService {
         LOG.info("[CodemossSettings] Set selected sound: " + soundId);
     }
 
+    /**
+     * Get the sound ID for the "manual action required" notification (permission / question / plan).
+     * Shares {@code enabled}/{@code onlyWhenUnfocused} with the task-complete sound but has its own
+     * selection so the two can be told apart.
+     *
+     * @return sound ID, defaults to "bell" (distinct from the task-complete default "default")
+     */
+    public String getManualActionSoundId() throws IOException {
+        JsonObject config = readConfig();
+
+        if (!config.has("soundNotification")) {
+            return "bell";
+        }
+
+        JsonObject soundConfig = config.getAsJsonObject("soundNotification");
+        if (soundConfig.has("manualActionSoundId") && !soundConfig.get("manualActionSoundId").isJsonNull()) {
+            return soundConfig.get("manualActionSoundId").getAsString();
+        }
+
+        return "bell";
+    }
+
+    /**
+     * Set the sound ID for the "manual action required" notification.
+     *
+     * @param soundId sound ID, null or empty means the "bell" default
+     */
+    public void setManualActionSoundId(String soundId) throws IOException {
+        JsonObject config = readConfig();
+
+        JsonObject soundConfig;
+        if (config.has("soundNotification")) {
+            soundConfig = config.getAsJsonObject("soundNotification");
+        } else {
+            soundConfig = new JsonObject();
+            config.add("soundNotification", soundConfig);
+        }
+
+        soundConfig.addProperty("manualActionSoundId", (soundId == null || soundId.isEmpty()) ? "bell" : soundId);
+        writeConfig(config);
+        LOG.info("[CodemossSettings] Set manual action sound: " + soundId);
+    }
+
+    /**
+     * Get the custom sound file path for the "manual action required" notification.
+     *
+     * @return custom sound path, null means use the selected built-in sound
+     */
+    public String getManualActionCustomSoundPath() throws IOException {
+        JsonObject config = readConfig();
+
+        if (!config.has("soundNotification")) {
+            return null;
+        }
+
+        JsonObject soundConfig = config.getAsJsonObject("soundNotification");
+        if (soundConfig.has("manualActionCustomSoundPath")
+                && !soundConfig.get("manualActionCustomSoundPath").isJsonNull()) {
+            return soundConfig.get("manualActionCustomSoundPath").getAsString();
+        }
+
+        return null;
+    }
+
+    /**
+     * Set the custom sound file path for the "manual action required" notification.
+     *
+     * @param path file path, null or empty means use the selected built-in sound
+     */
+    public void setManualActionCustomSoundPath(String path) throws IOException {
+        JsonObject config = readConfig();
+
+        JsonObject soundConfig;
+        if (config.has("soundNotification")) {
+            soundConfig = config.getAsJsonObject("soundNotification");
+        } else {
+            soundConfig = new JsonObject();
+            config.add("soundNotification", soundConfig);
+        }
+
+        if (path == null || path.isEmpty()) {
+            soundConfig.remove("manualActionCustomSoundPath");
+        } else {
+            soundConfig.addProperty("manualActionCustomSoundPath", path);
+        }
+
+        writeConfig(config);
+        LOG.info("[CodemossSettings] Set manual action custom sound path: " + path);
+    }
+
+    /**
+     * Get whether the "manual action required" sound is enabled. Independent of the task-complete
+     * sound; both are still subject to the shared global enable / only-when-unfocused gates.
+     *
+     * @return whether the manual-action sound is enabled, default is true
+     */
+    public boolean getManualActionSoundEnabled() throws IOException {
+        JsonObject config = readConfig();
+
+        if (!config.has("soundNotification")) {
+            return true;
+        }
+
+        JsonObject soundConfig = config.getAsJsonObject("soundNotification");
+        if (soundConfig.has("manualActionSoundEnabled")) {
+            return soundConfig.get("manualActionSoundEnabled").getAsBoolean();
+        }
+
+        return true;
+    }
+
+    /**
+     * Set whether the "manual action required" sound is enabled.
+     *
+     * @param enabled whether to enable
+     */
+    public void setManualActionSoundEnabled(boolean enabled) throws IOException {
+        JsonObject config = readConfig();
+
+        JsonObject soundConfig;
+        if (config.has("soundNotification")) {
+            soundConfig = config.getAsJsonObject("soundNotification");
+        } else {
+            soundConfig = new JsonObject();
+            config.add("soundNotification", soundConfig);
+        }
+
+        soundConfig.addProperty("manualActionSoundEnabled", enabled);
+        writeConfig(config);
+        LOG.info("[CodemossSettings] Set manual action sound enabled: " + enabled);
+    }
+
     // ==================== Task Completion Notification Management ====================
 
     /**

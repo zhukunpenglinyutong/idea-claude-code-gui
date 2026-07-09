@@ -1,6 +1,9 @@
 package com.github.claudecodegui.handler;
 
 import com.github.claudecodegui.handler.core.HandlerContext;
+import com.github.claudecodegui.interaction.FuturePermissionDecisionTarget;
+import com.github.claudecodegui.interaction.UserInteractionService;
+import com.github.claudecodegui.interaction.UserInteractionType;
 import com.github.claudecodegui.permission.PermissionService;
 import com.github.claudecodegui.settings.CodemossSettingsService;
 import com.google.gson.JsonObject;
@@ -10,7 +13,6 @@ import org.junit.Test;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -80,21 +82,20 @@ public class PermissionHandlerTest {
 
     @Test
     public void handleDispatchesPermissionDecisionAndCompletesAllowFuture() throws Exception {
-        CompletableFuture<Integer> future = new CompletableFuture<>();
-        injectPermissionFuture("ch-allow", future);
+        CompletableFuture<Integer> future = injectPermissionFuture("ch-allow");
 
         String content = "{\"channelId\":\"ch-allow\",\"allow\":true,\"remember\":false}";
         assertTrue(handler.handle("permission_decision", content));
 
         Integer result = future.get(2, TimeUnit.SECONDS);
         assertEquals(PermissionService.PermissionResponse.ALLOW.getValue(), result.intValue());
-        assertTrue("future should be removed from map after dispatch", getPermissionMap().isEmpty());
+        assertTrue("future should be removed from registry after dispatch",
+                getService().count(UserInteractionType.PERMISSION) == 0);
     }
 
     @Test
     public void handleDispatchesPermissionDecisionAndCompletesAllowAlwaysFuture() throws Exception {
-        CompletableFuture<Integer> future = new CompletableFuture<>();
-        injectPermissionFuture("ch-allow-always", future);
+        CompletableFuture<Integer> future = injectPermissionFuture("ch-allow-always");
 
         String content = "{\"channelId\":\"ch-allow-always\",\"allow\":true,\"remember\":true}";
         assertTrue(handler.handle("permission_decision", content));
@@ -105,21 +106,19 @@ public class PermissionHandlerTest {
 
     @Test
     public void handleDispatchesAskUserQuestionResponse() throws Exception {
-        CompletableFuture<JsonObject> future = new CompletableFuture<>();
-        injectAskUserFuture("auq-1", future);
+        CompletableFuture<JsonObject> future = injectAskUserFuture("auq-1");
 
         String content = "{\"requestId\":\"auq-1\",\"answers\":{\"color\":\"red\"}}";
         assertTrue(handler.handle("ask_user_question_response", content));
 
         JsonObject result = future.get(2, TimeUnit.SECONDS);
         assertEquals("red", result.get("color").getAsString());
-        assertTrue(getAskUserMap().isEmpty());
+        assertTrue(getService().count(UserInteractionType.ASK_USER_QUESTION) == 0);
     }
 
     @Test
     public void handleDispatchesPlanApprovalResponse() throws Exception {
-        CompletableFuture<JsonObject> future = new CompletableFuture<>();
-        injectPlanApprovalFuture("plan-1", future);
+        CompletableFuture<JsonObject> future = injectPlanApprovalFuture("plan-1");
 
         String content = "{\"requestId\":\"plan-1\",\"approved\":true,\"targetMode\":\"default\"}";
         assertTrue(handler.handle("plan_approval_response", content));
@@ -127,7 +126,7 @@ public class PermissionHandlerTest {
         JsonObject result = future.get(2, TimeUnit.SECONDS);
         assertTrue(result.get("approved").getAsBoolean());
         assertEquals("default", result.get("targetMode").getAsString());
-        assertTrue(getPlanApprovalMap().isEmpty());
+        assertTrue(getService().count(UserInteractionType.PLAN_APPROVAL) == 0);
     }
 
     // The session-change safety net: when the user switches sessions while a permission dialog is
@@ -137,10 +136,8 @@ public class PermissionHandlerTest {
 
     @Test
     public void clearPendingRequestsCompletesAllPermissionFuturesWithDeny() throws Exception {
-        CompletableFuture<Integer> f1 = new CompletableFuture<>();
-        CompletableFuture<Integer> f2 = new CompletableFuture<>();
-        injectPermissionFuture("ch-1", f1);
-        injectPermissionFuture("ch-2", f2);
+        CompletableFuture<Integer> f1 = injectPermissionFuture("ch-1");
+        CompletableFuture<Integer> f2 = injectPermissionFuture("ch-2");
 
         handler.clearPendingRequests();
 
@@ -148,15 +145,14 @@ public class PermissionHandlerTest {
                 f1.get(1, TimeUnit.SECONDS).intValue());
         assertEquals(PermissionService.PermissionResponse.DENY.getValue(),
                 f2.get(1, TimeUnit.SECONDS).intValue());
-        assertTrue("permission map must be drained after clear", getPermissionMap().isEmpty());
+        assertTrue("permission registry must be drained after clear",
+                getService().count(UserInteractionType.PERMISSION) == 0);
     }
 
     @Test
     public void clearPendingRequestsCompletesAskUserQuestionFuturesWithNull() throws Exception {
-        CompletableFuture<JsonObject> f1 = new CompletableFuture<>();
-        CompletableFuture<JsonObject> f2 = new CompletableFuture<>();
-        injectAskUserFuture("auq-1", f1);
-        injectAskUserFuture("auq-2", f2);
+        CompletableFuture<JsonObject> f1 = injectAskUserFuture("auq-1");
+        CompletableFuture<JsonObject> f2 = injectAskUserFuture("auq-2");
 
         handler.clearPendingRequests();
 
@@ -164,13 +160,13 @@ public class PermissionHandlerTest {
         // answers object by reading null here. See PermissionService.handleAskUserQuestion.
         assertNull(f1.get(1, TimeUnit.SECONDS));
         assertNull(f2.get(1, TimeUnit.SECONDS));
-        assertTrue("askUser map must be drained after clear", getAskUserMap().isEmpty());
+        assertTrue("askUser registry must be drained after clear",
+                getService().count(UserInteractionType.ASK_USER_QUESTION) == 0);
     }
 
     @Test
     public void clearPendingRequestsCompletesPlanApprovalFuturesWithRejection() throws Exception {
-        CompletableFuture<JsonObject> f1 = new CompletableFuture<>();
-        injectPlanApprovalFuture("plan-1", f1);
+        CompletableFuture<JsonObject> f1 = injectPlanApprovalFuture("plan-1");
 
         handler.clearPendingRequests();
 
@@ -178,16 +174,15 @@ public class PermissionHandlerTest {
         assertNotNull(result);
         assertFalse("plan-approval default on session change must be reject", result.get("approved").getAsBoolean());
         assertEquals("Session changed", result.get("message").getAsString());
-        assertTrue("planApproval map must be drained after clear", getPlanApprovalMap().isEmpty());
+        assertTrue("planApproval registry must be drained after clear",
+                getService().count(UserInteractionType.PLAN_APPROVAL) == 0);
     }
 
     @Test
     public void clearPendingRequestsOnEmptyMapsIsHarmless() throws Exception {
         // Called on every session switch including the very first one; must not throw.
         handler.clearPendingRequests();
-        assertTrue(getPermissionMap().isEmpty());
-        assertTrue(getAskUserMap().isEmpty());
-        assertTrue(getPlanApprovalMap().isEmpty());
+        assertTrue(getService().size() == 0);
     }
 
     // Documents the atomic-complete contract that backstops the three safety-net handlers. Each
@@ -269,45 +264,35 @@ public class PermissionHandlerTest {
         assertTrue(scheduler.task.cancelled);
     }
 
-    // --- reflection helpers (the three pending-request maps are private) ---
+    // --- reflection helpers (the pending-interaction registry is private) ---
+    //
+    // The handler now owns a UserInteractionService. The helpers register a fresh interaction
+    // through the service's public request* API and hand back its future, so the response/clear
+    // paths can be exercised without going through the EDT (mirroring the old inject approach).
+    // Permission uses the file-watcher path (FuturePermissionDecisionTarget).
 
-    @SuppressWarnings("unchecked")
-    private Map<String, CompletableFuture<Integer>> getPermissionMap()
+    private UserInteractionService getService()
             throws NoSuchFieldException, IllegalAccessException {
-        Field f = PermissionHandler.class.getDeclaredField("pendingPermissionRequests");
+        Field f = PermissionHandler.class.getDeclaredField("userInteractionService");
         f.setAccessible(true);
-        return (Map<String, CompletableFuture<Integer>>) f.get(handler);
+        return (UserInteractionService) f.get(handler);
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<String, CompletableFuture<JsonObject>> getAskUserMap()
+    private CompletableFuture<Integer> injectPermissionFuture(String key)
             throws NoSuchFieldException, IllegalAccessException {
-        Field f = PermissionHandler.class.getDeclaredField("pendingAskUserQuestionRequests");
-        f.setAccessible(true);
-        return (Map<String, CompletableFuture<JsonObject>>) f.get(handler);
+        FuturePermissionDecisionTarget target = new FuturePermissionDecisionTarget();
+        getService().requestPermission(key, "tool", new JsonObject(), null, null, target);
+        return target.future();
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<String, CompletableFuture<JsonObject>> getPlanApprovalMap()
+    private CompletableFuture<JsonObject> injectAskUserFuture(String key)
             throws NoSuchFieldException, IllegalAccessException {
-        Field f = PermissionHandler.class.getDeclaredField("pendingPlanApprovalRequests");
-        f.setAccessible(true);
-        return (Map<String, CompletableFuture<JsonObject>>) f.get(handler);
+        return getService().requestAskUserQuestion(key, new JsonObject());
     }
 
-    private void injectPermissionFuture(String key, CompletableFuture<Integer> future)
+    private CompletableFuture<JsonObject> injectPlanApprovalFuture(String key)
             throws NoSuchFieldException, IllegalAccessException {
-        getPermissionMap().put(key, future);
-    }
-
-    private void injectAskUserFuture(String key, CompletableFuture<JsonObject> future)
-            throws NoSuchFieldException, IllegalAccessException {
-        getAskUserMap().put(key, future);
-    }
-
-    private void injectPlanApprovalFuture(String key, CompletableFuture<JsonObject> future)
-            throws NoSuchFieldException, IllegalAccessException {
-        getPlanApprovalMap().put(key, future);
+        return getService().requestPlanApproval(key, new JsonObject());
     }
 
     private HandlerContext contextStub() {

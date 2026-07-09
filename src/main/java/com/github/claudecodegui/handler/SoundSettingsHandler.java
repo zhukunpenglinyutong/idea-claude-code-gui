@@ -34,6 +34,9 @@ public class SoundSettingsHandler {
             boolean onlyWhenUnfocused = settingsService.getSoundOnlyWhenUnfocused();
             String selectedSound = settingsService.getSelectedSound();
             String customPath = settingsService.getCustomSoundPath();
+            String manualActionSound = settingsService.getManualActionSoundId();
+            String manualActionCustomPath = settingsService.getManualActionCustomSoundPath();
+            boolean manualActionEnabled = settingsService.getManualActionSoundEnabled();
 
             ApplicationManager.getApplication().invokeLater(() -> {
                 JsonObject response = new JsonObject();
@@ -41,6 +44,9 @@ public class SoundSettingsHandler {
                 response.addProperty("onlyWhenUnfocused", onlyWhenUnfocused);
                 response.addProperty("selectedSound", selectedSound);
                 response.addProperty("customSoundPath", customPath != null ? customPath : "");
+                response.addProperty("manualActionSoundEnabled", manualActionEnabled);
+                response.addProperty("manualActionSoundId", manualActionSound);
+                response.addProperty("manualActionCustomSoundPath", manualActionCustomPath != null ? manualActionCustomPath : "");
                 context.callJavaScript("window.updateSoundNotificationConfig", context.escapeJs(gson.toJson(response)));
             });
         } catch (Exception e) {
@@ -51,6 +57,9 @@ public class SoundSettingsHandler {
                 response.addProperty("onlyWhenUnfocused", false);
                 response.addProperty("selectedSound", "default");
                 response.addProperty("customSoundPath", "");
+                response.addProperty("manualActionSoundEnabled", true);
+                response.addProperty("manualActionSoundId", "bell");
+                response.addProperty("manualActionCustomSoundPath", "");
                 context.callJavaScript("window.updateSoundNotificationConfig", context.escapeJs(gson.toJson(response)));
             });
         }
@@ -155,6 +164,82 @@ public class SoundSettingsHandler {
     }
 
     /**
+     * Set whether the "manual action required" sound is enabled.
+     */
+    public void handleSetManualActionSoundEnabled(String content) {
+        try {
+            JsonObject json = gson.fromJson(content, JsonObject.class);
+            boolean enabled = json != null && json.has("enabled") && json.get("enabled").getAsBoolean();
+
+            settingsService.setManualActionSoundEnabled(enabled);
+
+            LOG.info("[SoundSettingsHandler] Set manual action sound enabled: " + enabled);
+
+            dispatchSoundConfigUpdate();
+        } catch (Exception e) {
+            LOG.error("[SoundSettingsHandler] Failed to set manual action sound enabled: " + e.getMessage(), e);
+            ApplicationManager.getApplication().invokeLater(() -> {
+                context.callJavaScript("window.showError", context.escapeJs("Failed to save sound notification config: " + e.getMessage()));
+            });
+        }
+    }
+
+    /**
+     * Set the selected sound ID for the "manual action required" notification.
+     */
+    public void handleSetManualActionSound(String content) {
+        try {
+            JsonObject json = gson.fromJson(content, JsonObject.class);
+            String soundId = json != null && json.has("soundId") && !json.get("soundId").isJsonNull()
+                ? json.get("soundId").getAsString() : "bell";
+
+            settingsService.setManualActionSoundId(soundId);
+
+            dispatchSoundConfigUpdate();
+        } catch (Exception e) {
+            LOG.error("[SoundSettingsHandler] Failed to set manual action sound: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Set the custom sound file path for the "manual action required" notification.
+     */
+    public void handleSetManualActionCustomSoundPath(String content) {
+        try {
+            JsonObject json = gson.fromJson(content, JsonObject.class);
+            String path = json != null && json.has("path") && !json.get("path").isJsonNull()
+                ? json.get("path").getAsString() : null;
+
+            if (path != null && !path.isEmpty()) {
+                SoundNotificationService.ValidationResult validation =
+                    SoundNotificationService.getInstance().validateSoundFile(path);
+
+                if (!validation.valid()) {
+                    final String errorMsg = validation.errorMessage();
+                    ApplicationManager.getApplication().invokeLater(() -> {
+                        context.callJavaScript("window.showError", context.escapeJs("Invalid audio file: " + errorMsg));
+                    });
+                    return;
+                }
+            }
+
+            settingsService.setManualActionCustomSoundPath(path);
+
+            LOG.debug("[SoundSettingsHandler] Set manual action custom sound path: " + path);
+
+            dispatchSoundConfigUpdate();
+            ApplicationManager.getApplication().invokeLater(() -> {
+                context.callJavaScript("window.showSuccessI18n", context.escapeJs("settings.basic.soundNotification.customSoundSaved"));
+            });
+        } catch (Exception e) {
+            LOG.error("[SoundSettingsHandler] Failed to set manual action custom sound path: " + e.getMessage(), e);
+            ApplicationManager.getApplication().invokeLater(() -> {
+                context.callJavaScript("window.showError", context.escapeJs("Failed to save custom sound: " + e.getMessage()));
+            });
+        }
+    }
+
+    /**
      * Test play a sound by soundId + optional custom path.
      */
     public void handleTestSound(String content) {
@@ -244,23 +329,35 @@ public class SoundSettingsHandler {
         boolean onlyWhenUnfocused;
         String selectedSound;
         String customPath;
+        String manualActionSound;
+        String manualActionCustomPath;
+        boolean manualActionEnabled;
 
         try {
             enabled = settingsService.getSoundNotificationEnabled();
             onlyWhenUnfocused = settingsService.getSoundOnlyWhenUnfocused();
             selectedSound = settingsService.getSelectedSound();
             customPath = settingsService.getCustomSoundPath();
+            manualActionSound = settingsService.getManualActionSoundId();
+            manualActionCustomPath = settingsService.getManualActionCustomSoundPath();
+            manualActionEnabled = settingsService.getManualActionSoundEnabled();
         } catch (Exception e) {
             enabled = false;
             onlyWhenUnfocused = false;
             selectedSound = "default";
             customPath = null;
+            manualActionSound = "bell";
+            manualActionCustomPath = null;
+            manualActionEnabled = true;
         }
 
         final boolean finalEnabled = enabled;
         final boolean finalOnlyWhenUnfocused = onlyWhenUnfocused;
         final String finalSelectedSound = selectedSound;
         final String finalCustomPath = customPath != null ? customPath : "";
+        final String finalManualActionSound = manualActionSound;
+        final String finalManualActionCustomPath = manualActionCustomPath != null ? manualActionCustomPath : "";
+        final boolean finalManualActionEnabled = manualActionEnabled;
 
         ApplicationManager.getApplication().invokeLater(() -> {
             JsonObject response = new JsonObject();
@@ -268,7 +365,62 @@ public class SoundSettingsHandler {
             response.addProperty("onlyWhenUnfocused", finalOnlyWhenUnfocused);
             response.addProperty("selectedSound", finalSelectedSound);
             response.addProperty("customSoundPath", finalCustomPath);
+            response.addProperty("manualActionSoundEnabled", finalManualActionEnabled);
+            response.addProperty("manualActionSoundId", finalManualActionSound);
+            response.addProperty("manualActionCustomSoundPath", finalManualActionCustomPath);
             context.callJavaScript("window.updateSoundNotificationConfig", context.escapeJs(gson.toJson(response)));
+        });
+    }
+
+    /**
+     * Open a file chooser for selecting the "manual action required" custom sound file.
+     */
+    public void handleBrowseManualActionSoundFile() {
+        ApplicationManager.getApplication().invokeLater(() -> {
+            try {
+                com.intellij.openapi.fileChooser.FileChooserDescriptor descriptor =
+                    new com.intellij.openapi.fileChooser.FileChooserDescriptor(
+                        true, false, false, false, false, false
+                    )
+                    .withFileFilter(file -> {
+                        String ext = file.getExtension();
+                        return ext != null && (
+                            ext.equalsIgnoreCase("wav") ||
+                            ext.equalsIgnoreCase("mp3") ||
+                            ext.equalsIgnoreCase("aiff")
+                        );
+                    })
+                    .withTitle("Select Sound File")
+                    .withDescription("Select a WAV, MP3, or AIFF audio file");
+
+                com.intellij.openapi.fileChooser.FileChooser.chooseFile(
+                    descriptor,
+                    context.getProject(),
+                    null,
+                    file -> {
+                        if (file != null) {
+                            String path = file.getPath();
+                            try {
+                                settingsService.setManualActionCustomSoundPath(path);
+                                settingsService.setManualActionSoundId("custom");
+                            } catch (Exception e) {
+                                LOG.warn("[SoundSettingsHandler] Failed to auto-save manual action sound path: " + e.getMessage());
+                            }
+                            // Push only the changed fields (the frontend merges) instead of
+                            // dispatchSoundConfigUpdate(), which would read the whole config from disk on the EDT.
+                            JsonObject response = new JsonObject();
+                            response.addProperty("manualActionSoundId", "custom");
+                            response.addProperty("manualActionCustomSoundPath", path);
+                            context.callJavaScript("window.updateSoundNotificationConfig",
+                                context.escapeJs(gson.toJson(response)));
+                            context.callJavaScript("window.showSuccessI18n",
+                                context.escapeJs("settings.basic.soundNotification.customSoundSaved"));
+                        }
+                    }
+                );
+            } catch (Exception e) {
+                LOG.error("[SoundSettingsHandler] Failed to open file chooser: " + e.getMessage(), e);
+            }
         });
     }
 }
