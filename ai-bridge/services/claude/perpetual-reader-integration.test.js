@@ -115,7 +115,7 @@ test('Integration: perpetual reader routes in-turn messages to turnSink', async 
 // Inter-Turn Event Emission (regression guard for the daemon writer wiring)
 // ============================================================================
 
-test('Integration: inter-turn result emits a session_updated event for a registered runtime', async () => {
+test('Integration: inter-turn background turn emits throttled progress nudges plus the result event', async () => {
   const ctl = createControlledQuery();
   const runtime = { closed: false, sessionId: 'sess-bg', turnSink: null, query: ctl.query };
   const events = captureInterTurnEvents();
@@ -123,6 +123,9 @@ test('Integration: inter-turn result emits a session_updated event for a registe
   const reader = startPerpetualReader(runtime);
   try {
     // No active turn (turnSink == null): a completed turn from the CLI.
+    // The first content message emits a throttled progress nudge; the
+    // assistant message lands inside the throttle window and is coalesced;
+    // the result always emits.
     ctl.deliver({ type: 'user', content: '<task-notification>' });
     ctl.deliver({ type: 'assistant', content: 'Task completed' });
     ctl.deliver({ type: 'result', is_error: false });
@@ -135,9 +138,11 @@ test('Integration: inter-turn result emits a session_updated event for a registe
   }
 
   const updates = events.list.filter((e) => e.event === 'session_updated');
-  assert.equal(updates.length, 1);
-  assert.equal(updates[0].type, 'daemon');
-  assert.equal(updates[0].sessionId, 'sess-bg');
+  assert.equal(updates.length, 2);
+  updates.forEach((u) => {
+    assert.equal(u.type, 'daemon');
+    assert.equal(u.sessionId, 'sess-bg');
+  });
 });
 
 test('Integration: inter-turn result on anonymous runtime emits no event', async () => {
@@ -159,13 +164,14 @@ test('Integration: inter-turn result on anonymous runtime emits no event', async
   assert.equal(events.list.filter((e) => e.event === 'session_updated').length, 0);
 });
 
-test('Integration: non-result inter-turn messages do not emit events', async () => {
+test('Integration: non-result inter-turn messages emit a single throttled nudge', async () => {
   const ctl = createControlledQuery();
   const runtime = { closed: false, sessionId: 'sess-x', turnSink: null, query: ctl.query };
   const events = captureInterTurnEvents();
 
   const reader = startPerpetualReader(runtime);
   try {
+    // Both messages arrive within the 2s throttle window: exactly one nudge.
     ctl.deliver({ type: 'assistant', content: 'partial' });
     ctl.deliver({ type: 'user', content: 'noise' });
     await settle();
@@ -176,7 +182,30 @@ test('Integration: non-result inter-turn messages do not emit events', async () 
     events.restore();
   }
 
-  assert.equal(events.list.filter((e) => e.event === 'session_updated').length, 0);
+  const updates = events.list.filter((e) => e.event === 'session_updated');
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].sessionId, 'sess-x');
+});
+
+test('Integration: inter-turn result falls back to the session id carried on the message', async () => {
+  const ctl = createControlledQuery();
+  const runtime = { closed: false, sessionId: null, turnSink: null, query: ctl.query };
+  const events = captureInterTurnEvents();
+
+  const reader = startPerpetualReader(runtime);
+  try {
+    ctl.deliver({ type: 'result', is_error: false, session_id: 'sess-from-msg' });
+    await settle();
+  } finally {
+    runtime.closed = true;
+    ctl.end();
+    await reader;
+    events.restore();
+  }
+
+  const updates = events.list.filter((e) => e.event === 'session_updated');
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].sessionId, 'sess-from-msg');
 });
 
 // ============================================================================
