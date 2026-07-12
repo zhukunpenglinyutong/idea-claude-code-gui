@@ -42,6 +42,7 @@ class SubagentHistoryService {
         String agentId = getString(request, "agentId");
         String toolUseId = getString(request, "toolUseId");
         String description = getString(request, "description");
+        int tail = getInt(request, "tail");
 
         JsonObject response = new JsonObject();
         response.addProperty("toolUseId", toolUseId);
@@ -64,8 +65,21 @@ class SubagentHistoryService {
             String resolvedAgentId = extractAgentId(file);
             response.addProperty("agentId", resolvedAgentId);
 
-            JsonArray messages = readJsonl(file);
+            // Live-progress polls request only the transcript tail: repeatedly
+            // serializing and eval'ing multi-MB agent logs in JCEF every few
+            // seconds stalls the UI thread (reported as periodic freezes during
+            // Workflow/ultracode runs with many parallel agents).
+            JsonArray messages;
+            boolean truncated = false;
+            if (tail > 0) {
+                JsonArray tailMessages = readJsonlTail(file, tail);
+                messages = tailMessages;
+                truncated = tailMessages.size() >= tail;
+            } else {
+                messages = readJsonl(file);
+            }
             response.addProperty("success", true);
+            response.addProperty("truncated", truncated);
             response.add("messages", messages);
         } catch (Exception e) {
             LOG.warn("[SubagentHistory] Failed to load subagent log: " + e.getMessage());
@@ -88,6 +102,17 @@ class SubagentHistoryService {
             return null;
         }
         return object.get(key).getAsString();
+    }
+
+    private static int getInt(JsonObject object, String key) {
+        if (object == null || !object.has(key) || object.get(key).isJsonNull()) {
+            return 0;
+        }
+        try {
+            return object.get(key).getAsInt();
+        } catch (Exception e) {
+            return 0;
+        }
     }
 
     private static void validateId(String name, String value) {
@@ -178,6 +203,34 @@ class SubagentHistoryService {
                             LOG.warn("Skipping malformed JSONL line in subagent history: " + e.getMessage());
                         }
                     });
+        }
+        return messages;
+    }
+
+    /**
+     * Read only the last {@code tail} JSONL records. Raw lines are buffered in a
+     * bounded deque and parsed only for the surviving tail, so a multi-MB agent
+     * log costs one linear scan and {@code tail} parses instead of a full parse.
+     */
+    private JsonArray readJsonlTail(Path file, int tail) throws IOException {
+        java.util.ArrayDeque<String> window = new java.util.ArrayDeque<>(tail);
+        try (Stream<String> lines = Files.lines(file, StandardCharsets.UTF_8)) {
+            lines.filter(s -> !s.isBlank())
+                    .limit(MAX_JSONL_LINES)
+                    .forEach(line -> {
+                        if (window.size() == tail) {
+                            window.pollFirst();
+                        }
+                        window.addLast(line);
+                    });
+        }
+        JsonArray messages = new JsonArray();
+        for (String line : window) {
+            try {
+                messages.add(JsonParser.parseString(line));
+            } catch (JsonSyntaxException e) {
+                LOG.warn("Skipping malformed JSONL line in subagent history tail: " + e.getMessage());
+            }
         }
         return messages;
     }

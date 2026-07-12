@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { SubagentHistoryResponse, SubagentInfo } from '../../types';
-import { requestSubagentHistory } from '../../utils/subagentHistoryRequests';
+import { requestSubagentHistory, SUBAGENT_POLL_INTERVAL_MS, SUBAGENT_POLL_TAIL } from '../../utils/subagentHistoryRequests';
 import { subagentStatusIconMap } from './types';
 import SubagentProcessDetails from './SubagentProcessDetails';
 
@@ -75,37 +75,42 @@ const SubagentList = memo(({ subagents, histories = {}, currentSessionId, isStre
   useEffect(() => { subagentsRef.current = subagents; }, [subagents]);
   useEffect(() => { historiesRef.current = histories; }, [histories]);
 
-  const requestHistory = useCallback((subagent: SubagentInfo) => {
+  const requestHistory = useCallback((subagent: SubagentInfo, tail?: number, minIntervalMs?: number) => {
     if (!currentSessionId) return;
     requestSubagentHistory({
       sessionId: currentSessionId,
       agentId: subagent.agentId,
       description: subagent.description,
       toolUseId: subagent.id,
-    });
+      tail,
+    }, minIntervalMs);
   }, [currentSessionId]);
 
   useEffect(() => {
     if (!expandedId) return;
     const subagent = subagentsRef.current.find((item) => item.id === expandedId);
     if (!subagent || !currentSessionId) return;
-    if (!historiesRef.current[expandedId]) {
-      requestHistory(subagent);
+    const existing = historiesRef.current[expandedId];
+    // Full fetch when the row is opened without history, or when only a
+    // tail-limited live-poll snapshot is held for a finished subagent.
+    if (!existing || (subagent.status !== 'running' && existing.truncated === true)) {
+      requestHistory(subagent, undefined, 0);
     }
   }, [currentSessionId, expandedId, requestHistory]);
 
   // Poll every running subagent while the turn streams — not just the expanded
-  // row — so the panel reflects live progress. requestSubagentHistory throttles
-  // per subagent, deduplicating against the transcript blocks' own polling.
+  // row — so the panel reflects live progress. Tail-limited, and
+  // requestSubagentHistory throttles per subagent, deduplicating against the
+  // transcript blocks' own polling.
   useEffect(() => {
     if (!currentSessionId || !isStreaming) return;
     const poll = () => {
       subagentsRef.current
         .filter((subagent) => subagent.status === 'running')
-        .forEach((subagent) => requestHistory(subagent));
+        .forEach((subagent) => requestHistory(subagent, SUBAGENT_POLL_TAIL));
     };
     poll();
-    const timer = window.setInterval(poll, 2_000);
+    const timer = window.setInterval(poll, SUBAGENT_POLL_INTERVAL_MS);
     return () => window.clearInterval(timer);
   }, [currentSessionId, isStreaming, requestHistory]);
 

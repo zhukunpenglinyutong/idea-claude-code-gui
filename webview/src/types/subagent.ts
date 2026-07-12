@@ -10,6 +10,8 @@ export interface SubagentHistoryResponse {
   sessionId?: string;
   error?: string;
   messages?: unknown[];
+  /** True when the backend returned only the transcript tail (live-progress poll). */
+  truncated?: boolean;
 }
 
 /**

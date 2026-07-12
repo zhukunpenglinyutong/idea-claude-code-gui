@@ -107,6 +107,7 @@ export function registerWindowCallbacks(
           && existing.sessionId === result.sessionId
           && existing.toolUseId === result.toolUseId
           && existing.agentId === result.agentId
+          && existing.truncated === result.truncated
           && areSubagentMessagesEquivalent(existing.messages, result.messages)) {
           return prev;
         }

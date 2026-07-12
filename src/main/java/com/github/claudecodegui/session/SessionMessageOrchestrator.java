@@ -131,12 +131,28 @@ public class SessionMessageOrchestrator {
     }
 
     public CompletableFuture<Void> loadFromServer() {
+        return loadFromServer(true);
+    }
+
+    /**
+     * Reload the session's messages from the on-disk transcript.
+     *
+     * @param notifyLoadingState when {@code false}, the loading flag is not
+     *     toggled and no state-change callbacks fire around the reload. Used by
+     *     background session_updated refreshes: toggling loading there flashes
+     *     the frontend's waiting indicator (and re-triggers its auto-scroll
+     *     effect) on every refresh, which reads as periodic screen
+     *     blinking/jumping. Explicit user-driven loads keep the indicator.
+     */
+    public CompletableFuture<Void> loadFromServer(boolean notifyLoadingState) {
         if (state.getSessionId() == null) {
             return CompletableFuture.completedFuture(null);
         }
 
-        state.setLoading(true);
-        callbackFacade.notifyStateChange(state.isBusy(), state.isLoading(), state.getError());
+        if (notifyLoadingState) {
+            state.setLoading(true);
+            callbackFacade.notifyStateChange(state.isBusy(), state.isLoading(), state.getError());
+        }
 
         return CompletableFuture.runAsync(() -> {
             try {
@@ -167,8 +183,10 @@ public class SessionMessageOrchestrator {
                 state.setError(e.getMessage());
                 LOG.error("Error loading session: " + e.getMessage(), e);
             } finally {
-                state.setLoading(false);
-                callbackFacade.notifyStateChange(state.isBusy(), state.isLoading(), state.getError());
+                if (notifyLoadingState) {
+                    state.setLoading(false);
+                    callbackFacade.notifyStateChange(state.isBusy(), state.isLoading(), state.getError());
+                }
             }
         });
     }

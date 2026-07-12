@@ -357,9 +357,11 @@ export function startPerpetualReader(runtime, callbacks) {
             && (msg?.type === 'assistant' || msg?.type === 'user' || msg?.type === 'system')
           ) {
             // Throttled progress nudge so the background turn renders live
-            // instead of appearing all at once on its final result.
+            // instead of appearing all at once on its final result. Each nudge
+            // makes the plugin reload the whole session JSONL, so keep the
+            // cadence low — 5s reads as "live" without visible reload churn.
             const now = Date.now();
-            if (!runtime.lastInterTurnEmitMs || now - runtime.lastInterTurnEmitMs >= 2000) {
+            if (!runtime.lastInterTurnEmitMs || now - runtime.lastInterTurnEmitMs >= 5000) {
               runtime.lastInterTurnEmitMs = now;
               console.log('[PERPETUAL_READER] Inter-turn activity, emitting throttled session_updated for sessionId=' + interTurnSessionId);
               emitInterTurnEvent(interTurnSessionId);

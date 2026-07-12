@@ -2,7 +2,7 @@ import { memo, useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ClaudeContentBlock, ToolResultBlock } from '../../types';
 import { normalizeToolName } from '../../utils/toolConstants';
-import { requestSubagentHistory } from '../../utils/subagentHistoryRequests';
+import { requestSubagentHistory, SUBAGENT_POLL_TAIL } from '../../utils/subagentHistoryRequests';
 import { extractWorkflowMeta } from '../../utils/workflowMeta';
 import { getPersistedExpanded, setPersistedExpanded } from '../../utils/expandedState';
 import { useSubagentHistoryGetter, useSessionId, useGetToolResultRaw, type GetToolResultRawFn } from '../../contexts/SubagentContext';
@@ -11,7 +11,7 @@ import { ContentBlockRenderer } from '../MessageItem/ContentBlockRenderer';
 
 // Constants extracted from magic numbers
 const MAX_SUMMARY_LENGTH = 120;
-const SUBAGENT_POLL_INTERVAL_MS = 2_000;
+const SUBAGENT_POLL_INTERVAL_MS = 3_000;
 
 interface AgentGroupBlockProps {
   agentBlock: ClaudeContentBlock;
@@ -125,15 +125,18 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
   // Use ref to store timer ID and avoid unnecessary timer restarts
   const pollingTimerRef = useRef<number | null>(null);
 
+  // Full (untruncated) fetch when opening a card without history, or when the
+  // subagent completed and only a tail snapshot from live polling is held.
+  const needsFullHistory = !history || (isCompleted && history.truncated === true);
   useEffect(() => {
-    if (!expanded || !currentSessionId || !toolId || history) return;
+    if (!expanded || !currentSessionId || !toolId || !needsFullHistory) return;
     requestSubagentHistory({
       sessionId: currentSessionId,
       agentId,
       description: typeof summary === 'string' ? summary : undefined,
       toolUseId: toolId,
-    });
-  }, [agentId, currentSessionId, summary, expanded, history, toolId]);
+    }, 0);
+  }, [agentId, currentSessionId, summary, expanded, needsFullHistory, toolId]);
 
   useEffect(() => {
     // Poll while the subagent runs — even collapsed and after the first history
@@ -156,6 +159,7 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
           agentId,
           description: typeof summary === 'string' ? summary : undefined,
           toolUseId: toolId,
+          tail: SUBAGENT_POLL_TAIL,
         });
       }, SUBAGENT_POLL_INTERVAL_MS);
     }

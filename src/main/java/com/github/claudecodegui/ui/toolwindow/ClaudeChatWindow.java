@@ -812,7 +812,10 @@ public class ClaudeChatWindow {
         // isSessionActive() check in the continuation additionally blocks any
         // follow-up reload. Two independent guards; neither alone is sufficient.
         ClaudeSession current = session;
-        current.loadFromServer().whenComplete((v, ex) -> {
+        // Silent variant: a background refresh must not toggle the loading flag,
+        // or the frontend's waiting indicator flashes (and its auto-scroll effect
+        // fires) on every session_updated — visible as periodic blinking/jumping.
+        current.loadFromServerSilently().whenComplete((v, ex) -> {
             if (ex != null) {
                 LOG.warn("[ClaudeChatWindow] session reload failed", ex);
             }

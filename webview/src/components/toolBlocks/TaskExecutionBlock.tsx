@@ -2,7 +2,7 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SubagentHistoryResponse, ToolInput, ToolResultBlock } from '../../types';
 import { AGENT_TOOL_NAMES, normalizeToolName } from '../../utils/toolConstants';
-import { requestSubagentHistory } from '../../utils/subagentHistoryRequests';
+import { requestSubagentHistory, SUBAGENT_POLL_INTERVAL_MS, SUBAGENT_POLL_TAIL } from '../../utils/subagentHistoryRequests';
 import { extractWorkflowMeta } from '../../utils/workflowMeta';
 import { useSubagentHistoryGetter, useSessionId, useGetToolResultRaw, type GetToolResultRawFn } from '../../contexts/SubagentContext';
 import SubagentProcessDetails from '../StatusPanel/SubagentProcessDetails';
@@ -197,20 +197,26 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
   const isError = isCompleted && result?.is_error === true;
   const history = (toolId ? getSubagentHistory(toolId) : undefined) ?? (agentId ? getSubagentHistory(agentId) : undefined);
 
+  // Full (untruncated) fetch when the user opens a card that has no history
+  // yet, or when the subagent completed and we only hold a tail snapshot from
+  // live polling. minIntervalMs 0 bypasses the poll throttle for this refresh.
+  const needsFullHistory = !history || (isCompleted && history.truncated === true);
   useEffect(() => {
-    if (!expanded || !isAgentTool || !currentSessionId || !toolId || history) return;
+    if (!expanded || !isAgentTool || !currentSessionId || !toolId || !needsFullHistory) return;
     requestSubagentHistory({
       sessionId: currentSessionId,
       agentId,
       description: typeof description === 'string' ? description : undefined,
       toolUseId: toolId,
-    });
-  }, [agentId, currentSessionId, description, expanded, history, isAgentTool, toolId]);
+    }, 0);
+  }, [agentId, currentSessionId, description, expanded, needsFullHistory, isAgentTool, toolId]);
 
   // Poll continuously while the subagent is running — even when collapsed —
   // so the header shows live progress and expanding the card is instant.
-  // requestSubagentHistory throttles per subagent, so overlapping pollers
-  // (transcript block + status panel) don't duplicate bridge requests.
+  // Tail-limited: repeatedly shipping full multi-MB agent logs into JCEF
+  // stalls the UI thread. requestSubagentHistory throttles per subagent, so
+  // overlapping pollers (transcript block + status panel) don't duplicate
+  // bridge requests.
   const shouldPollHistory = isAgentTool
     && Boolean(currentSessionId)
     && Boolean(toolId)
@@ -225,8 +231,9 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
         agentId,
         description: typeof description === 'string' ? description : undefined,
         toolUseId: toolId,
+        tail: SUBAGENT_POLL_TAIL,
       });
-    }, 2_000);
+    }, SUBAGENT_POLL_INTERVAL_MS);
     return () => window.clearInterval(timer);
   }, [agentId, currentSessionId, description, shouldPollHistory, toolId]);
 
