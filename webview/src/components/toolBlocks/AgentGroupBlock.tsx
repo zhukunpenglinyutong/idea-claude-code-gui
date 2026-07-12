@@ -10,6 +10,8 @@ import {
   parseBackgroundLaunch,
   useFinishedBackgroundTasks,
 } from '../../utils/backgroundTasks';
+import { extractWorkflowRunId } from '../../utils/workflowStatusStore';
+import WorkflowAgentsSection, { getWorkflowCounts, useWorkflowLiveStatus } from './WorkflowAgentsSection';
 import { useSubagentHistoryGetter, useSessionId, useGetToolResultRaw, type GetToolResultRawFn } from '../../contexts/SubagentContext';
 import SubagentProcessDetails from '../StatusPanel/SubagentProcessDetails';
 import { ContentBlockRenderer } from '../MessageItem/ContentBlockRenderer';
@@ -17,6 +19,7 @@ import { ContentBlockRenderer } from '../MessageItem/ContentBlockRenderer';
 // Constants extracted from magic numbers
 const MAX_SUMMARY_LENGTH = 120;
 const SUBAGENT_POLL_INTERVAL_MS = 3_000;
+const NORMAL_WEIGHT_STYLE: React.CSSProperties = { fontWeight: 'normal' };
 
 interface AgentGroupBlockProps {
   agentBlock: ClaudeContentBlock;
@@ -129,6 +132,18 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
   const agentType = getAgentType(agentBlock);
   const summary = getAgentSummary(agentBlock);
   const toolName = agentBlock.type === 'tool_use' ? normalizeToolName(agentBlock.name ?? '') : '';
+  const isWorkflow = toolName === 'workflow';
+
+  // Workflow (ultracode) children live under the run's journal, not a
+  // per-toolUseId sidechain log — poll that instead of subagent history.
+  // Foreground runs have no result (and thus no run id) until they finish,
+  // and a background launch's result may carry only a Task ID — "latest"
+  // makes the backend resolve the most recently active run in both cases.
+  const workflowRunId = isWorkflow
+    ? (extractWorkflowRunId(resultText) ?? ((!hasResult && isStreaming) || backgroundRunning ? 'latest' : undefined))
+    : undefined;
+  const workflowStatus = useWorkflowLiveStatus(currentSessionId, workflowRunId, toolId);
+  const workflowCounts = getWorkflowCounts(workflowStatus);
 
   const agentToolMeta = parseAgentToolMeta(getToolResultRaw, toolId);
   const agentId = agentToolMeta.agentId
@@ -144,16 +159,18 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
 
   // Full (untruncated) fetch when opening a card without history, or when the
   // subagent completed and only a tail snapshot from live polling is held.
+  // Workflow cards have no per-toolUseId sidechain log to fetch — the journal
+  // poll above covers them.
   const needsFullHistory = !history || (isCompleted && history.truncated === true);
   useEffect(() => {
-    if (!expanded || !currentSessionId || !toolId || !needsFullHistory) return;
+    if (!expanded || isWorkflow || !currentSessionId || !toolId || !needsFullHistory) return;
     requestSubagentHistory({
       sessionId: currentSessionId,
       agentId,
       description: typeof summary === 'string' ? summary : undefined,
       toolUseId: toolId,
     }, 0);
-  }, [agentId, currentSessionId, summary, expanded, needsFullHistory, toolId]);
+  }, [agentId, currentSessionId, summary, expanded, isWorkflow, needsFullHistory, toolId]);
 
   useEffect(() => {
     // Poll while the subagent runs — even collapsed and after the first history
@@ -162,7 +179,7 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
     // Background agents outlive the streaming turn, so they poll until their
     // task-notification arrives instead of until the turn settles.
     // Clear existing timer when dependencies change or conditions no longer met.
-    if (!currentSessionId || !toolId || !(isStreaming || backgroundRunning) || isCompleted) {
+    if (!currentSessionId || !toolId || isWorkflow || !(isStreaming || backgroundRunning) || isCompleted) {
       if (pollingTimerRef.current !== null) {
         window.clearInterval(pollingTimerRef.current);
         pollingTimerRef.current = null;
@@ -189,7 +206,7 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
         pollingTimerRef.current = null;
       }
     };
-  }, [agentId, backgroundRunning, currentSessionId, summary, isStreaming, isCompleted, toolId]);
+  }, [agentId, backgroundRunning, currentSessionId, summary, isStreaming, isCompleted, isWorkflow, toolId]);
 
   return (
     <div className="task-container agent-group-container">
@@ -224,6 +241,14 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
               {summary}
             </span>
           )}
+          {workflowCounts && (
+            <span className="tool-title-summary" style={NORMAL_WEIGHT_STYLE}>
+              · {t('tools.workflowAgentProgress', '{{done}}/{{started}} agents', {
+                done: workflowCounts.done,
+                started: workflowCounts.started,
+              })}
+            </span>
+          )}
         </div>
 
         <div className="task-header-right">
@@ -234,15 +259,19 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
 
       {expanded && (
         <div className="task-details agent-group-content">
-          <SubagentProcessDetails
-            agentId={agentId}
-            totalDurationMs={agentToolMeta.totalDurationMs}
-            totalTokens={agentToolMeta.totalTokens}
-            totalToolUseCount={agentToolMeta.totalToolUseCount}
-            resultText={resultText}
-            history={history}
-            canLoad={Boolean(currentSessionId)}
-          />
+          {isWorkflow ? (
+            <WorkflowAgentsSection workflowStatus={workflowStatus} workflowRunId={workflowRunId} />
+          ) : (
+            <SubagentProcessDetails
+              agentId={agentId}
+              totalDurationMs={agentToolMeta.totalDurationMs}
+              totalTokens={agentToolMeta.totalTokens}
+              totalToolUseCount={agentToolMeta.totalToolUseCount}
+              resultText={resultText}
+              history={history}
+              canLoad={Boolean(currentSessionId)}
+            />
+          )}
           {followingBlocks.map((block, idx) => {
             // Use block id as stable key; fall back to index for non-tool-use blocks
             const blockKey = (block as { id?: string }).id ?? `${messageIndex}-agent-${idx}`;

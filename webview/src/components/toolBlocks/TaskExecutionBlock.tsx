@@ -4,12 +4,8 @@ import type { SubagentHistoryResponse, ToolInput, ToolResultBlock } from '../../
 import { AGENT_TOOL_NAMES, normalizeToolName } from '../../utils/toolConstants';
 import { requestSubagentHistory, SUBAGENT_POLL_INTERVAL_MS, SUBAGENT_POLL_TAIL } from '../../utils/subagentHistoryRequests';
 import { extractWorkflowMeta } from '../../utils/workflowMeta';
-import {
-  extractWorkflowRunId,
-  isWorkflowSettled,
-  requestWorkflowStatus,
-  useWorkflowStatus,
-} from '../../utils/workflowStatusStore';
+import { extractWorkflowRunId } from '../../utils/workflowStatusStore';
+import WorkflowAgentsSection, { getWorkflowCounts, useWorkflowLiveStatus } from './WorkflowAgentsSection';
 import {
   getFinishedBackgroundTaskStatus,
   parseBackgroundLaunch,
@@ -279,24 +275,8 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
   const workflowRunId = isWorkflow
     ? (extractWorkflowRunId(resultText) ?? ((!hasResult && isStreaming) || backgroundRunning ? 'latest' : undefined))
     : undefined;
-  const workflowStatus = useWorkflowStatus(workflowRunId);
-  const workflowSettled = isWorkflowSettled(workflowStatus);
-
-  useEffect(() => {
-    if (!isWorkflow || !workflowRunId || !currentSessionId || workflowSettled) return;
-    const poll = () => requestWorkflowStatus({
-      sessionId: currentSessionId,
-      runId: workflowRunId,
-      toolUseId: toolId,
-    });
-    poll();
-    const timer = window.setInterval(poll, SUBAGENT_POLL_INTERVAL_MS);
-    return () => window.clearInterval(timer);
-  }, [currentSessionId, isWorkflow, toolId, workflowRunId, workflowSettled]);
-
-  const workflowCounts = workflowStatus?.success && (workflowStatus.startedCount ?? 0) > 0
-    ? { started: workflowStatus.startedCount ?? 0, done: workflowStatus.doneCount ?? 0 }
-    : null;
+  const workflowStatus = useWorkflowLiveStatus(currentSessionId, workflowRunId, toolId);
+  const workflowCounts = getWorkflowCounts(workflowStatus);
 
   return (
     <div className="task-container">
@@ -381,36 +361,8 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
               </div>
             )}
 
-            {isWorkflow && workflowStatus?.success && (workflowStatus.agents?.length ?? 0) > 0 && (
-              <div className="task-field">
-                <div className="task-field-label">
-                  <span className="codicon codicon-type-hierarchy" />
-                  {t('tools.workflowAgents', 'Workflow agents')}
-                  {workflowCounts && ` (${workflowCounts.done}/${workflowCounts.started})`}
-                </div>
-                <div className="task-field-content">
-                  {(workflowStatus.agents ?? []).map((agent) => (
-                    <div key={agent.agentId} style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
-                      <span className={`codicon ${agent.done ? 'codicon-check' : 'codicon-loading codicon-modifier-spin'}`} />
-                      <span style={MONO_FONT_STYLE}>{shortenAgentId(agent.agentId)}</span>
-                      {agent.resultPreview && (
-                        <span className="tool-title-summary" title={agent.resultPreview}>
-                          {agent.resultPreview.slice(0, 120)}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {isWorkflow && workflowRunId && !workflowStatus?.success && (
-              <div className="task-field">
-                <div className="task-field-label">{t('tools.workflowAgents', 'Workflow agents')}</div>
-                <div className="task-field-content">
-                  {t('tools.workflowStatusPending', 'Waiting for workflow journal…')}
-                </div>
-              </div>
+            {isWorkflow && (
+              <WorkflowAgentsSection workflowStatus={workflowStatus} workflowRunId={workflowRunId} />
             )}
 
             {isAgentTool && !isWorkflow && (
