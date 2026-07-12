@@ -3,6 +3,12 @@ import type { ClaudeMessage, ClaudeRawMessage, ClaudeContentBlock, ToolResultBlo
 import { normalizeToolInput } from '../utils/toolInputNormalization';
 import { AGENT_TOOL_NAMES, normalizeToolName } from '../utils/toolConstants';
 import { extractWorkflowMeta } from '../utils/workflowMeta';
+import {
+  type BackgroundLaunchInfo,
+  getFinishedBackgroundTaskStatus,
+  parseBackgroundLaunch,
+  useFinishedBackgroundTasks,
+} from '../utils/backgroundTasks';
 
 type GetToolResultRawFn = (toolUseId: string) => ClaudeRawMessage | null;
 
@@ -14,14 +20,26 @@ interface UseSubagentsParams {
 }
 
 /**
- * Determine subagent status based on tool result
+ * Determine subagent status based on tool result. A background launch's
+ * immediate tool_result is not completion — the subagent stays running until
+ * its task-notification lands in the transcript.
  */
-function determineStatus(result: ToolResultBlock | null): SubagentStatus {
+function determineStatus(
+  result: ToolResultBlock | null,
+  launch: BackgroundLaunchInfo,
+  toolUseId: string,
+  finishedBackgroundTasks: ReadonlyMap<string, string>,
+): SubagentStatus {
   if (!result) {
     return 'running';
   }
   if (result.is_error) {
     return 'error';
+  }
+  if (launch.isBackground) {
+    const terminalStatus = getFinishedBackgroundTaskStatus(finishedBackgroundTasks, launch, toolUseId);
+    if (!terminalStatus) return 'running';
+    return terminalStatus === 'failed' ? 'error' : 'completed';
   }
   return 'completed';
 }
@@ -73,6 +91,7 @@ export function extractSubagentsFromMessages(
   getContentBlocks: (message: ClaudeMessage) => ClaudeContentBlock[],
   findToolResult: (toolUseId?: string, messageIndex?: number) => ToolResultBlock | null,
   getToolResultRaw: GetToolResultRawFn,
+  finishedBackgroundTasks: ReadonlyMap<string, string> = new Map(),
 ): SubagentInfo[] {
   const subagents: SubagentInfo[] = [];
 
@@ -112,8 +131,9 @@ export function extractSubagentsFromMessages(
       // Check tool result to determine status
       const toolUseId = block.id ?? '';
       const result = findToolResult(toolUseId, messageIndex);
-      const status = determineStatus(result);
       const resultMetadata = extractResultMetadata(result, getToolResultRaw, toolUseId);
+      const launch = parseBackgroundLaunch(resultMetadata.resultText);
+      const status = determineStatus(result, launch, toolUseId, finishedBackgroundTasks);
 
       subagents.push({
         id,
@@ -122,7 +142,11 @@ export function extractSubagentsFromMessages(
         prompt,
         status,
         messageIndex,
+        isBackground: launch.isBackground,
         ...resultMetadata,
+        // A background launch's toolUseResult has no agentId — the launch
+        // text is the only place the sidechain id appears.
+        agentId: resultMetadata.agentId ?? launch.agentId,
       });
     });
   });
@@ -139,8 +163,9 @@ export function useSubagents({
   findToolResult,
   getToolResultRaw,
 }: UseSubagentsParams): SubagentInfo[] {
+  const finishedBackgroundTasks = useFinishedBackgroundTasks();
   return useMemo(
-    () => extractSubagentsFromMessages(messages, getContentBlocks, findToolResult, getToolResultRaw),
-    [messages, getContentBlocks, findToolResult, getToolResultRaw],
+    () => extractSubagentsFromMessages(messages, getContentBlocks, findToolResult, getToolResultRaw, finishedBackgroundTasks),
+    [messages, getContentBlocks, findToolResult, getToolResultRaw, finishedBackgroundTasks],
   );
 }

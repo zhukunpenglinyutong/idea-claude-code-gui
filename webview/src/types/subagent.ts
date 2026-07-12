@@ -42,4 +42,6 @@ export interface SubagentInfo {
   toolStats?: Record<string, number>;
   /** Final Agent output, when available from the tool result */
   resultText?: string;
+  /** Launched with run_in_background — may keep running after the turn settles */
+  isBackground?: boolean;
 }

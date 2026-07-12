@@ -1,4 +1,4 @@
-import { type RefObject, useCallback, useMemo, useRef } from 'react';
+import { type RefObject, useCallback, useEffect, useMemo, useRef } from 'react';
 import type { TFunction } from 'i18next';
 import type {
   ClaudeMessage,
@@ -15,6 +15,7 @@ import {
   sliceLatestConversationTurn,
 } from '../utils/turnScope';
 import { FILE_MODIFY_TOOL_NAMES, isToolName } from '../utils/toolConstants';
+import { collectFinishedBackgroundTasks, setFinishedBackgroundTasks } from '../utils/backgroundTasks';
 import { useSubagents } from './useSubagents';
 import { useFileChanges } from './useFileChanges';
 import { useFileChangesManagement } from './useFileChangesManagement';
@@ -110,6 +111,15 @@ export function useChatComputations({
   }, [fileChanges, fileChangeMgmt.processedFiles]);
 
   const latestTurnMessages = useMemo(() => sliceLatestConversationTurn(messages), [messages]);
+
+  // Track which background tasks (agents/workflows launched with
+  // run_in_background) have finished — their completion arrives as a
+  // task-notification message carrying the launch's ids. Tool cards read
+  // this store to keep background agents in "running" state after their
+  // immediate launch-confirmation tool_result.
+  useEffect(() => {
+    setFinishedBackgroundTasks(collectFinishedBackgroundTasks(messages));
+  }, [messages]);
 
   const latestTurnSubagents = useSubagents({
     messages: latestTurnMessages,

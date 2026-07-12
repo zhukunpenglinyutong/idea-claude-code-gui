@@ -42,7 +42,9 @@ export function finalizeTodosForSettledTurn(todos: TodoItem[], isStreaming: bool
 export function finalizeSubagentsForSettledTurn(subagents: SubagentInfo[], isStreaming: boolean): SubagentInfo[] {
   if (isStreaming) return subagents;
   return subagents.map((subagent) => (
-    subagent.status === 'running'
+    // Background launches legitimately outlive the turn — their completion
+    // arrives later as a task-notification, so leave them running.
+    subagent.status === 'running' && !subagent.isBackground
       ? { ...subagent, status: 'completed' }
       : subagent
   ));

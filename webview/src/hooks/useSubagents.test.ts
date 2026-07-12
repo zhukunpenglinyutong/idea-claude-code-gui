@@ -98,4 +98,62 @@ describe('extractSubagentsFromMessages', () => {
     });
     expect(subagents[0].toolStats).toMatchObject({ readCount: 4 });
   });
+
+  describe('background launches (run_in_background)', () => {
+    const backgroundLaunchResult = (toolUseId: string): ClaudeMessage => ({
+      type: 'user',
+      content: '',
+      raw: {
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: toolUseId,
+            content: [{
+              type: 'text',
+              text: 'Async agent launched successfully.\n'
+                + "agentId: a0deadbeef1234567 (internal ID - do not mention to user. Use SendMessage with to: 'a0deadbeef1234567' to continue this agent.)\n"
+                + 'The agent is working in the background.',
+            }],
+          },
+        ],
+      } as any,
+    });
+
+    it('stays running while only the launch confirmation has arrived', () => {
+      const messages = [assistantWithAgent('tooluse_bg'), backgroundLaunchResult('tooluse_bg')];
+
+      const subagents = extractSubagentsFromMessages(
+        messages, getContentBlocks, findToolResult(messages), getToolResultRaw(messages),
+      );
+
+      expect(subagents[0]).toMatchObject({
+        status: 'running',
+        isBackground: true,
+        // No toolUseResult metadata yet — the launch text is the only agent-id source.
+        agentId: 'a0deadbeef1234567',
+      });
+    });
+
+    it('completes once the task-notification lands (matched by tool_use id)', () => {
+      const messages = [assistantWithAgent('tooluse_bg'), backgroundLaunchResult('tooluse_bg')];
+
+      const subagents = extractSubagentsFromMessages(
+        messages, getContentBlocks, findToolResult(messages), getToolResultRaw(messages),
+        new Map([['tooluse_bg', 'completed']]),
+      );
+
+      expect(subagents[0].status).toBe('completed');
+    });
+
+    it('reports error when the background task finished with status failed', () => {
+      const messages = [assistantWithAgent('tooluse_bg'), backgroundLaunchResult('tooluse_bg')];
+
+      const subagents = extractSubagentsFromMessages(
+        messages, getContentBlocks, findToolResult(messages), getToolResultRaw(messages),
+        new Map([['a0deadbeef1234567', 'failed']]),
+      );
+
+      expect(subagents[0].status).toBe('error');
+    });
+  });
 });

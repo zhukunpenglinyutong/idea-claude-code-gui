@@ -10,6 +10,11 @@ import {
   requestWorkflowStatus,
   useWorkflowStatus,
 } from '../../utils/workflowStatusStore';
+import {
+  getFinishedBackgroundTaskStatus,
+  parseBackgroundLaunch,
+  useFinishedBackgroundTasks,
+} from '../../utils/backgroundTasks';
 import { useSubagentHistoryGetter, useSessionId, useGetToolResultRaw, type GetToolResultRawFn } from '../../contexts/SubagentContext';
 import SubagentProcessDetails from '../StatusPanel/SubagentProcessDetails';
 
@@ -157,6 +162,7 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
   const getSubagentHistory = useSubagentHistoryGetter();
   const currentSessionId = useSessionId();
   const getToolResultRaw = useGetToolResultRaw();
+  const finishedBackgroundTasks = useFinishedBackgroundTasks();
 
   if (!input) {
     return null;
@@ -184,6 +190,13 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
   } = input;
   const spawnMeta = isSpawnAgent ? parseSpawnAgentMeta(input, result) : {};
   const agentToolMeta = !isSpawnAgent ? parseAgentToolMeta(getToolResultRaw, toolId) : {};
+  const resultText = extractResultText(result);
+  // A background launch (run_in_background) returns its tool_result
+  // immediately while the agent keeps running — completion arrives later as
+  // a task-notification. Until then the card must stay in "running" state.
+  const backgroundLaunch = parseBackgroundLaunch(resultText);
+  const backgroundTerminalStatus = getFinishedBackgroundTaskStatus(finishedBackgroundTasks, backgroundLaunch, toolId);
+  const backgroundRunning = backgroundLaunch.isBackground && !backgroundTerminalStatus;
   const workflowMeta = isWorkflow ? extractWorkflowMeta(input as Record<string, unknown>) : {};
   const description = typeof inputDescription === 'string' && inputDescription
     ? inputDescription
@@ -191,16 +204,18 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
   const prompt = typeof inputPrompt === 'string' && inputPrompt
     ? inputPrompt
     : (isWorkflow && typeof _script === 'string' ? _script : undefined);
-  const agentId = spawnMeta.agentId ?? agentToolMeta.agentId;
+  const agentId = spawnMeta.agentId ?? agentToolMeta.agentId ?? backgroundLaunch.agentId;
   const identityLabel = spawnMeta.nickname
     || (isWorkflow ? (workflowMeta.name ?? 'Workflow') : undefined)
     || (typeof subagentType === 'string' && subagentType ? subagentType : undefined);
   const modelSummary = [spawnMeta.model, spawnMeta.reasoningEffort].filter(Boolean).join(' ');
   const shortAgentId = shortenAgentId(agentId);
 
-  // Determine status based on result
-  const isCompleted = result !== undefined && result !== null;
-  const isError = isCompleted && result?.is_error === true;
+  // Determine status based on result — a still-running background launch
+  // does not count as completed even though it already has a tool_result.
+  const hasResult = result !== undefined && result !== null;
+  const isCompleted = hasResult && !backgroundRunning;
+  const isError = (isCompleted && result?.is_error === true) || backgroundTerminalStatus === 'failed';
   const history = (toolId ? getSubagentHistory(toolId) : undefined) ?? (agentId ? getSubagentHistory(agentId) : undefined);
 
   // Full (untruncated) fetch when the user opens a card that has no history
@@ -225,11 +240,13 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
   // bridge requests.
   // Workflow cards use the journal-based status poll below instead — their
   // children have no per-toolUseId sidechain log to fetch.
+  // Background agents keep running after the GUI turn settles, so their
+  // polling is gated on the task-notification instead of isStreaming.
   const shouldPollHistory = isAgentTool
     && !isWorkflow
     && Boolean(currentSessionId)
     && Boolean(toolId)
-    && isStreaming
+    && (isStreaming || backgroundRunning)
     && !isCompleted;
 
   useEffect(() => {
@@ -260,7 +277,7 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
   // "latest" makes the backend resolve the most recently active run so live
   // progress works mid-run too.
   const workflowRunId = isWorkflow
-    ? (extractWorkflowRunId(extractResultText(result)) ?? (!isCompleted && isStreaming ? 'latest' : undefined))
+    ? (extractWorkflowRunId(resultText) ?? ((!hasResult && isStreaming) || backgroundRunning ? 'latest' : undefined))
     : undefined;
   const workflowStatus = useWorkflowStatus(workflowRunId);
   const workflowSettled = isWorkflowSettled(workflowStatus);
@@ -402,7 +419,7 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
                 totalDurationMs={agentToolMeta.totalDurationMs}
                 totalTokens={agentToolMeta.totalTokens}
                 totalToolUseCount={agentToolMeta.totalToolUseCount}
-                resultText={extractResultText(result)}
+                resultText={resultText}
                 history={history}
                 canLoad={Boolean(currentSessionId)}
               />

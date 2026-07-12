@@ -99,11 +99,17 @@ const SubagentList = memo(({ subagents, histories = {}, currentSessionId, isStre
   }, [currentSessionId, expandedId, requestHistory]);
 
   // Poll every running subagent while the turn streams — not just the expanded
-  // row — so the panel reflects live progress. Tail-limited, and
+  // row — so the panel reflects live progress. Background launches keep
+  // running after the turn settles, so they keep the poll alive until their
+  // task-notification flips them out of "running". Tail-limited, and
   // requestSubagentHistory throttles per subagent, deduplicating against the
   // transcript blocks' own polling.
+  const hasRunningBackground = useMemo(
+    () => subagents.some((subagent) => subagent.status === 'running' && subagent.isBackground),
+    [subagents],
+  );
   useEffect(() => {
-    if (!currentSessionId || !isStreaming) return;
+    if (!currentSessionId || !(isStreaming || hasRunningBackground)) return;
     const poll = () => {
       subagentsRef.current
         .filter((subagent) => subagent.status === 'running')
@@ -112,7 +118,7 @@ const SubagentList = memo(({ subagents, histories = {}, currentSessionId, isStre
     poll();
     const timer = window.setInterval(poll, SUBAGENT_POLL_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [currentSessionId, isStreaming, requestHistory]);
+  }, [currentSessionId, hasRunningBackground, isStreaming, requestHistory]);
 
   const historyById = useMemo(() => histories, [histories]);
 

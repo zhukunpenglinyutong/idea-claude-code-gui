@@ -5,6 +5,11 @@ import { normalizeToolName } from '../../utils/toolConstants';
 import { requestSubagentHistory, SUBAGENT_POLL_TAIL } from '../../utils/subagentHistoryRequests';
 import { extractWorkflowMeta } from '../../utils/workflowMeta';
 import { getPersistedExpanded, setPersistedExpanded } from '../../utils/expandedState';
+import {
+  getFinishedBackgroundTaskStatus,
+  parseBackgroundLaunch,
+  useFinishedBackgroundTasks,
+} from '../../utils/backgroundTasks';
 import { useSubagentHistoryGetter, useSessionId, useGetToolResultRaw, type GetToolResultRawFn } from '../../contexts/SubagentContext';
 import SubagentProcessDetails from '../StatusPanel/SubagentProcessDetails';
 import { ContentBlockRenderer } from '../MessageItem/ContentBlockRenderer';
@@ -109,15 +114,27 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
 
   const input = agentBlock.type === 'tool_use' ? (agentBlock.input as Record<string, unknown> | undefined) : undefined;
   const result = findToolResult(toolId, messageIndex);
-  const isCompleted = result !== undefined && result !== null;
-  const isError = isCompleted && result?.is_error === true;
+  const resultText = extractResultText(result);
+  // A background launch (run_in_background) returns its tool_result
+  // immediately while the agent keeps running — completion arrives later as
+  // a task-notification. Until then the card must stay in "running" state.
+  const finishedBackgroundTasks = useFinishedBackgroundTasks();
+  const backgroundLaunch = parseBackgroundLaunch(resultText);
+  const backgroundTerminalStatus = getFinishedBackgroundTaskStatus(finishedBackgroundTasks, backgroundLaunch, toolId);
+  const backgroundRunning = backgroundLaunch.isBackground && !backgroundTerminalStatus;
+  const hasResult = result !== undefined && result !== null;
+  const isCompleted = hasResult && !backgroundRunning;
+  const isError = (isCompleted && result?.is_error === true) || backgroundTerminalStatus === 'failed';
 
   const agentType = getAgentType(agentBlock);
   const summary = getAgentSummary(agentBlock);
   const toolName = agentBlock.type === 'tool_use' ? normalizeToolName(agentBlock.name ?? '') : '';
 
   const agentToolMeta = parseAgentToolMeta(getToolResultRaw, toolId);
-  const agentId = agentToolMeta.agentId ?? (input?.agent_id as string | undefined) ?? (input?.agentId as string | undefined);
+  const agentId = agentToolMeta.agentId
+    ?? (input?.agent_id as string | undefined)
+    ?? (input?.agentId as string | undefined)
+    ?? backgroundLaunch.agentId;
   const history = (toolId ? getSubagentHistory(toolId) : undefined) ?? (agentId ? getSubagentHistory(agentId) : undefined);
 
   const noopToggleThinking = useCallback(() => {}, []);
@@ -142,8 +159,10 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
     // Poll while the subagent runs — even collapsed and after the first history
     // snapshot — so its progress stays live. requestSubagentHistory throttles
     // per subagent, so overlapping pollers don't duplicate bridge requests.
+    // Background agents outlive the streaming turn, so they poll until their
+    // task-notification arrives instead of until the turn settles.
     // Clear existing timer when dependencies change or conditions no longer met.
-    if (!currentSessionId || !toolId || !isStreaming || isCompleted) {
+    if (!currentSessionId || !toolId || !(isStreaming || backgroundRunning) || isCompleted) {
       if (pollingTimerRef.current !== null) {
         window.clearInterval(pollingTimerRef.current);
         pollingTimerRef.current = null;
@@ -170,7 +189,7 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
         pollingTimerRef.current = null;
       }
     };
-  }, [agentId, currentSessionId, summary, isStreaming, isCompleted, toolId]);
+  }, [agentId, backgroundRunning, currentSessionId, summary, isStreaming, isCompleted, toolId]);
 
   return (
     <div className="task-container agent-group-container">
@@ -220,7 +239,7 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
             totalDurationMs={agentToolMeta.totalDurationMs}
             totalTokens={agentToolMeta.totalTokens}
             totalToolUseCount={agentToolMeta.totalToolUseCount}
-            resultText={extractResultText(result)}
+            resultText={resultText}
             history={history}
             canLoad={Boolean(currentSessionId)}
           />
