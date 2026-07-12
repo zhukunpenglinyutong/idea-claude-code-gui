@@ -90,6 +90,134 @@ class SubagentHistoryService {
         sendResponse(response);
     }
 
+    /**
+     * Report the live status of a Workflow (ultracode) run.
+     *
+     * A Workflow's child agents live in
+     * {@code <sessionId>/subagents/workflows/<runId>/} — their meta files carry
+     * no description or toolUseId, so the regular subagent lookup cannot find
+     * them. The run's {@code journal.jsonl} logs a {@code started} and a
+     * {@code result} line per agent; this endpoint condenses it into
+     * started/done counts plus per-agent previews for the Workflow card.
+     */
+    void handleLoadWorkflowStatus(String content) {
+        JsonObject request = parseRequest(content);
+        String sessionId = getString(request, "sessionId");
+        String runId = getString(request, "runId");
+        String toolUseId = getString(request, "toolUseId");
+
+        JsonObject response = new JsonObject();
+        response.addProperty("toolUseId", toolUseId);
+        response.addProperty("runId", runId);
+        response.addProperty("sessionId", sessionId);
+
+        try {
+            validateId("sessionId", sessionId);
+            validateId("runId", runId);
+            response.addProperty("requestedRunId", runId);
+
+            Path workflowsRoot = Path.of(NodeDetector.resolveHomeForFileOps(), ".claude", "projects", projectKey())
+                    .resolve(sessionId)
+                    .resolve("subagents")
+                    .resolve("workflows")
+                    .normalize();
+
+            // Foreground runs expose no run id until they finish; "latest"
+            // resolves the most recently modified run directory instead.
+            Path workflowDir;
+            if ("latest".equals(runId)) {
+                workflowDir = resolveLatestWorkflowDir(workflowsRoot);
+                if (workflowDir == null) {
+                    response.addProperty("success", false);
+                    response.addProperty("error", "No workflow runs found");
+                    sendWorkflowResponse(response);
+                    return;
+                }
+                response.addProperty("runId", workflowDir.getFileName().toString());
+            } else {
+                workflowDir = workflowsRoot.resolve(runId).normalize();
+            }
+            Path journal = workflowDir.resolve("journal.jsonl");
+            if (!Files.isRegularFile(journal)) {
+                response.addProperty("success", false);
+                response.addProperty("error", "Workflow journal not found");
+                sendWorkflowResponse(response);
+                return;
+            }
+
+            // agentId -> preview of its result ("" while still running)
+            java.util.LinkedHashMap<String, String> agents = new java.util.LinkedHashMap<>();
+            try (Stream<String> lines = Files.lines(journal, StandardCharsets.UTF_8)) {
+                lines.filter(s -> !s.isBlank()).limit(MAX_JSONL_LINES).forEach(line -> {
+                    try {
+                        JsonObject entry = JsonParser.parseString(line).getAsJsonObject();
+                        String type = getString(entry, "type");
+                        String agentId = getString(entry, "agentId");
+                        if (agentId == null) {
+                            return;
+                        }
+                        if ("started".equals(type)) {
+                            agents.putIfAbsent(agentId, null);
+                        } else if ("result".equals(type)) {
+                            String preview = entry.has("result") && !entry.get("result").isJsonNull()
+                                    ? entry.get("result").toString()
+                                    : "";
+                            if (preview.length() > 300) {
+                                preview = preview.substring(0, 300) + "…";
+                            }
+                            agents.put(agentId, preview);
+                        }
+                    } catch (JsonSyntaxException e) {
+                        LOG.warn("Skipping malformed workflow journal line: " + e.getMessage());
+                    }
+                });
+            }
+
+            JsonArray agentArray = new JsonArray();
+            int done = 0;
+            for (var entry : agents.entrySet()) {
+                JsonObject agent = new JsonObject();
+                agent.addProperty("agentId", entry.getKey());
+                boolean finished = entry.getValue() != null;
+                agent.addProperty("done", finished);
+                if (finished) {
+                    done++;
+                    agent.addProperty("resultPreview", entry.getValue());
+                }
+                agentArray.add(agent);
+            }
+
+            response.addProperty("success", true);
+            response.addProperty("startedCount", agents.size());
+            response.addProperty("doneCount", done);
+            response.addProperty("updatedAtMs", lastModifiedMillis(journal));
+            response.add("agents", agentArray);
+        } catch (Exception e) {
+            LOG.warn("[SubagentHistory] Failed to load workflow status: " + e.getMessage());
+            response.addProperty("success", false);
+            response.addProperty("error", e.getMessage() != null ? e.getMessage() : "Unknown error");
+        }
+
+        sendWorkflowResponse(response);
+    }
+
+    private void sendWorkflowResponse(JsonObject response) {
+        String payload = JsUtils.escapeJs(GSON.toJson(response));
+        context.callJavaScript("onWorkflowStatusLoaded", payload);
+    }
+
+    private Path resolveLatestWorkflowDir(Path workflowsRoot) throws IOException {
+        if (!Files.isDirectory(workflowsRoot)) {
+            return null;
+        }
+        try (var stream = Files.list(workflowsRoot)) {
+            return stream
+                    .filter(Files::isDirectory)
+                    .max(Comparator.comparingLong(this::lastModifiedMillis))
+                    .orElse(null);
+        }
+    }
+
     private JsonObject parseRequest(String content) {
         if (content == null || content.trim().isEmpty()) {
             return new JsonObject();

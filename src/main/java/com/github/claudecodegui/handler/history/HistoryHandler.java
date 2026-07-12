@@ -25,6 +25,7 @@ public class HistoryHandler extends BaseMessageHandler {
             "delete_title",    // Delete orphaned custom title (B-011)
             "deep_search_history", // Deep search (clear cache and reload)
             "load_subagent_session", // Load Claude Code sidechain Agent process log
+            "load_workflow_status",  // Load Workflow (ultracode) run status from its journal
             "convert_to_cli_session" // Convert sidechain session to CLI-recognizable session
     };
 
@@ -109,6 +110,10 @@ public class HistoryHandler extends BaseMessageHandler {
             case "load_subagent_session":
                 LOG.debug("[HistoryHandler] 处理: load_subagent_session");
                 subagentHistoryService.handleLoadSubagentSession(content);
+                return true;
+            case "load_workflow_status":
+                LOG.debug("[HistoryHandler] handling: load_workflow_status");
+                subagentHistoryService.handleLoadWorkflowStatus(content);
                 return true;
             case "convert_to_cli_session":
                 LOG.debug("[HistoryHandler] 处理: convert_to_cli_session");

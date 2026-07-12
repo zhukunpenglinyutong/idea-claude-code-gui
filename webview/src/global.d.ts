@@ -96,6 +96,11 @@ interface Window {
   onSubagentHistoryLoaded?: (json: string) => void;
 
   /**
+   * Workflow (ultracode) run status callback — response to load_workflow_status.
+   */
+  onWorkflowStatusLoaded?: (json: string) => void;
+
+  /**
    * SDK-to-CLI session conversion result callback.
    * Called by the Java backend after attempting to convert entrypoint from "sdk-cli" to "cli".
    * Payload: { success: boolean, infoCode?: string, errorCode?: string }.

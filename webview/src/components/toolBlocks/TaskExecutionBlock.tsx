@@ -4,6 +4,12 @@ import type { SubagentHistoryResponse, ToolInput, ToolResultBlock } from '../../
 import { AGENT_TOOL_NAMES, normalizeToolName } from '../../utils/toolConstants';
 import { requestSubagentHistory, SUBAGENT_POLL_INTERVAL_MS, SUBAGENT_POLL_TAIL } from '../../utils/subagentHistoryRequests';
 import { extractWorkflowMeta } from '../../utils/workflowMeta';
+import {
+  extractWorkflowRunId,
+  isWorkflowSettled,
+  requestWorkflowStatus,
+  useWorkflowStatus,
+} from '../../utils/workflowStatusStore';
 import { useSubagentHistoryGetter, useSessionId, useGetToolResultRaw, type GetToolResultRawFn } from '../../contexts/SubagentContext';
 import SubagentProcessDetails from '../StatusPanel/SubagentProcessDetails';
 
@@ -202,7 +208,7 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
   // live polling. minIntervalMs 0 bypasses the poll throttle for this refresh.
   const needsFullHistory = !history || (isCompleted && history.truncated === true);
   useEffect(() => {
-    if (!expanded || !isAgentTool || !currentSessionId || !toolId || !needsFullHistory) return;
+    if (!expanded || !isAgentTool || isWorkflow || !currentSessionId || !toolId || !needsFullHistory) return;
     requestSubagentHistory({
       sessionId: currentSessionId,
       agentId,
@@ -217,7 +223,10 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
   // stalls the UI thread. requestSubagentHistory throttles per subagent, so
   // overlapping pollers (transcript block + status panel) don't duplicate
   // bridge requests.
+  // Workflow cards use the journal-based status poll below instead — their
+  // children have no per-toolUseId sidechain log to fetch.
   const shouldPollHistory = isAgentTool
+    && !isWorkflow
     && Boolean(currentSessionId)
     && Boolean(toolId)
     && isStreaming
@@ -241,6 +250,36 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
     () => (!isCompleted ? summarizeLiveProgress(history) : null),
     [history, isCompleted],
   );
+
+  // Workflow (ultracode) runs: child agents live under
+  // <session>/subagents/workflows/<runId>/ and are invisible to the regular
+  // subagent lookup. Poll the run's journal instead — also after the tool
+  // result arrives, because a background-launched Workflow returns
+  // immediately while its agents keep running.
+  // Foreground runs have no result (and thus no run id) until they finish —
+  // "latest" makes the backend resolve the most recently active run so live
+  // progress works mid-run too.
+  const workflowRunId = isWorkflow
+    ? (extractWorkflowRunId(extractResultText(result)) ?? (!isCompleted && isStreaming ? 'latest' : undefined))
+    : undefined;
+  const workflowStatus = useWorkflowStatus(workflowRunId);
+  const workflowSettled = isWorkflowSettled(workflowStatus);
+
+  useEffect(() => {
+    if (!isWorkflow || !workflowRunId || !currentSessionId || workflowSettled) return;
+    const poll = () => requestWorkflowStatus({
+      sessionId: currentSessionId,
+      runId: workflowRunId,
+      toolUseId: toolId,
+    });
+    poll();
+    const timer = window.setInterval(poll, SUBAGENT_POLL_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [currentSessionId, isWorkflow, toolId, workflowRunId, workflowSettled]);
+
+  const workflowCounts = workflowStatus?.success && (workflowStatus.startedCount ?? 0) > 0
+    ? { started: workflowStatus.startedCount ?? 0, done: workflowStatus.doneCount ?? 0 }
+    : null;
 
   return (
     <div className="task-container">
@@ -276,6 +315,15 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
             <span className="tool-title-summary" style={NORMAL_WEIGHT_STYLE}>
               · {t('tools.subagentLiveProgress', '{{count}} tool calls', { count: liveProgress.toolCount })}
               {liveProgress.lastTool ? ` · ${liveProgress.lastTool}` : ''}
+            </span>
+          )}
+
+          {workflowCounts && (
+            <span className="tool-title-summary" style={NORMAL_WEIGHT_STYLE}>
+              · {t('tools.workflowAgentProgress', '{{done}}/{{started}} agents', {
+                done: workflowCounts.done,
+                started: workflowCounts.started,
+              })}
             </span>
           )}
         </div>
@@ -316,7 +364,39 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
               </div>
             )}
 
-            {isAgentTool && (
+            {isWorkflow && workflowStatus?.success && (workflowStatus.agents?.length ?? 0) > 0 && (
+              <div className="task-field">
+                <div className="task-field-label">
+                  <span className="codicon codicon-type-hierarchy" />
+                  {t('tools.workflowAgents', 'Workflow agents')}
+                  {workflowCounts && ` (${workflowCounts.done}/${workflowCounts.started})`}
+                </div>
+                <div className="task-field-content">
+                  {(workflowStatus.agents ?? []).map((agent) => (
+                    <div key={agent.agentId} style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
+                      <span className={`codicon ${agent.done ? 'codicon-check' : 'codicon-loading codicon-modifier-spin'}`} />
+                      <span style={MONO_FONT_STYLE}>{shortenAgentId(agent.agentId)}</span>
+                      {agent.resultPreview && (
+                        <span className="tool-title-summary" title={agent.resultPreview}>
+                          {agent.resultPreview.slice(0, 120)}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {isWorkflow && workflowRunId && !workflowStatus?.success && (
+              <div className="task-field">
+                <div className="task-field-label">{t('tools.workflowAgents', 'Workflow agents')}</div>
+                <div className="task-field-content">
+                  {t('tools.workflowStatusPending', 'Waiting for workflow journal…')}
+                </div>
+              </div>
+            )}
+
+            {isAgentTool && !isWorkflow && (
               <SubagentProcessDetails
                 agentId={agentId}
                 totalDurationMs={agentToolMeta.totalDurationMs}
