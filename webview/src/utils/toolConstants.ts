@@ -15,8 +15,9 @@ export const BASH_TOOL_NAMES = new Set(['bash', 'run_terminal_cmd', 'exec_comman
 // Search/grep/glob tools
 export const SEARCH_TOOL_NAMES = new Set(['grep', 'glob', 'search', 'find', 'search_files']);
 
-// Agent/subagent spawning tools
-export const AGENT_TOOL_NAMES = new Set(['task', 'agent', 'spawn_agent']);
+// Agent/subagent spawning tools. 'workflow' is the ultracode orchestrator tool —
+// it fans out many subagents, so it belongs in the agent-style rendering path.
+export const AGENT_TOOL_NAMES = new Set(['task', 'agent', 'spawn_agent', 'workflow']);
 
 // Task management tools (new structured Task API)
 export const TASK_MANAGE_TOOL_NAMES = new Set(['taskcreate', 'taskupdate', 'taskget', 'tasklist']);

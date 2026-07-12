@@ -2,7 +2,8 @@ import { memo, useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ClaudeContentBlock, ToolResultBlock } from '../../types';
 import { normalizeToolName } from '../../utils/toolConstants';
-import { sendBridgeEvent } from '../../utils/bridge';
+import { requestSubagentHistory } from '../../utils/subagentHistoryRequests';
+import { extractWorkflowMeta } from '../../utils/workflowMeta';
 import { getPersistedExpanded, setPersistedExpanded } from '../../utils/expandedState';
 import { useSubagentHistoryGetter, useSessionId, useGetToolResultRaw, type GetToolResultRawFn } from '../../contexts/SubagentContext';
 import SubagentProcessDetails from '../StatusPanel/SubagentProcessDetails';
@@ -22,10 +23,19 @@ interface AgentGroupBlockProps {
   findToolResult: (toolId: string | undefined, messageIndex: number) => ToolResultBlock | null | undefined;
 }
 
+function isWorkflowBlock(block: ClaudeContentBlock): boolean {
+  return block.type === 'tool_use' && normalizeToolName(block.name ?? '') === 'workflow';
+}
+
 function getAgentSummary(block: ClaudeContentBlock): string {
   if (block.type !== 'tool_use') return '';
   const input = block.input as Record<string, unknown> | undefined;
   if (!input) return '';
+  if (isWorkflowBlock(block)) {
+    const meta = extractWorkflowMeta(input);
+    const desc = meta.description ?? meta.name;
+    return typeof desc === 'string' ? desc.slice(0, MAX_SUMMARY_LENGTH) : '';
+  }
   const desc = input.description ?? input.prompt;
   return typeof desc === 'string' ? desc.slice(0, MAX_SUMMARY_LENGTH) : '';
 }
@@ -34,6 +44,9 @@ function getAgentType(block: ClaudeContentBlock): string {
   if (block.type !== 'tool_use') return '';
   const input = block.input as Record<string, unknown> | undefined;
   if (!input) return '';
+  if (isWorkflowBlock(block)) {
+    return extractWorkflowMeta(input).name ?? 'Workflow';
+  }
   const t = input.subagent_type ?? input.subagentType;
   return typeof t === 'string' ? t : '';
 }
@@ -114,17 +127,20 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
 
   useEffect(() => {
     if (!expanded || !currentSessionId || !toolId || history) return;
-    sendBridgeEvent('load_subagent_session', JSON.stringify({
+    requestSubagentHistory({
       sessionId: currentSessionId,
       agentId,
       description: typeof summary === 'string' ? summary : undefined,
       toolUseId: toolId,
-    }));
+    });
   }, [agentId, currentSessionId, summary, expanded, history, toolId]);
 
   useEffect(() => {
-    // Clear existing timer when dependencies change or conditions no longer met
-    if (!expanded || !currentSessionId || !toolId || !isStreaming || isCompleted || history) {
+    // Poll while the subagent runs — even collapsed and after the first history
+    // snapshot — so its progress stays live. requestSubagentHistory throttles
+    // per subagent, so overlapping pollers don't duplicate bridge requests.
+    // Clear existing timer when dependencies change or conditions no longer met.
+    if (!currentSessionId || !toolId || !isStreaming || isCompleted) {
       if (pollingTimerRef.current !== null) {
         window.clearInterval(pollingTimerRef.current);
         pollingTimerRef.current = null;
@@ -135,12 +151,12 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
     // Only start a new timer if one doesn't exist
     if (pollingTimerRef.current === null) {
       pollingTimerRef.current = window.setInterval(() => {
-        sendBridgeEvent('load_subagent_session', JSON.stringify({
+        requestSubagentHistory({
           sessionId: currentSessionId,
           agentId,
           description: typeof summary === 'string' ? summary : undefined,
           toolUseId: toolId,
-        }));
+        });
       }, SUBAGENT_POLL_INTERVAL_MS);
     }
 
@@ -150,7 +166,7 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
         pollingTimerRef.current = null;
       }
     };
-  }, [agentId, currentSessionId, summary, expanded, history, isStreaming, isCompleted, toolId]);
+  }, [agentId, currentSessionId, summary, isStreaming, isCompleted, toolId]);
 
   return (
     <div className="task-container agent-group-container">
@@ -171,7 +187,11 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
         <div className="task-title-section">
           <span className="codicon codicon-type-hierarchy tool-title-icon" />
           <span className="tool-title-text">
-            {toolName === 'spawn_agent' ? 'spawn_agent' : t('tools.agent', 'Agent')}
+            {toolName === 'spawn_agent'
+              ? 'spawn_agent'
+              : toolName === 'workflow'
+                ? t('tools.workflow', 'Workflow')
+                : t('tools.agent', 'Agent')}
           </span>
           {agentType && (
             <span className="tool-title-summary">{agentType}</span>

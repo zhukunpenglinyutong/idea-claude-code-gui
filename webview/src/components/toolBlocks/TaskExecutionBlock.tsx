@@ -1,8 +1,9 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ToolInput, ToolResultBlock } from '../../types';
-import { normalizeToolName } from '../../utils/toolConstants';
-import { sendBridgeEvent } from '../../utils/bridge';
+import type { SubagentHistoryResponse, ToolInput, ToolResultBlock } from '../../types';
+import { AGENT_TOOL_NAMES, normalizeToolName } from '../../utils/toolConstants';
+import { requestSubagentHistory } from '../../utils/subagentHistoryRequests';
+import { extractWorkflowMeta } from '../../utils/workflowMeta';
 import { useSubagentHistoryGetter, useSessionId, useGetToolResultRaw, type GetToolResultRawFn } from '../../contexts/SubagentContext';
 import SubagentProcessDetails from '../StatusPanel/SubagentProcessDetails';
 
@@ -121,6 +122,29 @@ function shortenAgentId(agentId?: string): string | undefined {
   return agentId.length > 8 ? `${agentId.slice(0, 8)}…` : agentId;
 }
 
+/**
+ * Compact live-progress summary of a running subagent, derived from its
+ * polled sidechain transcript: number of tool calls and the last tool name.
+ */
+function summarizeLiveProgress(history?: SubagentHistoryResponse): { toolCount: number; lastTool?: string } | null {
+  if (!history?.success || !Array.isArray(history.messages)) return null;
+  let toolCount = 0;
+  let lastTool: string | undefined;
+  for (const message of history.messages) {
+    const raw = message && typeof message === 'object' ? message as Record<string, any> : {};
+    const content = raw.message?.content ?? raw.content;
+    if (!Array.isArray(content)) continue;
+    for (const block of content) {
+      if (block && typeof block === 'object' && (block as { type?: string }).type === 'tool_use') {
+        toolCount += 1;
+        const name = (block as { name?: string }).name;
+        if (typeof name === 'string' && name) lastTool = name;
+      }
+    }
+  }
+  return { toolCount, lastTool };
+}
+
 const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, result, toolId, isStreaming = false }: TaskExecutionBlockProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
@@ -134,10 +158,12 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
 
   const normalizedName = normalizeToolName(name ?? '');
   const isSpawnAgent = normalizedName === 'spawn_agent';
-  const isAgentTool = normalizedName === 'agent' || normalizedName === 'task' || normalizedName === 'spawn_agent';
+  const isWorkflow = normalizedName === 'workflow';
+  const isAgentTool = AGENT_TOOL_NAMES.has(normalizedName);
   const {
-    description,
-    prompt,
+    description: inputDescription,
+    prompt: inputPrompt,
+    script: _script,
     subagent_type: subagentType,
     model: _model,
     reasoning_effort: _reasoningEffort,
@@ -152,8 +178,17 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
   } = input;
   const spawnMeta = isSpawnAgent ? parseSpawnAgentMeta(input, result) : {};
   const agentToolMeta = !isSpawnAgent ? parseAgentToolMeta(getToolResultRaw, toolId) : {};
+  const workflowMeta = isWorkflow ? extractWorkflowMeta(input as Record<string, unknown>) : {};
+  const description = typeof inputDescription === 'string' && inputDescription
+    ? inputDescription
+    : (workflowMeta.description ?? workflowMeta.name);
+  const prompt = typeof inputPrompt === 'string' && inputPrompt
+    ? inputPrompt
+    : (isWorkflow && typeof _script === 'string' ? _script : undefined);
   const agentId = spawnMeta.agentId ?? agentToolMeta.agentId;
-  const identityLabel = spawnMeta.nickname || (typeof subagentType === 'string' && subagentType ? subagentType : undefined);
+  const identityLabel = spawnMeta.nickname
+    || (isWorkflow ? (workflowMeta.name ?? 'Workflow') : undefined)
+    || (typeof subagentType === 'string' && subagentType ? subagentType : undefined);
   const modelSummary = [spawnMeta.model, spawnMeta.reasoningEffort].filter(Boolean).join(' ');
   const shortAgentId = shortenAgentId(agentId);
 
@@ -164,36 +199,41 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
 
   useEffect(() => {
     if (!expanded || !isAgentTool || !currentSessionId || !toolId || history) return;
-    sendBridgeEvent('load_subagent_session', JSON.stringify({
+    requestSubagentHistory({
       sessionId: currentSessionId,
       agentId,
       description: typeof description === 'string' ? description : undefined,
       toolUseId: toolId,
-    }));
+    });
   }, [agentId, currentSessionId, description, expanded, history, isAgentTool, toolId]);
 
-  const shouldPollHistory = expanded
-    && isAgentTool
+  // Poll continuously while the subagent is running — even when collapsed —
+  // so the header shows live progress and expanding the card is instant.
+  // requestSubagentHistory throttles per subagent, so overlapping pollers
+  // (transcript block + status panel) don't duplicate bridge requests.
+  const shouldPollHistory = isAgentTool
     && Boolean(currentSessionId)
     && Boolean(toolId)
     && isStreaming
-    && !isCompleted
-    && !history;
+    && !isCompleted;
 
-  // Poll subagent history only while the tool is still actively streaming and
-  // we have not received history yet. Avoid keeping idle intervals alive.
   useEffect(() => {
     if (!shouldPollHistory || !currentSessionId || !toolId) return;
     const timer = window.setInterval(() => {
-      sendBridgeEvent('load_subagent_session', JSON.stringify({
+      requestSubagentHistory({
         sessionId: currentSessionId,
         agentId,
         description: typeof description === 'string' ? description : undefined,
         toolUseId: toolId,
-      }));
+      });
     }, 2_000);
     return () => window.clearInterval(timer);
   }, [agentId, currentSessionId, description, shouldPollHistory, toolId]);
+
+  const liveProgress = useMemo(
+    () => (!isCompleted ? summarizeLiveProgress(history) : null),
+    [history, isCompleted],
+  );
 
   return (
     <div className="task-container">
@@ -222,6 +262,13 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
           {!isSpawnAgent && typeof description === 'string' && (
             <span className="task-summary-text tool-title-summary" title={description} style={NORMAL_WEIGHT_STYLE}>
               {description}
+            </span>
+          )}
+
+          {liveProgress && liveProgress.toolCount > 0 && (
+            <span className="tool-title-summary" style={NORMAL_WEIGHT_STYLE}>
+              · {t('tools.subagentLiveProgress', '{{count}} tool calls', { count: liveProgress.toolCount })}
+              {liveProgress.lastTool ? ` · ${liveProgress.lastTool}` : ''}
             </span>
           )}
         </div>

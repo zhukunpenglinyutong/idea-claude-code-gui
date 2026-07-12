@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { SubagentHistoryResponse, SubagentInfo } from '../../types';
-import { sendBridgeEvent } from '../../utils/bridge';
+import { requestSubagentHistory } from '../../utils/subagentHistoryRequests';
 import { subagentStatusIconMap } from './types';
 import SubagentProcessDetails from './SubagentProcessDetails';
 
@@ -77,12 +77,12 @@ const SubagentList = memo(({ subagents, histories = {}, currentSessionId, isStre
 
   const requestHistory = useCallback((subagent: SubagentInfo) => {
     if (!currentSessionId) return;
-    sendBridgeEvent('load_subagent_session', JSON.stringify({
+    requestSubagentHistory({
       sessionId: currentSessionId,
       agentId: subagent.agentId,
       description: subagent.description,
       toolUseId: subagent.id,
-    }));
+    });
   }, [currentSessionId]);
 
   useEffect(() => {
@@ -92,14 +92,22 @@ const SubagentList = memo(({ subagents, histories = {}, currentSessionId, isStre
     if (!historiesRef.current[expandedId]) {
       requestHistory(subagent);
     }
-    if (!isStreaming || subagent.status !== 'running') return;
-    const timer = window.setInterval(() => {
-      const current = subagentsRef.current.find((item) => item.id === expandedId);
-      if (!current || current.status !== 'running') return;
-      requestHistory(current);
-    }, 2_000);
+  }, [currentSessionId, expandedId, requestHistory]);
+
+  // Poll every running subagent while the turn streams — not just the expanded
+  // row — so the panel reflects live progress. requestSubagentHistory throttles
+  // per subagent, deduplicating against the transcript blocks' own polling.
+  useEffect(() => {
+    if (!currentSessionId || !isStreaming) return;
+    const poll = () => {
+      subagentsRef.current
+        .filter((subagent) => subagent.status === 'running')
+        .forEach((subagent) => requestHistory(subagent));
+    };
+    poll();
+    const timer = window.setInterval(poll, 2_000);
     return () => window.clearInterval(timer);
-  }, [currentSessionId, expandedId, isStreaming, requestHistory]);
+  }, [currentSessionId, isStreaming, requestHistory]);
 
   const historyById = useMemo(() => histories, [histories]);
 
