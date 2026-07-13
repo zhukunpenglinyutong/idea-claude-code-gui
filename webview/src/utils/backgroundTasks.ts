@@ -25,13 +25,21 @@ export interface BackgroundLaunchInfo {
   agentId?: string;
 }
 
-const LAUNCH_PATTERN = /launched\s+(?:successfully\s+)?in(?:\s+the)?\s+background|async\s+agent\s+launched|running\s+in\s+the\s+background/i;
+// Matches every background-launch confirmation the CLI emits:
+//   "Async agent launched successfully. agentId: a01c…"           (Agent/Task)
+//   "Workflow launched in background. Task ID: w057006cy"          (Workflow)
+//   "Command running in background with ID: b06hiiaoj. Output…"    (Bash)
+//   "Monitor started (task bkvs4037z, timeout 600000ms)."          (Monitor)
+const LAUNCH_PATTERN = /launched\s+(?:successfully\s+)?in(?:\s+the)?\s+background|async\s+agent\s+launched|running\s+in(?:\s+the)?\s+background|monitor\s+started\s+\(task\s/i;
 
 export function parseBackgroundLaunch(resultText?: string): BackgroundLaunchInfo {
   if (!resultText || !LAUNCH_PATTERN.test(resultText)) {
     return { isBackground: false };
   }
-  const taskId = /task[\s_-]?id\s*[:=]\s*([A-Za-z0-9_-]{4,})/i.exec(resultText)?.[1];
+  const taskId = /task[\s_-]?id\s*[:=]\s*([A-Za-z0-9_-]{4,})/i.exec(resultText)?.[1]
+    ?? /with\s+id\s*[:=]?\s*([A-Za-z0-9_-]{4,})/i.exec(resultText)?.[1]
+    ?? /\(task\s+([A-Za-z0-9_-]{4,})[,)]/i.exec(resultText)?.[1]
+    ?? /\/tasks\/([A-Za-z0-9_-]{4,})\.output/.exec(resultText)?.[1];
   const agentId = /agent[\s_-]?id\s*[:=]\s*'?([A-Za-z0-9_-]{6,})'?/i.exec(resultText)?.[1];
   return { isBackground: true, taskId, agentId };
 }
@@ -67,6 +75,32 @@ export function useFinishedBackgroundTasks(): ReadonlyMap<string, string> {
 }
 
 /**
+ * One-stop state for tool cards: is this result a background launch, is the
+ * task still running, and what terminal status did it end with.
+ */
+export interface BackgroundTaskState {
+  isBackground: boolean;
+  running: boolean;
+  terminalStatus?: string;
+}
+
+export function getBackgroundTaskState(
+  finished: ReadonlyMap<string, string>,
+  resultText: string | undefined,
+  toolUseId?: string,
+): BackgroundTaskState {
+  const launch = parseBackgroundLaunch(resultText);
+  if (!launch.isBackground) return { isBackground: false, running: false };
+  const terminalStatus = getFinishedBackgroundTaskStatus(finished, launch, toolUseId);
+  return { isBackground: true, running: !terminalStatus, terminalStatus };
+}
+
+export function useBackgroundTaskState(resultText: string | undefined, toolUseId?: string): BackgroundTaskState {
+  const finished = useFinishedBackgroundTasks();
+  return getBackgroundTaskState(finished, resultText, toolUseId);
+}
+
+/**
  * Terminal status of a background launch, or undefined while it still runs.
  * Matches by the launching tool_use id first (always present in the
  * notification), then by the ids parsed from the launch text.
@@ -90,11 +124,16 @@ function collectFromText(text: string, into: Map<string, string>): void {
   let match = NOTIFICATION_PATTERN.exec(text);
   while (match) {
     const body = match[1];
-    const status = /<status>\s*([a-z_]+)\s*<\/status>/.exec(body)?.[1] ?? 'completed';
-    const taskId = /<task-id>\s*([^<\s]+)\s*<\/task-id>/.exec(body)?.[1];
-    const toolUseId = /<tool-use-id>\s*([^<\s]+)\s*<\/tool-use-id>/.exec(body)?.[1];
-    if (taskId) into.set(taskId, status);
-    if (toolUseId) into.set(toolUseId, status);
+    // Only notifications carrying an explicit terminal <status> end a task.
+    // Monitor *events* and agent messages arrive as task-notifications with
+    // the same <task-id> but no <status> — the task keeps running.
+    const status = /<status>\s*([a-z_]+)\s*<\/status>/.exec(body)?.[1];
+    if (status) {
+      const taskId = /<task-id>\s*([^<\s]+)\s*<\/task-id>/.exec(body)?.[1];
+      const toolUseId = /<tool-use-id>\s*([^<\s]+)\s*<\/tool-use-id>/.exec(body)?.[1];
+      if (taskId) into.set(taskId, status);
+      if (toolUseId) into.set(toolUseId, status);
+    }
     match = NOTIFICATION_PATTERN.exec(text);
   }
 }

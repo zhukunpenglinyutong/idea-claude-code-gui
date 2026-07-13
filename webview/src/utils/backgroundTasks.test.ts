@@ -41,6 +41,24 @@ describe('parseBackgroundLaunch', () => {
     expect(parseBackgroundLaunch('Refactoring done, all 12 tests pass.').isBackground).toBe(false);
     expect(parseBackgroundLaunch(undefined).isBackground).toBe(false);
   });
+
+  it('detects a background Bash command and extracts its task id', () => {
+    const launch = parseBackgroundLaunch(
+      'Command running in background with ID: b06hiiaoj. Output is being written to: '
+      + '/private/tmp/claude-501/-proj/d62beab6/tasks/b06hiiaoj.output. You will be notified when it completes.',
+    );
+    expect(launch.isBackground).toBe(true);
+    expect(launch.taskId).toBe('b06hiiaoj');
+  });
+
+  it('detects a Monitor start and extracts its task id', () => {
+    const launch = parseBackgroundLaunch(
+      'Monitor started (task bkvs4037z, timeout 600000ms). You will be notified on each event. '
+      + 'Keep working — do not poll or sleep.',
+    );
+    expect(launch.isBackground).toBe(true);
+    expect(launch.taskId).toBe('bkvs4037z');
+  });
 });
 
 describe('collectFinishedBackgroundTasks', () => {
@@ -73,6 +91,17 @@ describe('collectFinishedBackgroundTasks', () => {
   it('ignores messages without notifications', () => {
     const messages: ClaudeMessage[] = [
       { type: 'assistant', content: 'plain answer' } as ClaudeMessage,
+    ];
+    expect(collectFinishedBackgroundTasks(messages).size).toBe(0);
+  });
+
+  it('ignores status-less notifications (monitor events, agent messages)', () => {
+    const monitorEvent = '<task-notification>\n'
+      + '<task-id>bkvs4037z</task-id>\n'
+      + '<summary>Monitor event: ERROR in deploy.log</summary>\n'
+      + '</task-notification>';
+    const messages: ClaudeMessage[] = [
+      { type: 'user', content: monitorEvent } as ClaudeMessage,
     ];
     expect(collectFinishedBackgroundTasks(messages).size).toBe(0);
   });

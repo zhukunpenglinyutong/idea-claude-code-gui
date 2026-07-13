@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
+import { getBackgroundTaskState, useFinishedBackgroundTasks } from '../../utils/backgroundTasks';
 
 interface BashItem {
   command: string;
@@ -42,7 +43,8 @@ function parseBashItem(
     result?: ToolResultBlock | null;
     toolId?: string;
   },
-  deniedToolIds?: Set<string>
+  deniedToolIds: Set<string> | undefined,
+  finishedBackgroundTasks: ReadonlyMap<string, string>,
 ): BashItem | null {
   const { input, result, toolId } = item;
   if (!input) return null;
@@ -60,9 +62,15 @@ function parseBashItem(
     }
   }
 
+  // A run_in_background command keeps running after its immediate
+  // tool_result — stay pending until its task-notification lands.
+  const background = getBackgroundTaskState(finishedBackgroundTasks, output || undefined, toolId);
+
   const isDenied = toolId ? (deniedToolIds?.has(toolId) ?? false) : false;
-  const isCompleted = (result !== undefined && result !== null) || isDenied;
-  const isError = isDenied || (isCompleted && result?.is_error === true);
+  const isCompleted = ((result !== undefined && result !== null) && !background.running) || isDenied;
+  const isError = isDenied
+    || (isCompleted && result?.is_error === true)
+    || background.terminalStatus === 'failed';
 
   return {
     command,
@@ -92,11 +100,12 @@ const BashToolGroupBlock = ({ items, deniedToolIds }: BashToolGroupBlockProps) =
   const prevItemCountRef = useRef(0);
 
   // Parse all items
+  const finishedBackgroundTasks = useFinishedBackgroundTasks();
   const bashItems = useMemo(() => {
     return items
-      .map((item) => parseBashItem(item, deniedToolIds))
+      .map((item) => parseBashItem(item, deniedToolIds, finishedBackgroundTasks))
       .filter((item): item is BashItem => item !== null);
-  }, [items, deniedToolIds]);
+  }, [items, deniedToolIds, finishedBackgroundTasks]);
 
   // Auto-scroll to bottom when new items are added
   useEffect(() => {

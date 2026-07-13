@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
 import { useIsToolDenied } from '../../hooks/useIsToolDenied';
+import { useBackgroundTaskState } from '../../utils/backgroundTasks';
 
 const TASK_DETAILS_STYLE: React.CSSProperties = { padding: 0, border: 'none' };
 const TASK_CONTENT_WRAPPER_STYLE: React.CSSProperties = { paddingLeft: '40px', position: 'relative', zIndex: 1 };
@@ -28,12 +29,6 @@ const BashToolBlock = ({ input, result, toolId }: BashToolBlockProps) => {
 
   const isDenied = useIsToolDenied(toolId);
 
-  // Determine tool call status based on result
-  // If denied, treat as completed (show error state)
-  const isCompleted = (result !== undefined && result !== null) || isDenied;
-  // If denied, show as error state
-  const isError = isDenied || (isCompleted && result?.is_error === true);
-
   let output = '';
 
   if (result) {
@@ -45,6 +40,19 @@ const BashToolBlock = ({ input, result, toolId }: BashToolBlockProps) => {
     }
   }
 
+  // A run_in_background command returns its tool_result immediately
+  // ("Command running in background with ID: …") while the command keeps
+  // running — stay pending until its task-notification lands.
+  const background = useBackgroundTaskState(output || undefined, toolId);
+
+  // Determine tool call status based on result
+  // If denied, treat as completed (show error state)
+  const isCompleted = ((result !== undefined && result !== null) && !background.running) || isDenied;
+  // If denied, show as error state
+  const isError = isDenied
+    || (isCompleted && result?.is_error === true)
+    || background.terminalStatus === 'failed';
+
   return (
     <div className="task-container">
       <div
@@ -55,6 +63,11 @@ const BashToolBlock = ({ input, result, toolId }: BashToolBlockProps) => {
           <span className="codicon codicon-terminal bash-tool-icon" />
           <span className="bash-tool-title">{t('tools.runCommand')}</span>
           <span className="bash-tool-description">{description}</span>
+          {background.running && (
+            <span className="bash-tool-description">
+              · {t('tools.runningInBackground', 'running in background…')}
+            </span>
+          )}
         </div>
 
         <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />

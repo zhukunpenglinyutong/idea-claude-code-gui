@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
 import { useIsToolDenied } from '../../hooks/useIsToolDenied';
+import { useBackgroundTaskState } from '../../utils/backgroundTasks';
 import { useResolvedFileLinkTooltip } from '../../hooks/useResolvedFileLinkTooltip';
 import { openFile } from '../../utils/bridge';
 import { formatParamValue, truncate } from '../../utils/helpers';
@@ -222,14 +223,26 @@ const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps
   const target = input ? resolveToolTarget(input, name) : undefined;
   const filePath = target?.rawPath;
 
+  // A background launch ("Monitor started (task …)", "Command running in
+  // background with ID: …") returns its tool_result immediately while the
+  // task keeps running — stay pending until its task-notification lands.
+  const resultText = typeof result?.content === 'string'
+    ? result.content
+    : Array.isArray(result?.content)
+      ? result.content.map((block) => block.text ?? '').join('\n')
+      : undefined;
+  const background = useBackgroundTaskState(resultText, toolId);
+
   // Determine tool call status based on result
   // If denied, treat as completed (show error state)
-  const isCompleted = (result !== undefined && result !== null) || isDenied;
+  const isCompleted = ((result !== undefined && result !== null) && !background.running) || isDenied;
   // AskUserQuestion tool should never show as error - it's a user interaction tool
   // The is_error field may be set by SDK but it doesn't indicate a real error
   const isAskUserQuestion = lowerName === 'askuserquestion';
   // If denied, show as error state
-  const isError = isDenied || (isCompleted && result?.is_error === true && !isAskUserQuestion);
+  const isError = isDenied
+    || (isCompleted && result?.is_error === true && !isAskUserQuestion)
+    || background.terminalStatus === 'failed';
 
   if (!input) {
     return null;
@@ -350,6 +363,11 @@ const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps
               {lineInfo.end && lineInfo.end !== lineInfo.start
                 ? t('tools.lineRange', { start: lineInfo.start, end: lineInfo.end })
                 : t('tools.lineSingle', { line: lineInfo.start })}
+            </span>
+          )}
+          {background.running && (
+            <span className="tool-title-summary">
+              · {t('tools.runningInBackground', 'running in background…')}
             </span>
           )}
         </div>
