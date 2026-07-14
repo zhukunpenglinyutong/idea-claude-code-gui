@@ -128,10 +128,24 @@ export function useChatComputations({
     getToolResultRaw,
   });
 
-  const subagents = useMemo(
-    () => finalizeSubagentsForSettledTurn(latestTurnSubagents, streamingActive),
-    [latestTurnSubagents, streamingActive],
-  );
+  // Background subagents (agents/workflows) launched in earlier turns keep
+  // running while the conversation moves on — scan the full history so they
+  // stay visible in the status panel until their task-notification arrives.
+  const allSubagents = useSubagents({
+    messages,
+    getContentBlocks,
+    findToolResult,
+    getToolResultRaw,
+  });
+
+  const subagents = useMemo(() => {
+    const latest = finalizeSubagentsForSettledTurn(latestTurnSubagents, streamingActive);
+    const inLatestTurn = new Set(latest.map((subagent) => subagent.id));
+    const runningBackground = allSubagents.filter(
+      (subagent) => subagent.isBackground && subagent.status === 'running' && !inLatestTurn.has(subagent.id),
+    );
+    return [...runningBackground, ...latest];
+  }, [allSubagents, latestTurnSubagents, streamingActive]);
 
   const globalTodos = useMemo(() => {
     let latestTodos: ReturnType<typeof extractTodosFromToolUse> = null;

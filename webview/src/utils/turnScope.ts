@@ -1,4 +1,29 @@
 import type { ClaudeMessage, TodoItem, SubagentInfo } from '../types';
+import { hasTaskNotificationTag } from './contentBlockNormalize';
+
+/**
+ * Task-notification messages are appended by the CLI when a background task
+ * finishes or emits an event. They arrive as user-typed messages but are not
+ * user prompts — they must not start a new conversation turn, or every
+ * monitor event would wipe the status panel (todos, subagents) mid-run.
+ */
+export function isTaskNotificationUserMessage(message: ClaudeMessage): boolean {
+  if (message.type !== 'user') return false;
+  if (typeof message.content === 'string' && hasTaskNotificationTag(message.content)) return true;
+  const raw = message.raw;
+  if (raw && typeof raw !== 'string') {
+    const content = raw.content ?? raw.message?.content;
+    if (typeof content === 'string' && hasTaskNotificationTag(content)) return true;
+    if (Array.isArray(content)) {
+      return content.some((block) =>
+        block && typeof block === 'object'
+        && typeof (block as { text?: unknown }).text === 'string'
+        && hasTaskNotificationTag((block as { text: string }).text),
+      );
+    }
+  }
+  return false;
+}
 
 export function isToolResultOnlyUserMessage(message: ClaudeMessage): boolean {
   if (message.type !== 'user') return false;
@@ -20,6 +45,7 @@ export function findLatestConversationTurnStart(messages: ClaudeMessage[]): numb
     const message = messages[i];
     if (message.type !== 'user') continue;
     if (isToolResultOnlyUserMessage(message)) continue;
+    if (isTaskNotificationUserMessage(message)) continue;
     return i;
   }
   return -1;
