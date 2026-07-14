@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
 import { useIsToolDenied } from '../../hooks/useIsToolDenied';
-import { isTerminalFailure, useBackgroundTaskState } from '../../utils/backgroundTasks';
+import { isTerminalFailure, toolStatusIndicatorClass, useBackgroundTaskState } from '../../utils/backgroundTasks';
 
 const TASK_DETAILS_STYLE: React.CSSProperties = { padding: 0, border: 'none' };
 const TASK_CONTENT_WRAPPER_STYLE: React.CSSProperties = { paddingLeft: '40px', position: 'relative', zIndex: 1 };
@@ -73,7 +73,7 @@ const BashToolBlock = ({ input, result, toolId }: BashToolBlockProps) => {
           )}
         </div>
 
-        <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />
+        <div className={`tool-status-indicator ${toolStatusIndicatorClass(isError, isCompleted, background.terminalStatus)}`} />
       </div>
 
       {expanded && (

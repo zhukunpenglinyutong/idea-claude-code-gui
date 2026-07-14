@@ -112,6 +112,11 @@
     background-color: var(--color-error);
 }
 
+/* Background task deliberately stopped via TaskStop — neither success nor error. */
+.tool-status-indicator.stopped {
+    background-color: var(--text-muted);
+}
+
 @keyframes tool-status-spin {
     to { transform: rotate(360deg); }
 }

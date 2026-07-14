@@ -155,5 +155,27 @@ describe('extractSubagentsFromMessages', () => {
 
       expect(subagents[0].status).toBe('error');
     });
+
+    it('reports stopped when the task was ended via TaskStop', () => {
+      const messages = [assistantWithAgent('tooluse_bg'), backgroundLaunchResult('tooluse_bg')];
+
+      const subagents = extractSubagentsFromMessages(
+        messages, getContentBlocks, findToolResult(messages), getToolResultRaw(messages),
+        new Map([['tooluse_bg', 'stopped']]),
+      );
+
+      expect(subagents[0].status).toBe('stopped');
+    });
+
+    it('reports error when the background task was killed', () => {
+      const messages = [assistantWithAgent('tooluse_bg'), backgroundLaunchResult('tooluse_bg')];
+
+      const subagents = extractSubagentsFromMessages(
+        messages, getContentBlocks, findToolResult(messages), getToolResultRaw(messages),
+        new Map([['tooluse_bg', 'killed']]),
+      );
+
+      expect(subagents[0].status).toBe('error');
+    });
   });
 });

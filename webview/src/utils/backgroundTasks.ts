@@ -52,11 +52,32 @@ export function parseBackgroundLaunch(resultText?: string): BackgroundLaunchInfo
 }
 
 /**
- * Terminal statuses that should render as an error state. 'stopped' is a
- * deliberate user action and keeps the neutral completed look.
+ * Terminal statuses that should render as an error state.
  */
 export function isTerminalFailure(status?: string): boolean {
   return status === 'failed' || status === 'killed';
+}
+
+/**
+ * 'stopped' is a deliberate user action (TaskStop) — rendered as a neutral
+ * "stopped" state, distinct from both success and error.
+ */
+export function isTerminalStop(status?: string): boolean {
+  return status === 'stopped';
+}
+
+/**
+ * CSS modifier for the tool-status-indicator dot, background-status aware:
+ * error > stopped > completed > pending.
+ */
+export function toolStatusIndicatorClass(
+  isError: boolean,
+  isCompleted: boolean,
+  terminalStatus?: string,
+): string {
+  if (isError) return 'error';
+  if (isTerminalStop(terminalStatus)) return 'stopped';
+  return isCompleted ? 'completed' : 'pending';
 }
 
 // ── Finished-task store ────────────────────────────────────────────────────

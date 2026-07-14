@@ -69,7 +69,11 @@ const SubagentRow = memo(({ subagent, isExpanded, history, canLoad, sessionId, o
 
       {isExpanded && (
         isWorkflow ? (
-          <WorkflowAgentsSection workflowStatus={workflowStatus} workflowRunId={workflowRunId} />
+          <WorkflowAgentsSection
+            workflowStatus={workflowStatus}
+            workflowRunId={workflowRunId}
+            runEnded={subagent.status !== 'running'}
+          />
         ) : (
           <SubagentProcessDetails
             agentId={subagent.agentId}

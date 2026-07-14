@@ -9,6 +9,7 @@ import {
   getFinishedBackgroundTaskStatus,
   isTerminalFailure,
   parseBackgroundLaunch,
+  toolStatusIndicatorClass,
   useFinishedBackgroundTasks,
 } from '../../utils/backgroundTasks';
 import { extractWorkflowRunId } from '../../utils/workflowStatusStore';
@@ -253,7 +254,7 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
         </div>
 
         <div className="task-header-right">
-          <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />
+          <div className={`tool-status-indicator ${toolStatusIndicatorClass(isError, isCompleted, backgroundTerminalStatus)}`} />
           <span className={`codicon agent-group-chevron ${expanded ? 'codicon-chevron-up' : 'codicon-chevron-down'}`} />
         </div>
       </div>
@@ -261,7 +262,7 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
       {expanded && (
         <div className="task-details agent-group-content">
           {isWorkflow ? (
-            <WorkflowAgentsSection workflowStatus={workflowStatus} workflowRunId={workflowRunId} />
+            <WorkflowAgentsSection workflowStatus={workflowStatus} workflowRunId={workflowRunId} runEnded={isCompleted} />
           ) : (
             <SubagentProcessDetails
               agentId={agentId}

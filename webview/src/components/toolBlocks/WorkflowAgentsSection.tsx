@@ -62,6 +62,12 @@ function shortenAgentId(agentId?: string): string | undefined {
 interface WorkflowAgentsSectionProps {
   workflowStatus: WorkflowStatus | undefined;
   workflowRunId: string | undefined;
+  /**
+   * The workflow run reached a terminal state (completed/stopped/killed).
+   * A TaskStop-killed run leaves child agents started-but-never-done in its
+   * journal forever — render those as stopped instead of spinning endlessly.
+   */
+  runEnded?: boolean;
 }
 
 /**
@@ -69,7 +75,7 @@ interface WorkflowAgentsSectionProps {
  * their live running/done state, or a pending hint while the journal is
  * still empty.
  */
-export default function WorkflowAgentsSection({ workflowStatus, workflowRunId }: WorkflowAgentsSectionProps) {
+export default function WorkflowAgentsSection({ workflowStatus, workflowRunId, runEnded = false }: WorkflowAgentsSectionProps) {
   const { t } = useTranslation();
   const counts = getWorkflowCounts(workflowStatus);
 
@@ -84,7 +90,15 @@ export default function WorkflowAgentsSection({ workflowStatus, workflowRunId }:
         <div className="task-field-content">
           {(workflowStatus.agents ?? []).map((agent) => (
             <div key={agent.agentId} style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
-              <span className={`codicon ${agent.done ? 'codicon-check' : 'codicon-loading codicon-modifier-spin'}`} />
+              <span
+                className={`codicon ${
+                  agent.done
+                    ? 'codicon-check'
+                    : runEnded
+                      ? 'codicon-stop-circle'
+                      : 'codicon-loading codicon-modifier-spin'
+                }`}
+              />
               <span style={MONO_FONT_STYLE}>{shortenAgentId(agent.agentId)}</span>
               {agent.resultPreview && (
                 <span className="tool-title-summary" title={agent.resultPreview}>

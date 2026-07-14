@@ -36,4 +36,5 @@ export const subagentStatusIconMap: Record<SubagentInfo['status'], string> = {
   running: 'codicon-loading',
   completed: 'codicon-check',
   error: 'codicon-error',
+  stopped: 'codicon-stop-circle',
 };

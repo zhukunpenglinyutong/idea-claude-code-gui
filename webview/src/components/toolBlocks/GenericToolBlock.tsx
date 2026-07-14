@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
 import { useIsToolDenied } from '../../hooks/useIsToolDenied';
-import { isTerminalFailure, useBackgroundTaskState } from '../../utils/backgroundTasks';
+import { isTerminalFailure, toolStatusIndicatorClass, useBackgroundTaskState } from '../../utils/backgroundTasks';
 import { useResolvedFileLinkTooltip } from '../../hooks/useResolvedFileLinkTooltip';
 import { openFile } from '../../utils/bridge';
 import { formatParamValue, truncate } from '../../utils/helpers';
@@ -377,7 +377,7 @@ const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps
           )}
         </div>
 
-        <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />
+        <div className={`tool-status-indicator ${toolStatusIndicatorClass(isError, isCompleted, background.terminalStatus)}`} />
       </div>
       {hasExpandableContent && (
         <div className={`task-details-accordion ${expanded ? 'expanded' : ''}`}>

@@ -39,7 +39,9 @@ function determineStatus(
   if (launch.isBackground) {
     const terminalStatus = getFinishedBackgroundTaskStatus(finishedBackgroundTasks, launch, toolUseId);
     if (!terminalStatus) return 'running';
-    return terminalStatus === 'failed' ? 'error' : 'completed';
+    if (terminalStatus === 'failed' || terminalStatus === 'killed') return 'error';
+    if (terminalStatus === 'stopped') return 'stopped';
+    return 'completed';
   }
   return 'completed';
 }

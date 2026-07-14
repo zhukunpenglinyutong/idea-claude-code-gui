@@ -10,6 +10,7 @@ import {
   getFinishedBackgroundTaskStatus,
   isTerminalFailure,
   parseBackgroundLaunch,
+  toolStatusIndicatorClass,
   useFinishedBackgroundTasks,
 } from '../../utils/backgroundTasks';
 import { useSubagentHistoryGetter, useSessionId, useGetToolResultRaw, type GetToolResultRawFn } from '../../contexts/SubagentContext';
@@ -327,7 +328,7 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
         </div>
 
         <div className="task-header-right">
-          <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />
+          <div className={`tool-status-indicator ${toolStatusIndicatorClass(isError, isCompleted, backgroundTerminalStatus)}`} />
         </div>
       </div>
 
@@ -363,7 +364,7 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
             )}
 
             {isWorkflow && (
-              <WorkflowAgentsSection workflowStatus={workflowStatus} workflowRunId={workflowRunId} />
+              <WorkflowAgentsSection workflowStatus={workflowStatus} workflowRunId={workflowRunId} runEnded={isCompleted} />
             )}
 
             {isAgentTool && !isWorkflow && (

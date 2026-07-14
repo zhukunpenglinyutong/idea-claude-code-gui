@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
-import { getBackgroundTaskState, isTerminalFailure, useFinishedBackgroundTasks } from '../../utils/backgroundTasks';
+import { getBackgroundTaskState, isTerminalFailure, isTerminalStop, useFinishedBackgroundTasks } from '../../utils/backgroundTasks';
 
 interface BashItem {
   command: string;
@@ -9,6 +9,7 @@ interface BashItem {
   output: string;
   isCompleted: boolean;
   isError: boolean;
+  isStopped: boolean;
   toolId?: string;
 }
 
@@ -73,6 +74,7 @@ function parseBashItem(
   const isError = isDenied
     || (isCompleted && result?.is_error === true)
     || isTerminalFailure(background.terminalStatus);
+  const isStopped = !isError && isTerminalStop(background.terminalStatus);
 
   return {
     command,
@@ -80,6 +82,7 @@ function parseBashItem(
     output,
     isCompleted,
     isError,
+    isStopped,
     toolId,
   };
 }
@@ -224,7 +227,7 @@ const BashToolGroupBlock = ({ items, deniedToolIds }: BashToolGroupBlockProps) =
                     </span>
                     <div
                       className={`tool-status-indicator ${
-                        item.isError ? 'error' : item.isCompleted ? 'completed' : 'pending'
+                        item.isError ? 'error' : item.isStopped ? 'stopped' : item.isCompleted ? 'completed' : 'pending'
                       }`}
                     />
                   </div>

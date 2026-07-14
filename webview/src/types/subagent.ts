@@ -1,7 +1,7 @@
 /**
  * Subagent status
  */
-export type SubagentStatus = 'running' | 'completed' | 'error';
+export type SubagentStatus = 'running' | 'completed' | 'error' | 'stopped';
 
 export interface SubagentHistoryResponse {
   success: boolean;

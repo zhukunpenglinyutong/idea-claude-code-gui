@@ -5,6 +5,7 @@ import {
   getFinishedBackgroundTaskStatus,
   isTerminalFailure,
   parseBackgroundLaunch,
+  toolStatusIndicatorClass,
 } from './backgroundTasks';
 
 // Real launch-confirmation texts as emitted by the CLI.
@@ -87,6 +88,19 @@ describe('isTerminalFailure', () => {
     expect(isTerminalFailure('stopped')).toBe(false);
     expect(isTerminalFailure('completed')).toBe(false);
     expect(isTerminalFailure(undefined)).toBe(false);
+  });
+});
+
+describe('toolStatusIndicatorClass', () => {
+  it('renders TaskStop-ended tasks as stopped, not green completed', () => {
+    expect(toolStatusIndicatorClass(false, true, 'stopped')).toBe('stopped');
+  });
+
+  it('keeps error > stopped > completed > pending precedence', () => {
+    expect(toolStatusIndicatorClass(true, true, 'stopped')).toBe('error');
+    expect(toolStatusIndicatorClass(false, true, 'completed')).toBe('completed');
+    expect(toolStatusIndicatorClass(false, true, undefined)).toBe('completed');
+    expect(toolStatusIndicatorClass(false, false, undefined)).toBe('pending');
   });
 });
 
