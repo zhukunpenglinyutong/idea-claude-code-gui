@@ -51,6 +51,13 @@ describe('parseBackgroundLaunch', () => {
     expect(launch.taskId).toBe('b06hiiaoj');
   });
 
+  it('ignores launch text merely quoted inside other output (grep, file reads)', () => {
+    const grepOutput = 'transcript.jsonl:"Command running in background with ID: b06hiiaoj. Output is being written to: /tmp/tasks/b06hiiaoj.output"';
+    expect(parseBackgroundLaunch(grepOutput).isBackground).toBe(false);
+    const fileRead = '1\timport …\n2\t// "Async agent launched successfully." is the Agent launch text';
+    expect(parseBackgroundLaunch(fileRead).isBackground).toBe(false);
+  });
+
   it('detects a Monitor start and extracts its task id', () => {
     const launch = parseBackgroundLaunch(
       'Monitor started (task bkvs4037z, timeout 600000ms). You will be notified on each event. '

@@ -63,8 +63,10 @@ function parseBashItem(
   }
 
   // A run_in_background command keeps running after its immediate
-  // tool_result — stay pending until its task-notification lands.
-  const background = getBackgroundTaskState(finishedBackgroundTasks, output || undefined, toolId);
+  // tool_result — stay pending until its task-notification lands. Gated on
+  // the input flag so foreground output quoting launch text never matches.
+  const wantsBackground = input.run_in_background === true || input.runInBackground === true;
+  const background = getBackgroundTaskState(finishedBackgroundTasks, wantsBackground ? (output || undefined) : undefined, toolId);
 
   const isDenied = toolId ? (deniedToolIds?.has(toolId) ?? false) : false;
   const isCompleted = ((result !== undefined && result !== null) && !background.running) || isDenied;

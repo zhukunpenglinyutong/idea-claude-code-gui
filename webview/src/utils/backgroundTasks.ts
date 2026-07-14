@@ -30,7 +30,10 @@ export interface BackgroundLaunchInfo {
 //   "Workflow launched in background. Task ID: w057006cy"          (Workflow)
 //   "Command running in background with ID: b06hiiaoj. Output…"    (Bash)
 //   "Monitor started (task bkvs4037z, timeout 600000ms)."          (Monitor)
-const LAUNCH_PATTERN = /launched\s+(?:successfully\s+)?in(?:\s+the)?\s+background|async\s+agent\s+launched|running\s+in(?:\s+the)?\s+background|monitor\s+started\s+\(task\s/i;
+// Anchored to the start of the result text: tool outputs that merely CONTAIN
+// such a phrase (grep over transcripts, a Read of this file, a web page)
+// must not put the card into a never-ending running state.
+const LAUNCH_PATTERN = /^\s*(?:async\s+agent\s+launched|workflow\s+launched\s+in(?:\s+the)?\s+background|command\s+running\s+in(?:\s+the)?\s+background\s+with\s+id|monitor\s+started\s+\(task\s|.{0,40}launched\s+(?:successfully\s+)?in(?:\s+the)?\s+background)/i;
 
 export function parseBackgroundLaunch(resultText?: string): BackgroundLaunchInfo {
   if (!resultText || !LAUNCH_PATTERN.test(resultText)) {

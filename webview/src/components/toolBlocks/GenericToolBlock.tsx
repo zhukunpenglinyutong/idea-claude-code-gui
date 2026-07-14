@@ -223,14 +223,18 @@ const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps
   const target = input ? resolveToolTarget(input, name) : undefined;
   const filePath = target?.rawPath;
 
-  // A background launch ("Monitor started (task …)", "Command running in
-  // background with ID: …") returns its tool_result immediately while the
-  // task keeps running — stay pending until its task-notification lands.
-  const resultText = typeof result?.content === 'string'
-    ? result.content
-    : Array.isArray(result?.content)
-      ? result.content.map((block) => block.text ?? '').join('\n')
-      : undefined;
+  // A background launch ("Monitor started (task …)") returns its tool_result
+  // immediately while the task keeps running — stay pending until its
+  // task-notification lands. Only Monitor legitimately launches background
+  // work through this generic card; other tools' outputs (WebFetch, custom
+  // MCP tools) may quote launch-like text and must not match.
+  const resultText = lowerName === 'monitor'
+    ? (typeof result?.content === 'string'
+      ? result.content
+      : Array.isArray(result?.content)
+        ? result.content.map((block) => block.text ?? '').join('\n')
+        : undefined)
+    : undefined;
   const background = useBackgroundTaskState(resultText, toolId);
 
   // Determine tool call status based on result

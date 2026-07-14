@@ -42,8 +42,11 @@ const BashToolBlock = ({ input, result, toolId }: BashToolBlockProps) => {
 
   // A run_in_background command returns its tool_result immediately
   // ("Command running in background with ID: …") while the command keeps
-  // running — stay pending until its task-notification lands.
-  const background = useBackgroundTaskState(output || undefined, toolId);
+  // running — stay pending until its task-notification lands. Gated on the
+  // input flag so a foreground command whose *output* quotes such text
+  // (grep over transcripts) can never stick in the running state.
+  const wantsBackground = input.run_in_background === true || input.runInBackground === true;
+  const background = useBackgroundTaskState(wantsBackground ? (output || undefined) : undefined, toolId);
 
   // Determine tool call status based on result
   // If denied, treat as completed (show error state)
