@@ -123,9 +123,11 @@ export function extractSubagentsFromMessages(
 
       // Defensive: ensure all string values are actually strings
       const id = String(block.id ?? `task-${messageIndex}-${subagents.length}`);
+      // An Agent call without subagent_type runs the default agent — label it
+      // "Agent" instead of the meaningless "Unknown".
       const subagentType = isWorkflow
         ? 'Workflow'
-        : String((input.subagent_type as string) ?? (input.subagentType as string) ?? 'Unknown');
+        : String((input.subagent_type as string) ?? (input.subagentType as string) ?? 'Agent');
       const description = String(
         (input.description as string)
           ?? workflowMeta.description
