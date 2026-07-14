@@ -6,10 +6,12 @@ import { requestSubagentHistory, SUBAGENT_POLL_TAIL } from '../../utils/subagent
 import { extractWorkflowMeta } from '../../utils/workflowMeta';
 import { getPersistedExpanded, setPersistedExpanded } from '../../utils/expandedState';
 import {
+  getBackgroundTaskUsage,
   getFinishedBackgroundTaskStatus,
   isTerminalFailure,
   parseBackgroundLaunch,
   toolStatusIndicatorClass,
+  useBackgroundTaskUsageMap,
   useFinishedBackgroundTasks,
 } from '../../utils/backgroundTasks';
 import { extractWorkflowRunId } from '../../utils/workflowStatusStore';
@@ -147,6 +149,10 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
   const workflowStatus = useWorkflowLiveStatus(currentSessionId, workflowRunId, toolId, !hasResult || backgroundRunning);
   const workflowCounts = getWorkflowCounts(workflowStatus);
 
+  // A background launch's toolUseResult has no stats — fall back to the
+  // completion notification's <usage> block (tokens/tools/duration).
+  const backgroundUsageMap = useBackgroundTaskUsageMap();
+  const backgroundUsage = getBackgroundTaskUsage(backgroundUsageMap, backgroundLaunch, toolId);
   const agentToolMeta = parseAgentToolMeta(getToolResultRaw, toolId);
   const agentId = agentToolMeta.agentId
     ?? (input?.agent_id as string | undefined)
@@ -266,9 +272,9 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
           ) : (
             <SubagentProcessDetails
               agentId={agentId}
-              totalDurationMs={agentToolMeta.totalDurationMs}
-              totalTokens={agentToolMeta.totalTokens}
-              totalToolUseCount={agentToolMeta.totalToolUseCount}
+              totalDurationMs={agentToolMeta.totalDurationMs ?? backgroundUsage?.totalDurationMs}
+              totalTokens={agentToolMeta.totalTokens ?? backgroundUsage?.totalTokens}
+              totalToolUseCount={agentToolMeta.totalToolUseCount ?? backgroundUsage?.totalToolUseCount}
               resultText={resultText}
               history={history}
               canLoad={Boolean(currentSessionId)}

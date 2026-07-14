@@ -49,9 +49,40 @@ public class MessageParser {
         } else if ("assistant".equals(type)) {
             String content = extractMessageContent(msg);
             return new ClaudeSession.Message(ClaudeSession.Message.Type.ASSISTANT, content, rawMessage);
+        } else if ("queue-operation".equals(type) || "attachment".equals(type)) {
+            // A task-notification delivered while a turn is running is recorded only
+            // as queue-operation enqueue/remove lines plus an attachment line — it
+            // never becomes a plain user message (and compaction can drop even a
+            // queued one). Forward these records so the frontend's finished-task
+            // store learns the terminal status (and usage stats) of background
+            // agents/workflows; the frontend recognizes raw.type and never renders
+            // them, and duplicate records for the same task are idempotent there.
+            String notification = extractTaskNotificationRecord(msg);
+            if (notification != null) {
+                return new ClaudeSession.Message(ClaudeSession.Message.Type.USER, notification, msg);
+            }
+            return null;
         }
 
         return null;
+    }
+
+    /**
+     * Extract the task-notification text carried by a queue-operation line
+     * (top-level string {@code content}) or an attachment line
+     * ({@code attachment.prompt}). Returns null for unrelated records.
+     */
+    private String extractTaskNotificationRecord(JsonObject msg) {
+        String text = null;
+        if (msg.has("content") && msg.get("content").isJsonPrimitive()) {
+            text = msg.get("content").getAsString();
+        } else if (msg.has("attachment") && msg.get("attachment").isJsonObject()) {
+            JsonObject attachment = msg.getAsJsonObject("attachment");
+            if (attachment.has("prompt") && attachment.get("prompt").isJsonPrimitive()) {
+                text = attachment.get("prompt").getAsString();
+            }
+        }
+        return text != null && text.contains("<task-notification>") ? text : null;
     }
 
     /**

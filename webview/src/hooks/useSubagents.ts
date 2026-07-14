@@ -5,8 +5,11 @@ import { AGENT_TOOL_NAMES, normalizeToolName } from '../utils/toolConstants';
 import { extractWorkflowMeta } from '../utils/workflowMeta';
 import {
   type BackgroundLaunchInfo,
+  type BackgroundTaskUsage,
+  getBackgroundTaskUsage,
   getFinishedBackgroundTaskStatus,
   parseBackgroundLaunch,
+  useBackgroundTaskUsageMap,
   useFinishedBackgroundTasks,
 } from '../utils/backgroundTasks';
 
@@ -94,6 +97,7 @@ export function extractSubagentsFromMessages(
   findToolResult: (toolUseId?: string, messageIndex?: number) => ToolResultBlock | null,
   getToolResultRaw: GetToolResultRawFn,
   finishedBackgroundTasks: ReadonlyMap<string, string> = new Map(),
+  backgroundTaskUsage: ReadonlyMap<string, BackgroundTaskUsage> = new Map(),
 ): SubagentInfo[] {
   const subagents: SubagentInfo[] = [];
 
@@ -136,6 +140,9 @@ export function extractSubagentsFromMessages(
       const resultMetadata = extractResultMetadata(result, getToolResultRaw, toolUseId);
       const launch = parseBackgroundLaunch(resultMetadata.resultText);
       const status = determineStatus(result, launch, toolUseId, finishedBackgroundTasks);
+      // A background launch's toolUseResult carries no stats — the completion
+      // notification's <usage> block is the only source of tokens/duration.
+      const usage = getBackgroundTaskUsage(backgroundTaskUsage, launch, toolUseId);
 
       subagents.push({
         id,
@@ -149,6 +156,9 @@ export function extractSubagentsFromMessages(
         // A background launch's toolUseResult has no agentId — the launch
         // text is the only place the sidechain id appears.
         agentId: resultMetadata.agentId ?? launch.agentId,
+        totalDurationMs: resultMetadata.totalDurationMs ?? usage?.totalDurationMs,
+        totalTokens: resultMetadata.totalTokens ?? usage?.totalTokens,
+        totalToolUseCount: resultMetadata.totalToolUseCount ?? usage?.totalToolUseCount,
       });
     });
   });
@@ -166,8 +176,11 @@ export function useSubagents({
   getToolResultRaw,
 }: UseSubagentsParams): SubagentInfo[] {
   const finishedBackgroundTasks = useFinishedBackgroundTasks();
+  const backgroundTaskUsage = useBackgroundTaskUsageMap();
   return useMemo(
-    () => extractSubagentsFromMessages(messages, getContentBlocks, findToolResult, getToolResultRaw, finishedBackgroundTasks),
-    [messages, getContentBlocks, findToolResult, getToolResultRaw, finishedBackgroundTasks],
+    () => extractSubagentsFromMessages(
+      messages, getContentBlocks, findToolResult, getToolResultRaw, finishedBackgroundTasks, backgroundTaskUsage,
+    ),
+    [messages, getContentBlocks, findToolResult, getToolResultRaw, finishedBackgroundTasks, backgroundTaskUsage],
   );
 }

@@ -7,10 +7,12 @@ import { extractWorkflowMeta } from '../../utils/workflowMeta';
 import { extractWorkflowRunId } from '../../utils/workflowStatusStore';
 import WorkflowAgentsSection, { getWorkflowCounts, useWorkflowLiveStatus } from './WorkflowAgentsSection';
 import {
+  getBackgroundTaskUsage,
   getFinishedBackgroundTaskStatus,
   isTerminalFailure,
   parseBackgroundLaunch,
   toolStatusIndicatorClass,
+  useBackgroundTaskUsageMap,
   useFinishedBackgroundTasks,
 } from '../../utils/backgroundTasks';
 import { useSubagentHistoryGetter, useSessionId, useGetToolResultRaw, type GetToolResultRawFn } from '../../contexts/SubagentContext';
@@ -161,6 +163,7 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
   const currentSessionId = useSessionId();
   const getToolResultRaw = useGetToolResultRaw();
   const finishedBackgroundTasks = useFinishedBackgroundTasks();
+  const backgroundUsageMap = useBackgroundTaskUsageMap();
 
   if (!input) {
     return null;
@@ -195,6 +198,9 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
   const backgroundLaunch = parseBackgroundLaunch(resultText);
   const backgroundTerminalStatus = getFinishedBackgroundTaskStatus(finishedBackgroundTasks, backgroundLaunch, toolId);
   const backgroundRunning = backgroundLaunch.isBackground && !backgroundTerminalStatus;
+  // A background launch's toolUseResult has no stats — fall back to the
+  // completion notification's <usage> block (tokens/tools/duration).
+  const backgroundUsage = getBackgroundTaskUsage(backgroundUsageMap, backgroundLaunch, toolId);
   const workflowMeta = isWorkflow ? extractWorkflowMeta(input as Record<string, unknown>) : {};
   const description = typeof inputDescription === 'string' && inputDescription
     ? inputDescription
@@ -370,9 +376,9 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
             {isAgentTool && !isWorkflow && (
               <SubagentProcessDetails
                 agentId={agentId}
-                totalDurationMs={agentToolMeta.totalDurationMs}
-                totalTokens={agentToolMeta.totalTokens}
-                totalToolUseCount={agentToolMeta.totalToolUseCount}
+                totalDurationMs={agentToolMeta.totalDurationMs ?? backgroundUsage?.totalDurationMs}
+                totalTokens={agentToolMeta.totalTokens ?? backgroundUsage?.totalTokens}
+                totalToolUseCount={agentToolMeta.totalToolUseCount ?? backgroundUsage?.totalToolUseCount}
                 resultText={resultText}
                 history={history}
                 canLoad={Boolean(currentSessionId)}

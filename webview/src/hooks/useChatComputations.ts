@@ -15,7 +15,7 @@ import {
   sliceLatestConversationTurn,
 } from '../utils/turnScope';
 import { FILE_MODIFY_TOOL_NAMES, isToolName } from '../utils/toolConstants';
-import { collectFinishedBackgroundTasks, setFinishedBackgroundTasks } from '../utils/backgroundTasks';
+import { collectBackgroundTaskRecords, setBackgroundTaskUsage, setFinishedBackgroundTasks } from '../utils/backgroundTasks';
 import { useSubagents } from './useSubagents';
 import { useFileChanges } from './useFileChanges';
 import { useFileChangesManagement } from './useFileChangesManagement';
@@ -118,7 +118,9 @@ export function useChatComputations({
   // this store to keep background agents in "running" state after their
   // immediate launch-confirmation tool_result.
   useEffect(() => {
-    setFinishedBackgroundTasks(collectFinishedBackgroundTasks(messages));
+    const records = collectBackgroundTaskRecords(messages);
+    setFinishedBackgroundTasks(records.finished);
+    setBackgroundTaskUsage(records.usage);
   }, [messages]);
 
   const latestTurnSubagents = useSubagents({

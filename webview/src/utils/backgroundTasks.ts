@@ -153,7 +153,78 @@ export function getFinishedBackgroundTaskStatus(
   return undefined;
 }
 
+// ── Usage stats from notifications ─────────────────────────────────────────
+// A completion notification carries the finished task's aggregate stats:
+//   <usage><subagent_tokens>26312</subagent_tokens><tool_uses>5</tool_uses>
+//   <duration_ms>73018</duration_ms></usage>
+// A background launch's toolUseResult has no stats (it is just the launch
+// confirmation), so this is the only source of tokens/duration for
+// background agents.
+
+export interface BackgroundTaskUsage {
+  totalTokens?: number;
+  totalToolUseCount?: number;
+  totalDurationMs?: number;
+}
+
+let taskUsage: ReadonlyMap<string, BackgroundTaskUsage> = new Map();
+
+export function setBackgroundTaskUsage(usage: ReadonlyMap<string, BackgroundTaskUsage>): void {
+  if (
+    usage.size === taskUsage.size
+    && [...usage].every(([id, stats]) => {
+      const prev = taskUsage.get(id);
+      return prev
+        && prev.totalTokens === stats.totalTokens
+        && prev.totalToolUseCount === stats.totalToolUseCount
+        && prev.totalDurationMs === stats.totalDurationMs;
+    })
+  ) {
+    return;
+  }
+  taskUsage = usage;
+  listeners.forEach((listener) => listener());
+}
+
+export function useBackgroundTaskUsageMap(): ReadonlyMap<string, BackgroundTaskUsage> {
+  return useSyncExternalStore(
+    (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    () => taskUsage,
+  );
+}
+
+/**
+ * Usage stats of a finished background launch, matched like
+ * getFinishedBackgroundTaskStatus (tool_use id first, then launch ids).
+ */
+export function getBackgroundTaskUsage(
+  usage: ReadonlyMap<string, BackgroundTaskUsage>,
+  launch: BackgroundLaunchInfo,
+  toolUseId?: string,
+): BackgroundTaskUsage | undefined {
+  if (!launch.isBackground) return undefined;
+  if (toolUseId && usage.has(toolUseId)) return usage.get(toolUseId);
+  if (launch.taskId && usage.has(launch.taskId)) return usage.get(launch.taskId);
+  if (launch.agentId && usage.has(launch.agentId)) return usage.get(launch.agentId);
+  return undefined;
+}
+
 const NOTIFICATION_PATTERN = /<task-notification>([\s\S]*?)<\/task-notification>/g;
+
+function parseUsageFromNotification(body: string): BackgroundTaskUsage | undefined {
+  const tokens = /<subagent_tokens>\s*(\d+)\s*<\/subagent_tokens>/.exec(body)?.[1];
+  const toolUses = /<tool_uses>\s*(\d+)\s*<\/tool_uses>/.exec(body)?.[1];
+  const durationMs = /<duration_ms>\s*(\d+)\s*<\/duration_ms>/.exec(body)?.[1];
+  if (!tokens && !toolUses && !durationMs) return undefined;
+  return {
+    totalTokens: tokens ? Number(tokens) : undefined,
+    totalToolUseCount: toolUses ? Number(toolUses) : undefined,
+    totalDurationMs: durationMs ? Number(durationMs) : undefined,
+  };
+}
 
 // TaskStop produces no task-notification — its own tool_result is the only
 // terminal record: '{"message":"Successfully stopped task: wy0d80iqp (…)",
@@ -167,7 +238,11 @@ function collectStopsFromText(text: string, into: Map<string, string>): void {
   if (fromField) into.set(fromField, status);
 }
 
-function collectFromText(text: string, into: Map<string, string>): void {
+function collectFromText(
+  text: string,
+  into: Map<string, string>,
+  usageInto: Map<string, BackgroundTaskUsage>,
+): void {
   NOTIFICATION_PATTERN.lastIndex = 0;
   let match = NOTIFICATION_PATTERN.exec(text);
   while (match) {
@@ -181,13 +256,22 @@ function collectFromText(text: string, into: Map<string, string>): void {
       const toolUseId = /<tool-use-id>\s*([^<\s]+)\s*<\/tool-use-id>/.exec(body)?.[1];
       if (taskId) into.set(taskId, status);
       if (toolUseId) into.set(toolUseId, status);
+      const usage = parseUsageFromNotification(body);
+      if (usage) {
+        if (taskId) usageInto.set(taskId, usage);
+        if (toolUseId) usageInto.set(toolUseId, usage);
+      }
     }
     match = NOTIFICATION_PATTERN.exec(text);
   }
 }
 
-function collectFromAnyText(text: string, into: Map<string, string>): void {
-  if (text.includes('<task-notification>')) collectFromText(text, into);
+function collectFromAnyText(
+  text: string,
+  into: Map<string, string>,
+  usageInto: Map<string, BackgroundTaskUsage>,
+): void {
+  if (text.includes('<task-notification>')) collectFromText(text, into, usageInto);
   collectStopsFromText(text, into);
 }
 
@@ -211,24 +295,46 @@ function extractBlockText(block: unknown): string | undefined {
   return undefined;
 }
 
-export function collectFinishedBackgroundTasks(messages: ClaudeMessage[]): Map<string, string> {
+export interface BackgroundTaskRecords {
+  finished: Map<string, string>;
+  usage: Map<string, BackgroundTaskUsage>;
+}
+
+/**
+ * Scan the transcript for terminal task records. Besides plain user messages,
+ * notifications delivered while a turn was running exist only as
+ * queue-operation / attachment JSONL lines (forwarded by the Java side with
+ * the notification text as content) — duplicate records for the same task
+ * are idempotent map writes.
+ */
+export function collectBackgroundTaskRecords(messages: ClaudeMessage[]): BackgroundTaskRecords {
   const tasks = new Map<string, string>();
+  const usage = new Map<string, BackgroundTaskUsage>();
   for (const message of messages) {
     if (typeof message.content === 'string') {
-      collectFromAnyText(message.content, tasks);
+      collectFromAnyText(message.content, tasks, usage);
     }
     const raw = message.raw;
     if (raw && typeof raw !== 'string') {
       const content = raw.content ?? raw.message?.content;
       if (typeof content === 'string') {
-        collectFromAnyText(content, tasks);
+        collectFromAnyText(content, tasks, usage);
       } else if (Array.isArray(content)) {
         for (const block of content) {
           const text = extractBlockText(block);
-          if (text) collectFromAnyText(text, tasks);
+          if (text) collectFromAnyText(text, tasks, usage);
         }
+      }
+      // Attachment lines carry the delivered notification in attachment.prompt.
+      const attachmentPrompt = (raw as { attachment?: { prompt?: unknown } }).attachment?.prompt;
+      if (typeof attachmentPrompt === 'string') {
+        collectFromAnyText(attachmentPrompt, tasks, usage);
       }
     }
   }
-  return tasks;
+  return { finished: tasks, usage };
+}
+
+export function collectFinishedBackgroundTasks(messages: ClaudeMessage[]): Map<string, string> {
+  return collectBackgroundTaskRecords(messages).finished;
 }
