@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
 import { useIsToolDenied } from '../../hooks/useIsToolDenied';
-import { useBackgroundTaskState } from '../../utils/backgroundTasks';
+import { isTerminalFailure, useBackgroundTaskState } from '../../utils/backgroundTasks';
 import { useResolvedFileLinkTooltip } from '../../hooks/useResolvedFileLinkTooltip';
 import { openFile } from '../../utils/bridge';
 import { formatParamValue, truncate } from '../../utils/helpers';
@@ -223,12 +223,13 @@ const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps
   const target = input ? resolveToolTarget(input, name) : undefined;
   const filePath = target?.rawPath;
 
-  // A background launch ("Monitor started (task …)") returns its tool_result
-  // immediately while the task keeps running — stay pending until its
-  // task-notification lands. Only Monitor legitimately launches background
-  // work through this generic card; other tools' outputs (WebFetch, custom
-  // MCP tools) may quote launch-like text and must not match.
-  const resultText = lowerName === 'monitor'
+  // A background launch ("Monitor started (task …)", SendMessage's "resumed
+  // from transcript in the background") returns its tool_result immediately
+  // while the task keeps running — stay pending until its task-notification
+  // lands. Only Monitor and SendMessage legitimately launch background work
+  // through this generic card; other tools' outputs (WebFetch, custom MCP
+  // tools) may quote launch-like text and must not match.
+  const resultText = (lowerName === 'monitor' || lowerName === 'sendmessage')
     ? (typeof result?.content === 'string'
       ? result.content
       : Array.isArray(result?.content)
@@ -246,7 +247,7 @@ const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps
   // If denied, show as error state
   const isError = isDenied
     || (isCompleted && result?.is_error === true && !isAskUserQuestion)
-    || background.terminalStatus === 'failed';
+    || isTerminalFailure(background.terminalStatus);
 
   if (!input) {
     return null;

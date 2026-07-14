@@ -30,10 +30,12 @@ export interface BackgroundLaunchInfo {
 //   "Workflow launched in background. Task ID: w057006cy"          (Workflow)
 //   "Command running in background with ID: b06hiiaoj. Output…"    (Bash)
 //   "Monitor started (task bkvs4037z, timeout 600000ms)."          (Monitor)
+//   '{"success":true,"message":"Agent \"a2d7…\" had no active task; resumed
+//    from transcript in the background with your message. …"}'   (SendMessage)
 // Anchored to the start of the result text: tool outputs that merely CONTAIN
 // such a phrase (grep over transcripts, a Read of this file, a web page)
 // must not put the card into a never-ending running state.
-const LAUNCH_PATTERN = /^\s*(?:async\s+agent\s+launched|workflow\s+launched\s+in(?:\s+the)?\s+background|command\s+running\s+in(?:\s+the)?\s+background\s+with\s+id|monitor\s+started\s+\(task\s|.{0,40}launched\s+(?:successfully\s+)?in(?:\s+the)?\s+background)/i;
+const LAUNCH_PATTERN = /^\s*(?:async\s+agent\s+launched|workflow\s+launched\s+in(?:\s+the)?\s+background|command\s+running\s+in(?:\s+the)?\s+background\s+with\s+id|monitor\s+started\s+\(task\s|.{0,40}launched\s+(?:successfully\s+)?in(?:\s+the)?\s+background|[^\n]{0,160}?resumed\s+from\s+transcript\s+in(?:\s+the)?\s+background)/i;
 
 export function parseBackgroundLaunch(resultText?: string): BackgroundLaunchInfo {
   if (!resultText || !LAUNCH_PATTERN.test(resultText)) {
@@ -43,8 +45,18 @@ export function parseBackgroundLaunch(resultText?: string): BackgroundLaunchInfo
     ?? /with\s+id\s*[:=]?\s*([A-Za-z0-9_-]{4,})/i.exec(resultText)?.[1]
     ?? /\(task\s+([A-Za-z0-9_-]{4,})[,)]/i.exec(resultText)?.[1]
     ?? /\/tasks\/([A-Za-z0-9_-]{4,})\.output/.exec(resultText)?.[1];
-  const agentId = /agent[\s_-]?id\s*[:=]\s*'?([A-Za-z0-9_-]{6,})'?/i.exec(resultText)?.[1];
+  const agentId = /agent[\s_-]?id\s*[:=]\s*'?([A-Za-z0-9_-]{6,})'?/i.exec(resultText)?.[1]
+    // SendMessage resume: 'Agent \"a2d72de8cb107fa0d\" had no active task; …'
+    ?? /agent\s+\\?"([A-Za-z0-9_-]{6,})\\?"/i.exec(resultText)?.[1];
   return { isBackground: true, taskId, agentId };
+}
+
+/**
+ * Terminal statuses that should render as an error state. 'stopped' is a
+ * deliberate user action and keeps the neutral completed look.
+ */
+export function isTerminalFailure(status?: string): boolean {
+  return status === 'failed' || status === 'killed';
 }
 
 // ── Finished-task store ────────────────────────────────────────────────────
@@ -122,6 +134,18 @@ export function getFinishedBackgroundTaskStatus(
 
 const NOTIFICATION_PATTERN = /<task-notification>([\s\S]*?)<\/task-notification>/g;
 
+// TaskStop produces no task-notification — its own tool_result is the only
+// terminal record: '{"message":"Successfully stopped task: wy0d80iqp (…)",
+// "task_id":"wy0d80iqp","task_type":"local_workflow",…}'.
+function collectStopsFromText(text: string, into: Map<string, string>): void {
+  if (!/successfully (?:stopped|killed) task/i.test(text)) return;
+  const fromMessage = /successfully (?:stopped|killed) task:?\s*"?([A-Za-z0-9_-]{4,})/i.exec(text)?.[1];
+  const fromField = /"task_id"\s*:\s*"([A-Za-z0-9_-]{4,})"/.exec(text)?.[1];
+  const status = /successfully killed/i.test(text) ? 'killed' : 'stopped';
+  if (fromMessage) into.set(fromMessage, status);
+  if (fromField) into.set(fromField, status);
+}
+
 function collectFromText(text: string, into: Map<string, string>): void {
   NOTIFICATION_PATTERN.lastIndex = 0;
   let match = NOTIFICATION_PATTERN.exec(text);
@@ -141,23 +165,46 @@ function collectFromText(text: string, into: Map<string, string>): void {
   }
 }
 
+function collectFromAnyText(text: string, into: Map<string, string>): void {
+  if (text.includes('<task-notification>')) collectFromText(text, into);
+  collectStopsFromText(text, into);
+}
+
+function extractBlockText(block: unknown): string | undefined {
+  if (!block || typeof block !== 'object') return undefined;
+  const record = block as { text?: unknown; type?: unknown; content?: unknown };
+  if (typeof record.text === 'string') return record.text;
+  // tool_result blocks (TaskStop confirmations) carry their text in content.
+  if (record.type === 'tool_result') {
+    if (typeof record.content === 'string') return record.content;
+    if (Array.isArray(record.content)) {
+      const joined = record.content
+        .map((item) => (item && typeof item === 'object' && typeof (item as { text?: unknown }).text === 'string'
+          ? (item as { text: string }).text
+          : ''))
+        .filter(Boolean)
+        .join('\n');
+      return joined || undefined;
+    }
+  }
+  return undefined;
+}
+
 export function collectFinishedBackgroundTasks(messages: ClaudeMessage[]): Map<string, string> {
   const tasks = new Map<string, string>();
   for (const message of messages) {
-    if (typeof message.content === 'string' && message.content.includes('<task-notification>')) {
-      collectFromText(message.content, tasks);
+    if (typeof message.content === 'string') {
+      collectFromAnyText(message.content, tasks);
     }
     const raw = message.raw;
     if (raw && typeof raw !== 'string') {
       const content = raw.content ?? raw.message?.content;
-      if (typeof content === 'string' && content.includes('<task-notification>')) {
-        collectFromText(content, tasks);
+      if (typeof content === 'string') {
+        collectFromAnyText(content, tasks);
       } else if (Array.isArray(content)) {
         for (const block of content) {
-          const text = block && typeof block === 'object' ? (block as { text?: unknown }).text : undefined;
-          if (typeof text === 'string' && text.includes('<task-notification>')) {
-            collectFromText(text, tasks);
-          }
+          const text = extractBlockText(block);
+          if (text) collectFromAnyText(text, tasks);
         }
       }
     }

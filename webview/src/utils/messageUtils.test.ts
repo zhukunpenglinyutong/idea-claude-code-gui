@@ -453,13 +453,13 @@ describe('formatTaskNotificationForDisplay', () => {
     });
   });
 
-  it('defaults to completed status when status tag missing', () => {
-    const text = '<task-notification><summary>Task done</summary></task-notification>';
+  it('marks status-less notifications as mid-run events, not completions', () => {
+    const text = '<task-notification><summary>Monitor event: ERROR in log</summary></task-notification>';
     const result = formatTaskNotificationForDisplay(text);
     expect(result).toEqual({
       icon: '●',
-      summary: 'Task done',
-      status: 'completed',
+      summary: 'Monitor event: ERROR in log',
+      status: 'event',
     });
   });
 

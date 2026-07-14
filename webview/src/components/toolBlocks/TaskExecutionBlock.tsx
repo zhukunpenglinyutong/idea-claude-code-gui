@@ -8,6 +8,7 @@ import { extractWorkflowRunId } from '../../utils/workflowStatusStore';
 import WorkflowAgentsSection, { getWorkflowCounts, useWorkflowLiveStatus } from './WorkflowAgentsSection';
 import {
   getFinishedBackgroundTaskStatus,
+  isTerminalFailure,
   parseBackgroundLaunch,
   useFinishedBackgroundTasks,
 } from '../../utils/backgroundTasks';
@@ -211,7 +212,7 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
   // does not count as completed even though it already has a tool_result.
   const hasResult = result !== undefined && result !== null;
   const isCompleted = hasResult && !backgroundRunning;
-  const isError = (isCompleted && result?.is_error === true) || backgroundTerminalStatus === 'failed';
+  const isError = (isCompleted && result?.is_error === true) || isTerminalFailure(backgroundTerminalStatus);
   const history = (toolId ? getSubagentHistory(toolId) : undefined) ?? (agentId ? getSubagentHistory(agentId) : undefined);
 
   // Full (untruncated) fetch when the user opens a card that has no history
@@ -275,7 +276,7 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
   const workflowRunId = isWorkflow
     ? (extractWorkflowRunId(resultText) ?? ((!hasResult && isStreaming) || backgroundRunning ? 'latest' : undefined))
     : undefined;
-  const workflowStatus = useWorkflowLiveStatus(currentSessionId, workflowRunId, toolId);
+  const workflowStatus = useWorkflowLiveStatus(currentSessionId, workflowRunId, toolId, !hasResult || backgroundRunning);
   const workflowCounts = getWorkflowCounts(workflowStatus);
 
   return (

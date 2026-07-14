@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { SubagentHistoryResponse } from '../../types';
-import { buildSubagentProcessModel, formatSubagentDuration } from './subagentProcess';
+import { buildSubagentProcessModel, formatSubagentDuration, sanitizeAgentResultText } from './subagentProcess';
 
 interface SubagentProcessDetailsProps {
   agentId?: string;
@@ -35,13 +35,18 @@ const SubagentProcessDetails = memo(function SubagentProcessDetails({
     ms: t('subagent.process.unitMs'),
     s: t('subagent.process.unitS'),
   });
+  const process = buildSubagentProcessModel(history);
+  // Background launches carry no numeric stats in their toolUseResult —
+  // fall back to counting tool calls from the polled sidechain history.
+  const derivedToolCount = process.readFiles.length + process.toolCalls.length;
+  const toolCount = totalToolUseCount ?? (derivedToolCount > 0 ? derivedToolCount : undefined);
   const stats = [
     duration,
-    totalToolUseCount != null ? `${totalToolUseCount} ${t('subagent.process.unitTools')}` : null,
+    toolCount != null ? `${toolCount} ${t('subagent.process.unitTools')}` : null,
     totalTokens != null ? `${totalTokens.toLocaleString()} ${t('subagent.process.unitTokens')}` : null,
   ].filter(Boolean).join(' · ');
-  const process = buildSubagentProcessModel(history);
-  const finalSummary = firstMeaningfulLine(resultText, t);
+  const displayResultText = sanitizeAgentResultText(resultText);
+  const finalSummary = firstMeaningfulLine(displayResultText, t);
   const hasContent = process.notes.length > 0 || process.readFiles.length > 0 || process.toolCalls.length > 0 || Boolean(finalSummary);
 
   return (
@@ -111,7 +116,7 @@ const SubagentProcessDetails = memo(function SubagentProcessDetails({
               <div className="subagent-result-card">{finalSummary}</div>
               <details className="subagent-result">
                 <summary>{t('subagent.process.showFullOutput')}</summary>
-                <pre>{resultText}</pre>
+                <pre>{displayResultText}</pre>
               </details>
             </section>
           )}

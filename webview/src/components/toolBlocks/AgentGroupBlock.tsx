@@ -7,6 +7,7 @@ import { extractWorkflowMeta } from '../../utils/workflowMeta';
 import { getPersistedExpanded, setPersistedExpanded } from '../../utils/expandedState';
 import {
   getFinishedBackgroundTaskStatus,
+  isTerminalFailure,
   parseBackgroundLaunch,
   useFinishedBackgroundTasks,
 } from '../../utils/backgroundTasks';
@@ -127,7 +128,7 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
   const backgroundRunning = backgroundLaunch.isBackground && !backgroundTerminalStatus;
   const hasResult = result !== undefined && result !== null;
   const isCompleted = hasResult && !backgroundRunning;
-  const isError = (isCompleted && result?.is_error === true) || backgroundTerminalStatus === 'failed';
+  const isError = (isCompleted && result?.is_error === true) || isTerminalFailure(backgroundTerminalStatus);
 
   const agentType = getAgentType(agentBlock);
   const summary = getAgentSummary(agentBlock);
@@ -142,7 +143,7 @@ const AgentGroupBlock = memo(function AgentGroupBlock({
   const workflowRunId = isWorkflow
     ? (extractWorkflowRunId(resultText) ?? ((!hasResult && isStreaming) || backgroundRunning ? 'latest' : undefined))
     : undefined;
-  const workflowStatus = useWorkflowLiveStatus(currentSessionId, workflowRunId, toolId);
+  const workflowStatus = useWorkflowLiveStatus(currentSessionId, workflowRunId, toolId, !hasResult || backgroundRunning);
   const workflowCounts = getWorkflowCounts(workflowStatus);
 
   const agentToolMeta = parseAgentToolMeta(getToolResultRaw, toolId);

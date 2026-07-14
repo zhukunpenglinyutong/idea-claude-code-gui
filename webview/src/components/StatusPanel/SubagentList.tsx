@@ -35,7 +35,7 @@ const SubagentRow = memo(({ subagent, isExpanded, history, canLoad, sessionId, o
   const workflowRunId = isWorkflow
     ? (extractWorkflowRunId(subagent.resultText) ?? (subagent.status === 'running' ? 'latest' : undefined))
     : undefined;
-  const workflowStatus = useWorkflowLiveStatus(sessionId, workflowRunId, subagent.id);
+  const workflowStatus = useWorkflowLiveStatus(sessionId, workflowRunId, subagent.id, subagent.status === 'running');
   const workflowCounts = getWorkflowCounts(workflowStatus);
 
   const handleClick = useCallback(() => {

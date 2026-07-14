@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
 import { useIsToolDenied } from '../../hooks/useIsToolDenied';
-import { useBackgroundTaskState } from '../../utils/backgroundTasks';
+import { isTerminalFailure, useBackgroundTaskState } from '../../utils/backgroundTasks';
 
 const TASK_DETAILS_STYLE: React.CSSProperties = { padding: 0, border: 'none' };
 const TASK_CONTENT_WRAPPER_STYLE: React.CSSProperties = { paddingLeft: '40px', position: 'relative', zIndex: 1 };
@@ -54,7 +54,7 @@ const BashToolBlock = ({ input, result, toolId }: BashToolBlockProps) => {
   // If denied, show as error state
   const isError = isDenied
     || (isCompleted && result?.is_error === true)
-    || background.terminalStatus === 'failed';
+    || isTerminalFailure(background.terminalStatus);
 
   return (
     <div className="task-container">

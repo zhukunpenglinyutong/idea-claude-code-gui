@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
-import { getBackgroundTaskState, useFinishedBackgroundTasks } from '../../utils/backgroundTasks';
+import { getBackgroundTaskState, isTerminalFailure, useFinishedBackgroundTasks } from '../../utils/backgroundTasks';
 
 interface BashItem {
   command: string;
@@ -72,7 +72,7 @@ function parseBashItem(
   const isCompleted = ((result !== undefined && result !== null) && !background.running) || isDenied;
   const isError = isDenied
     || (isCompleted && result?.is_error === true)
-    || background.terminalStatus === 'failed';
+    || isTerminalFailure(background.terminalStatus);
 
   return {
     command,

@@ -3,6 +3,7 @@ import type { ClaudeMessage } from '../types';
 import {
   collectFinishedBackgroundTasks,
   getFinishedBackgroundTaskStatus,
+  isTerminalFailure,
   parseBackgroundLaunch,
 } from './backgroundTasks';
 
@@ -66,6 +67,27 @@ describe('parseBackgroundLaunch', () => {
     expect(launch.isBackground).toBe(true);
     expect(launch.taskId).toBe('bkvs4037z');
   });
+
+  it('detects a SendMessage background resume and extracts the agent id', () => {
+    const launch = parseBackgroundLaunch(
+      '{"success":true,"message":"Agent \\"a2d72de8cb107fa0d\\" had no active task; resumed from transcript '
+      + 'in the background with your message. You\'ll be notified when it finishes. '
+      + 'Output: /tmp/claude-501/-proj/b7a0e4f9/tasks/a2d72de8cb107fa0d.output"}',
+    );
+    expect(launch.isBackground).toBe(true);
+    expect(launch.agentId).toBe('a2d72de8cb107fa0d');
+    expect(launch.taskId).toBe('a2d72de8cb107fa0d');
+  });
+});
+
+describe('isTerminalFailure', () => {
+  it('treats failed and killed as errors, stopped and completed as not', () => {
+    expect(isTerminalFailure('failed')).toBe(true);
+    expect(isTerminalFailure('killed')).toBe(true);
+    expect(isTerminalFailure('stopped')).toBe(false);
+    expect(isTerminalFailure('completed')).toBe(false);
+    expect(isTerminalFailure(undefined)).toBe(false);
+  });
 });
 
 describe('collectFinishedBackgroundTasks', () => {
@@ -100,6 +122,20 @@ describe('collectFinishedBackgroundTasks', () => {
       { type: 'assistant', content: 'plain answer' } as ClaudeMessage,
     ];
     expect(collectFinishedBackgroundTasks(messages).size).toBe(0);
+  });
+
+  it('collects TaskStop confirmations as stopped (no task-notification is ever emitted)', () => {
+    const stopResult = '{"message":"Successfully stopped task: wy0d80iqp (Implement Batch C)",'
+      + '"task_id":"wy0d80iqp","task_type":"local_workflow"}';
+    const messages: ClaudeMessage[] = [
+      {
+        type: 'user',
+        content: '',
+        raw: { content: [{ type: 'tool_result', tool_use_id: 'toolu_stop', content: stopResult }] },
+      } as unknown as ClaudeMessage,
+    ];
+    const finished = collectFinishedBackgroundTasks(messages);
+    expect(finished.get('wy0d80iqp')).toBe('stopped');
   });
 
   it('ignores status-less notifications (monitor events, agent messages)', () => {

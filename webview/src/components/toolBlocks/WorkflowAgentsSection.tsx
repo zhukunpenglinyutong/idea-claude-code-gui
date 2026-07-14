@@ -23,21 +23,34 @@ export function getWorkflowCounts(status: WorkflowStatus | undefined): { started
  * status. requestWorkflowStatus throttles per run id, so overlapping pollers
  * (transcript card + status panel) don't duplicate bridge requests. A
  * non-workflow caller passes runId undefined and the hook is inert.
+ *
+ * `stillRunning` = the caller believes the run is alive. When false (the
+ * task-notification/TaskStop already flipped it to a terminal state) only a
+ * single fetch runs to populate the final child list — a TaskStop-killed run
+ * leaves started > done in its journal forever, so waiting for
+ * isWorkflowSettled would poll indefinitely.
  */
 export function useWorkflowLiveStatus(
   sessionId: string | null | undefined,
   runId: string | undefined,
   toolUseId?: string,
+  stillRunning = true,
 ): WorkflowStatus | undefined {
   const status = useWorkflowStatus(runId);
   const settled = isWorkflowSettled(status);
+  const hasStatus = Boolean(status);
   useEffect(() => {
-    if (!sessionId || !runId || settled) return;
+    if (!sessionId || !runId) return;
     const poll = () => requestWorkflowStatus({ sessionId, runId, toolUseId });
+    if (!stillRunning) {
+      if (!hasStatus) poll();
+      return;
+    }
+    if (settled) return;
     poll();
     const timer = window.setInterval(poll, SUBAGENT_POLL_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [sessionId, runId, settled, toolUseId]);
+  }, [sessionId, runId, settled, stillRunning, hasStatus, toolUseId]);
   return status;
 }
 
