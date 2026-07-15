@@ -22,6 +22,7 @@ import { useSession } from '../contexts/SessionContext';
 import { useUIState } from '../contexts/UIStateContext';
 import { extractMarkdownContent } from '../utils/copyUtils';
 import type { ClaudeMessage, TodoItem, ToolResultBlock } from '../types';
+import type { BackgroundTurnActivity } from '../utils/turnScope';
 import type { useMessageProcessing, useFileChanges, useSubagents, useFileChangesManagement, useModelProviderState, useMessageQueue } from '../hooks';
 import type { GetToolResultRawFn } from '../contexts/SubagentContext';
 
@@ -33,6 +34,9 @@ type FileChangeList = ReturnType<typeof useFileChanges>;
 type FileChangeMgmt = ReturnType<typeof useFileChangesManagement>;
 
 export interface ChatScreenProps {
+  /** CLI is generating an inter-turn background response (no GUI-owned streaming state). */
+  backgroundTurnActivity: BackgroundTurnActivity;
+
   // Computed message data
   mergedMessages: ClaudeMessage[];
   getMessageText: (message: ClaudeMessage) => string;
@@ -122,6 +126,7 @@ export interface ChatScreenProps {
  * Stage 5 of TASK-P1-01.
  */
 export const ChatScreen = ({
+  backgroundTurnActivity,
   mergedMessages, getMessageText, getContentBlocks, findToolResult, getToolResultRaw,
   subagents, globalTodos, filteredFileChanges,
   subagentHistoryCtxValue, sessionIdCtxValue,
@@ -236,8 +241,8 @@ export const ChatScreen = ({
                   messages={mergedMessages}
                   streamingActive={streamingActive}
                   isThinking={isThinking}
-                  loading={loading}
-                  loadingStartTime={loadingStartTime}
+                  loading={loading || backgroundTurnActivity.active}
+                  loadingStartTime={loading ? loadingStartTime : (backgroundTurnActivity.startTimeMs ?? null)}
                   t={t}
                   getMessageText={getMessageText}
                   getContentBlocks={getContentBlocks}

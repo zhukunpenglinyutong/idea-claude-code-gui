@@ -1,4 +1,4 @@
-import { type RefObject, useCallback, useEffect, useMemo, useRef } from 'react';
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 import type {
   ClaudeMessage,
@@ -10,8 +10,10 @@ import type { RewindableMessage } from '../components/RewindSelectDialog';
 import { formatTime } from '../utils/helpers';
 import { extractTodosFromToolUse, extractAccumulatedTasks } from '../utils/todoToolNormalization';
 import {
+  type BackgroundTurnActivity,
   finalizeSubagentsForSettledTurn,
   finalizeTodosForSettledTurn,
+  getBackgroundTurnActivity,
   sliceLatestConversationTurn,
 } from '../utils/turnScope';
 import { FILE_MODIFY_TOOL_NAMES, isToolName } from '../utils/toolConstants';
@@ -121,6 +123,23 @@ export function useChatComputations({
     const records = collectBackgroundTaskRecords(messages);
     setFinishedBackgroundTasks(records.finished);
     setBackgroundTaskUsage(records.usage);
+  }, [messages]);
+
+  // A trailing task-notification means the CLI is generating an inter-turn
+  // background response with no GUI-owned streaming state — surface it as a
+  // waiting indicator. Re-evaluated on a timer so the freshness window can
+  // expire without a new message arriving.
+  const [backgroundTurnActivity, setBackgroundTurnActivity] = useState<BackgroundTurnActivity>({ active: false });
+  useEffect(() => {
+    const evaluate = () => {
+      const next = getBackgroundTurnActivity(messages, Date.now());
+      setBackgroundTurnActivity((prev) => (
+        prev.active === next.active && prev.startTimeMs === next.startTimeMs ? prev : next
+      ));
+    };
+    evaluate();
+    const timer = window.setInterval(evaluate, 30_000);
+    return () => window.clearInterval(timer);
   }, [messages]);
 
   const latestTurnSubagents = useSubagents({
@@ -233,5 +252,6 @@ export function useChatComputations({
     globalTodos,
     rewindableMessages,
     sessionTitle,
+    backgroundTurnActivity,
   };
 }

@@ -40,6 +40,40 @@ export function isToolResultOnlyUserMessage(message: ClaudeMessage): boolean {
   );
 }
 
+/** How long a trailing task-notification counts as "response in flight". */
+export const BACKGROUND_TURN_FRESHNESS_MS = 10 * 60_000;
+
+export interface BackgroundTurnActivity {
+  active: boolean;
+  /** Notification delivery time (ms epoch) when known — start for the elapsed timer. */
+  startTimeMs?: number;
+}
+
+/**
+ * A task-notification at the very end of the transcript means the CLI is
+ * about to generate (or is generating) an inter-turn background response.
+ * There is no GUI-owned streaming state for that turn, so without this the
+ * chat looks dead until the finished reply appears in a reload. Freshness-
+ * gated on the message's transcript timestamp so a session that died right
+ * after a notification doesn't show a forever-spinner; a missing timestamp
+ * counts as fresh (only live-streamed messages lack one).
+ */
+export function getBackgroundTurnActivity(messages: ClaudeMessage[], nowMs: number): BackgroundTurnActivity {
+  const last = messages[messages.length - 1];
+  if (!last || !isTaskNotificationUserMessage(last)) return { active: false };
+  const rawTs = last.raw && typeof last.raw !== 'string'
+    ? (last.raw as { timestamp?: unknown }).timestamp
+    : undefined;
+  const startTimeMs = typeof rawTs === 'string'
+    ? Date.parse(rawTs)
+    : typeof rawTs === 'number' ? rawTs : Number.NaN;
+  if (Number.isFinite(startTimeMs)) {
+    if (nowMs - startTimeMs > BACKGROUND_TURN_FRESHNESS_MS) return { active: false };
+    return { active: true, startTimeMs };
+  }
+  return { active: true };
+}
+
 export function findLatestConversationTurnStart(messages: ClaudeMessage[]): number {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const message = messages[i];
