@@ -14,6 +14,7 @@ import { selectWorkingDirectory } from '../../utils/path-utils.js';
 import {
   mapModelIdToSdkName,
   resolveModelFromSettings,
+  resolveVisibleThinkingConfig,
   setModelEnvironmentVariables
 } from '../../utils/model-utils.js';
 import { canUseTool } from '../../permission-handler.js';
@@ -121,7 +122,7 @@ function resolveRequestModelState(modelId, settingsEnv) {
   };
 }
 
-function buildQueryOptions(workingDirectory, sdkModelName, permissionMode, maxThinkingTokens, reasoningEffort, streamingEnabled, systemPromptAppend, requestedSessionId, mcpServers, modelId) {
+function buildQueryOptions(workingDirectory, sdkModelName, permissionMode, maxThinkingTokens, reasoningEffort, streamingEnabled, systemPromptAppend, requestedSessionId, mcpServers, modelId, thinkingConfig) {
   const claudeCliOverride = getClaudeCliPathOverride();
   return {
     cwd: workingDirectory,
@@ -132,6 +133,7 @@ function buildQueryOptions(workingDirectory, sdkModelName, permissionMode, maxTh
     env: buildCliEnv(),
     settings: buildWebviewControlledSettingsOverride(modelId),
     ...(reasoningEffort && { effort: reasoningEffort }),
+    ...(thinkingConfig && { thinking: thinkingConfig }),
     ...(maxThinkingTokens !== undefined && { maxThinkingTokens }),
     ...(streamingEnabled && { includePartialMessages: true }),
     additionalDirectories: Array.from(
@@ -207,7 +209,12 @@ async function buildRequestContext(params, withAttachments, overrides = {}) {
   const permissionMode = normalizePermissionMode(params.permissionMode);
   const streamingEnabled = resolveStreamingEnabled(params, settings);
   const reasoningEffort = resolveReasoningEffort(params);
-  const maxThinkingTokens = resolveThinkingTokens(params, settings);
+  // Mythos-class models need an explicit thinking config or their thinking
+  // text arrives empty (signature-only); it supersedes maxThinkingTokens.
+  const thinkingConfig = resolveVisibleThinkingConfig(
+    resolvedModelId || modelId, params.disableThinking === true,
+  );
+  const maxThinkingTokens = thinkingConfig ? undefined : resolveThinkingTokens(params, settings);
   const systemPromptAppend = buildSystemPromptAppend(params);
 
   const mcpServers = await loadMcpServersConfigAsRecord(workingDirectory);
@@ -215,7 +222,7 @@ async function buildRequestContext(params, withAttachments, overrides = {}) {
   const options = buildQueryOptions(
     workingDirectory, sdkModelName, permissionMode,
     maxThinkingTokens, reasoningEffort, streamingEnabled, systemPromptAppend, requestedSessionId,
-    mcpServers, modelId
+    mcpServers, modelId, thinkingConfig
   );
 
   const userMessage = await buildUserMessage(params, withAttachments, requestedSessionId, resolvedModelId);

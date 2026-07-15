@@ -300,4 +300,38 @@ test('messages route to turnSink when active, not when null', () => {
   assert.equal(messages.length, 2);
 });
 
+// ============================================================================
+// Thinking config: Mythos-class models need an explicit visible display
+// ============================================================================
+
+test('buildRequestContext sends thinking adaptive+summarized for Fable instead of maxThinkingTokens', async () => {
+  const context = await __testing.buildRequestContext(
+    { message: 'hi', model: 'claude-fable-5' },
+    false,
+    { settings: { alwaysThinkingEnabled: true } },
+  );
+  assert.deepEqual(context.options.thinking, { type: 'adaptive', display: 'summarized' });
+  assert.equal(context.options.maxThinkingTokens, undefined);
+});
+
+test('buildRequestContext sends thinking disabled for Fable when disableThinking is set', async () => {
+  const context = await __testing.buildRequestContext(
+    { message: 'hi', model: 'claude-fable-5', disableThinking: true },
+    false,
+    { settings: { alwaysThinkingEnabled: true } },
+  );
+  assert.deepEqual(context.options.thinking, { type: 'disabled' });
+  assert.equal(context.options.maxThinkingTokens, undefined);
+});
+
+test('buildRequestContext keeps the legacy maxThinkingTokens path for non-Mythos models', async () => {
+  const context = await __testing.buildRequestContext(
+    { message: 'hi', model: 'claude-sonnet-5' },
+    false,
+    { settings: { alwaysThinkingEnabled: true, maxThinkingTokens: 12000 } },
+  );
+  assert.equal(context.options.thinking, undefined);
+  assert.equal(context.options.maxThinkingTokens, 12000);
+});
+
 console.log('\n✅ All persistent-query-service tests updated with turnSink coverage');
