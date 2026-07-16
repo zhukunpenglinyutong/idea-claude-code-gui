@@ -34,7 +34,7 @@ const USAGE_LIMIT_PATTERNS: RegExp[] = [
   /\b\d+[\s-]?hour limit reached/i,
   /\b(session|daily|weekly|monthly) limit reached/i,
   /reached your (usage|\d+[\s-]?hour) limit/i,
-  /you'?ve hit your (session|daily|weekly|monthly|usage|\d+[\s-]?hour) limit/i,
+  /you['’]?ve hit your (session|daily|weekly|monthly|usage|\d+[\s-]?hour) limit/i,
 ];
 
 /** Classic CLI format: `... usage limit reached|<epoch seconds or ms>`. */
@@ -88,6 +88,37 @@ export function parseUsageLimitError(
   }
 
   return { resetAtMs: null };
+}
+
+/**
+ * Anchored variant for messages that ARE the notice (nothing else).
+ *
+ * Background/workflow turns that exhaust the limit surface it as a
+ * CLI-synthesized ASSISTANT message (`model: "<synthetic>"`) whose whole
+ * content is a single notice line — it never goes through the error path, so
+ * substring matching on assistant text would false-positive on ordinary
+ * replies that merely QUOTE the notice (e.g. a conversation about this very
+ * feature). This parser therefore only accepts a short, single-line text that
+ * starts with a known notice phrasing.
+ */
+const STANDALONE_NOTICE_RE = /^(?:you['’]?ve hit your [^\n]{0,40}\blimit\b|claude ai usage limit reached\s*\|\s*\d{10,13})/i;
+const STANDALONE_NOTICE_MAX_CHARS = 160;
+
+export function parseStandaloneUsageLimitNotice(
+  text: string,
+  nowMs: number = Date.now(),
+): UsageLimitInfo | null {
+  if (!text) return null;
+  const trimmed = text.trim();
+  if (
+    trimmed.length === 0 ||
+    trimmed.length > STANDALONE_NOTICE_MAX_CHARS ||
+    trimmed.includes('\n')
+  ) {
+    return null;
+  }
+  if (!STANDALONE_NOTICE_RE.test(trimmed)) return null;
+  return parseUsageLimitError(trimmed, nowMs);
 }
 
 /**

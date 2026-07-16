@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseUsageLimitError } from './usageLimitError';
+import { parseStandaloneUsageLimitNotice, parseUsageLimitError } from './usageLimitError';
 
 /** Fixed "now": 2026-07-16T10:00:00 local time. */
 const NOW = new Date(2026, 6, 16, 10, 0, 0).getTime();
@@ -125,5 +125,49 @@ describe('parseUsageLimitError', () => {
     const info = parseUsageLimitError(`Claude AI usage limit reached|${farFuture}`, NOW);
     expect(info).not.toBeNull();
     expect(info?.resetAtMs).toBeNull();
+  });
+});
+
+describe('parseStandaloneUsageLimitNotice', () => {
+  // Background/workflow turns that hit the limit surface it as a CLI-synthesized
+  // ASSISTANT message (model "<synthetic>") whose whole content is the notice
+  // line — not as an error-type message. Exact string from a real transcript:
+  const REAL_NOTICE = "You've hit your session limit · resets 3:10pm (Europe/Warsaw)";
+
+  it('accepts the real synthetic assistant notice', () => {
+    const info = parseStandaloneUsageLimitNotice(REAL_NOTICE, NOW);
+    expect(info).not.toBeNull();
+    expect(info?.resetAtMs).toBe(new Date(2026, 6, 16, 15, 10, 0).getTime());
+  });
+
+  it('accepts a curly-apostrophe variant and surrounding whitespace', () => {
+    const info = parseStandaloneUsageLimitNotice(
+      '  You’ve hit your weekly limit ∙ resets 5pm (Europe/Warsaw)\n',
+      NOW,
+    );
+    expect(info).not.toBeNull();
+    expect(info?.resetAtMs).toBe(new Date(2026, 6, 16, 17, 0, 0).getTime());
+  });
+
+  it('accepts a standalone pipe-epoch notice', () => {
+    const resetSec = Math.floor(NOW / 1000) + 3600;
+    const info = parseStandaloneUsageLimitNotice(`Claude AI usage limit reached|${resetSec}`, NOW);
+    expect(info?.resetAtMs).toBe(resetSec * 1000);
+  });
+
+  it('rejects prose that merely mentions the limit', () => {
+    expect(parseStandaloneUsageLimitNotice(
+      "The plugin shows You've hit your session limit · resets 3:10pm when the limit trips.",
+      NOW,
+    )).toBeNull();
+    expect(parseStandaloneUsageLimitNotice(
+      "You've hit your session limit · resets 3:10pm (Europe/Warsaw)\nLet me summarize what we did so far.",
+      NOW,
+    )).toBeNull();
+  });
+
+  it('rejects unrelated assistant text', () => {
+    expect(parseStandaloneUsageLimitNotice('All 752 tests pass.', NOW)).toBeNull();
+    expect(parseStandaloneUsageLimitNotice('', NOW)).toBeNull();
   });
 });

@@ -18,6 +18,46 @@ function limitError(resetInMs: number, ageMs = 0): ClaudeMessage {
   } as unknown as ClaudeMessage;
 }
 
+/**
+ * CLI-synthesized assistant notice, as produced by background/workflow turns
+ * that exhaust the limit (model "<synthetic>", plain text content, never an
+ * error-type message). Mirrors a real transcript record.
+ */
+function syntheticLimitNotice(ageMs = 0, rawAgeMs: number | null = null): ClaudeMessage {
+  const now = Date.now();
+  return {
+    type: 'assistant',
+    content: "You've hit your session limit · resets 3:10pm (Europe/Warsaw)",
+    timestamp: now - ageMs,
+    raw: {
+      type: 'assistant',
+      ...(rawAgeMs !== null ? { timestamp: new Date(now - rawAgeMs).toISOString() } : {}),
+      message: {
+        model: '<synthetic>',
+        content: [{ type: 'text', text: "You've hit your session limit · resets 3:10pm (Europe/Warsaw)" }],
+      },
+    },
+  } as unknown as ClaudeMessage;
+}
+
+function taskNotificationRecord(): ClaudeMessage {
+  return {
+    type: 'user',
+    content: '<task-notification>\n<task-id>w49e3jjl6</task-id>\n<status>failed</status>\n</task-notification>',
+    timestamp: Date.now(),
+    raw: { type: 'user' },
+  } as unknown as ClaudeMessage;
+}
+
+function queueOperationRecord(): ClaudeMessage {
+  return {
+    type: 'user',
+    content: '',
+    timestamp: Date.now(),
+    raw: { type: 'queue-operation' },
+  } as unknown as ClaudeMessage;
+}
+
 function baseOptions(overrides: Partial<UseAutoResumeOnLimitOptions> = {}): UseAutoResumeOnLimitOptions {
   return {
     enabled: true,
@@ -195,6 +235,61 @@ describe('useAutoResumeOnLimit', () => {
     expect(result.current.pending).toBeNull();
     expect(onExhausted).toHaveBeenCalledTimes(1);
     expect(onExhausted).toHaveBeenCalledWith(MAX_AUTO_RESUME_ATTEMPTS);
+  });
+
+  // ── Assistant-variant notices (background/workflow turns) ────────────────
+
+  it('schedules for a synthetic assistant limit notice', () => {
+    // NOW is 10:00, notice resets 3:10pm → fires at 15:11 local.
+    const options = baseOptions({ messages: [syntheticLimitNotice()] });
+    const { result } = renderHook(() => useAutoResumeOnLimit(options));
+    expect(result.current.pending).not.toBeNull();
+    expect(result.current.pending!.fireAtMs).toBe(new Date(2026, 6, 16, 15, 11, 0).getTime());
+  });
+
+  it('finds the notice behind trailing task-notification/queue records', () => {
+    const options = baseOptions({
+      messages: [
+        syntheticLimitNotice(),
+        queueOperationRecord(),
+        taskNotificationRecord(),
+      ],
+    });
+    const { result } = renderHook(() => useAutoResumeOnLimit(options));
+    expect(result.current.pending).not.toBeNull();
+  });
+
+  it('does not schedule for assistant prose that merely mentions the limit', () => {
+    const options = baseOptions({
+      messages: [{
+        type: 'assistant',
+        content: "When the limit trips the CLI prints You've hit your session limit · resets 3:10pm.\nWe handle that case now.",
+        timestamp: Date.now(),
+      } as unknown as ClaudeMessage],
+    });
+    const { result } = renderHook(() => useAutoResumeOnLimit(options));
+    expect(result.current.pending).toBeNull();
+  });
+
+  it('does not schedule when a normal assistant reply follows the notice', () => {
+    const options = baseOptions({
+      messages: [
+        syntheticLimitNotice(),
+        { type: 'assistant', content: 'All done, limit reset in the meantime.', timestamp: Date.now() } as unknown as ClaudeMessage,
+      ],
+    });
+    const { result } = renderHook(() => useAutoResumeOnLimit(options));
+    expect(result.current.pending).toBeNull();
+  });
+
+  it('treats a stale raw.timestamp as stale even when the parse-time timestamp is fresh', () => {
+    // Session reloads re-parse JSONL and stamp Message.timestamp with the
+    // parse time — only raw.timestamp carries the original transcript time.
+    const options = baseOptions({
+      messages: [syntheticLimitNotice(/* ageMs */ 0, /* rawAgeMs */ 60 * 60_000)],
+    });
+    const { result } = renderHook(() => useAutoResumeOnLimit(options));
+    expect(result.current.pending).toBeNull();
   });
 
   it('resets the attempt counter after a successful assistant turn', () => {

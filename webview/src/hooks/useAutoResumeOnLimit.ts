@@ -4,7 +4,11 @@ import {
   AUTO_RESUME_ON_LIMIT_EVENT,
   getAutoResumeOnLimit,
 } from '../utils/autoResumeOnLimit';
-import { parseUsageLimitError } from '../utils/usageLimitError';
+import {
+  parseStandaloneUsageLimitNotice,
+  parseUsageLimitError,
+  type UsageLimitInfo,
+} from '../utils/usageLimitError';
 
 /** Grace period added after the reported reset time before resuming. */
 const RESET_BUFFER_MS = 60_000;
@@ -66,15 +70,96 @@ export function useAutoResumeEnabled(): boolean {
 
 /**
  * Age of a message in ms, or null when it has no parsable timestamp.
- * Live messages carry epoch-ms numbers (Java bridge); optimistic and
- * history messages may carry ISO strings.
+ *
+ * Prefers `raw.timestamp` (the original transcript time, forwarded by the
+ * Java transport) over `message.timestamp`: session reloads re-parse the
+ * JSONL and stamp Message.timestamp with the PARSE time, which would make an
+ * hours-old limit notice look fresh after any background refresh. Falls back
+ * to message.timestamp (live messages carry epoch-ms numbers; optimistic and
+ * history messages may carry ISO strings).
  */
 function messageAgeMs(message: ClaudeMessage, nowMs: number): number | null {
-  const ts = message.timestamp as string | number | undefined;
-  if (ts === undefined || ts === null) return null;
-  const parsed = typeof ts === 'number' ? ts : Date.parse(ts);
-  if (!Number.isFinite(parsed)) return null;
-  return nowMs - parsed;
+  const raw = message.raw;
+  const rawTs = raw && typeof raw === 'object'
+    ? (raw as { timestamp?: string | number }).timestamp
+    : undefined;
+  for (const ts of [rawTs, message.timestamp as string | number | undefined]) {
+    if (ts === undefined || ts === null) continue;
+    const parsed = typeof ts === 'number' ? ts : Date.parse(ts);
+    if (Number.isFinite(parsed)) return nowMs - parsed;
+  }
+  return null;
+}
+
+/** Stable identity for a notice message across reload-refreshed timestamps. */
+function noticeSignature(message: ClaudeMessage, index: number): string {
+  const raw = message.raw;
+  const rawTs = raw && typeof raw === 'object'
+    ? (raw as { timestamp?: string | number }).timestamp
+    : undefined;
+  return `${index}|${rawTs ?? message.timestamp ?? ''}`;
+}
+
+/**
+ * Records that ride the transcript tail without being conversation content:
+ * background-task bookkeeping (queue-operation/attachment) and
+ * task-notification user records. A limit notice is frequently followed by a
+ * burst of these (each finished workflow child appends one), so the detector
+ * must look through them instead of only at the literal last message.
+ */
+function isTransparentTailRecord(message: ClaudeMessage): boolean {
+  const raw = message.raw;
+  const rawType = raw && typeof raw === 'object'
+    ? (raw as { type?: string }).type
+    : undefined;
+  if (rawType === 'queue-operation' || rawType === 'attachment') return true;
+  if (message.type === 'user' || message.type === 'task_notification' || message.type === 'notification') {
+    const text = typeof message.content === 'string' ? message.content : '';
+    if (text.includes('<task-notification>')) return true;
+  }
+  return false;
+}
+
+interface TrailingLimitNotice {
+  message: ClaudeMessage;
+  info: UsageLimitInfo;
+  index: number;
+}
+
+const MAX_TAIL_SCAN = 10;
+
+/**
+ * Finds the usage-limit notice governing the transcript tail, if any.
+ *
+ * Two shapes exist:
+ *  - error-type messages (GUI-owned turn failed via [SEND_ERROR]) — substring
+ *    match, the error path is unambiguous;
+ *  - CLI-synthesized ASSISTANT notices (background/workflow turns; model
+ *    "<synthetic>") — anchored standalone match only, so ordinary replies
+ *    quoting the notice never trigger.
+ *
+ * The first substantive (non-transparent) message decides: if it is not a
+ * limit notice, there is nothing to resume.
+ */
+function findTrailingLimitNotice(
+  messages: ClaudeMessage[],
+  getMessageText: (message: ClaudeMessage) => string,
+  nowMs: number,
+): TrailingLimitNotice | null {
+  for (let i = messages.length - 1, steps = 0; i >= 0 && steps < MAX_TAIL_SCAN; i--, steps++) {
+    const message = messages[i];
+    if (isTransparentTailRecord(message)) continue;
+    if (message.type === 'error') {
+      const info = parseUsageLimitError(getMessageText(message), nowMs);
+      return info ? { message, info, index: i } : null;
+    }
+    if (message.type === 'assistant') {
+      const info = parseStandaloneUsageLimitNotice(getMessageText(message), nowMs);
+      return info ? { message, info, index: i } : null;
+    }
+    return null;
+  }
+  return null;
 }
 
 /**
@@ -164,13 +249,16 @@ export function useAutoResumeOnLimit({
 
   useEffect(() => {
     const last = messages.length > 0 ? messages[messages.length - 1] : undefined;
-    const isCandidate =
-      enabled && currentProvider === 'claude' && !loading && last?.type === 'error';
+    const now = Date.now();
+    const notice = enabled && currentProvider === 'claude' && !loading
+      ? findTrailingLimitNotice(messages, getMessageText, now)
+      : null;
 
-    if (!isCandidate) {
-      // A completed assistant turn means the limit is behind us. (Checking
-      // specifically for 'assistant' avoids resetting on the transient state
-      // where our own optimistic "continue" is last while the turn runs.)
+    if (!notice) {
+      // A completed assistant turn (that is not itself a limit notice) means
+      // the limit is behind us. (Checking specifically for 'assistant' avoids
+      // resetting on the transient state where our own optimistic "continue"
+      // is last while the turn runs.)
       if (!loading && last?.type === 'assistant') {
         attemptsRef.current = 0;
       }
@@ -178,21 +266,15 @@ export function useAutoResumeOnLimit({
       return;
     }
 
-    const info = parseUsageLimitError(getMessageText(last!));
-    if (!info) {
-      clearSchedule();
-      return;
-    }
-
-    // Stale errors (history load, webview reload) must not self-resume.
-    const now = Date.now();
-    const age = messageAgeMs(last!, now);
+    // Stale notices (history load, webview reload) must not self-resume.
+    const age = messageAgeMs(notice.message, now);
     if (age === null || age > FRESH_ERROR_WINDOW_MS) {
       clearSchedule();
       return;
     }
 
-    const sig = `${messages.length}|${last!.timestamp ?? ''}`;
+    const info = notice.info;
+    const sig = noticeSignature(notice.message, notice.index);
     if (cancelledSigRef.current === sig) return;
     if (scheduledSigRef.current === sig && timerRef.current !== null) return;
 
