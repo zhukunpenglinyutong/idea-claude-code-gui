@@ -167,16 +167,19 @@ export function modelSupportsVision(modelId) {
 }
 
 /**
- * Mythos-class models (Fable 5 / Mythos 5) return thinking blocks with the
- * content encrypted into the signature unless the request opts into a visible
+ * Newer adaptive-thinking models return thinking blocks with the content
+ * encrypted into the signature unless the request opts into a visible
  * thinking display — via the SDK the effective default is `display: 'omitted'`,
  * so every thinking block arrives with empty text and the GUI has nothing to
  * render. These models need an explicit `thinking` config with
  * `display: 'summarized'` (it composes with `effort`; `thinking` takes
  * precedence over the deprecated `maxThinkingTokens`).
  *
- * Other models keep the legacy `maxThinkingTokens` path: their default display
- * already shows thinking text, and forcing `summarized` would degrade it.
+ * The gate lists only models empirically verified to behave this way over the
+ * SDK (legacy path → empty thinking; adaptive+summarized → visible text):
+ * Fable 5 / Mythos 5, Opus 4.8, Sonnet 5. The 4.6-generation models and Haiku
+ * keep the legacy `maxThinkingTokens` path — Haiku demonstrably shows raw
+ * thinking there, and forcing `summarized` could degrade it.
  *
  * @param {string|null} modelId - Resolved or requested model ID
  * @param {boolean} disableThinking - Request-level thinking opt-out
@@ -184,7 +187,7 @@ export function modelSupportsVision(modelId) {
  */
 export function resolveVisibleThinkingConfig(modelId, disableThinking = false) {
   if (!modelId || typeof modelId !== 'string') return null;
-  if (!/fable|mythos/i.test(modelId)) return null;
+  if (!/fable|mythos|opus-4-8|sonnet-5/i.test(modelId)) return null;
   if (disableThinking) return { type: 'disabled' };
   return { type: 'adaptive', display: 'summarized' };
 }

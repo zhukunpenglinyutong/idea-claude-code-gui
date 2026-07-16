@@ -324,9 +324,9 @@ test('buildRequestContext sends thinking disabled for Fable when disableThinking
   assert.equal(context.options.maxThinkingTokens, undefined);
 });
 
-test('buildRequestContext keeps the legacy maxThinkingTokens path for non-Mythos models', async () => {
+test('buildRequestContext keeps the legacy maxThinkingTokens path for models with visible default display', async () => {
   const context = await __testing.buildRequestContext(
-    { message: 'hi', model: 'claude-sonnet-5' },
+    { message: 'hi', model: 'claude-sonnet-4-6' },
     false,
     { settings: { alwaysThinkingEnabled: true, maxThinkingTokens: 12000 } },
   );
