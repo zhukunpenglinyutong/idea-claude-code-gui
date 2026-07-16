@@ -265,25 +265,39 @@ export function startPerpetualReader(runtime, callbacks) {
    * The event format {type: 'daemon', event: 'session_updated', sessionId} is recognized
    * by Java's DaemonBridge.handleDaemonEvent() which routes it to registered listeners.
    */
-  const emitInterTurnEvent = (sessionId) => {
+  const emitDaemonEvent = (event, sessionId, extra) => {
     try {
       // Access the global writeRawLine from daemon.js
       // daemon.js stores the original stdout.write as _originalStdoutWrite
       // We must use _originalStdoutWrite to bypass activeRequestId wrapping
       const originalWrite = process.stdout._originalStdoutWrite;
       if (!originalWrite) {
-        console.error('[PERPETUAL_READER] _originalStdoutWrite not available (daemon.js not initialized?), cannot emit session_updated event');
+        console.error('[PERPETUAL_READER] _originalStdoutWrite not available (daemon.js not initialized?), cannot emit ' + event + ' event');
         return;
       }
       const eventPayload = {
         type: 'daemon',
-        event: 'session_updated',
-        sessionId: sessionId
+        event,
+        sessionId,
+        ...(extra || {})
       };
       originalWrite.call(process.stdout, JSON.stringify(eventPayload) + '\n', 'utf8');
     } catch (err) {
-      console.error('[PERPETUAL_READER] Failed to emit session_updated event:', err);
+      console.error('[PERPETUAL_READER] Failed to emit ' + event + ' event:', err);
     }
+  };
+  const emitInterTurnEvent = (sessionId) => emitDaemonEvent('session_updated', sessionId);
+
+  // background_turn events tell the GUI when the CLI itself is generating a
+  // response between GUI turns (e.g. answering a task-notification) — there is
+  // no GUI-owned streaming state for those turns, so without this signal the
+  // chat shows no waiting indicator while the answer is being produced.
+  // 'active' doubles as a heartbeat (re-emitted with each throttled
+  // session_updated nudge) so the webview can expire the state if the daemon
+  // dies without sending 'idle'.
+  const emitBackgroundTurnState = (sessionId, state) => {
+    if (!sessionId) return;
+    emitDaemonEvent('background_turn', sessionId, { state });
   };
 
   // Start the perpetual reader loop; return the promise so callers (and tests)
@@ -329,6 +343,12 @@ export function startPerpetualReader(runtime, callbacks) {
         // Dual-mode routing: check if we're in an active turn or inter-turn period
         if (runtime.turnSink) {
           // IN-TURN MODE: Forward message to executeTurn via turnSink
+          // A GUI-owned turn has its own streaming state; clear any leftover
+          // background-turn indicator from a preceding inter-turn burst.
+          if (runtime.interTurnActive) {
+            runtime.interTurnActive = false;
+            emitBackgroundTurnState(runtime.sessionId || msg?.session_id || null, 'idle');
+          }
           runtime.turnSink.push(msg);
         } else {
           // INTER-TURN MODE: Handle message outside of active turn.
@@ -344,6 +364,10 @@ export function startPerpetualReader(runtime, callbacks) {
           // the session id carried on the SDK message itself.
           const interTurnSessionId = runtime.sessionId || msg?.session_id || null;
           if (msg?.type === 'result') {
+            if (runtime.interTurnActive) {
+              runtime.interTurnActive = false;
+              emitBackgroundTurnState(interTurnSessionId, 'idle');
+            }
             if (interTurnSessionId) {
               console.log('[PERPETUAL_READER] Inter-turn result detected, emitting session_updated for sessionId=' + interTurnSessionId);
               runtime.lastInterTurnEmitMs = Date.now();
@@ -356,6 +380,13 @@ export function startPerpetualReader(runtime, callbacks) {
             interTurnSessionId
             && (msg?.type === 'assistant' || msg?.type === 'user' || msg?.type === 'system')
           ) {
+            // The CLI is generating a background turn — signal it immediately
+            // on the first message of the burst so the waiting indicator shows
+            // without waiting for the throttled nudge below.
+            if (!runtime.interTurnActive) {
+              runtime.interTurnActive = true;
+              emitBackgroundTurnState(interTurnSessionId, 'active');
+            }
             // Throttled progress nudge so the background turn renders live
             // instead of appearing all at once on its final result. Each nudge
             // makes the plugin reload the whole session JSONL, so keep the
@@ -365,6 +396,9 @@ export function startPerpetualReader(runtime, callbacks) {
               runtime.lastInterTurnEmitMs = now;
               console.log('[PERPETUAL_READER] Inter-turn activity, emitting throttled session_updated for sessionId=' + interTurnSessionId);
               emitInterTurnEvent(interTurnSessionId);
+              // Heartbeat: lets the webview expire the indicator if the daemon
+              // dies mid-turn and never sends 'idle'.
+              emitBackgroundTurnState(interTurnSessionId, 'active');
             }
           }
         }
@@ -376,6 +410,13 @@ export function startPerpetualReader(runtime, callbacks) {
       }
     } finally {
       console.log('[PERPETUAL_READER] Exiting for sessionId=' + (runtime.sessionId || '(new)'));
+      // A reader exiting mid-background-turn (stream error, subprocess death)
+      // never reaches the result message — clear the indicator explicitly so
+      // it does not linger until the webview-side TTL expires.
+      if (runtime.interTurnActive) {
+        runtime.interTurnActive = false;
+        emitBackgroundTurnState(runtime.sessionId || null, 'idle');
+      }
       // The reader only exits on a terminal condition (query error, stream end,
       // or runtime closed) — never after a normal turn, where it blocks on the
       // next query.next() instead. If the runtime is still live here, the SDK

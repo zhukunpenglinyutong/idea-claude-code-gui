@@ -18,6 +18,7 @@ import {
 } from '../utils/turnScope';
 import { FILE_MODIFY_TOOL_NAMES, isToolName } from '../utils/toolConstants';
 import { collectBackgroundTaskRecords, setBackgroundTaskUsage, setFinishedBackgroundTasks } from '../utils/backgroundTasks';
+import { useBackgroundTurnSignal } from '../utils/backgroundTurnSignal';
 import { useSubagents } from './useSubagents';
 import { useFileChanges } from './useFileChanges';
 import { useFileChangesManagement } from './useFileChangesManagement';
@@ -125,14 +126,25 @@ export function useChatComputations({
     setBackgroundTaskUsage(records.usage);
   }, [messages]);
 
-  // A trailing task-notification means the CLI is generating an inter-turn
-  // background response with no GUI-owned streaming state — surface it as a
-  // waiting indicator. Re-evaluated on a timer so the freshness window can
-  // expire without a new message arriving.
+  // The CLI generating an inter-turn background response has no GUI-owned
+  // streaming state — surface it as a waiting indicator. Two sources, ORed:
+  // the live daemon signal (background_turn events relayed by Java; primary,
+  // TTL-expired in its store) and the transcript-tail heuristic (a trailing
+  // task-notification; covers reloads of sessions the daemon isn't signalling
+  // about). The heuristic is re-evaluated on a timer so its freshness window
+  // can expire without a new message arriving.
+  const backgroundTurnSignal = useBackgroundTurnSignal();
   const [backgroundTurnActivity, setBackgroundTurnActivity] = useState<BackgroundTurnActivity>({ active: false });
   useEffect(() => {
     const evaluate = () => {
-      const next = getBackgroundTurnActivity(messages, Date.now());
+      const heuristic = getBackgroundTurnActivity(messages, Date.now());
+      const signalActive = backgroundTurnSignal !== null
+        && backgroundTurnSignal.sessionId === currentSessionId;
+      const next: BackgroundTurnActivity = heuristic.active
+        ? heuristic
+        : signalActive
+          ? { active: true, startTimeMs: backgroundTurnSignal.startedAtMs }
+          : { active: false };
       setBackgroundTurnActivity((prev) => (
         prev.active === next.active && prev.startTimeMs === next.startTimeMs ? prev : next
       ));
@@ -140,7 +152,7 @@ export function useChatComputations({
     evaluate();
     const timer = window.setInterval(evaluate, 30_000);
     return () => window.clearInterval(timer);
-  }, [messages]);
+  }, [messages, backgroundTurnSignal, currentSessionId]);
 
   const latestTurnSubagents = useSubagents({
     messages: latestTurnMessages,

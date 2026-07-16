@@ -12,6 +12,7 @@ import { downloadJSON } from '../../../utils/exportMarkdown';
 import { releaseSessionTransition } from '../sessionTransition';
 import { drainAndRequestDependencyStatus } from '../settingsBootstrap';
 import { sendBridgeEvent } from '../../../utils/bridge';
+import { updateBackgroundTurnSignal } from '../../../utils/backgroundTurnSignal';
 
 // Matches session-titles-service.cjs#updateTitle, which rejects longer titles.
 const CUSTOM_TITLE_MAX_LENGTH = 50;
@@ -143,6 +144,15 @@ export function registerSessionAndSdkCallbacks(
     if (currentSessionIdRef.current !== sessionId) return;
     setCustomSessionTitle(title.trim());
     applyHistoryTitleLocal(sessionId, title.trim());
+  };
+
+  // =========================================================================
+  // Background-Turn State Callback (CLI-owned inter-turn generation)
+  // =========================================================================
+
+  window.updateBackgroundTurnState = (sessionId: string, state: string) => {
+    if (!sessionId) return;
+    updateBackgroundTurnSignal(sessionId, state === 'active');
   };
 
   // =========================================================================

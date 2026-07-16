@@ -145,6 +145,62 @@ test('Integration: inter-turn background turn emits throttled progress nudges pl
   });
 });
 
+test('Integration: inter-turn background turn emits background_turn active then idle', async () => {
+  const ctl = createControlledQuery();
+  const runtime = { closed: false, sessionId: 'sess-bg2', turnSink: null, query: ctl.query };
+  const events = captureInterTurnEvents();
+
+  const reader = startPerpetualReader(runtime);
+  try {
+    ctl.deliver({ type: 'user', content: '<task-notification>' });
+    ctl.deliver({ type: 'assistant', content: 'chunk 1' });
+    ctl.deliver({ type: 'assistant', content: 'chunk 2' });
+    ctl.deliver({ type: 'result', is_error: false });
+    await settle();
+  } finally {
+    runtime.closed = true;
+    ctl.end();
+    await reader;
+    events.restore();
+  }
+
+  const turnEvents = events.list.filter((e) => e.event === 'background_turn');
+  // First message of the burst emits 'active' immediately; the throttled
+  // nudge for the same message re-emits it as a heartbeat; the result emits
+  // 'idle'. The remaining chunks land inside the throttle window.
+  assert.deepEqual(turnEvents.map((e) => e.state), ['active', 'active', 'idle']);
+  turnEvents.forEach((e) => {
+    assert.equal(e.type, 'daemon');
+    assert.equal(e.sessionId, 'sess-bg2');
+  });
+  // The idle event must arrive with (or before) the result's session_updated,
+  // never linger past it.
+  const lastIdleIdx = events.list.findIndex((e) => e.event === 'background_turn' && e.state === 'idle');
+  const resultUpdateIdx = events.list.map((e) => e.event).lastIndexOf('session_updated');
+  assert.ok(lastIdleIdx <= resultUpdateIdx, 'idle should not trail the final session_updated');
+});
+
+test('Integration: reader exit mid-background-turn emits background_turn idle', async () => {
+  const ctl = createControlledQuery();
+  const runtime = { closed: false, sessionId: 'sess-dead', turnSink: null, query: ctl.query, inputStream: { done() {} }, query_close: null };
+  const events = captureInterTurnEvents();
+
+  const reader = startPerpetualReader(runtime);
+  try {
+    ctl.deliver({ type: 'assistant', content: 'chunk' });
+    await settle();
+    // Stream dies without a result message.
+    ctl.deliverError(new Error('subprocess died'));
+    await reader;
+  } finally {
+    events.restore();
+  }
+
+  const turnEvents = events.list.filter((e) => e.event === 'background_turn');
+  assert.equal(turnEvents[turnEvents.length - 1].state, 'idle');
+  assert.equal(turnEvents[turnEvents.length - 1].sessionId, 'sess-dead');
+});
+
 test('Integration: inter-turn result on anonymous runtime emits no event', async () => {
   const ctl = createControlledQuery();
   const runtime = { closed: false, sessionId: null, turnSink: null, query: ctl.query };

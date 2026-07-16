@@ -692,6 +692,28 @@ public class ClaudeChatWindow {
                     // loadFromServer() returns, so a reload never lands on a session
                     // that the user has navigated away from.
                     requestSessionReload(updatedSessionId);
+                } else if ("background_turn".equals(event)) {
+                    // The CLI is generating (or finished generating) a response
+                    // between GUI turns — e.g. answering a task-notification.
+                    // Forward the state to the webview so it can show the
+                    // waiting indicator for a turn the GUI never started.
+                    String bgSessionId = data.has("sessionId") && !data.get("sessionId").isJsonNull()
+                            ? data.get("sessionId").getAsString() : null;
+                    String bgState = data.has("state") && !data.get("state").isJsonNull()
+                            ? data.get("state").getAsString() : null;
+                    if (bgSessionId == null || bgState == null) {
+                        return;
+                    }
+                    String activeSessionId = session != null ? session.getSessionId() : null;
+                    if (activeSessionId == null || !activeSessionId.equals(bgSessionId)) {
+                        return;
+                    }
+                    ApplicationManager.getApplication().invokeLater(() -> {
+                        if (!disposed) {
+                            callJavaScript("updateBackgroundTurnState",
+                                    JsUtils.escapeJs(bgSessionId), JsUtils.escapeJs(bgState));
+                        }
+                    });
                 }
             };
             this.claudeSDKBridge.addDaemonEventListener(this.titleEventListener);

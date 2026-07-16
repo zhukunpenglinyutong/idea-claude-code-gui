@@ -557,6 +557,15 @@ interface Window {
   updateSessionTitle?: (sessionId: string, title: string) => void;
 
   /**
+   * Background-turn state from the daemon: the CLI is generating ('active',
+   * re-sent as a heartbeat) or finished ('idle') an inter-turn response —
+   * e.g. answering a task-notification after a background agent completed.
+   * @param sessionId - The session the CLI-owned turn belongs to
+   * @param state - 'active' | 'idle'
+   */
+  updateBackgroundTurnState?: (sessionId: string, state: string) => void;
+
+  /**
    * Editor font config received callback - receives IDEA editor font configuration
    */
   onEditorFontConfigReceived?: (json: string) => void;
