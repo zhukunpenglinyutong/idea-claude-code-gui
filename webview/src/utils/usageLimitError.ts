@@ -3,10 +3,11 @@
  *
  * The Claude CLI reports an exhausted usage window as an error result whose text
  * has historically taken a few shapes:
- *   - `Claude AI usage limit reached|1750366800`         (pipe + epoch seconds)
- *   - `5-hour limit reached ∙ resets 3pm`                (human-readable reset time)
- *   - `Session limit reached ∙ resets at 11:30pm`
- *   - `You've reached your usage limit.`                 (no reset time at all)
+ *   - `Claude AI usage limit reached|1750366800`                     (pipe + epoch seconds)
+ *   - `You've hit your session limit ∙ resets 4:30pm (Europe/Warsaw)` (current CLI)
+ *   - `You've hit your weekly limit ∙ resets 5pm (Europe/Warsaw)`     (current CLI)
+ *   - `5-hour limit reached ∙ resets 3pm`                            (older phrasing)
+ *   - `You've reached your usage limit.`                             (no reset time at all)
  *
  * By the time the text reaches the webview it is embedded in a larger formatted
  * error payload (see ai-bridge `buildConfigErrorPayload`), so all matching is
@@ -33,12 +34,18 @@ const USAGE_LIMIT_PATTERNS: RegExp[] = [
   /\b\d+[\s-]?hour limit reached/i,
   /\b(session|daily|weekly|monthly) limit reached/i,
   /reached your (usage|\d+[\s-]?hour) limit/i,
+  /you'?ve hit your (session|daily|weekly|monthly|usage|\d+[\s-]?hour) limit/i,
 ];
 
 /** Classic CLI format: `... usage limit reached|<epoch seconds or ms>`. */
 const PIPE_EPOCH_RE = /limit reached\s*\|\s*(\d{10,13})/i;
 
-/** Human-readable format: `resets 3pm`, `resets at 11:30pm`, `resets 14:30`. */
+/**
+ * Human-readable format: `resets 3pm`, `resets at 11:30pm`, `resets 14:30`.
+ * A trailing timezone like `(Europe/Warsaw)` is intentionally ignored: the CLI
+ * prints the reset time in the machine's own timezone, which is also the
+ * IDE's local timezone, so local interpretation is correct.
+ */
 const TEXT_TIME_RE = /resets?(?:\s+at)?\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i;
 
 // Sanity window for epoch values: anything outside is treated as garbage

@@ -85,6 +85,31 @@ describe('parseUsageLimitError', () => {
     expect(info?.resetAtMs).toBeNull();
   });
 
+  // Real-world formats observed in the wild (Claude Code CLI, 2026):
+  it('parses the real session-limit message with timezone suffix', () => {
+    const info = parseUsageLimitError(
+      "You've hit your session limit ∙ resets 4:30pm (Europe/Warsaw)",
+      NOW,
+    );
+    expect(info).not.toBeNull();
+    expect(info?.resetAtMs).toBe(new Date(2026, 6, 16, 16, 30, 0).getTime());
+  });
+
+  it('parses the real weekly-limit message', () => {
+    const info = parseUsageLimitError(
+      "You've hit your weekly limit ∙ resets 5pm (Europe/Warsaw)",
+      NOW,
+    );
+    expect(info).not.toBeNull();
+    expect(info?.resetAtMs).toBe(new Date(2026, 6, 16, 17, 0, 0).getTime());
+  });
+
+  it('parses "You\'ve hit your usage limit" without a time', () => {
+    const info = parseUsageLimitError("You've hit your usage limit.", NOW);
+    expect(info).not.toBeNull();
+    expect(info?.resetAtMs).toBeNull();
+  });
+
   it('prefers the pipe-epoch over a textual time when both are present', () => {
     const resetSec = Math.floor(NOW / 1000) + 7200;
     const info = parseUsageLimitError(
