@@ -163,4 +163,56 @@ public class DeferredReloadTest {
             Thread.currentThread().interrupt();
         }
     }
+
+    // ── shouldDeferSessionReload: the mid-turn reload guard ─────────────────
+    //
+    // A session_updated reload that runs during an in-flight turn stomps live
+    // SessionState (loadFromServer clears + reinjects the JSONL parse, racing
+    // the message handler) — observed as a frozen transcript that bulk-updates
+    // at turn end. Streaming turns are guarded by the coalescer's streamActive
+    // flag, but turns with streaming DISABLED never arm the coalescer, so the
+    // guard must also treat SessionState busy/loading as "turn in flight".
+
+    @Test
+    public void defersWhileStreamActive() {
+        assertTrue(ClaudeChatWindow.shouldDeferSessionReload(true, false, false));
+    }
+
+    @Test
+    public void defersDuringNonStreamingTurnViaBusyFlag() {
+        // Streaming disabled: coalescer never active, busy is the only signal.
+        assertTrue(ClaudeChatWindow.shouldDeferSessionReload(false, true, true));
+        assertTrue(ClaudeChatWindow.shouldDeferSessionReload(false, true, false));
+    }
+
+    @Test
+    public void defersWhileLoadingEvenIfNotBusy() {
+        assertTrue(ClaudeChatWindow.shouldDeferSessionReload(false, false, true));
+    }
+
+    @Test
+    public void runsImmediatelyWhenSessionIdle() {
+        // Genuine inter-turn background activity must keep reloading live.
+        assertFalse(ClaudeChatWindow.shouldDeferSessionReload(false, false, false));
+    }
+
+    @Test
+    public void nonStreamingTurnParksNudgesAndDrainsOnceAtTurnEnd() {
+        ClaudeChatWindow.DeferredReload d = new ClaudeChatWindow.DeferredReload();
+
+        // Nudges arriving mid-turn (busy, no streaming) are parked, last-writer-wins.
+        boolean busy = true;
+        for (int i = 0; i < 5; i++) {
+            if (ClaudeChatWindow.shouldDeferSessionReload(false, busy, busy)) {
+                d.defer("session-X");
+            }
+        }
+        assertTrue("nudges parked during the turn", d.hasPending());
+
+        // Turn ends (busy=false): the idle-transition drain runs exactly one reload.
+        busy = false;
+        assertFalse(ClaudeChatWindow.shouldDeferSessionReload(false, busy, busy));
+        assertEquals("session-X", d.takeIfRunnable(false));
+        assertNull("drain is one-shot", d.takeIfRunnable(false));
+    }
 }

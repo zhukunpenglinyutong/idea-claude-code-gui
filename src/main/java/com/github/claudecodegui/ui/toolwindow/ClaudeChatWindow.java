@@ -620,7 +620,12 @@ public class ClaudeChatWindow {
                 },
                 permissionHandler,
                 () -> slashCommandsFetched,
-                this::onStreamEnded
+                this::onStreamEnded,
+                // Non-streaming turns never arm the coalescer, so its
+                // onStreamEnded hook cannot drain a session_updated reload
+                // parked during the turn — the busy→idle state change is the
+                // turn boundary there.
+                this::drainDeferredReload
         ) {
             @Override
             public void onSessionIdReceived(String newSessionId) {
@@ -666,14 +671,30 @@ public class ClaudeChatWindow {
                         return;
                     }
 
-                    // If a turn is streaming, DON'T reload now (clearMessages() off
-                    // the EDT would race the streaming append and disturb the live
-                    // bubble). DON'T drop it either, or a background-turn answer would
-                    // stay invisible until the user reopens the session. Park the id
-                    // and drain it at stream end (onStreamEnded).
-                    if (sessionCallbackAdapter != null && streamCoalescer != null && streamCoalescer.isStreamActive()) {
+                    // If a turn is in flight, DON'T reload now (loadFromServer's
+                    // clearMessages() + JSONL reinject off the EDT races the live
+                    // message handler and stomps the transcript — observed as a
+                    // frozen chat that bulk-updates at turn end). DON'T drop it
+                    // either, or a background-turn answer would stay invisible until
+                    // the user reopens the session. Park the id and drain it at the
+                    // turn boundary (coalescer onStreamEnded for streaming turns,
+                    // the busy→idle state change for non-streaming ones).
+                    //
+                    // isStreamActive() alone is NOT enough: with streaming disabled
+                    // in settings the coalescer is never armed, yet the daemon
+                    // reader still nudges session_updated for the turn's own JSONL
+                    // writes — SessionState busy/loading are the authoritative
+                    // "turn in flight" signal there.
+                    boolean streamActive = streamCoalescer != null && streamCoalescer.isStreamActive();
+                    ClaudeSession activeSession = session;
+                    boolean sessionBusy = activeSession != null && activeSession.isBusy();
+                    boolean sessionLoading = activeSession != null && activeSession.isLoading();
+                    if (sessionCallbackAdapter != null
+                            && shouldDeferSessionReload(streamActive, sessionBusy, sessionLoading)) {
                         deferredReload.defer(updatedSessionId);
-                        LOG.info("[ClaudeChatWindow] session_updated during active turn, deferring reload to stream end");
+                        LOG.info("[ClaudeChatWindow] session_updated during active turn (streamActive="
+                                + streamActive + ", busy=" + sessionBusy + ", loading=" + sessionLoading
+                                + "), deferring reload to turn end");
                         return;
                     }
 
@@ -784,6 +805,23 @@ public class ClaudeChatWindow {
      * static nested class so the coordination is unit-testable without a full
      * ClaudeChatWindow (which needs a Project, JBCefBrowser, etc.).
      */
+    /**
+     * Whether a session_updated reload must be parked instead of running now.
+     *
+     * <p>A reload mid-turn stomps live SessionState: {@code loadFromServer()}
+     * clears the message list and reinjects the JSONL parse, racing the message
+     * handler that is appending the turn's messages. Streaming turns are covered
+     * by the coalescer's {@code isStreamActive()}; turns with streaming disabled
+     * never arm the coalescer, so SessionState {@code busy}/{@code loading}
+     * (set by SessionSendService on send, cleared in the handlers'
+     * onComplete/onError) are the authoritative signal there. When all three are
+     * false the session is genuinely idle and background-turn nudges should
+     * reload immediately so inter-turn activity renders live.
+     */
+    static boolean shouldDeferSessionReload(boolean streamActive, boolean busy, boolean loading) {
+        return streamActive || busy || loading;
+    }
+
     static final class DeferredReload {
         private String pendingSessionId;
 
