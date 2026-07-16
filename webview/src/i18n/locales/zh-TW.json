@@ -112,6 +112,14 @@
       "invalidRegex": "正規表達式無效",
       "openTooltip": "在對話中搜尋 (Cmd/Ctrl+F)"
     },
+    "autoResume": {
+      "tooltipOn": "用量限制重置後自動恢復:已開啟",
+      "tooltipOff": "用量限制重置後自動恢復:已關閉",
+      "toggleLabel": "用量限制重置後自動恢復",
+      "countdown": "已達到用量限制 — 將於 {{time}} 自動恢復(還剩 {{remaining}})",
+      "attempt": "第 {{current}}/{{max}} 次嘗試",
+      "exhausted": "自動恢復已在 {{count}} 次嘗試後停止 — 用量限制仍然生效"
+    },
     "compactSummary": {
       "summarizedConversation": "已總結的對話",
       "compactSummary": "對話摘要",

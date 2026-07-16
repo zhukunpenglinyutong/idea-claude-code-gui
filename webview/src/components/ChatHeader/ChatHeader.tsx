@@ -17,6 +17,13 @@ export interface ChatHeaderProps {
    * Wired up by App.tsx via UIStateContext.setSearchOpen.
    */
   onOpenSearch?: () => void;
+  /**
+   * Toggles the "auto-resume session after usage limit reset" preference.
+   * The toggle button is only rendered when provided (Claude provider only).
+   */
+  onToggleAutoResume?: () => void;
+  /** Current state of the auto-resume toggle; drives the active styling. */
+  autoResumeEnabled?: boolean;
   onTitleChange?: (newTitle: string) => void;
   titleEditable?: boolean;
 }
@@ -31,6 +38,8 @@ export function ChatHeader({
   onHistory,
   onSettings,
   onOpenSearch,
+  onToggleAutoResume,
+  autoResumeEnabled = false,
   onTitleChange,
   titleEditable = false,
 }: ChatHeaderProps): React.ReactElement | null {
@@ -136,6 +145,19 @@ export function ChatHeader({
       <div className="header-right">
         {currentView === 'chat' && (
           <>
+            {onToggleAutoResume && (
+              <button
+                className={`icon-button${autoResumeEnabled ? ' is-active' : ''}`}
+                onClick={onToggleAutoResume}
+                data-tooltip={autoResumeEnabled
+                  ? t('chat.autoResume.tooltipOn', { defaultValue: 'Auto-resume after usage limit reset: on' })
+                  : t('chat.autoResume.tooltipOff', { defaultValue: 'Auto-resume after usage limit reset: off' })}
+                aria-label={t('chat.autoResume.toggleLabel', { defaultValue: 'Auto-resume after usage limit reset' })}
+                aria-pressed={autoResumeEnabled}
+              >
+                <span className="codicon codicon-sync" />
+              </button>
+            )}
             {onOpenSearch && (
               <button
                 className="icon-button"

@@ -112,6 +112,14 @@
       "invalidRegex": "Regex inválida",
       "openTooltip": "Pesquisar na conversa (Cmd/Ctrl+F)"
     },
+    "autoResume": {
+      "tooltipOn": "Retomada automática após redefinição do limite: ativada",
+      "tooltipOff": "Retomada automática após redefinição do limite: desativada",
+      "toggleLabel": "Retomada automática após redefinição do limite de uso",
+      "countdown": "Limite de uso atingido — retomada automática às {{time}} (em {{remaining}})",
+      "attempt": "tentativa {{current}}/{{max}}",
+      "exhausted": "Retomada automática interrompida após {{count}} tentativas — o limite ainda está ativo"
+    },
     "compactSummary": {
       "summarizedConversation": "Conversa resumida",
       "compactSummary": "Resumo compacto",

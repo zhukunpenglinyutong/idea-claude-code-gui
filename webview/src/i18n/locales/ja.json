@@ -112,6 +112,14 @@
       "invalidRegex": "無効な正規表現",
       "openTooltip": "会話内を検索 (Cmd/Ctrl+F)"
     },
+    "autoResume": {
+      "tooltipOn": "使用制限リセット後の自動再開:オン",
+      "tooltipOff": "使用制限リセット後の自動再開:オフ",
+      "toggleLabel": "使用制限リセット後の自動再開",
+      "countdown": "使用制限に達しました — {{time}} に自動再開(残り {{remaining}})",
+      "attempt": "試行 {{current}}/{{max}}",
+      "exhausted": "{{count}} 回の試行後、自動再開を停止しました — 使用制限がまだ有効です"
+    },
     "compactSummary": {
       "summarizedConversation": "要約された会話",
       "compactSummary": "会話の要約",

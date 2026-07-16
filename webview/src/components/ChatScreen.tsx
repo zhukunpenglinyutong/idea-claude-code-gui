@@ -5,6 +5,7 @@ import type {
   Attachment,
   ChatInputBoxHandle,
 } from './ChatInputBox/types';
+import { AutoResumeBar } from './AutoResumeBar';
 import { MessageAnchorRail } from './MessageAnchorRail';
 import { MessageList } from './MessageList';
 import { ScrollControl } from './ScrollControl';
@@ -23,6 +24,7 @@ import { useUIState } from '../contexts/UIStateContext';
 import { extractMarkdownContent } from '../utils/copyUtils';
 import type { ClaudeMessage, TodoItem, ToolResultBlock } from '../types';
 import type { useMessageProcessing, useFileChanges, useSubagents, useFileChangesManagement, useModelProviderState, useMessageQueue } from '../hooks';
+import type { AutoResumePending } from '../hooks/useAutoResumeOnLimit';
 import type { GetToolResultRawFn } from '../contexts/SubagentContext';
 
 type SubagentHistoryGetter = (key: string) => ReturnType<typeof useMessages>['subagentHistories'][string] | undefined;
@@ -111,6 +113,10 @@ export interface ChatScreenProps {
   // Message queue
   messageQueue: MessageQueueValue;
   onRemoveFromQueue: (id: string) => void;
+
+  // Auto-resume after usage limit reset
+  autoResumePending: AutoResumePending | null;
+  onCancelAutoResume: () => void;
 }
 
 /**
@@ -141,6 +147,7 @@ export const ChatScreen = ({
   onStreamingEnabledChange,
   onAutoOpenFileEnabledChange, onLongContextChange,
   messageQueue, onRemoveFromQueue,
+  autoResumePending, onCancelAutoResume,
 }: ChatScreenProps) => {
   const { t } = useTranslation();
   const { messages, loading, isThinking, streamingActive, loadingStartTime, subagentHistories } = useMessages();
@@ -277,6 +284,9 @@ export const ChatScreen = ({
       </StatusPanelErrorBoundary>
 
       <div className="input-area" ref={inputAreaRef}>
+        {autoResumePending && (
+          <AutoResumeBar pending={autoResumePending} onCancel={onCancelAutoResume} />
+        )}
         <ChatInputBox
           ref={chatInputRef}
           isLoading={loading}

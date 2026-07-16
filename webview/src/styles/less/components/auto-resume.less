@@ -1,0 +1,50 @@
+/* Auto-resume countdown bar (shown above the input box while a resume is scheduled) */
+
+.auto-resume-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 12px 6px;
+    padding: 5px 10px;
+    border: 1px solid var(--border-primary);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.auto-resume-bar-icon {
+    color: var(--accent-primary);
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.auto-resume-bar-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.auto-resume-bar-attempt {
+    color: var(--text-tertiary);
+}
+
+.auto-resume-bar-cancel {
+    flex-shrink: 0;
+    background: transparent;
+    border: 1px solid var(--border-primary);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    padding: 2px 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.auto-resume-bar-cancel:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}

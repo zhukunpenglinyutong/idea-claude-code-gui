@@ -18,6 +18,8 @@ import {
   useMessageSender,
   useModelProviderState,
   useChatComputations,
+  useAutoResumeEnabled,
+  useAutoResumeOnLimit,
 } from './hooks';
 import {
   NEW_SESSION_COMMANDS,
@@ -26,6 +28,7 @@ import {
   CONTEXT_COMMANDS,
 } from './hooks/useMessageSender';
 import { applyDiffTheme, getStoredDiffTheme } from './utils/diffTheme';
+import { getAutoResumeOnLimit, setAutoResumeOnLimit } from './utils/autoResumeOnLimit';
 import type { Attachment, ChatInputBoxHandle } from './components/ChatInputBox/types';
 import { ToastContainer } from './components/Toast';
 import { ChatHeader } from './components/ChatHeader';
@@ -343,6 +346,34 @@ const App = () => {
     dequeue: dequeueMessage,
   } = useMessageQueue({ isLoading: loading, onExecute: executeMessage });
 
+  // ── Auto-resume after usage limit reset (Claude only) ──
+  const autoResumeEnabled = useAutoResumeEnabled();
+  const handleToggleAutoResume = useCallback(() => {
+    setAutoResumeOnLimit(!getAutoResumeOnLimit());
+  }, []);
+  const sendAutoResumeContinue = useCallback(() => {
+    executeMessage('continue');
+  }, [executeMessage]);
+  const handleAutoResumeExhausted = useCallback((attempts: number) => {
+    addToast(
+      t('chat.autoResume.exhausted', {
+        count: attempts,
+        defaultValue: 'Auto-resume stopped after {{count}} attempts — the usage limit is still active',
+      }),
+      'warning',
+    );
+  }, [addToast, t]);
+  const { pending: autoResumePending, cancel: cancelAutoResume } = useAutoResumeOnLimit({
+    enabled: autoResumeEnabled,
+    currentProvider,
+    loading,
+    messages,
+    currentSessionId,
+    getMessageText,
+    onResume: sendAutoResumeContinue,
+    onExhausted: handleAutoResumeExhausted,
+  });
+
   // handleSubmit with queue support (new session and local commands bypass loading check)
   const handleSubmit = useCallback((content: string, attachments?: Attachment[]) => {
     const text = content.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
@@ -435,6 +466,8 @@ const App = () => {
           setCurrentView('settings');
         }}
         onOpenSearch={() => setSearchOpen(true)}
+        onToggleAutoResume={currentProvider === 'claude' ? handleToggleAutoResume : undefined}
+        autoResumeEnabled={autoResumeEnabled}
         titleEditable
         onTitleChange={(newTitle) => {
           setCustomSessionTitle(newTitle);
@@ -519,6 +552,8 @@ const App = () => {
           onLongContextChange={handleLongContextChange}
           messageQueue={messageQueue}
           onRemoveFromQueue={dequeueMessage}
+          autoResumePending={autoResumePending}
+          onCancelAutoResume={cancelAutoResume}
         />
       ) : (
         <HistoryView
