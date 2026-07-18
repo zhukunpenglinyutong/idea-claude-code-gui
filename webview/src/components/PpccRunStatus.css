@@ -1,0 +1,48 @@
+.ppcc-run-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--vscode-widget-border, rgba(127, 127, 127, 0.35));
+  border-radius: 5px;
+  color: var(--vscode-descriptionForeground);
+  background: var(--vscode-editorWidget-background);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.ppcc-run-status__indicator {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--vscode-progressBar-background);
+}
+
+.ppcc-run-status--running .ppcc-run-status__indicator,
+.ppcc-run-status--checking .ppcc-run-status__indicator {
+  animation: ppcc-status-pulse 1.4s ease-in-out infinite;
+}
+
+.ppcc-run-status--approval .ppcc-run-status__indicator {
+  background: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.ppcc-run-status--completed .ppcc-run-status__indicator {
+  background: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.ppcc-run-status--failed .ppcc-run-status__indicator,
+.ppcc-run-status--cancelled .ppcc-run-status__indicator {
+  background: var(--vscode-testing-iconFailed, #f14c4c);
+}
+
+@keyframes ppcc-status-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ppcc-run-status__indicator { animation: none !important; }
+}

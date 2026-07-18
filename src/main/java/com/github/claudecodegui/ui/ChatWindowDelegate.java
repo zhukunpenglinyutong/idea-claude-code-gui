@@ -250,6 +250,7 @@ public class ChatWindowDelegate {
         host.setMessageDispatcher(messageDispatcher);
 
         messageDispatcher.registerHandler(new ProviderHandler(handlerContext));
+        messageDispatcher.registerHandler(new com.github.claudecodegui.handler.provider.PpccApprovalHandler(handlerContext));
         messageDispatcher.registerHandler(new CustomModelPricingHandler(handlerContext, settingsService));
         messageDispatcher.registerHandler(new McpServerHandler(handlerContext));
         messageDispatcher.registerHandler(new McpMarketplaceHandler(handlerContext));

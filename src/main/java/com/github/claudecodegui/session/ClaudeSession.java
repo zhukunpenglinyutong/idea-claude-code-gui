@@ -4,6 +4,7 @@ import com.github.claudecodegui.permission.PermissionManager;
 import com.github.claudecodegui.permission.PermissionRequest;
 import com.github.claudecodegui.provider.claude.ClaudeSDKBridge;
 import com.github.claudecodegui.provider.codex.CodexSDKBridge;
+import com.github.claudecodegui.provider.ppcc.PpccSDKBridge;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.intellij.openapi.diagnostic.Logger;
@@ -50,6 +51,7 @@ public class ClaudeSession {
     // SDK bridges
     private final ClaudeSDKBridge claudeSDKBridge;
     private final CodexSDKBridge codexSDKBridge;
+    private final PpccSDKBridge ppccSDKBridge;
 
     // Permission manager
     private final PermissionManager permissionManager = new PermissionManager();
@@ -88,6 +90,9 @@ public class ClaudeSession {
         void onStateChange(boolean busy, boolean loading, String error);
 
         default void onStatusMessage(String message) {
+        }
+
+        default void onPpccApprovalRequired(String requestJson) {
         }
 
         void onSessionIdReceived(String sessionId);
@@ -132,9 +137,20 @@ public class ClaudeSession {
     }
 
     public ClaudeSession(Project project, ClaudeSDKBridge claudeSDKBridge, CodexSDKBridge codexSDKBridge) {
+        this(project, claudeSDKBridge, codexSDKBridge,
+                claudeSDKBridge == null && codexSDKBridge == null ? null : new PpccSDKBridge());
+    }
+
+    public ClaudeSession(
+            Project project,
+            ClaudeSDKBridge claudeSDKBridge,
+            CodexSDKBridge codexSDKBridge,
+            PpccSDKBridge ppccSDKBridge
+    ) {
         this.project = project;
         this.claudeSDKBridge = claudeSDKBridge;
         this.codexSDKBridge = codexSDKBridge;
+        this.ppccSDKBridge = ppccSDKBridge;
 
         // Initialize managers
         this.state = new com.github.claudecodegui.session.SessionState();
@@ -143,7 +159,7 @@ public class ClaudeSession {
         this.contextCollector = new com.github.claudecodegui.session.EditorContextCollector(project);
         this.callbackFacade = new SessionCallbackFacade(project);
         this.contextService = new SessionContextService(project, MAX_FILE_SIZE_BYTES);
-        this.providerRouter = new SessionProviderRouter(claudeSDKBridge, codexSDKBridge);
+        this.providerRouter = new SessionProviderRouter(claudeSDKBridge, codexSDKBridge, ppccSDKBridge);
         this.sendService = new SessionSendService(
                 project,
                 state,
@@ -153,6 +169,7 @@ public class ClaudeSession {
                 gson,
                 claudeSDKBridge,
                 codexSDKBridge,
+                ppccSDKBridge,
                 contextService
         );
         this.messageOrchestrator = new SessionMessageOrchestrator(
@@ -181,6 +198,18 @@ public class ClaudeSession {
 
     public void setCallback(SessionCallback callback) {
         callbackFacade.setCallback(callback);
+    }
+
+    public CompletableFuture<Boolean> respondPpccApproval(
+            String runId,
+            String approvalId,
+            String diffSha256,
+            boolean approved
+    ) {
+        if (ppccSDKBridge == null) {
+            return CompletableFuture.failedFuture(new IllegalStateException("PPCC provider is unavailable"));
+        }
+        return ppccSDKBridge.respondApproval(runId, approvalId, diffSha256, approved);
     }
 
     public com.github.claudecodegui.session.EditorContextCollector getContextCollector() {

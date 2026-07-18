@@ -6,6 +6,7 @@ import { CLAUDE_MODELS, CODEX_MODELS } from './types';
 import { STORAGE_KEYS, validateCodexCustomModels } from '../../types/provider';
 import type { CodexCustomModel } from '../../types/provider';
 import { readClaudeModelMapping } from '../../utils/claudeModelMapping';
+import { getProviderCapabilities } from '../../utils/providerCapabilities';
 
 /**
  * Get custom Codex model list from localStorage
@@ -96,6 +97,7 @@ export const ButtonArea = ({
   onLongContextChange,
 }: ButtonAreaProps) => {
   const { t } = useTranslation();
+  const capabilities = getProviderCapabilities(currentProvider);
   // const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Track changes to custom models in localStorage
@@ -154,6 +156,9 @@ export const ButtonArea = ({
   // Select model list based on current provider
   // customModelsVersion triggers recalculation when localStorage changes
   const availableModels = useMemo(() => {
+    if (currentProvider === 'ppcc') {
+      return [];
+    }
     if (currentProvider === 'codex') {
       // Merge built-in models and custom models
       const customModels = getCustomCodexModels();
@@ -255,25 +260,27 @@ export const ButtonArea = ({
     <div className="button-area" data-provider={currentProvider}>
       {/* Left side: selectors */}
       <div className="button-area-left">
-        <ConfigSelect
-          alwaysThinkingEnabled={alwaysThinkingEnabled}
-          onToggleThinking={onToggleThinking}
-          streamingEnabled={streamingEnabled}
-          onStreamingEnabledChange={onStreamingEnabledChange}
-          selectedAgent={selectedAgent}
-          onAgentSelect={onAgentSelect}
-          onOpenAgentSettings={onOpenAgentSettings}
-          currentProvider={currentProvider}
-        />
+        {capabilities.runtimeProvider && (
+          <ConfigSelect
+            alwaysThinkingEnabled={alwaysThinkingEnabled}
+            onToggleThinking={onToggleThinking}
+            streamingEnabled={streamingEnabled}
+            onStreamingEnabledChange={onStreamingEnabledChange}
+            selectedAgent={selectedAgent}
+            onAgentSelect={onAgentSelect}
+            onOpenAgentSettings={onOpenAgentSettings}
+            currentProvider={currentProvider}
+          />
+        )}
         <ProviderSelect
           value={currentProvider}
           onChange={handleProviderSelect}
           compact
         />
-        <ModeSelect value={permissionMode} onChange={handleModeSelect} provider={currentProvider} />
-        <ModelSelect value={selectedModel} onChange={handleModelSelect} models={availableModels} currentProvider={currentProvider} onAddModel={onAddModel} longContextEnabled={longContextEnabled} onLongContextChange={onLongContextChange} />
-        <ReasoningSelect value={reasoningEffort} onChange={handleReasoningChange} selectedModel={selectedModel} currentProvider={currentProvider} />
-        {currentProvider === 'codex' && (
+        {capabilities.permissionModes && <ModeSelect value={permissionMode} onChange={handleModeSelect} provider={currentProvider} />}
+        {capabilities.modelSelection && <ModelSelect value={selectedModel} onChange={handleModelSelect} models={availableModels} currentProvider={currentProvider} onAddModel={onAddModel} longContextEnabled={longContextEnabled} onLongContextChange={onLongContextChange} />}
+        {capabilities.reasoningEffort && <ReasoningSelect value={reasoningEffort} onChange={handleReasoningChange} selectedModel={selectedModel} currentProvider={currentProvider} />}
+        {capabilities.reasoningEffort && currentProvider === 'codex' && (
           <CodexFastModeSelect value={codexFastMode} onChange={handleCodexFastModeChange} />
         )}
       </div>
@@ -283,14 +290,16 @@ export const ButtonArea = ({
         <div className="button-divider" />
 
         {/* Enhance prompt button */}
-        <button
-          className="enhance-prompt-button has-tooltip"
-          onClick={handleEnhanceClick}
-          disabled={disabled || !hasInputContent || isLoading || isEnhancing}
-          data-tooltip={`${t('promptEnhancer.tooltip')} (${t('promptEnhancer.shortcut')})`}
-        >
-          <span className={`codicon ${isEnhancing ? 'codicon-loading codicon-modifier-spin' : 'codicon-sparkle'}`} />
-        </button>
+        {capabilities.promptEnhancer && (
+          <button
+            className="enhance-prompt-button has-tooltip"
+            onClick={handleEnhanceClick}
+            disabled={disabled || !hasInputContent || isLoading || isEnhancing}
+            data-tooltip={`${t('promptEnhancer.tooltip')} (${t('promptEnhancer.shortcut')})`}
+          >
+            <span className={`codicon ${isEnhancing ? 'codicon-loading codicon-modifier-spin' : 'codicon-sparkle'}`} />
+          </button>
+        )}
 
         {/* Send/Stop button */}
         {isLoading ? (

@@ -217,6 +217,9 @@ public class SessionState {
     }
 
     public void setProvider(String provider) {
+        if (!"claude".equals(provider) && !"codex".equals(provider) && !"ppcc".equals(provider)) {
+            return;
+        }
         this.provider = provider;
     }
 

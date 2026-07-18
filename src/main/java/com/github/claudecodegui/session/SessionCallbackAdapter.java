@@ -133,6 +133,18 @@ public class SessionCallbackAdapter implements ClaudeSession.SessionCallback {
     }
 
     @Override
+    public void onPpccApprovalRequired(String requestJson) {
+        if (isInactive() || requestJson == null || requestJson.isBlank()) {
+            return;
+        }
+        ApplicationManager.getApplication().invokeLater(() -> {
+            if (!isInactive()) {
+                jsTarget.callJavaScript("showPpccApproval", JsUtils.escapeJs(requestJson));
+            }
+        });
+    }
+
+    @Override
     public void onSessionIdReceived(String sessionId) {
         if (isInactive()) {
             return;

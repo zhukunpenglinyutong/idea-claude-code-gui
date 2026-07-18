@@ -26,6 +26,7 @@
 import { readStdinData } from './utils/stdin-utils.js';
 import { handleClaudeCommand } from './channels/claude-channel.js';
 import { handleCodexCommand } from './channels/codex-channel.js';
+import { handlePpccCommand } from './channels/ppcc-channel.js';
 import { getSdkStatus, isClaudeSdkAvailable, isCodexSdkAvailable } from './utils/sdk-loader.js';
 import { injectStartupEnvVars, configureCliIdentity } from './config/api-config.js';
 
@@ -117,6 +118,7 @@ async function handleSystemCommand(command, args, stdinData) {
 const providerHandlers = {
   claude: handleClaudeCommand,
   codex: handleCodexCommand,
+  ppcc: handlePpccCommand,
   system: handleSystemCommand
 };
 
@@ -127,7 +129,7 @@ const providerHandlers = {
     // Validate provider
     console.log('[DIAG-EXEC] Validating provider...');
     if (!provider || !providerHandlers[provider]) {
-      console.error('Invalid provider. Use "claude", "codex", or "system"');
+      console.error('Invalid provider. Use "claude", "codex", "ppcc", or "system"');
       console.log(JSON.stringify({
         success: false,
         error: 'Invalid provider: ' + provider

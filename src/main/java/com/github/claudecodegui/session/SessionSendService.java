@@ -5,6 +5,7 @@ import com.github.claudecodegui.settings.CodemossSettingsService;
 import com.github.claudecodegui.notifications.ClaudeNotifier;
 import com.github.claudecodegui.provider.claude.ClaudeSDKBridge;
 import com.github.claudecodegui.provider.codex.CodexSDKBridge;
+import com.github.claudecodegui.provider.ppcc.PpccSDKBridge;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.intellij.openapi.diagnostic.Logger;
@@ -29,6 +30,7 @@ public class SessionSendService {
     private final Gson gson;
     private final ClaudeSDKBridge claudeSDKBridge;
     private final CodexSDKBridge codexSDKBridge;
+    private final PpccSDKBridge ppccSDKBridge;
     private final SessionContextService contextService;
 
     public SessionSendService(
@@ -40,6 +42,7 @@ public class SessionSendService {
             Gson gson,
             ClaudeSDKBridge claudeSDKBridge,
             CodexSDKBridge codexSDKBridge,
+            PpccSDKBridge ppccSDKBridge,
             SessionContextService contextService
     ) {
         this.project = project;
@@ -50,6 +53,7 @@ public class SessionSendService {
         this.gson = gson;
         this.claudeSDKBridge = claudeSDKBridge;
         this.codexSDKBridge = codexSDKBridge;
+        this.ppccSDKBridge = ppccSDKBridge;
         this.contextService = contextService;
     }
 
@@ -134,8 +138,16 @@ public class SessionSendService {
             );
         }
 
-        return sendToClaude(channelId, input, attachments, openedFilesJson, agentPrompt,
-                effectivePermissionMode, normalizedRequestedEffort);
+        if ("ppcc".equals(currentProvider)) {
+            return sendToPpcc(channelId, input);
+        }
+
+        if ("claude".equals(currentProvider)) {
+            return sendToClaude(channelId, input, attachments, openedFilesJson, agentPrompt,
+                    effectivePermissionMode, normalizedRequestedEffort);
+        }
+        return CompletableFuture.failedFuture(
+                new IllegalArgumentException("Unknown AI provider: " + currentProvider));
     }
 
     public static String normalizeRequestedReasoningEffort(String effort) {
@@ -321,6 +333,21 @@ public class SessionSendService {
                         requestedReasoningEffort != null ? requestedReasoningEffort : state.getReasoningEffort(),
                         handler
                 ).thenApply(result -> null);
+    }
+
+    private CompletableFuture<Void> sendToPpcc(String channelId, String input) {
+        PpccMessageHandler handler = new PpccMessageHandler(
+                state,
+                callbackFacade.getCallbackHandler()
+        );
+        return ppccSDKBridge.sendMessage(
+                channelId,
+                input,
+                state.getSessionId(),
+                state.getCwd(),
+                state.getModel(),
+                handler
+        ).thenApply(result -> null);
     }
 
     private boolean readAutoOpenFileEnabled() {

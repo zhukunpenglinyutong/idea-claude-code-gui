@@ -31,6 +31,7 @@ import { registerSessionAndSdkCallbacks } from './registerCallbacks/sessionCallb
 import { registerUsageModeCallbacks } from './registerCallbacks/usageModeCallbacks';
 import { registerPermissionCallbacks } from './registerCallbacks/permissionCallbacks';
 import { registerAgentAndSelectionCallbacks } from './registerCallbacks/agentCallbacks';
+import { parsePpccApprovalRequest } from '../../utils/ppccApproval';
 
 function areSubagentMessagesEquivalent(previousMessages?: unknown[], nextMessages?: unknown[]): boolean {
   if (previousMessages === nextMessages) return true;
@@ -89,6 +90,13 @@ export function registerWindowCallbacks(
   registerSessionAndSdkCallbacks(options, tRef);
   registerUsageModeCallbacks(options);
   registerPermissionCallbacks(options);
+  window.showPpccApproval = (json: string) => {
+    try {
+      options.openPpccApprovalDialog(parsePpccApprovalRequest(JSON.parse(json)));
+    } catch (error) {
+      console.error('[PPCC] Rejected invalid approval request', error);
+    }
+  };
   registerAgentAndSelectionCallbacks(options);
 
   window.onSubagentHistoryLoaded = (json: string) => {

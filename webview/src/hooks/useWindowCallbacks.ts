@@ -7,6 +7,7 @@ import type { ProviderConfig } from '../types/provider';
 import type { PermissionRequest } from '../components/PermissionDialog';
 import type { AskUserQuestionRequest } from '../components/AskUserQuestionDialog';
 import type { PlanApprovalRequest } from '../components/PlanApprovalDialog';
+import type { PpccApprovalRequest } from '../components/PpccApprovalDialog';
 import type { RewindRequest } from '../components/RewindDialog';
 import { registerWindowCallbacks } from './windowCallbacks/registerCallbacks';
 
@@ -93,6 +94,7 @@ export interface UseWindowCallbacksOptions {
   openPermissionDialog: (request: PermissionRequest) => void;
   openAskUserQuestionDialog: (request: AskUserQuestionRequest) => void;
   openPlanApprovalDialog: (request: PlanApprovalRequest) => void;
+  openPpccApprovalDialog: (request: PpccApprovalRequest) => void;
   forceClosePermissionDialog: (channelId?: string | null) => void;
   forceCloseAskUserQuestionDialog: (requestId?: string | null) => void;
   forceClosePlanApprovalDialog: (requestId?: string | null) => void;

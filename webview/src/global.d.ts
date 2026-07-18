@@ -170,6 +170,7 @@ interface Window {
    * Show PlanApproval dialog
    */
   showPlanApprovalDialog?: (json: string) => void;
+  showPpccApproval?: (json: string) => void;
 
   /**
    * Force-close the open AskUserQuestion dialog matching the given requestId.

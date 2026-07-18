@@ -86,6 +86,7 @@ describe('useWindowCallbacks integration', () => {
     openPermissionDialog: vi.fn(),
     openAskUserQuestionDialog: vi.fn(),
     openPlanApprovalDialog: vi.fn(),
+    openPpccApprovalDialog: vi.fn(),
     forceClosePermissionDialog: vi.fn(),
     forceCloseAskUserQuestionDialog: vi.fn(),
     forceClosePlanApprovalDialog: vi.fn(),

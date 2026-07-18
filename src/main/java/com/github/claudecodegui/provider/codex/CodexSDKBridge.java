@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Handles Java to Node.js Codex SDK communication, supports streaming responses.
  * Uses unified ai-bridge directory (shared with Claude).
  */
-public class CodexSDKBridge extends BaseSDKBridge {
+public class CodexSDKBridge extends BaseSDKBridge implements com.github.claudecodegui.provider.common.AiProviderBridge {
 
     // Codex API configuration
     private String baseUrl = null;
@@ -97,6 +97,11 @@ public class CodexSDKBridge extends BaseSDKBridge {
     public CodexSDKBridge() {
         super(CodexSDKBridge.class);
         this.historyReader = new CodexHistoryReader();
+    }
+
+    @Override
+    public String providerId() {
+        return "codex";
     }
 
     CodexSDKBridge(Path sessionsDir) {

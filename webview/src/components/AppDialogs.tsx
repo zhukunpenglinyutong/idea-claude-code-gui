@@ -4,6 +4,7 @@ import ConfirmDialog from './ConfirmDialog';
 import PermissionDialog from './PermissionDialog';
 import AskUserQuestionDialog from './AskUserQuestionDialog';
 import PlanApprovalDialog from './PlanApprovalDialog';
+import PpccApprovalDialog from './PpccApprovalDialog';
 import RewindDialog from './RewindDialog';
 import RewindSelectDialog, { type RewindableMessage } from './RewindSelectDialog';
 import ChangelogDialog from './ChangelogDialog';
@@ -94,6 +95,7 @@ export const AppDialogs = ({
     handleAskUserQuestionSubmit, handleAskUserQuestionCancel,
     planApprovalDialogOpen, currentPlanApprovalRequest,
     handlePlanApprovalApprove, handlePlanApprovalReject,
+    ppccApprovalDialogOpen, currentPpccApprovalRequest, handlePpccApprovalDecision,
     rewindSelectDialogOpen, rewindDialogOpen, currentRewindRequest, isRewinding,
     contextUsageDialogOpen, contextUsageIsLoading, contextUsageData, closeContextUsageDialog,
   } = useDialogs();
@@ -174,6 +176,12 @@ export const AppDialogs = ({
         onApprove={handlePlanApprovalApprove}
         onReject={handlePlanApprovalReject}
         timeoutSeconds={permissionDialogTimeoutSeconds}
+      />
+      <PpccApprovalDialog
+        isOpen={ppccApprovalDialogOpen}
+        request={currentPpccApprovalRequest}
+        onApprove={() => handlePpccApprovalDecision(true)}
+        onReject={() => handlePpccApprovalDecision(false)}
       />
       <RewindSelectDialog
         isOpen={rewindSelectDialogOpen}

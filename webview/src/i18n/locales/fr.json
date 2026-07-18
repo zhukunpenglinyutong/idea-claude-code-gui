@@ -1518,6 +1518,9 @@
     "codex": {
       "label": "Codex"
     },
+    "ppcc": {
+      "label": "PPCC"
+    },
     "gemini": {
       "label": "Gemini Cli"
     },

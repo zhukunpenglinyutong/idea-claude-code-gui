@@ -1,43 +1,44 @@
 package com.github.claudecodegui.session;
 
+import com.github.claudecodegui.provider.common.AiProviderBridge;
+import com.github.claudecodegui.provider.common.AiProviderRegistry;
 import com.github.claudecodegui.provider.claude.ClaudeSDKBridge;
 import com.github.claudecodegui.provider.codex.CodexSDKBridge;
+import com.github.claudecodegui.provider.ppcc.PpccSDKBridge;
 import com.google.gson.JsonObject;
 
 import java.util.List;
 
-/**
- * Centralizes provider-specific bridge routing for session operations.
- */
+/** Centralizes provider-specific bridge routing for session operations. */
 public class SessionProviderRouter {
 
-    private final ClaudeSDKBridge claudeSDKBridge;
-    private final CodexSDKBridge codexSDKBridge;
+    private final AiProviderRegistry registry;
 
-    public SessionProviderRouter(ClaudeSDKBridge claudeSDKBridge, CodexSDKBridge codexSDKBridge) {
-        this.claudeSDKBridge = claudeSDKBridge;
-        this.codexSDKBridge = codexSDKBridge;
+    public SessionProviderRouter(
+            ClaudeSDKBridge claudeSDKBridge,
+            CodexSDKBridge codexSDKBridge,
+            PpccSDKBridge ppccSDKBridge
+    ) {
+        this(new AiProviderRegistry()
+                .register(claudeSDKBridge)
+                .register(codexSDKBridge)
+                .register(ppccSDKBridge));
+    }
+
+    SessionProviderRouter(AiProviderRegistry registry) {
+        this.registry = registry;
     }
 
     public JsonObject launchChannel(String provider, String channelId, String sessionId, String cwd) {
-        if ("codex".equals(provider)) {
-            return codexSDKBridge.launchChannel(channelId, sessionId, cwd);
-        }
-        return claudeSDKBridge.launchChannel(channelId, sessionId, cwd);
+        return registry.launchChannel(provider, channelId, sessionId, cwd);
     }
 
     public void interruptChannel(String provider, String channelId) {
-        if ("codex".equals(provider)) {
-            codexSDKBridge.interruptChannel(channelId);
-            return;
-        }
-        claudeSDKBridge.interruptChannel(channelId);
+        registry.interruptChannel(provider, channelId);
     }
 
     public List<JsonObject> getSessionMessages(String provider, String sessionId, String cwd) {
-        if ("codex".equals(provider)) {
-            return codexSDKBridge.getSessionMessages(sessionId, cwd);
-        }
-        return claudeSDKBridge.getSessionMessages(sessionId, cwd);
+        AiProviderBridge bridge = registry.require(provider);
+        return bridge.getSessionMessages(sessionId, cwd);
     }
 }

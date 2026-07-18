@@ -11,6 +11,7 @@ import { ScrollControl } from './ScrollControl';
 import { StatusPanel, StatusPanelErrorBoundary } from './StatusPanel';
 import { WelcomeScreen } from './WelcomeScreen';
 import { ConversationSearch } from './ConversationSearch';
+import PpccRunStatus from './PpccRunStatus';
 import type { MessageListRevealHandle } from './ConversationSearch/types';
 import {
   SessionIdContext,
@@ -143,7 +144,7 @@ export const ChatScreen = ({
   messageQueue, onRemoveFromQueue,
 }: ChatScreenProps) => {
   const { t } = useTranslation();
-  const { messages, loading, isThinking, streamingActive, loadingStartTime, subagentHistories } = useMessages();
+  const { messages, status, loading, isThinking, streamingActive, loadingStartTime, subagentHistories } = useMessages();
   const { currentSessionId } = useSession();
   const {
     setSettingsInitialTab, setCurrentView,
@@ -277,6 +278,7 @@ export const ChatScreen = ({
       </StatusPanelErrorBoundary>
 
       <div className="input-area" ref={inputAreaRef}>
+        {currentProvider === 'ppcc' && <PpccRunStatus status={status} />}
         <ChatInputBox
           ref={chatInputRef}
           isLoading={loading}

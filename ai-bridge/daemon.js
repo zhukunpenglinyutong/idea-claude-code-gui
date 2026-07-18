@@ -28,6 +28,8 @@ import path from 'node:path';
 import { createInterface } from 'readline';
 import { handleClaudeCommand } from './channels/claude-channel.js';
 import { handleCodexCommand } from './channels/codex-channel.js';
+import { cancelActivePpccRun, handlePpccCommand, shutdownPpccChannel } from './channels/ppcc-channel.js';
+import { parseDaemonRequestLine, validatePpccApprovalParams } from './ppcc-control.js';
 import { loadClaudeSdk, isClaudeSdkAvailable } from './utils/sdk-loader.js';
 import {
   sendMessagePersistent,
@@ -397,6 +399,7 @@ async function processRequest(request) {
   // --- Graceful shutdown ---
   if (method === 'shutdown') {
     await shutdownPersistentRuntimes();
+    shutdownPpccChannel();
     sendDaemonEvent('shutdown', { reason: 'requested' });
     writeRawLine({ id: id || '0', done: true, success: true });
     isDaemonMode = false;
@@ -478,6 +481,9 @@ async function processRequest(request) {
           break;
         case 'codex':
           await handleCodexCommand(command, [], stdinData);
+          break;
+        case 'ppcc':
+          await handlePpccCommand(command, [], stdinData);
           break;
         default:
           throw new Error(`Unknown provider: ${provider}`);
@@ -584,10 +590,10 @@ async function processRequest(request) {
 
     let request;
     try {
-      request = JSON.parse(line);
+      request = parseDaemonRequestLine(line);
     } catch (e) {
       _originalStderrWrite(
-        `[daemon] Invalid JSON input: ${line.substring(0, 200)}\n`,
+        `[daemon] Invalid request: ${e.message}\n`,
         'utf8'
       );
       return;
@@ -607,18 +613,45 @@ async function processRequest(request) {
         'utf8'
       );
       if (targetId) {
-        // Fire-and-forget: disposeRuntime will cause the queued processRequest
-        // to throw and emit its own done signal. We don't need to await here
-        // because the Java side already completes its futures in sendAbort().
+        // Abort every provider that can own the active request. Each provider
+        // implementation is responsible for treating a missing active run as a no-op.
         abortCurrentTurn().catch((e) => {
           _originalStderrWrite(
-            `[daemon] Abort error: ${e.message}\n`,
+            `[daemon] Claude abort error: ${e.message}\n`,
+            'utf8'
+          );
+        });
+        cancelActivePpccRun().catch((e) => {
+          _originalStderrWrite(
+            `[daemon] PPCC cancel error: ${e.message}\n`,
             'utf8'
           );
         });
       }
       writeRawLine({ id: request.id || '0', done: true, success: true });
       return;
+    }
+
+    // PPCC cancellation bypasses the command queue and targets only the active
+    // PPCC run, avoiding accidental cancellation of another provider.
+    if (request.method === 'ppcc.cancel') {
+      const cancelId = request.id || '0';
+      cancelActivePpccRun()
+        .then(() => writeRawLine({ id: cancelId, done: true, success: true }))
+        .catch((e) => {
+          _originalStderrWrite(`[daemon] PPCC cancel error: ${e.message}\n`, 'utf8');
+          writeRawLine({ id: cancelId, done: true, success: false, error: e.message || String(e) });
+        });
+      return;
+    }
+
+    if (request.method === 'ppcc.approve' || request.method === 'ppcc.reject') {
+      try {
+        request.params = validatePpccApprovalParams(request.params);
+      } catch (e) {
+        writeRawLine({ id: request.id, done: true, success: false, error: e.message || String(e) });
+        return;
+      }
     }
 
     // Live permission-mode switch bypasses the command queue: it targets the
@@ -669,6 +702,7 @@ async function processRequest(request) {
 
     try {
       await shutdownPersistentRuntimes();
+      shutdownPpccChannel();
     } catch (e) {
       _originalStderrWrite(`[daemon] Failed to shutdown persistent runtimes: ${e.message}\n`, 'utf8');
     }

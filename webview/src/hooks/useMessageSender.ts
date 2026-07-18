@@ -253,10 +253,12 @@ export function useMessageSender({
     fileTagsInfo: { displayPath: string; absolutePath: string }[] | null,
     requestedPermissionMode: PermissionMode
   ) => {
-    const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
-    const effectivePermissionMode: PermissionMode = currentProvider === 'codex' && requestedPermissionMode === 'plan'
+    const hasAttachments = currentProvider !== 'ppcc' && Array.isArray(attachments) && attachments.length > 0;
+    const effectivePermissionMode: PermissionMode = currentProvider === 'ppcc'
       ? 'default'
-      : requestedPermissionMode;
+      : currentProvider === 'codex' && requestedPermissionMode === 'plan'
+        ? 'default'
+        : requestedPermissionMode;
     console.debug('[ModeSync][Frontend] send request mode', {
       provider: currentProvider,
       requestedMode: requestedPermissionMode,
@@ -298,8 +300,8 @@ export function useMessageSender({
     } else {
       const payload = JSON.stringify({
         text,
-        agent: agentInfo,
-        fileTags: fileTagsInfo,
+        agent: currentProvider === 'ppcc' ? null : agentInfo,
+        fileTags: currentProvider === 'ppcc' ? null : fileTagsInfo,
         permissionMode: effectivePermissionMode,
         ...reasoningEffortPayload,
         codexFastMode,
@@ -317,12 +319,13 @@ export function useMessageSender({
 
     if (!text && !hasAttachments) return;
 
-    // Check SDK status
-    if (!sdkStatusLoaded) {
+    // Claude/Codex depend on separately managed SDK installations. PPCC is
+    // bundled as an explicit daemon and is validated by its own fail-closed startup.
+    if (currentProvider !== 'ppcc' && !sdkStatusLoaded) {
       addToast(t('chat.sdkStatusLoading'), 'info');
       return;
     }
-    if (!currentSdkInstalled) {
+    if (currentProvider !== 'ppcc' && !currentSdkInstalled) {
       addToast(
         t('chat.sdkNotInstalled', { provider: currentProvider === 'codex' ? 'Codex' : 'Claude Code' }) + ' ' + t('chat.goInstallSdk'),
         'warning'

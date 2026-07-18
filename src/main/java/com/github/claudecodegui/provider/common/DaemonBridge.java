@@ -132,6 +132,25 @@ public class DaemonBridge {
                 Map<String, String> env = pb.environment();
                 envConfigurator.updateProcessEnvironment(pb, nodePath);
 
+                // PPCC runs as a child of ai-bridge and must be explicitly pinned.
+                // Never search PATH or invoke a shell for this executable.
+                String ppccDaemonPath = System.getenv("PPCC_DAEMON_PATH");
+                if (ppccDaemonPath != null && !ppccDaemonPath.isBlank()) {
+                    String normalizedPpccPath = NodeDetector.isWslPath(nodePath)
+                            ? NodeDetector.convertToWslPath(ppccDaemonPath.trim())
+                            : ppccDaemonPath.trim();
+                    env.put("PPCC_DAEMON_PATH", normalizedPpccPath);
+                    if (NodeDetector.isWslPath(nodePath)) {
+                        String wslenv = env.getOrDefault("WSLENV", "");
+                        if (!java.util.Arrays.asList(wslenv.split(":"))
+                                .contains("PPCC_DAEMON_PATH")) {
+                            env.put("WSLENV", wslenv.isBlank()
+                                    ? "PPCC_DAEMON_PATH"
+                                    : wslenv + ":PPCC_DAEMON_PATH");
+                        }
+                    }
+                }
+
                 // Pass through user-configured Claude Code CLI override (if any).
                 // Picked up by ai-bridge to set SDK option `pathToClaudeCodeExecutable`.
                 String claudeCliPath = PropertiesComponent.getInstance()
@@ -273,28 +292,62 @@ public class DaemonBridge {
      * The abort bypasses the daemon's command queue and is processed immediately.
      * Also completes all pending request futures so Java-side blocking calls unblock.
      */
+    private void writeControlCommand(String method, JsonObject params) throws IOException {
+        if (daemonStdin == null || !isRunning.get()) {
+            throw new IOException("Daemon not running");
+        }
+        JsonObject command = new JsonObject();
+        command.addProperty("id", method + "-" + System.currentTimeMillis());
+        command.addProperty("method", method);
+        if (params != null) {
+            command.add("params", params);
+        }
+        synchronized (daemonStdin) {
+            daemonStdin.write(command.toString());
+            daemonStdin.newLine();
+            daemonStdin.flush();
+        }
+    }
+
     public void sendAbort() {
-        // Send abort command to daemon so it stops the active SDK query
         try {
-            if (daemonStdin != null && isRunning.get()) {
-                JsonObject abort = new JsonObject();
-                abort.addProperty("id", "abort-" + System.currentTimeMillis());
-                abort.addProperty("method", "abort");
-                synchronized (daemonStdin) {
-                    daemonStdin.write(abort.toString());
-                    daemonStdin.newLine();
-                    daemonStdin.flush();
-                }
-                LOG.info("[DaemonBridge] Sent abort command");
-            }
+            writeControlCommand("abort", null);
+            LOG.info("[DaemonBridge] Sent abort command");
         } catch (IOException e) {
             LOG.debug("[DaemonBridge] Error sending abort command: " + e.getMessage());
         }
 
-        // Complete all pending request futures so Java-side callers unblock.
-        // Use onComplete(false) instead of onError() so that user-initiated aborts
-        // are treated as a normal (unsuccessful) completion rather than an error,
-        // matching the graceful handling that Codex uses.
+        completePendingRequestsAsAborted();
+    }
+
+    /**
+     * Sends PPCC cancellation and waits for the outer bridge to acknowledge that
+     * the active PPCC run was cancelled. Java request state is released only
+     * after that acknowledgement, so the UI cannot claim cancellation while the
+     * inner daemon may still be writing the workspace.
+     */
+    public CompletableFuture<Boolean> sendPpccCancel() {
+        CompletableFuture<Boolean> acknowledged = sendCommand(
+                "ppcc.cancel",
+                new JsonObject(),
+                new DaemonOutputCallback() {
+                    @Override public void onLine(String line) { }
+                    @Override public void onStderr(String text) { }
+                    @Override public void onError(String error) {
+                        LOG.warn("[DaemonBridge] PPCC cancel failed: " + error);
+                    }
+                    @Override public void onComplete(boolean success) { }
+                }
+        );
+        return acknowledged.whenComplete((success, error) -> {
+            if (error == null && Boolean.TRUE.equals(success)) {
+                LOG.info("[DaemonBridge] PPCC cancellation acknowledged");
+                completePendingRequestsAsAborted();
+            }
+        });
+    }
+
+    private void completePendingRequestsAsAborted() {
         for (Map.Entry<String, RequestHandler> entry : pendingRequests.entrySet()) {
             entry.getValue().onAbort();
         }

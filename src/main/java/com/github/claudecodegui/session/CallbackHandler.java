@@ -42,6 +42,12 @@ public class CallbackHandler {
         }
     }
 
+    public void notifyPpccApprovalRequired(String requestJson) {
+        if (callback != null) {
+            callback.onPpccApprovalRequired(requestJson);
+        }
+    }
+
     /**
      * Notify that a session ID was received.
      */

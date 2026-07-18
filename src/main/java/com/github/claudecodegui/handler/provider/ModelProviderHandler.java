@@ -125,6 +125,9 @@ public class ModelProviderHandler {
             // Capture previous provider BEFORE mutating context so we can detect
             // the leave-claude transition that needs daemon cleanup.
             String previousProvider = context.getCurrentProvider();
+            if (!isSupportedProvider(provider)) {
+                throw new IllegalArgumentException("Unsupported provider: " + provider);
+            }
             LOG.info("[ModelProviderHandler] Setting provider to: " + provider
                     + " (was: " + previousProvider + ")");
             context.setCurrentProvider(provider);
@@ -149,6 +152,10 @@ public class ModelProviderHandler {
         } catch (Exception e) {
             LOG.error("[ModelProviderHandler] Failed to set provider: " + e.getMessage(), e);
         }
+    }
+
+    static boolean isSupportedProvider(String provider) {
+        return "claude".equals(provider) || "codex".equals(provider) || "ppcc".equals(provider);
     }
 
     /**

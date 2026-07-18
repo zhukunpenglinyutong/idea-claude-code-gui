@@ -22,7 +22,12 @@ import java.util.concurrent.atomic.AtomicReference;
  * Claude Agent SDK bridge.
  * Handles Java to Node.js SDK communication, supports async and streaming responses.
  */
-public class ClaudeSDKBridge extends BaseSDKBridge {
+public class ClaudeSDKBridge extends BaseSDKBridge implements com.github.claudecodegui.provider.common.AiProviderBridge {
+
+    @Override
+    public String providerId() {
+        return "claude";
+    }
 
     private final ClaudeStreamAdapter streamAdapter;
     private final ClaudeRequestParamsBuilder requestParamsBuilder;

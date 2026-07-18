@@ -6,6 +6,7 @@ const PROVIDER_TO_SDK: Record<string, string> = {
   bedrock: 'claude-sdk',
   codex: 'codex-sdk',
   openai: 'codex-sdk',
+  ppcc: 'ppcc-daemon',
 };
 
 type SdkStatus = Record<string, { installed?: boolean; status?: string }>;
@@ -25,8 +26,12 @@ export function useUsageTracking() {
 
   const isSdkInstalled = useCallback(
     (providerId: string): boolean => {
+      // PPCC is bundled as a daemon/backend integration rather than an SDK
+      // reported by the legacy dependency-status endpoint.
+      if (providerId === 'ppcc') return true;
       if (!sdkStatusLoaded) return false;
-      const sdkId = PROVIDER_TO_SDK[providerId] || 'claude-sdk';
+      const sdkId = PROVIDER_TO_SDK[providerId];
+      if (!sdkId) return false;
       const status = sdkStatus[sdkId];
       return status?.status === 'installed' || status?.installed === true;
     },

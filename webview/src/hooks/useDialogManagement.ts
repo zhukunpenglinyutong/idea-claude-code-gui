@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next';
 import type { PermissionRequest } from '../components/PermissionDialog';
 import type { AskUserQuestionRequest } from '../components/AskUserQuestionDialog';
 import type { PlanApprovalRequest } from '../components/PlanApprovalDialog';
+import type { PpccApprovalRequest } from '../components/PpccApprovalDialog';
 import type { RewindRequest } from '../components/RewindDialog';
 import type { ContextUsageData } from '../components/ContextUsageDialog';
 import { sendBridgeEvent } from '../utils/bridge';
@@ -36,6 +37,12 @@ interface UseDialogManagementReturn {
   handlePlanApprovalApprove: (requestId: string, targetMode: string) => void;
   handlePlanApprovalReject: (requestId: string) => void;
   forceClosePlanApprovalDialog: (requestId?: string | null) => void;
+
+  // PPCC final-diff approval
+  ppccApprovalDialogOpen: boolean;
+  currentPpccApprovalRequest: PpccApprovalRequest | null;
+  openPpccApprovalDialog: (request: PpccApprovalRequest) => void;
+  handlePpccApprovalDecision: (approved: boolean) => void;
 
   // Rewind dialog
   rewindDialogOpen: boolean;
@@ -82,6 +89,9 @@ export function useDialogManagement({ t }: UseDialogManagementOptions): UseDialo
   const planApprovalDialogOpenRef = useRef(false);
   const currentPlanApprovalRequestRef = useRef<PlanApprovalRequest | null>(null);
   const pendingPlanApprovalRequestsRef = useRef<PlanApprovalRequest[]>([]);
+
+  const [ppccApprovalDialogOpen, setPpccApprovalDialogOpen] = useState(false);
+  const [currentPpccApprovalRequest, setCurrentPpccApprovalRequest] = useState<PpccApprovalRequest | null>(null);
 
   // Rewind dialog state
   const [rewindDialogOpen, setRewindDialogOpen] = useState(false);
@@ -398,6 +408,23 @@ export function useDialogManagement({ t }: UseDialogManagementOptions): UseDialo
     return true;
   }, [isCurrentContextUsageRequest]);
 
+  const openPpccApprovalDialog = useCallback((request: PpccApprovalRequest) => {
+    setCurrentPpccApprovalRequest(request);
+    setPpccApprovalDialogOpen(true);
+  }, []);
+
+  const handlePpccApprovalDecision = useCallback((approved: boolean) => {
+    if (!currentPpccApprovalRequest) return;
+    sendBridgeEvent('ppcc_approval_response', JSON.stringify({
+      runId: currentPpccApprovalRequest.runId,
+      approvalId: currentPpccApprovalRequest.approvalId,
+      diffSha256: currentPpccApprovalRequest.diffSha256,
+      approved,
+    }));
+    setPpccApprovalDialogOpen(false);
+    setCurrentPpccApprovalRequest(null);
+  }, [currentPpccApprovalRequest]);
+
   return {
     // Permission dialog
     permissionDialogOpen,
@@ -423,6 +450,11 @@ export function useDialogManagement({ t }: UseDialogManagementOptions): UseDialo
     handlePlanApprovalApprove,
     handlePlanApprovalReject,
     forceClosePlanApprovalDialog,
+
+    ppccApprovalDialogOpen,
+    currentPpccApprovalRequest,
+    openPpccApprovalDialog,
+    handlePpccApprovalDecision,
 
     // Rewind dialog
     rewindDialogOpen,

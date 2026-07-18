@@ -412,6 +412,7 @@ export interface ProviderInfo {
 export const AVAILABLE_PROVIDERS: ProviderInfo[] = [
   { id: 'claude', label: 'Claude Code', icon: 'codicon-terminal', enabled: true },
   { id: 'codex', label: 'Codex', icon: 'codicon-terminal', enabled: true },
+  { id: 'ppcc', label: 'PPCC', icon: 'codicon-shield', enabled: true },
   { id: 'gemini', label: 'Gemini Cli', icon: 'codicon-terminal', enabled: false },
   { id: 'opencode', label: 'OpenCode', icon: 'codicon-terminal', enabled: false },
 ];

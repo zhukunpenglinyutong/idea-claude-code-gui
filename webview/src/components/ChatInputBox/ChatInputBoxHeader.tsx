@@ -5,6 +5,7 @@ import { ContextBar } from './ContextBar.js';
 import { MessageQueue } from './MessageQueue.js';
 import { useUIState } from '../../contexts/UIStateContext';
 import { copyToClipboard } from '../../utils/copyUtils';
+import { getProviderCapabilities } from '../../utils/providerCapabilities';
 
 const GITHUB_REPO_URL = 'https://github.com/zhukunpenglinyutong/jetbrains-cc-gui';
 
@@ -66,6 +67,7 @@ export function ChatInputBoxHeader({
   onRequestEnableFileContext?: () => void;
 }) {
   const { addToast } = useUIState();
+  const capabilities = getProviderCapabilities(currentProvider);
 
   const handleStarProject = async () => {
     const copied = await copyToClipboard(GITHUB_REPO_URL);
@@ -108,7 +110,7 @@ export function ChatInputBoxHeader({
       )}
 
       {/* SDK status loading or not installed warning bar */}
-      {(sdkStatusLoading || !sdkInstalled) && (
+      {currentProvider !== 'ppcc' && (sdkStatusLoading || !sdkInstalled) && (
         <div className={`sdk-warning-bar ${sdkStatusLoading ? 'sdk-loading' : ''}`}>
           <span
             className={`codicon ${sdkStatusLoading ? 'codicon-loading codicon-modifier-spin' : 'codicon-warning'}`}
@@ -143,30 +145,32 @@ export function ChatInputBoxHeader({
       )}
 
       {/* Attachment list */}
-      {attachments.length > 0 && (
+      {capabilities.attachments && attachments.length > 0 && (
         <AttachmentList attachments={attachments} onRemove={onRemoveAttachment} />
       )}
 
       {/* Context bar (Top Control Bar) */}
-      <ContextBar
-        activeFile={activeFile}
-        selectedLines={selectedLines}
-        percentage={usagePercentage}
-        usedTokens={usageUsedTokens}
-        maxTokens={usageMaxTokens}
-        showUsage={showUsage}
-        onClearFile={onClearContext}
-        onAddAttachment={onAddAttachment}
-        selectedAgent={selectedAgent}
-        onClearAgent={onClearAgent}
-        currentProvider={currentProvider}
-        hasMessages={hasMessages}
-        onRewind={onRewind}
-        statusPanelExpanded={statusPanelExpanded}
-        onToggleStatusPanel={onToggleStatusPanel}
-        autoOpenFileEnabled={autoOpenFileEnabled}
-        onRequestEnableFileContext={onRequestEnableFileContext}
-      />
+      {currentProvider !== 'ppcc' && (
+        <ContextBar
+          activeFile={activeFile}
+          selectedLines={selectedLines}
+          percentage={usagePercentage}
+          usedTokens={usageUsedTokens}
+          maxTokens={usageMaxTokens}
+          showUsage={showUsage}
+          onClearFile={onClearContext}
+          onAddAttachment={capabilities.attachments ? onAddAttachment : () => {}}
+          selectedAgent={capabilities.agents ? selectedAgent : null}
+          onClearAgent={onClearAgent}
+          currentProvider={currentProvider}
+          hasMessages={hasMessages}
+          onRewind={capabilities.rewind ? onRewind : undefined}
+          statusPanelExpanded={statusPanelExpanded}
+          onToggleStatusPanel={onToggleStatusPanel}
+          autoOpenFileEnabled={autoOpenFileEnabled}
+          onRequestEnableFileContext={onRequestEnableFileContext}
+        />
+      )}
     </>
   );
 }
