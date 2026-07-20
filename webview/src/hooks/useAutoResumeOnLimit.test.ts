@@ -319,4 +319,81 @@ describe('useAutoResumeOnLimit', () => {
     rerender({ ...options, messages });
     expect(result.current.pending?.attempt).toBe(1);
   });
+
+  // ── Explicit toggle-on arming ─────────────────────────────────────────────
+
+  it('arms on an explicit toggle-on even when the trailing notice is stale', () => {
+    const onResume = vi.fn();
+    // The state after the user comes back long after the limit hit: the notice
+    // is an hour old and its reset time already passed. Passive paths must not
+    // arm this — but flipping the toggle ON is explicit consent.
+    const options = baseOptions({
+      enabled: false,
+      messages: [limitError(/* resetInMs */ -50 * 60_000, /* ageMs */ 60 * 60_000)],
+      onResume,
+    });
+    const { result, rerender } = renderHook(
+      (props: UseAutoResumeOnLimitOptions) => useAutoResumeOnLimit(props),
+      { initialProps: options },
+    );
+    expect(result.current.pending).toBeNull();
+
+    rerender({ ...options, enabled: true });
+    expect(result.current.pending).not.toBeNull();
+
+    // Reset time is in the past → fires after the minimum delay, not in a day.
+    act(() => {
+      vi.advanceTimersByTime(6_000);
+    });
+    expect(onResume).toHaveBeenCalledTimes(1);
+  });
+
+  it('explicit toggle-on overrides a prior cancel of the same notice', () => {
+    const onResume = vi.fn();
+    const options = baseOptions({ messages: [limitError(60_000)], onResume });
+    const { result, rerender } = renderHook(
+      (props: UseAutoResumeOnLimitOptions) => useAutoResumeOnLimit(props),
+      { initialProps: options },
+    );
+    expect(result.current.pending).not.toBeNull();
+
+    act(() => result.current.cancel());
+    expect(result.current.pending).toBeNull();
+
+    // Off/on cycle on the SAME notice: the explicit re-enable wins over the
+    // remembered cancel.
+    rerender({ ...options, enabled: false });
+    rerender({ ...options, enabled: true });
+    expect(result.current.pending).not.toBeNull();
+  });
+
+  it('explicit toggle-on grants a fresh attempt budget after exhaustion', () => {
+    const onResume = vi.fn();
+    const onExhausted = vi.fn();
+    let messages = [limitError(10_000)];
+    const options = baseOptions({ messages, onResume, onExhausted });
+    const { result, rerender } = renderHook(
+      (props: UseAutoResumeOnLimitOptions) => useAutoResumeOnLimit(props),
+      { initialProps: options },
+    );
+
+    for (let i = 0; i < MAX_AUTO_RESUME_ATTEMPTS; i++) {
+      act(() => {
+        vi.advanceTimersByTime(2 * 60_000);
+      });
+      messages = [
+        ...messages,
+        { type: 'user', content: 'continue', timestamp: Date.now() } as unknown as ClaudeMessage,
+        limitError(10_000),
+      ];
+      rerender({ ...options, messages });
+    }
+    expect(result.current.pending).toBeNull();
+    expect(onExhausted).toHaveBeenCalledTimes(1);
+
+    rerender({ ...options, messages, enabled: false });
+    rerender({ ...options, messages, enabled: true });
+    expect(result.current.pending).not.toBeNull();
+    expect(result.current.pending?.attempt).toBe(1);
+  });
 });

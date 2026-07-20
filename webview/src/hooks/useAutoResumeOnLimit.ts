@@ -173,6 +173,11 @@ function findTrailingLimitNotice(
  * flips true), turns the toggle off, switches sessions, or presses Cancel on
  * the countdown bar. If the resumed turn hits the limit again, the next error
  * is rescheduled — up to MAX_AUTO_RESUME_ATTEMPTS consecutive attempts.
+ *
+ * Flipping the toggle ON while a limit notice trails the conversation arms a
+ * resume right away, regardless of the notice's age: the explicit click is the
+ * consent the freshness gate otherwise protects. A reset time already in the
+ * past fires after the minimum delay instead of waiting a day.
  */
 export function useAutoResumeOnLimit({
   enabled,
@@ -196,6 +201,12 @@ export function useAutoResumeOnLimit({
   const cancelledSigRef = useRef<string | null>(null);
   /** Signature onExhausted was already reported for. */
   const exhaustedSigRef = useRef<string | null>(null);
+  /**
+   * `enabled` as seen by the previous scheduling pass. A false→true flip while
+   * mounted is an explicit user action (the header toggle), not a passive
+   * state load — see the effect below for what that unlocks.
+   */
+  const prevEnabledRef = useRef(enabled);
 
   // Latest-value mirrors so the timer callback never acts on stale props.
   const enabledRef = useRef(enabled);
@@ -248,6 +259,19 @@ export function useAutoResumeOnLimit({
   }, [currentSessionId, clearSchedule]);
 
   useEffect(() => {
+    // An explicit toggle-on (false→true while mounted) is a direct "resume this
+    // session" request: it may arm from a trailing notice of ANY age, forgets a
+    // prior Cancel, and grants a fresh attempt budget. Passive arming (a fresh
+    // notice arriving, a webview reload with the toggle already on) keeps the
+    // freshness gate below, so an old session never silently self-resumes.
+    const explicitArm = enabled && !prevEnabledRef.current;
+    prevEnabledRef.current = enabled;
+    if (explicitArm) {
+      cancelledSigRef.current = null;
+      exhaustedSigRef.current = null;
+      attemptsRef.current = 0;
+    }
+
     const last = messages.length > 0 ? messages[messages.length - 1] : undefined;
     const now = Date.now();
     const notice = enabled && currentProvider === 'claude' && !loading
@@ -266,9 +290,10 @@ export function useAutoResumeOnLimit({
       return;
     }
 
-    // Stale notices (history load, webview reload) must not self-resume.
+    // Stale notices (history load, webview reload) must not self-resume —
+    // except when the user just flipped the toggle on, which IS the consent.
     const age = messageAgeMs(notice.message, now);
-    if (age === null || age > FRESH_ERROR_WINDOW_MS) {
+    if (!explicitArm && (age === null || age > FRESH_ERROR_WINDOW_MS)) {
       clearSchedule();
       return;
     }
