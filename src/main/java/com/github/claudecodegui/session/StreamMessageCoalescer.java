@@ -69,6 +69,32 @@ public class StreamMessageCoalescer {
     private volatile List<ClaudeSession.Message> pendingMessages = null;
     private volatile List<ClaudeSession.Message> lastSnapshot = null;
 
+    // ── Content versioning ──
+    // updateSequence orders frames ON THE WIRE, but pushes themselves bump it
+    // (flush, resequenced pushes), so a frame's sequence says nothing about how
+    // NEW its content is: a stream-end flush replaying lastSnapshot can carry a
+    // higher sequence than an in-flight alarm push holding strictly newer
+    // messages. Comparing sequences alone let stale content clobber the turn's
+    // tail — e.g. the final ERROR message appended by onError() after the
+    // stream-end flushes grabbed their snapshots was skipped as "stale" while
+    // two pre-error snapshots were force-pushed over it, so the webview never
+    // saw the usage-limit error at all. contentVersion counts enqueued
+    // snapshots; every push carries the version of the content it holds, and
+    // the EDT gate compares VERSIONS (see decidePush). All guarded by lock.
+    private long contentVersion = 0L;
+    /** Version of {@link #pendingMessages}. */
+    private long pendingVersion = 0L;
+    /** Version of {@link #lastSnapshot}. */
+    private long lastSnapshotVersion = 0L;
+    /** Highest content version actually delivered to the webview. */
+    private long pushedContentVersion = 0L;
+    /**
+     * Bumped by {@link #resetStreamState()}. Pushes built before a reset are
+     * dropped at delivery time, so an old session's snapshot can never be
+     * resequenced past the frontend's new-session sequence barrier.
+     */
+    private long pushEpoch = 0L;
+
     private final JsCallbackTarget callbackTarget;
 
     /**
@@ -106,6 +132,7 @@ public class StreamMessageCoalescer {
         final List<ClaudeSession.Message> snapshot = List.copyOf(messages);
         synchronized (lock) {
             pendingMessages = snapshot;
+            pendingVersion = ++contentVersion;
         }
         schedulePush();
         // Restart heartbeat timer: real data just arrived, so the next heartbeat
@@ -162,6 +189,11 @@ public class StreamMessageCoalescer {
             lastSnapshot = null;
             lastUpdateAtMs = 0L;
             lastPayloadChars = 0;
+            // Content versions stay monotonic across sessions on purpose: the
+            // next session's enqueues always version above anything pushed so
+            // far, and in-flight frames from the old session are dropped by the
+            // epoch check regardless of their version.
+            ++pushEpoch;
             return ++updateSequence;
         }
     }
@@ -180,10 +212,14 @@ public class StreamMessageCoalescer {
 
         final List<ClaudeSession.Message> snapshot;
         final long sequence;
+        final long snapshotVersion;
+        final long epoch;
         synchronized (lock) {
             updateAlarm.cancelAllRequests();
             updateScheduled = false;
             snapshot = pendingMessages != null ? pendingMessages : lastSnapshot;
+            snapshotVersion = pendingMessages != null ? pendingVersion : lastSnapshotVersion;
+            epoch = pushEpoch;
             pendingMessages = null;
             sequence = ++updateSequence;
         }
@@ -196,7 +232,7 @@ public class StreamMessageCoalescer {
             return;
         }
 
-        sendToWebView(snapshot, sequence, afterFlushOnEdt);
+        sendToWebView(snapshot, sequence, snapshotVersion, epoch, afterFlushOnEdt);
     }
 
     /**
@@ -262,10 +298,14 @@ public class StreamMessageCoalescer {
         updateAlarm.addRequest(() -> {
             final List<ClaudeSession.Message> snapshot;
             final long sequence;
+            final long snapshotVersion;
+            final long epoch;
             synchronized (lock) {
                 updateScheduled = false;
                 lastUpdateAtMs = System.currentTimeMillis();
                 snapshot = pendingMessages;
+                snapshotVersion = pendingVersion;
+                epoch = pushEpoch;
                 pendingMessages = null;
                 sequence = updateSequence;
             }
@@ -275,7 +315,7 @@ public class StreamMessageCoalescer {
             }
 
             if (snapshot != null) {
-                sendToWebView(snapshot, sequence, null);
+                sendToWebView(snapshot, sequence, snapshotVersion, epoch, null);
             }
 
             boolean hasPending;
@@ -291,11 +331,17 @@ public class StreamMessageCoalescer {
     private void sendToWebView(
             List<ClaudeSession.Message> messages,
             long sequence,
+            long snapshotVersion,
+            long epoch,
             LongConsumer afterSendOnEdt
     ) {
-        // Keep the snapshot for potential re-flush after webview reload/recreate
+        // Keep the snapshot for potential re-flush after webview reload/recreate.
+        // Recorded even if this push is later skipped at the EDT gate: the
+        // stream-end flush re-delivers lastSnapshot, which is what guarantees
+        // the newest content always lands by the end of the turn.
         synchronized (lock) {
             lastSnapshot = messages;
+            lastSnapshotVersion = snapshotVersion;
         }
 
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
@@ -344,16 +390,43 @@ public class StreamMessageCoalescer {
                     return;
                 }
 
+                final long pushSequence;
                 synchronized (lock) {
-                    if (sequence != updateSequence) {
-                        // Message is stale — skip the webview push, but still
-                        // run the after-send callback (e.g. onStreamEnd cleanup)
-                        // so the frontend is not stuck in streaming state.
+                    if (epoch != pushEpoch) {
+                        // Session reset while this frame was in flight. Dropping it
+                        // keeps old-session content behind the frontend's new-session
+                        // sequence barrier (resequencing would leap over it).
                         if (afterSendOnEdt != null) {
                             afterSendOnEdt.accept(sequence);
                         }
                         return;
                     }
+                    PushDecision decision = decidePush(
+                            snapshotVersion, pushedContentVersion, streamActive, sequence, updateSequence);
+                    if (decision == PushDecision.SKIP) {
+                        if (snapshotVersion < pushedContentVersion) {
+                            LOG.info("[StreamMessageCoalescer] Skipping outdated snapshot push"
+                                    + " (contentVersion=" + snapshotVersion
+                                    + " < pushed=" + pushedContentVersion
+                                    + ", sequence=" + sequence
+                                    + ") — the webview already has newer content");
+                        }
+                        if (afterSendOnEdt != null) {
+                            afterSendOnEdt.accept(sequence);
+                        }
+                        return;
+                    }
+                    if (decision == PushDecision.PUSH_RESEQUENCED) {
+                        pushSequence = ++updateSequence;
+                        LOG.info("[StreamMessageCoalescer] Resequencing out-of-order snapshot push"
+                                + " after stream end (built sequence=" + sequence
+                                + ", pushed=" + pushSequence
+                                + ", contentVersion=" + snapshotVersion
+                                + ") so the turn's newest content still lands");
+                    } else {
+                        pushSequence = sequence;
+                    }
+                    pushedContentVersion = Math.max(pushedContentVersion, snapshotVersion);
                 }
 
                 // FIX: Wrap callJavaScript in try-catch so that a JCEF failure
@@ -361,7 +434,7 @@ public class StreamMessageCoalescer {
                 // prevent afterSendOnEdt from running.  When afterSendOnEdt carries
                 // the onStreamEnd signal, failing to run it permanently freezes the UI.
                 try {
-                    callbackTarget.callJavaScript("updateMessages", escapedMessagesJson, String.valueOf(sequence));
+                    callbackTarget.callJavaScript("updateMessages", escapedMessagesJson, String.valueOf(pushSequence));
                     MessageJsonConverter.pushUsageUpdateFromMessages(
                             messages,
                             callbackTarget.getHandlerContext(),
@@ -374,10 +447,63 @@ public class StreamMessageCoalescer {
                 }
 
                 if (afterSendOnEdt != null) {
-                    afterSendOnEdt.accept(sequence);
+                    afterSendOnEdt.accept(pushSequence);
                 }
             });
         });
+    }
+
+    // ===== Push gating =====
+
+    /** Outcome of the delivery gate for one serialized snapshot. */
+    enum PushDecision {
+        /** Do not deliver this frame. */
+        SKIP,
+        /** Deliver with the sequence it was built with. */
+        PUSH,
+        /** Deliver, but stamp a fresh (bumped) sequence so the frontend accepts it. */
+        PUSH_RESEQUENCED,
+    }
+
+    /**
+     * Decides whether a serialized snapshot may be delivered to the webview.
+     *
+     * <p>The webview applies frames last-write-wins by wire sequence, so the
+     * invariants are: never deliver content OLDER than what was already
+     * delivered, and always deliver the newest content by the end of the turn.
+     *
+     * <ul>
+     *   <li>{@code snapshotVersion < pushedContentVersion} → {@link PushDecision#SKIP}:
+     *       the webview already has strictly newer content; delivering this frame
+     *       would roll the list back. (This is how a stream-end flush replaying a
+     *       pre-error {@code lastSnapshot} used to erase the turn's final ERROR
+     *       message — the usage-limit notice — from the webview.)</li>
+     *   <li>sequence still current → {@link PushDecision#PUSH} as built.</li>
+     *   <li>mid-stream with a stale sequence → {@link PushDecision#SKIP}: the
+     *       sequence only advances when newer work was scheduled, and the
+     *       stream-end flush re-delivers {@code lastSnapshot} anyway, so nothing
+     *       is lost while adaptive throttling stays effective.</li>
+     *   <li>after stream end → {@link PushDecision#PUSH_RESEQUENCED}: the frame
+     *       holds newest-or-equal content and nothing newer may ever follow, so
+     *       it must land even though other pushes overtook its sequence. Equal
+     *       versions are deliberately allowed — the webview-recreate re-flush
+     *       re-sends content that was already delivered once.</li>
+     * </ul>
+     */
+    static PushDecision decidePush(
+            long snapshotVersion,
+            long pushedContentVersion,
+            boolean streamActive,
+            long builtSequence,
+            long currentSequence
+    ) {
+        if (snapshotVersion < pushedContentVersion) {
+            return PushDecision.SKIP;
+        }
+        if (builtSequence == currentSequence) {
+            return PushDecision.PUSH;
+        }
+        return streamActive ? PushDecision.SKIP : PushDecision.PUSH_RESEQUENCED;
     }
 
     // ===== Streaming heartbeat =====
