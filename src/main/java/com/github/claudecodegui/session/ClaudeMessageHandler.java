@@ -262,6 +262,10 @@ public class ClaudeMessageHandler implements MessageCallback {
         try {
             // Parse the complete JSON message
             JsonObject messageJson = gson.fromJson(content, JsonObject.class);
+            if (isSidechainMessage(messageJson)) {
+                LOG.debug("Skipping sidechain assistant message (parent_tool_use_id set)");
+                return;
+            }
             JsonObject previousRaw = currentAssistantMessage != null ? currentAssistantMessage.raw : null;
             String previousAssistantContent = assistantContent.toString();
             String previousThinkingContent = ReplayDeduplicator.extractThinkingContent(previousRaw);
@@ -484,6 +488,10 @@ public class ClaudeMessageHandler implements MessageCallback {
 
         try {
             JsonObject userMsg = gson.fromJson(content, JsonObject.class);
+            if (isSidechainMessage(userMsg)) {
+                LOG.debug("Skipping sidechain user message (parent_tool_use_id set)");
+                return;
+            }
 
             // Check if the message contains a tool_result
             if (messageParser.hasToolResult(userMsg)) {
@@ -674,6 +682,21 @@ public class ClaudeMessageHandler implements MessageCallback {
         } catch (Exception e) {
             LOG.warn("Failed to extract slash commands from system message: " + e.getMessage());
         }
+    }
+
+    /**
+     * True for SDK messages that belong to a subagent's sidechain rather than
+     * the parent conversation ({@code parent_tool_use_id} set). By default the
+     * SDK forwards the subagent's tool_use/tool_result blocks this way as a
+     * progress heartbeat; merging them into the parent's assistant message
+     * rendered subagent tool calls as ordinary conversation cards and buried
+     * the Agent card among them. The ai-bridge turn loop already drops these —
+     * this guard covers daemons still running an older bridge.
+     */
+    private static boolean isSidechainMessage(JsonObject json) {
+        return json != null
+                && json.has("parent_tool_use_id")
+                && !json.get("parent_tool_use_id").isJsonNull();
     }
 
     // ===== Streaming message handlers =====

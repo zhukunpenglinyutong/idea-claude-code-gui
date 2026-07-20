@@ -52,9 +52,7 @@ class SubagentHistoryService {
         try {
             validateId("sessionId", sessionId);
 
-            Path file = agentId != null && !agentId.isEmpty()
-                    ? resolveSubagentFile(sessionId, agentId)
-                    : resolveSubagentFileByDescription(sessionId, description);
+            Path file = resolveSubagentFileByBestKey(sessionId, agentId, toolUseId, description);
             if (!Files.exists(file) || !Files.isRegularFile(file)) {
                 response.addProperty("success", false);
                 response.addProperty("error", "Subagent log not found");
@@ -258,6 +256,61 @@ class SubagentHistoryService {
                 .normalize();
     }
 
+    /**
+     * Resolve the subagent transcript by the strongest key available:
+     * agentId (filename-exact) → toolUseId (unique per spawn, known to the
+     * webview from the tool_use block even while the agent is still RUNNING) →
+     * description (weakest: distinct spawns may share a description).
+     */
+    private Path resolveSubagentFileByBestKey(
+            String sessionId, String agentId, String toolUseId, String description) throws IOException {
+        if (agentId != null && !agentId.isEmpty()) {
+            return resolveSubagentFile(sessionId, agentId);
+        }
+        if (toolUseId != null && !toolUseId.isEmpty()) {
+            Path byToolUse = resolveSubagentFileByMetaField(sessionId, "toolUseId", toolUseId);
+            if (byToolUse != null && Files.exists(byToolUse)) {
+                return byToolUse;
+            }
+        }
+        return resolveSubagentFileByDescription(sessionId, description);
+    }
+
+    /**
+     * Scan the session's subagent meta files for one whose {@code fieldName}
+     * equals {@code expected}; newest wins. Returns null when nothing matches
+     * (the caller falls back to the next weaker key).
+     */
+    private Path resolveSubagentFileByMetaField(String sessionId, String fieldName, String expected) throws IOException {
+        if (expected == null || expected.isEmpty() || !SAFE_ID.matcher(expected).matches()) {
+            return null; // malformed key — fall back to the next weaker one
+        }
+        Path subagentsDir = Path.of(NodeDetector.resolveHomeForFileOps(), ".claude", "projects", projectKey())
+                .resolve(sessionId)
+                .resolve("subagents")
+                .normalize();
+        if (!Files.isDirectory(subagentsDir)) {
+            return null;
+        }
+        try (var stream = Files.list(subagentsDir)) {
+            return stream
+                    .filter(path -> path.getFileName().toString().endsWith(".meta.json"))
+                    .filter(path -> expected.equals(readMetaField(path, fieldName)))
+                    .max(Comparator.comparingLong(this::lastModifiedMillis))
+                    .map(this::metaToJsonl)
+                    .orElse(null);
+        }
+    }
+
+    private String readMetaField(Path metaFile, String fieldName) {
+        try {
+            JsonObject meta = JsonParser.parseString(Files.readString(metaFile, StandardCharsets.UTF_8)).getAsJsonObject();
+            return getString(meta, fieldName);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private Path resolveSubagentFileByDescription(String sessionId, String description) throws IOException {
         if (description == null || description.isEmpty()) {
             throw new IllegalArgumentException("Missing agentId and description");
@@ -273,18 +326,9 @@ class SubagentHistoryService {
         try (var stream = Files.list(subagentsDir)) {
             Optional<Path> meta = stream
                     .filter(path -> path.getFileName().toString().endsWith(".meta.json"))
-                    .filter(path -> description.equals(readDescription(path)))
+                    .filter(path -> description.equals(readMetaField(path, "description")))
                     .max(Comparator.comparingLong(this::lastModifiedMillis));
             return meta.map(this::metaToJsonl).orElse(subagentsDir.resolve("missing.jsonl"));
-        }
-    }
-
-    private String readDescription(Path metaFile) {
-        try {
-            JsonObject meta = JsonParser.parseString(Files.readString(metaFile, StandardCharsets.UTF_8)).getAsJsonObject();
-            return getString(meta, "description");
-        } catch (Exception e) {
-            return null;
         }
     }
 

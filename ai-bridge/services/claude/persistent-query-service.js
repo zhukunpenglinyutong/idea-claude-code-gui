@@ -54,6 +54,7 @@ import { loadMcpServersConfigAsRecord } from './mcp-status/config-loader.js';
 import {
   createTurnState,
   emitUsageTag,
+  isSidechainMessage,
   processMessageContent,
   processStreamEvent,
   processToolResultMessages,
@@ -302,6 +303,14 @@ async function executeTurn(runtime, requestContext, turnMeta) {
 
       touchRuntime(runtime);
       const msg = next.value;
+
+      // Subagent sidechain events (see isSidechainMessage) never join the
+      // parent conversation: no [MESSAGE]/[TOOL_RESULT]/[USAGE] emission and no
+      // delta processing. touchRuntime above already counted them as activity,
+      // so a long-running foreground agent keeps the daemon marked alive.
+      if (isSidechainMessage(msg)) {
+        continue;
+      }
 
       if (turnState.streamingEnabled && !turnState.streamStarted) {
         process.stdout.write('[STREAM_START]\n');

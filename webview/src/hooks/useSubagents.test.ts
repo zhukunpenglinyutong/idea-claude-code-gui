@@ -99,6 +99,54 @@ describe('extractSubagentsFromMessages', () => {
     expect(subagents[0].toolStats).toMatchObject({ readCount: 4 });
   });
 
+  it('finds a running foreground Agent buried mid-message among other tool_use blocks', () => {
+    // Regression for the 0d009806 live session: ClaudeMessageHandler merges the
+    // whole turn into ONE assistant message, so the Agent tool_use sits between
+    // the parent's earlier tool calls and later blocks. The derivation must
+    // still surface it — as running while its tool_result has not arrived.
+    const bash = (id: string): Record<string, unknown> => (
+      { type: 'tool_use', id, name: 'Bash', input: { command: 'git status' } }
+    );
+    const monster: ClaudeMessage = {
+      type: 'assistant',
+      content: 'Lecę. Najpierw dociągnę szczegóły…',
+      raw: {
+        message: {
+          content: [
+            { type: 'thinking', thinking: 'plan…' },
+            { type: 'text', text: 'Lecę. Najpierw dociągnę szczegóły…' },
+            bash('toolu_b1'), bash('toolu_b2'), bash('toolu_b3'),
+            {
+              type: 'tool_use',
+              id: 'toolu_agent_mid',
+              name: 'Agent',
+              input: {
+                subagent_type: 'general-purpose',
+                description: 'Review spec document',
+                prompt: 'Review the spec…',
+              },
+            },
+            bash('toolu_b4'), bash('toolu_b5'),
+            { type: 'text', text: 'Spec gotowy.' },
+          ],
+        },
+      } as any,
+    };
+
+    const messages = [monster];
+    const subagents = extractSubagentsFromMessages(
+      messages, getContentBlocks, findToolResult(messages), getToolResultRaw(messages),
+    );
+
+    expect(subagents).toHaveLength(1);
+    expect(subagents[0]).toMatchObject({
+      id: 'toolu_agent_mid',
+      type: 'general-purpose',
+      description: 'Review spec document',
+      status: 'running',
+    });
+  });
+
   describe('background launches (run_in_background)', () => {
     const backgroundLaunchResult = (toolUseId: string): ClaudeMessage => ({
       type: 'user',
