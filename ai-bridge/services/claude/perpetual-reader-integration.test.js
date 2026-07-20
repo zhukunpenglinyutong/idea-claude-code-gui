@@ -165,10 +165,10 @@ test('Integration: inter-turn background turn emits background_turn active then 
   }
 
   const turnEvents = events.list.filter((e) => e.event === 'background_turn');
-  // First message of the burst emits 'active' immediately; the throttled
-  // nudge for the same message re-emits it as a heartbeat; the result emits
-  // 'idle'. The remaining chunks land inside the throttle window.
-  assert.deepEqual(turnEvents.map((e) => e.state), ['active', 'active', 'idle']);
+  // First message of the burst emits 'active' immediately; the result emits
+  // 'idle'. The heartbeat is timer-driven (5s default) so none fire inside
+  // this fast test.
+  assert.deepEqual(turnEvents.map((e) => e.state), ['active', 'idle']);
   turnEvents.forEach((e) => {
     assert.equal(e.type, 'daemon');
     assert.equal(e.sessionId, 'sess-bg2');
@@ -178,6 +178,43 @@ test('Integration: inter-turn background turn emits background_turn active then 
   const lastIdleIdx = events.list.findIndex((e) => e.event === 'background_turn' && e.state === 'idle');
   const resultUpdateIdx = events.list.map((e) => e.event).lastIndexOf('session_updated');
   assert.ok(lastIdleIdx <= resultUpdateIdx, 'idle should not trail the final session_updated');
+});
+
+test('Integration: background_turn heartbeat keeps firing through silent gaps and stops on idle', async () => {
+  const ctl = createControlledQuery();
+  // Background turns routinely go silent for minutes (long tool call, deep
+  // thinking); the heartbeat must be timer-driven so the webview TTL cannot
+  // expire mid-turn. Shrunk interval so the test observes several ticks.
+  const runtime = { closed: false, sessionId: 'sess-hb', turnSink: null, query: ctl.query, interTurnHeartbeatMs: 15 };
+  const events = captureInterTurnEvents();
+
+  const reader = startPerpetualReader(runtime);
+  try {
+    ctl.deliver({ type: 'assistant', content: 'starting long silent work' });
+    // Silence: no further messages while the heartbeat interval ticks.
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    const activeDuringSilence = events.list.filter(
+      (e) => e.event === 'background_turn' && e.state === 'active',
+    ).length;
+    assert.ok(activeDuringSilence >= 3,
+      `expected timer heartbeats during silence, got ${activeDuringSilence}`);
+
+    ctl.deliver({ type: 'result', is_error: false });
+    await settle();
+    const afterIdleCount = events.list.filter((e) => e.event === 'background_turn').length;
+    assert.equal(events.list[events.list.length - 1].event === 'background_turn'
+      ? events.list[events.list.length - 1].state : 'idle', 'idle');
+    // No further heartbeats after idle — the timer must be cleared.
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(events.list.filter((e) => e.event === 'background_turn').length, afterIdleCount);
+    const states = events.list.filter((e) => e.event === 'background_turn').map((e) => e.state);
+    assert.equal(states[states.length - 1], 'idle');
+  } finally {
+    runtime.closed = true;
+    ctl.end();
+    await reader;
+    events.restore();
+  }
 });
 
 test('Integration: reader exit mid-background-turn emits background_turn idle', async () => {
