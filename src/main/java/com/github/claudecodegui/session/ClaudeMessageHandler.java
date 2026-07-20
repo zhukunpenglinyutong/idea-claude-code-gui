@@ -671,6 +671,18 @@ public class ClaudeMessageHandler implements MessageCallback {
                 LOG.debug("Extracted " + commands.size() + " slash commands from system message");
                 callbackHandler.notifySlashCommandsReceived(commands);
             }
+
+            // A slash command failing on an exhausted usage window (e.g. /compact)
+            // reports the limit ONLY inside a local_command record's stderr — it is
+            // neither an error result nor a synthetic assistant notice. Surface it
+            // as an ERROR message so it renders and the auto-resume-on-limit hook
+            // (which scans trailing error messages) can arm.
+            String limitError = MessageParser.extractLocalCommandUsageLimitError(systemObj);
+            if (limitError != null) {
+                state.addMessage(new Message(Message.Type.ERROR, limitError, systemObj));
+                callbackHandler.notifyMessageUpdate(state.getMessages());
+                LOG.info("Surfaced usage-limit error from local command stderr: " + limitError);
+            }
         } catch (Exception e) {
             LOG.warn("Failed to extract slash commands from system message: " + e.getMessage());
         }

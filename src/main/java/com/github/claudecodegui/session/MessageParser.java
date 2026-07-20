@@ -49,9 +49,70 @@ public class MessageParser {
         } else if ("assistant".equals(type)) {
             String content = extractMessageContent(msg);
             return new ClaudeSession.Message(ClaudeSession.Message.Type.ASSISTANT, content, rawMessage);
+        } else if ("system".equals(type)) {
+            // System records are display-transparent except one case: a slash
+            // command failing on an exhausted usage window (e.g. /compact) reports
+            // the limit ONLY in a local_command record's stderr. Forward it as an
+            // ERROR message so the failure stays visible after reloads and the
+            // auto-resume-on-limit feature can arm on it. The raw record keeps the
+            // transcript timestamp the webview's freshness gate reads.
+            String limitError = extractLocalCommandUsageLimitError(msg);
+            if (limitError != null) {
+                return new ClaudeSession.Message(ClaudeSession.Message.Type.ERROR, limitError, msg);
+            }
+            return null;
         }
 
         return null;
+    }
+
+    /**
+     * Phrasings identifying a Claude usage-limit notice. Deliberately permissive
+     * (mirrors the webview's usageLimitError.ts patterns): the webview re-parses
+     * the text before arming auto-resume, so a false positive here at worst
+     * renders an extra error row for a genuinely failed command.
+     */
+    private static final java.util.regex.Pattern USAGE_LIMIT_TEXT_PATTERN = java.util.regex.Pattern.compile(
+        "usage limit reached"
+            + "|\\b\\d+[\\s-]?hour limit reached"
+            + "|\\b(session|daily|weekly|monthly) limit reached"
+            + "|reached your (usage|\\d+[\\s-]?hour) limit"
+            + "|you['’]?ve hit your (session|daily|weekly|monthly|usage|\\d+[\\s-]?hour) limit",
+        java.util.regex.Pattern.CASE_INSENSITIVE);
+
+    private static final String LOCAL_COMMAND_STDERR_OPEN = "<local-command-stderr>";
+    private static final String LOCAL_COMMAND_STDERR_CLOSE = "</local-command-stderr>";
+
+    /**
+     * If the record is a local-command output whose stderr reports a Claude
+     * usage limit, return the inner stderr text; otherwise null.
+     *
+     * Example transcript record (a /compact that hit the session limit):
+     * {@code {"type":"system","subtype":"local_command","content":
+     * "<local-command-stderr>Error during compaction: You've hit your session
+     * limit · resets 12:10am (Europe/Warsaw)</local-command-stderr>"}}
+     */
+    public static String extractLocalCommandUsageLimitError(JsonObject record) {
+        if (record == null || !record.has("content") || !record.get("content").isJsonPrimitive()) {
+            return null;
+        }
+        String content;
+        try {
+            content = record.get("content").getAsString();
+        } catch (Exception e) {
+            return null;
+        }
+        int start = content.indexOf(LOCAL_COMMAND_STDERR_OPEN);
+        if (start < 0) {
+            return null;
+        }
+        int innerStart = start + LOCAL_COMMAND_STDERR_OPEN.length();
+        int end = content.indexOf(LOCAL_COMMAND_STDERR_CLOSE, innerStart);
+        String inner = (end >= innerStart ? content.substring(innerStart, end) : content.substring(innerStart)).trim();
+        if (inner.isEmpty() || !USAGE_LIMIT_TEXT_PATTERN.matcher(inner).find()) {
+            return null;
+        }
+        return inner;
     }
 
     /**

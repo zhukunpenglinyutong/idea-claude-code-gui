@@ -126,6 +126,29 @@ describe('parseUsageLimitError', () => {
     expect(info).not.toBeNull();
     expect(info?.resetAtMs).toBeNull();
   });
+
+  // Verbatim stderr of a /compact that hit the session limit at 00:09:45 local
+  // (session 0d009806): the reset "12:10am" is one minute ahead, separator is
+  // U+00B7 MIDDLE DOT (not the U+2219 the assistant notices use), and the text
+  // is prefixed by the failing command's own wording.
+  it('parses the real failed-compaction stderr with a just-ahead 12:10am reset', () => {
+    const justBeforeMidnightReset = new Date(2026, 6, 21, 0, 9, 45).getTime();
+    const info = parseUsageLimitError(
+      "Error during compaction: You've hit your session limit · resets 12:10am (Europe/Warsaw)",
+      justBeforeMidnightReset,
+    );
+    expect(info).not.toBeNull();
+    expect(info?.resetAtMs).toBe(new Date(2026, 6, 21, 0, 10, 0).getTime());
+  });
+
+  it('rolls a 12:10am reset seen late in the evening over to the next day', () => {
+    const lateEvening = new Date(2026, 6, 20, 23, 50, 0).getTime();
+    const info = parseUsageLimitError(
+      "Error during compaction: You've hit your session limit · resets 12:10am (Europe/Warsaw)",
+      lateEvening,
+    );
+    expect(info?.resetAtMs).toBe(new Date(2026, 6, 21, 0, 10, 0).getTime());
+  });
 });
 
 describe('parseStandaloneUsageLimitNotice', () => {
