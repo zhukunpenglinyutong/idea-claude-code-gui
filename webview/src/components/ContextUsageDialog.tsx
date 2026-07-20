@@ -1,6 +1,7 @@
 import { useEffect, useRef, useMemo, useCallback, useId, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import './ContextUsageDialog.css';
+import { clampUsagePercentage } from '../utils/usagePercentage';
 
 export interface ContextUsageData {
   categories: Array<{
@@ -268,6 +269,7 @@ const ContextUsageDialog = memo(function ContextUsageDialog({
     isAutoCompactEnabled = false,
     autoCompactThreshold,
   } = data;
+  const safePercentage = clampUsagePercentage(percentage);
 
   return (
     <div className="context-usage-overlay" onMouseDown={handleCloseMouseDown}>
@@ -303,13 +305,13 @@ const ContextUsageDialog = memo(function ContextUsageDialog({
         <div id={descriptionId} className="context-usage-summary">
           <span className="context-usage-model">{model}</span>
           <span className="context-usage-tokens">
-            {formatTokens(totalTokens)} / {formatTokens(rawMaxTokens)} ({percentage}%)
+            {formatTokens(totalTokens)} / {formatTokens(rawMaxTokens)} ({safePercentage}%)
           </span>
           {isAutoCompactEnabled && (
             <span className="context-usage-autocompact">
               {autoCompactThreshold && rawMaxTokens > 0
                 ? t('contextUsage.autoCompactEnabledWithThreshold', {
-                    threshold: Math.round((autoCompactThreshold / rawMaxTokens) * 100),
+                    threshold: Math.round(clampUsagePercentage((autoCompactThreshold / rawMaxTokens) * 100)),
                     defaultValue: 'Auto-compact: enabled ({{threshold}}%)',
                   })
                 : t('contextUsage.autoCompactEnabled', {
@@ -345,16 +347,19 @@ const ContextUsageDialog = memo(function ContextUsageDialog({
                       />
                     );
                   }
-                  const filled = sq.squareFullness >= 0.7;
+                  const safeFullness = Number.isFinite(sq.squareFullness)
+                    ? Math.max(0, Math.min(1, sq.squareFullness))
+                    : 0;
+                  const filled = safeFullness >= 0.7;
                   return (
                     <div
                       key={squareKey}
                       className={`context-usage-grid-cell ${filled ? 'filled' : 'partial'}`}
                       style={{
                         backgroundColor: resolveColor(sq.color),
-                        ...(filled ? {} : { opacity: 0.5 + sq.squareFullness * 0.5 }),
+                        ...(filled ? {} : { opacity: 0.5 + safeFullness * 0.5 }),
                       }}
-                      title={`${translateCategoryName(sq.categoryName)}: ${formatTokens(sq.tokens)} (${sq.percentage.toFixed(1)}%)`}
+                      title={`${translateCategoryName(sq.categoryName)}: ${formatTokens(sq.tokens)} (${clampUsagePercentage(sq.percentage).toFixed(1)}%)`}
                     />
                   );
                 })}

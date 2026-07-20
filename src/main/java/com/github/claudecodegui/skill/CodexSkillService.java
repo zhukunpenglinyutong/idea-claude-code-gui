@@ -180,21 +180,48 @@ public class CodexSkillService {
      */
     public static JsonObject scanSkillsDirectory(String dirPath, String scope) {
         JsonObject skills = new JsonObject();
-        File dir = new File(dirPath);
+        Path rootDir = Paths.get(dirPath).toAbsolutePath().normalize();
+        File dir = rootDir.toFile();
 
         if (!dir.exists() || !dir.isDirectory()) {
             return skills;
         }
 
-        File[] entries = dir.listFiles();
-        if (entries == null) {
+        List<File> entries = new ArrayList<>();
+        try {
+            Files.walkFileTree(rootDir, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path currentDir, BasicFileAttributes attrs) {
+                    if (!currentDir.equals(rootDir) && containsHiddenPathSegment(rootDir, currentDir)) {
+                        return FileVisitResult.SKIP_SUBTREE;
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                    if (attrs.isRegularFile() && isSkillDefinitionFile(file)) {
+                        Path skillDir = file.getParent();
+                        if (skillDir != null && !skillDir.equals(rootDir)) {
+                            entries.add(skillDir.toFile());
+                        }
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException e) {
+                    LOG.warn("[CodexSkills] Skipping unreadable path: " + file, e);
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+            entries = entries.stream().distinct().sorted().toList();
+        } catch (IOException e) {
+            LOG.warn("[CodexSkills] Failed to scan skills directory: " + dirPath, e);
             return skills;
         }
 
         for (File entry : entries) {
-            if (!entry.isDirectory() || entry.getName().startsWith(".")) {
-                continue;
-            }
             // Use normalized path in id to prevent collisions when same-named skills
             // exist in different scan directories (child vs parent)
             String normalizedEntryPath = normalizePath(entry.getAbsolutePath());
@@ -241,6 +268,29 @@ public class CodexSkillService {
 
         LOG.info("[CodexSkills] Scanned " + skills.size() + " skills from " + scope + ": " + dirPath);
         return skills;
+    }
+
+    private static boolean isSkillDefinitionFile(Path path) {
+        Path fileNamePath = path.getFileName();
+        if (fileNamePath == null) {
+            return false;
+        }
+        String fileName = fileNamePath.toString();
+        return "SKILL.md".equals(fileName) || "skill.md".equals(fileName);
+    }
+
+    private static boolean containsHiddenPathSegment(Path rootDir, Path skillDir) {
+        Path normalizedSkillDir = skillDir.toAbsolutePath().normalize();
+        if (!normalizedSkillDir.startsWith(rootDir)) {
+            return true;
+        }
+        Path relative = rootDir.relativize(normalizedSkillDir);
+        for (Path segment : relative) {
+            if (segment.toString().startsWith(".")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ==================== Config.toml Integration ====================

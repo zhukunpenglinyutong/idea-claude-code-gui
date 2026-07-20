@@ -620,6 +620,43 @@ describe('useSessionManagement', () => {
     );
   });
 
+  it('loadHistorySession falls back to current provider when history item has no provider', () => {
+    const historyData = {
+      success: true,
+      sessions: [
+        {
+          sessionId: 'hist-codex-missing-provider',
+          title: 'Codex Session',
+          messageCount: 2,
+          lastTimestamp: Date.now(),
+        },
+      ],
+      total: 2,
+    } as unknown as HistoryData;
+
+    const mocks = createMocks();
+
+    const { result } = renderHook(() =>
+      useSessionManagement({
+        messages: [],
+        loading: false,
+        historyData,
+        currentSessionId: null,
+        currentProvider: 'codex',
+        ...mocks,
+        t,
+      })
+    );
+
+    act(() => {
+      result.current.loadHistorySession('hist-codex-missing-provider');
+    });
+
+    expect(window.sendToJava).toHaveBeenCalledWith(
+      'load_session:{"sessionId":"hist-codex-missing-provider","provider":"codex"}'
+    );
+  });
+
   it('all transition paths reset usage tokens', () => {
     const mocks = createMocks();
 

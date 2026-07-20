@@ -356,12 +356,34 @@ public class SessionCallbackAdapter implements ClaudeSession.SessionCallback {
             if (isInactive()) {
                 return;
             }
-            double percentage = maxTokens > 0 ? (usedTokens * 100.0 / maxTokens) : 0.0;
+            int safeUsedTokens = normalizeUsageValue(usedTokens);
+            int safeMaxTokens = normalizeUsageValue(maxTokens);
+            double percentage = calculateUsagePercentage(safeUsedTokens, safeMaxTokens);
             String json = String.format("{\"percentage\":%.2f,\"usedTokens\":%d,\"maxTokens\":%d}",
-                    percentage, usedTokens, maxTokens);
+                    percentage, safeUsedTokens, safeMaxTokens);
             jsTarget.callJavaScript("onUsageUpdate", JsUtils.escapeJs(json));
-            LOG.debug("Usage update sent to frontend: " + usedTokens + "/" + maxTokens);
+            LOG.debug("Usage update sent to frontend: " + safeUsedTokens + "/" + safeMaxTokens);
         });
+    }
+
+    /**
+     * Keep usage counters non-negative before they cross the JavaScript bridge.
+     * Malformed or incomplete SDK usage payloads must not produce negative values
+     * in the context tooltip.
+     */
+    static int normalizeUsageValue(int value) {
+        return Math.max(0, value);
+    }
+
+    /**
+     * Calculate a bounded usage percentage for the context indicator.
+     */
+    static double calculateUsagePercentage(int usedTokens, int maxTokens) {
+        if (maxTokens <= 0) {
+            return 0.0;
+        }
+        double percentage = usedTokens * 100.0 / maxTokens;
+        return Math.max(0.0, Math.min(100.0, percentage));
     }
 
     @Override

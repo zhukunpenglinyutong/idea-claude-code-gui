@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import type { TokenIndicatorProps } from './types';
+import { clampUsagePercentage } from '../../utils/usagePercentage';
 
 /**
  * TokenIndicator - Usage ring progress bar component
@@ -12,6 +13,7 @@ export const TokenIndicator = ({
   maxTokens,
 }: TokenIndicatorProps) => {
   const { t } = useTranslation();
+  const safePercentage = clampUsagePercentage(percentage);
   // Circle radius (accounting for stroke space)
   const radius = (size - 3) / 2;
   const center = size / 2;
@@ -20,12 +22,12 @@ export const TokenIndicator = ({
   const circumference = 2 * Math.PI * radius;
 
   // Calculate offset (fill clockwise from top)
-  const strokeOffset = circumference * (1 - percentage / 100);
+  const strokeOffset = circumference * (1 - safePercentage / 100);
 
   // Indicator label: integer percentage (no decimal)
-  const labelPercentage = `${Math.round(percentage)}%`;
+  const labelPercentage = `${Math.round(safePercentage)}%`;
   // Tooltip: one decimal place for precision
-  const tooltipPercentage = `${(Math.round(percentage * 10) / 10).toFixed(1)}%`;
+  const tooltipPercentage = `${(Math.round(safePercentage * 10) / 10).toFixed(1)}%`;
 
   const formatTokens = (value?: number) => {
     if (typeof value !== 'number' || !isFinite(value)) return undefined;

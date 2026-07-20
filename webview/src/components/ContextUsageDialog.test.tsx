@@ -100,4 +100,30 @@ describe('ContextUsageDialog', () => {
     expect(screen.getByText('服务器')).toBeTruthy();
     expect(screen.getAllByText('令牌').length).toBeGreaterThan(0);
   });
+
+  it('clamps visual percentages while preserving raw token counts', () => {
+    const { container } = render(
+      <ContextUsageDialog
+        isOpen
+        isLoading={false}
+        data={{ ...sampleData, totalTokens: 2400, percentage: 120 }}
+        onClose={() => {}}
+      />,
+    );
+
+    expect(container.querySelector('.context-usage-tokens')?.textContent).toBe('2.4k / 2.0k (100%)');
+  });
+
+  it('uses a finite fallback opacity for invalid square fullness', () => {
+    const invalidData: ContextUsageData = {
+      ...sampleData,
+      gridRows: [[{ ...sampleData.gridRows[0][0], squareFullness: Number.NaN }]],
+    };
+    const { container } = render(
+      <ContextUsageDialog isOpen isLoading={false} data={invalidData} onClose={() => {}} />,
+    );
+
+    const square = container.querySelector<HTMLElement>('.context-usage-grid-cell.partial');
+    expect(square?.style.opacity).toBe('0.5');
+  });
 });

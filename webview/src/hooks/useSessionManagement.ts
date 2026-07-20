@@ -17,6 +17,7 @@ interface UseSessionManagementOptions {
   loading: boolean;
   historyData: HistoryData | null;
   currentSessionId: string | null;
+  currentProvider?: string;
   setHistoryData: React.Dispatch<React.SetStateAction<HistoryData | null>>;
   setMessages: React.Dispatch<React.SetStateAction<ClaudeMessage[]>>;
   setCurrentView: (view: ViewMode) => void;
@@ -63,6 +64,7 @@ export function useSessionManagement({
   loading,
   historyData,
   currentSessionId,
+  currentProvider,
   setHistoryData,
   setMessages,
   setCurrentView,
@@ -232,10 +234,10 @@ export function useSessionManagement({
     beginSessionTransition(sessionId, session?.title ?? null);
     sendBridgeEvent('load_session', JSON.stringify({
       sessionId,
-      provider: provider || session?.provider || 'claude',
+      provider: provider || session?.provider || currentProvider || 'claude',
     }));
     setCurrentView('chat');
-  }, [beginSessionTransition, loading, setCurrentView]);
+  }, [beginSessionTransition, currentProvider, loading, setCurrentView]);
 
   // Delete history session
   const deleteHistorySession = useCallback((sessionId: string) => {

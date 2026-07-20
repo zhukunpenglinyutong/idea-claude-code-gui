@@ -1,5 +1,6 @@
 package com.github.claudecodegui.skill;
 
+import com.google.gson.JsonObject;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -8,6 +9,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class SlashCommandSourceScannersTest {
 
@@ -154,5 +156,46 @@ public class SlashCommandSourceScannersTest {
         assertEquals(1, pluginCommands.size());
         assertEquals("/demo:audit", pluginCommands.get(0).name());
         assertEquals("plugin:demo", pluginCommands.get(0).source());
+    }
+
+    @Test
+    public void codexSkillScannerDiscoversNestedSkillDefinitionFiles() throws IOException {
+        Path root = Files.createTempDirectory("codex-skill-nested-scanner");
+        Path skillDir = Files.createDirectories(
+                root.resolve("review").resolve("utility").resolve("agent-packaging-skill")
+        );
+        Path hiddenSkillDir = Files.createDirectories(
+                root.resolve(".internal").resolve("hidden-skill")
+        );
+        Files.writeString(
+                skillDir.resolve("SKILL.md"),
+                """
+                ---
+                name: agent-packaging-skill
+                description: Package a Codex agent skill
+                userInvocable: true
+                ---
+
+                Package skills.
+                """
+        );
+        Files.writeString(
+                hiddenSkillDir.resolve("SKILL.md"),
+                """
+                ---
+                name: hidden-skill
+                description: Hidden skill
+                ---
+                """
+        );
+
+        JsonObject skills = CodexSkillService.scanSkillsDirectory(root.toString(), "user");
+
+        assertEquals(1, skills.size());
+        JsonObject skill = skills.entrySet().iterator().next().getValue().getAsJsonObject();
+        assertEquals("agent-packaging-skill", skill.get("name").getAsString());
+        assertEquals("Package a Codex agent skill", skill.get("description").getAsString());
+        assertTrue(skill.get("userInvocable").getAsBoolean());
+        assertEquals(skillDir.toString(), Path.of(skill.get("path").getAsString()).toString());
     }
 }
