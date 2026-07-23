@@ -142,6 +142,20 @@ export async function disposeRuntime(runtime, callbacks) {
   runtime.closed = true;
   runtime.activeTurnCount = 0;
 
+  // Stop any inter-turn background_turn heartbeat synchronously. Teardown must
+  // NOT be left solely to the perpetual reader's finally block: a runtime
+  // disposed while its reader is parked in query.next() — e.g. a background
+  // workflow whose subprocess goes silent instead of emitting EOF, so
+  // query.close() never settles the pending next() — would otherwise keep
+  // firing 'active' forever. That leak showed up as a 5s cadence continuing
+  // past workflow completion and, after a dispose-and-rebuild, as two
+  // interleaved cadences for one session.
+  if (runtime.interTurnHeartbeatTimer) {
+    clearInterval(runtime.interTurnHeartbeatTimer);
+    runtime.interTurnHeartbeatTimer = null;
+  }
+  runtime.interTurnActive = false;
+
   try {
     runtime.inputStream.done();
   } catch (err) {

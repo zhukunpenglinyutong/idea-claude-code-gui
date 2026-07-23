@@ -464,4 +464,47 @@ test('Integration: reader disposes a still-live runtime when the stream ends int
   assert.equal(queryClosed, true, 'query.close() should be called');
 });
 
+test('Regression: disposeRuntime stops the background_turn heartbeat even when the reader is wedged', async () => {
+  // A background workflow keeps the perpetual reader parked in query.next().
+  // If the subprocess goes silent instead of emitting EOF, query.close() never
+  // settles the pending next(), so the reader's finally (which clears the
+  // heartbeat) never runs. disposeRuntime must therefore clear the interval
+  // itself; otherwise the heartbeat leaks — the 5s cadence observed firing
+  // past workflow completion.
+  const { disposeRuntime } = await import('./runtime-lifecycle.js');
+  const ctl = createControlledQuery();
+  const runtime = {
+    closed: false,
+    sessionId: 'sess-dispose',
+    turnSink: null, // inter-turn
+    query: ctl.query,
+    inputStream: { done() {} },
+    interTurnHeartbeatMs: 15,
+  };
+  const events = captureInterTurnEvents();
+  const reader = startPerpetualReader(runtime, {});
+  try {
+    ctl.deliver({ type: 'assistant', content: 'background work begins' });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const started = events.list.filter((e) => e.event === 'background_turn' && e.state === 'active').length;
+    assert.ok(started >= 1, `heartbeat should have started, got ${started}`);
+
+    // close() sets ended=true but does NOT settle the parked next() — the
+    // reader stays wedged, exactly the leak scenario.
+    await disposeRuntime(runtime, {});
+    assert.equal(runtime.interTurnHeartbeatTimer ?? null, null, 'disposeRuntime must clear the heartbeat timer');
+
+    const afterDispose = events.list.length;
+    await new Promise((resolve) => setTimeout(resolve, 60)); // > interval: no new ticks allowed
+    const leaked = events.list.slice(afterDispose)
+      .filter((e) => e.event === 'background_turn' && e.state === 'active');
+    assert.equal(leaked.length, 0, `heartbeat leaked ${leaked.length} ticks after dispose`);
+  } finally {
+    runtime.closed = true;
+    ctl.end();
+    await reader;
+    events.restore();
+  }
+});
+
 console.log('\n✅ Perpetual reader integration tests exercise the real startPerpetualReader');
