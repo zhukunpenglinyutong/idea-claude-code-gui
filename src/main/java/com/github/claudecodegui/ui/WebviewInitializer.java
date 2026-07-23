@@ -292,19 +292,7 @@ public class WebviewInitializer {
                 return new JBCefJSQuery.Response("ok");
             });
 
-            HtmlLoader htmlLoader = host.getHtmlLoader();
-            String htmlContent = htmlLoader.loadChatHtml();
-
-            // Per-tab provider/model injection: each tab's WebView reads the
-            // same global localStorage snapshot, so without this every tab on
-            // IDE startup overrides the per-tab provider that
-            // ClaudeChatWindow.restorePersistedTabSessionState already wrote to
-            // the session — see issue #1353.
-            ClaudeSession session =
-                    host.getHandlerContext() != null ? host.getHandlerContext().getSession() : null;
-            String tabProvider = session != null ? session.getProvider() : null;
-            String tabModel = session != null ? session.getModel() : null;
-            htmlContent = htmlLoader.injectInitialTabState(htmlContent, tabProvider, tabModel);
+            String htmlContent = loadChatHtmlWithInitialTabState();
 
             // LoadHandler must be registered before loadHTML, otherwise the
             // first frame's onLoadEnd is missed and the JS bridge injection
@@ -917,7 +905,8 @@ public class WebviewInitializer {
             }
             host.setFrontendReady(false);
             try {
-                browser.loadHTML(host.getHtmlLoader().loadChatHtml());
+                LOG.info("[WebviewWatchdog] Reloading webview (" + reason + ")");
+                browser.loadHTML(loadChatHtmlWithInitialTabState());
                 BrowserBridges currentBridges;
                 synchronized (this.bridgeLock) {
                     currentBridges = this.bridges;
@@ -925,12 +914,26 @@ public class WebviewInitializer {
                 if (currentBridges != null && currentBridges.belongsTo(browser)) {
                     scheduleBridgeInjectionRetries(browser, currentBridges);
                 }
+                host.getWebviewWatchdog().resetTimestamps();
                 host.getMainPanel().revalidate();
                 host.getMainPanel().repaint();
             } catch (Exception e) {
                 LOG.warn("[WebviewWatchdog] Reload failed: " + e.getMessage(), e);
             }
         });
+    }
+
+    private String loadChatHtmlWithInitialTabState() {
+        HtmlLoader htmlLoader = host.getHtmlLoader();
+        String htmlContent = htmlLoader.loadChatHtml();
+
+        // Each tab reads the same localStorage snapshot. Preserve the session's
+        // provider and model on both initial load and watchdog recovery.
+        ClaudeSession session = host.getHandlerContext() != null
+                ? host.getHandlerContext().getSession() : null;
+        String tabProvider = session != null ? session.getProvider() : null;
+        String tabModel = session != null ? session.getModel() : null;
+        return htmlLoader.injectInitialTabState(htmlContent, tabProvider, tabModel);
     }
 
     /**

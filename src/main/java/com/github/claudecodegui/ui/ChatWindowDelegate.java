@@ -487,6 +487,7 @@ public class ChatWindowDelegate {
     public void handleFrontendReady() {
         LOG.info("Received frontend_ready signal, frontend is now ready to receive data");
         host.setFrontendReady(true);
+        host.getWebviewWatchdog().markFrontendReady();
 
         host.callJavaScript(
             "window.updateLinkifyCapabilities",
