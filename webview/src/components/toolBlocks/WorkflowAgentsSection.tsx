@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  SETTLED_WORKFLOW_POLL_INTERVAL_MS,
+  decideWorkflowPollMode,
   isWorkflowSettled,
   requestWorkflowStatus,
   useWorkflowStatus,
@@ -42,13 +44,17 @@ export function useWorkflowLiveStatus(
   useEffect(() => {
     if (!sessionId || !runId) return;
     const poll = () => requestWorkflowStatus({ sessionId, runId, toolUseId });
-    if (!stillRunning) {
-      if (!hasStatus) poll();
+    const mode = decideWorkflowPollMode(stillRunning, settled, hasStatus);
+    if (mode === 'idle') return;
+    if (mode === 'once') {
+      poll();
       return;
     }
-    if (settled) return;
+    // 'active' polls at the live cadence; 'watch' slows down for a quiet-but-
+    // still-running run but never stops — so a later phase is still observed.
     poll();
-    const timer = window.setInterval(poll, SUBAGENT_POLL_INTERVAL_MS);
+    const intervalMs = mode === 'watch' ? SETTLED_WORKFLOW_POLL_INTERVAL_MS : SUBAGENT_POLL_INTERVAL_MS;
+    const timer = window.setInterval(poll, intervalMs);
     return () => window.clearInterval(timer);
   }, [sessionId, runId, settled, stillRunning, hasStatus, toolUseId]);
   return status;

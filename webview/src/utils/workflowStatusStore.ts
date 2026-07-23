@@ -89,9 +89,11 @@ export function extractWorkflowRunId(resultText: string | undefined): string | u
 }
 
 /**
- * A run is settled (polling can stop) when every started agent has a result
- * and the journal has been quiet for a minute. New phases restart polling
- * because startedCount grows past doneCount again.
+ * A run looks "settled" when every started agent has a result and the journal
+ * has been quiet for a minute. This is only a heuristic that a phase boundary
+ * (or the whole run) went quiet — NOT proof the run finished: a multi-phase
+ * workflow reaches done>=started between phases, and a long near-silent final
+ * phase (e.g. a high-effort synthesis agent) looks identical.
  */
 export function isWorkflowSettled(status: WorkflowStatus | undefined): boolean {
   if (!status || !status.success) return false;
@@ -100,4 +102,34 @@ export function isWorkflowSettled(status: WorkflowStatus | undefined): boolean {
   if (started === 0 || done < started) return false;
   const updatedAt = status.updatedAtMs ?? 0;
   return Date.now() - updatedAt > 60_000;
+}
+
+/** Slow cadence used to keep watching a quiet-but-unfinished workflow run. */
+export const SETTLED_WORKFLOW_POLL_INTERVAL_MS = 15_000;
+
+export type WorkflowPollMode = 'idle' | 'once' | 'active' | 'watch';
+
+/**
+ * Decide how the live-status hook should poll a workflow run.
+ *
+ * The critical rule: while the run is still alive (`stillRunning`), polling
+ * must NEVER fully stop. A quiet gap makes isWorkflowSettled true, but tearing
+ * the interval down then would freeze child progress with no restart path —
+ * status only advances on a poll response, so once polling stops nothing can
+ * ever observe the next phase and un-settle it (the frozen-screen bug during a
+ * long background workflow). When settled-but-still-running, slow to a 'watch'
+ * cadence instead of stopping, so a new phase — or the terminal notification
+ * that flips stillRunning false — is still observed.
+ *
+ * When the run is no longer running, only a single 'once' fetch is needed to
+ * populate the final child list (a TaskStop-killed run leaves started>done
+ * forever, so waiting for settled would poll indefinitely).
+ */
+export function decideWorkflowPollMode(
+  stillRunning: boolean,
+  settled: boolean,
+  hasStatus: boolean,
+): WorkflowPollMode {
+  if (!stillRunning) return hasStatus ? 'idle' : 'once';
+  return settled ? 'watch' : 'active';
 }
