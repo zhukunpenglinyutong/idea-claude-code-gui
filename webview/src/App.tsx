@@ -461,6 +461,7 @@ const App = () => {
       ) : currentView === 'chat' ? (
         <ChatScreen
           mergedMessages={mergedMessages}
+          sessionTitle={sessionTitle}
           getMessageText={getMessageText}
           getContentBlocks={getContentBlocks}
           findToolResult={findToolResult}

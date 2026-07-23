@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Manager for tracking detached chat windows across all projects.
@@ -25,6 +26,7 @@ public class DetachedWindowManager {
      */
     private static final Map<String, Map<String, DetachedChatFrame>> detachedWindows =
             new ConcurrentHashMap<>();
+    private static final AtomicLong PENDING_WINDOW_IDS = new AtomicLong();
 
     private static String projectKey(@NotNull Project project) {
         String basePath = project.getBasePath();
@@ -39,15 +41,17 @@ public class DetachedWindowManager {
      * @param frame     The detached frame
      */
     public static void registerDetached(@NotNull Project project,
-                                        @NotNull String sessionId,
+                                        @Nullable String sessionId,
                                         @NotNull DetachedChatFrame frame) {
         String key = projectKey(project);
+        String windowKey = sessionId == null || sessionId.isBlank()
+                ? "pending-" + PENDING_WINDOW_IDS.incrementAndGet() : sessionId;
         detachedWindows
                 .computeIfAbsent(key, k -> new ConcurrentHashMap<>())
-                .put(sessionId, frame);
+                .put(windowKey, frame);
 
         LOG.info(String.format("[DetachedWindowManager] Registered detached window: project=%s, sessionId=%s, name=%s",
-                project.getName(), sessionId, frame.getOriginalTabName()));
+                project.getName(), windowKey, frame.getOriginalTabName()));
     }
 
     /**
@@ -70,6 +74,19 @@ public class DetachedWindowManager {
             if (projectWindows.isEmpty()) {
                 detachedWindows.remove(key);
             }
+        }
+    }
+
+    public static void unregisterDetached(@NotNull Project project, @NotNull DetachedChatFrame frame) {
+        Map<String, DetachedChatFrame> projectWindows = detachedWindows.get(projectKey(project));
+        if (projectWindows == null) {
+            return;
+        }
+        for (Map.Entry<String, DetachedChatFrame> entry : projectWindows.entrySet()) {
+            projectWindows.remove(entry.getKey(), frame);
+        }
+        if (projectWindows.isEmpty()) {
+            detachedWindows.remove(projectKey(project), projectWindows);
         }
     }
 
@@ -96,6 +113,22 @@ public class DetachedWindowManager {
     public static DetachedChatFrame getDetachedFrame(@NotNull Project project, @NotNull String sessionId) {
         Map<String, DetachedChatFrame> projectWindows = detachedWindows.get(projectKey(project));
         return projectWindows != null ? projectWindows.get(sessionId) : null;
+    }
+
+    @Nullable
+    public static DetachedChatFrame getDetachedFrame(
+            @NotNull Project project,
+            @NotNull ClaudeChatWindow chatWindow) {
+        Map<String, DetachedChatFrame> projectWindows = detachedWindows.get(projectKey(project));
+        if (projectWindows == null) {
+            return null;
+        }
+        for (DetachedChatFrame frame : projectWindows.values()) {
+            if (frame.getChatWindow() == chatWindow) {
+                return frame;
+            }
+        }
+        return null;
     }
 
     /**

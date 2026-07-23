@@ -7,6 +7,7 @@ import com.github.claudecodegui.handler.AgentHandler;
 import com.github.claudecodegui.handler.ClipboardHandler;
 import com.github.claudecodegui.handler.ContextHandler;
 import com.github.claudecodegui.handler.CodexMcpServerHandler;
+import com.github.claudecodegui.handler.CodexPetHandler;
 import com.github.claudecodegui.handler.DependencyHandler;
 import com.github.claudecodegui.handler.DiffHandler;
 import com.github.claudecodegui.handler.core.HandlerContext;
@@ -85,6 +86,8 @@ public class ChatWindowDelegate {
         String getOriginalTabName();
         void setOriginalTabName(String name);
         String getSessionId();
+        boolean isActiveContent();
+        void activateContent();
         HandlerContext getHandlerContext();
         void setHandlerContext(HandlerContext ctx);
         void setMessageDispatcher(MessageDispatcher d);
@@ -252,7 +255,22 @@ public class ChatWindowDelegate {
             }
         };
 
-        HandlerContext handlerContext = new HandlerContext(project, claudeSDKBridge, codexSDKBridge, settingsService, jsCallback);
+        HandlerContext handlerContext = new HandlerContext(
+                project,
+                claudeSDKBridge,
+                codexSDKBridge,
+                settingsService,
+                jsCallback,
+                host::isActiveContent,
+                () -> {
+                    String originalTabName = host.getOriginalTabName();
+                    if (originalTabName != null && !originalTabName.isBlank()) {
+                        return originalTabName;
+                    }
+                    Content content = host.getParentContent();
+                    return content == null ? null : content.getDisplayName();
+                });
+        handlerContext.setContentActivator(host::activateContent);
         handlerContext.setSession(host.getSession());
         host.setHandlerContext(handlerContext);
 
@@ -265,6 +283,7 @@ public class ChatWindowDelegate {
         messageDispatcher.registerHandler(new McpMarketplaceHandler(handlerContext));
         messageDispatcher.registerHandler(new McpServerImportHandler(handlerContext));
         messageDispatcher.registerHandler(new CodexMcpServerHandler(handlerContext, settingsService.getCodexMcpServerManager()));
+        messageDispatcher.registerHandler(new CodexPetHandler(handlerContext));
         messageDispatcher.registerHandler(new SkillHandler(handlerContext));
         messageDispatcher.registerHandler(new FileHandler(handlerContext));
         messageDispatcher.registerHandler(new SettingsHandler(handlerContext));

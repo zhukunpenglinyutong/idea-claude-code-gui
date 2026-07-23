@@ -1,0 +1,901 @@
+.section {
+  width: 100%;
+  max-width: 800px;
+  padding-bottom: 24px;
+  color: var(--text-primary);
+}
+
+.title {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.description,
+.sectionHeader p,
+.catalogHeader p,
+.hatchHeader p {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.scopeBar {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px 0 16px;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.scopeHeader {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+
+.scopeTitle {
+  display: block;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.segmentedControl {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(72px, 1fr));
+  width: 172px;
+  max-width: 100%;
+  min-width: 172px;
+  padding: 2px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 4px;
+}
+
+.segment,
+.segmentActive {
+  height: 28px;
+  padding: 0 10px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.segmentActive {
+  color: var(--text-white);
+  background: var(--accent-primary);
+}
+
+.scopeCopy {
+  display: grid;
+  gap: 3px;
+}
+
+.scopeDescription,
+.scopePositionHint {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.scopeDescription {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.scopePositionHint {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.tabbedGroup {
+  min-width: 0;
+  margin-top: 24px;
+}
+
+.sectionTabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.sectionTab,
+.sectionTabActive {
+  display: inline-flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 38px;
+  margin-bottom: -1px;
+  padding: 0 8px;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease;
+}
+
+.sectionTab:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.sectionTabActive {
+  color: var(--accent-primary);
+  border-bottom-color: var(--accent-primary);
+}
+
+.sectionTab:focus-visible,
+.sectionTabActive:focus-visible {
+  outline: 1px solid var(--accent-primary);
+  outline-offset: -3px;
+}
+
+.tabPanel {
+  min-width: 0;
+  padding-top: 20px;
+}
+
+.tabPanel > .controlSection:first-child,
+.tabPanel > .catalogSection:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.controlSection,
+.catalogSection {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-primary);
+}
+
+.sectionHeader,
+.catalogHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sectionHeader h4,
+.catalogHeader h4,
+.hatchHeader h4 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.switchLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.switchLabel input {
+  accent-color: var(--accent-primary);
+}
+
+.previewAndControls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+  width: 100%;
+  margin-top: 20px;
+}
+
+.previewStage {
+  display: grid;
+  place-items: center;
+  width: 176px;
+  max-width: 100%;
+  height: 176px;
+  overflow: hidden;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 6px;
+}
+
+.spritePreview {
+  display: block;
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  background-size: 800% auto;
+  image-rendering: pixelated;
+}
+
+.spritePreview {
+  width: 104px;
+  height: 113px;
+  animation: pet-preview-idle 840ms steps(5, end) infinite;
+}
+
+.staticPreview {
+  display: block;
+  width: 112px;
+  height: 112px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.builtinPreview {
+  color: var(--accent-primary);
+  font-size: 70px;
+}
+
+.controls {
+  width: 80%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.controls > .rangeGrid {
+  display: grid;
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.field > span,
+.field > label > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.field select,
+.field input[type='text'],
+.field input[type='number'],
+.searchBox input {
+  min-width: 0;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 4px;
+  outline: none;
+}
+
+.field select {
+  height: 32px;
+  padding: 0 8px;
+}
+
+.field input[type='number'] {
+  height: 30px;
+  padding: 0 8px;
+}
+
+.field input[type='text'] {
+  height: 32px;
+  padding: 0 8px;
+}
+
+.field select:focus,
+.field input[type='text']:focus,
+.field input[type='number']:focus,
+.searchBox:focus-within {
+  border-color: var(--accent-primary);
+}
+
+.field input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent-primary);
+}
+
+.petSelect {
+  position: relative;
+  min-width: 0;
+}
+
+.petSelectTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.petSelectTrigger:focus,
+.petSelectTrigger[aria-expanded='true'] {
+  border-color: var(--accent-primary);
+  outline: none;
+}
+
+.petSelectTrigger > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.petSelectPopover {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 100%;
+  padding: 6px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 4px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 28%);
+}
+
+.petSelectSearch {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 8px;
+  color: var(--text-tertiary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 4px;
+}
+
+.petSelectSearch:focus-within {
+  border-color: var(--accent-primary);
+}
+
+.petSelectSearch input {
+  min-width: 0;
+  flex: 1;
+  height: 28px;
+  padding: 0;
+  color: var(--text-primary);
+  background: transparent;
+  border: 0;
+  outline: none;
+}
+
+.petSelectOptions {
+  max-height: 224px;
+  margin-top: 6px;
+  overflow-y: auto;
+}
+
+.petSelectOption,
+.petSelectOptionActive {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-height: 42px;
+  padding: 6px 8px;
+  color: var(--text-primary);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.petSelectOptionActive {
+  background: var(--bg-hover);
+}
+
+.petSelectOption[aria-selected='true'],
+.petSelectOptionActive[aria-selected='true'] {
+  color: var(--accent-primary);
+}
+
+.petSelectOption small,
+.petSelectOptionActive small {
+  overflow: hidden;
+  color: var(--text-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.petSelectEmpty {
+  padding: 18px 8px;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.aliasField {
+  display: grid;
+  gap: 5px;
+}
+
+.aliasField p {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.aliasEditor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+}
+
+.rangeGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.basicHeaderContent,
+.bubbleHeaderContent {
+  width: 100%;
+}
+
+.basicActions,
+.bubbleActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 30px;
+  min-height: 32px;
+  margin-top: 12px;
+}
+
+.catalogActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.secondaryButton,
+.primaryButton,
+.dangerButton,
+.iconButton,
+.pageButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.secondaryButton {
+  justify-self: start;
+}
+
+.secondaryButton:hover,
+.iconButton:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+.iconButton {
+  width: 30px;
+  padding: 0;
+}
+
+.primaryButton {
+  color: var(--text-white);
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+.primaryButton:hover {
+  background: var(--accent-primary-hover);
+}
+
+.dangerButton {
+  color: var(--color-error);
+}
+
+.dangerButton:hover {
+  background: color-mix(in srgb, var(--color-error) 12%, transparent);
+  border-color: var(--color-error);
+}
+
+.secondaryButton:disabled,
+.primaryButton:disabled,
+.dangerButton:disabled,
+.iconButton:disabled,
+.pageButton:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 34px;
+  margin: 20px 0 18px;
+  padding: 0 10px;
+  color: var(--text-tertiary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 4px;
+}
+
+.repositorySettings {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.hatchForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  width: 100%;
+  margin-top: 18px;
+}
+
+.hatchDescriptionField,
+.referencePicker,
+.hatchActions {
+  grid-column: auto;
+}
+
+.hatchHeader {
+  display: grid;
+  gap: 10px;
+}
+
+.hatchTitleRow,
+.hatchDirectoryRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hatchTitleRow h4 {
+  margin-right: 4px;
+}
+
+.hatchDescriptionField textarea {
+  min-height: 72px;
+  padding: 8px;
+  resize: vertical;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 4px;
+  outline: none;
+}
+
+.referencePicker,
+.hatchActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hatchActions {
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.pathText {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-family: var(--code-font-family, monospace);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skillStatus {
+  padding: 3px 7px;
+  border: 1px solid var(--border-secondary);
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.skillStatus_installed { color: var(--color-success); }
+.skillStatus_broken { color: var(--color-warning); }
+.skillStatus_missing,
+.skillStatus_loading { color: var(--text-tertiary); }
+
+.bubbleSettings {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  width: 100%;
+  margin-top: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.placeholderHint {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.placeholderTitle {
+  font-weight: 600;
+}
+
+.placeholderTableWrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.placeholderTable {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.placeholderTable th,
+.placeholderTable td {
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+  border: 1px solid var(--border-primary);
+}
+
+.placeholderTable th {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  font-weight: 600;
+}
+
+.placeholderTable th:first-child,
+.placeholderTable td:first-child {
+  width: 130px;
+  white-space: nowrap;
+}
+
+.placeholderTable code {
+  padding: 2px 6px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 4px;
+}
+
+.templateGrid {
+  display: inline-grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  width: 100%;
+  margin-top: 16px;
+}
+
+.templateField {
+  display: grid;
+  gap: 7px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.templateField textarea {
+  min-width: 0;
+  min-height: 74px;
+  padding: 8px;
+  resize: vertical;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 4px;
+  outline: none;
+  line-height: 1.4;
+}
+
+.templateField textarea:focus {
+  border-color: var(--accent-primary);
+}
+
+.searchBox input {
+  flex: 1;
+  height: 30px;
+  padding: 0;
+  border: 0;
+}
+
+.catalogGrid {
+  display: grid;
+  gap: 8px;
+}
+
+.petCard {
+  display: grid;
+  grid-template-rows: 96px minmax(40px, auto) 30px;
+  gap: 7px;
+  min-width: 0;
+  padding: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+}
+
+.remotePreview {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(88px, 100%);
+  max-height: 96px;
+  aspect-ratio: 11 / 12;
+  margin: 0 auto;
+  overflow: hidden;
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  background-size: 800% auto;
+  image-rendering: pixelated;
+}
+
+.remotePreviewLoaded {
+  animation: pet-preview-idle 840ms steps(5, end) infinite;
+}
+
+.previewError {
+  color: var(--color-error);
+  font-size: 22px;
+}
+
+.petInfo {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+}
+
+.petInfo strong,
+.petInfo span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.petInfo strong {
+  font-size: 13px;
+}
+
+.petInfo span {
+  margin-top: 3px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.installedLabel {
+  align-self: center;
+  color: var(--color-success);
+  font-size: 12px;
+  text-align: center;
+}
+
+.errorState,
+.emptyState,
+.loadingState {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 64px;
+  margin-bottom: 12px;
+  color: var(--text-tertiary);
+}
+
+.errorState {
+  color: var(--color-error);
+}
+
+.spinning {
+  animation: pet-spin 900ms linear infinite;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-height: 32px;
+  margin-top: 16px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.pageButton {
+  width: 30px;
+  padding: 0;
+}
+
+.pageJump {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pageJump input {
+  width: 58px;
+  height: 30px;
+  padding: 0 8px;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 4px;
+  outline: none;
+}
+
+.pageJump input:focus {
+  border-color: var(--accent-primary);
+}
+
+.pageButton:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+@keyframes pet-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pet-preview-idle {
+  from { background-position-x: 0; }
+  to { background-position-x: 71.4286%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spritePreview,
+  .remotePreviewLoaded {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .sectionHeader,
+  .catalogHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .repositorySettings {
+    grid-template-columns: 1fr;
+  }
+
+  .basicActions,
+  .bubbleActions {
+    flex-wrap: wrap;
+    gap: 10px 16px;
+  }
+
+  .placeholderTable th:first-child,
+  .placeholderTable td:first-child {
+    width: 108px;
+  }
+}

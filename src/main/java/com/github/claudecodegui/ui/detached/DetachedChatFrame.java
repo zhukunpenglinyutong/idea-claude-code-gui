@@ -269,7 +269,7 @@ public class DetachedChatFrame extends JFrame {
                 originalContent.repaint();
 
                 // Unregister from DetachedWindowManager before disposing the frame
-                DetachedWindowManager.unregisterDetached(this.project, this.chatWindow.getSessionId());
+                DetachedWindowManager.unregisterDetached(this.project, this);
 
                 // Close this window
                 dispose();
@@ -303,7 +303,7 @@ public class DetachedChatFrame extends JFrame {
     private void disposeSessionImmediately(boolean syncTabState) {
         try {
             // Unregister from DetachedWindowManager
-            DetachedWindowManager.unregisterDetached(this.project, this.chatWindow.getSessionId());
+            DetachedWindowManager.unregisterDetached(this.project, this);
 
             // Dispose the chat window (this will clean up all resources)
             this.chatWindow.dispose();

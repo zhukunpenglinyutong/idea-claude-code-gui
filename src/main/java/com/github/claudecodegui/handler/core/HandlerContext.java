@@ -8,6 +8,9 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.ui.jcef.JBCefBrowser;
 
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
+
 /**
  * Handler context.
  * Provides all shared resources and callbacks needed by handlers.
@@ -22,6 +25,9 @@ public class HandlerContext {
     private final CodexSDKBridge codexSDKBridge;
     private final CodemossSettingsService settingsService;
     private final JsCallback jsCallback;
+    private final BooleanSupplier activeContentSupplier;
+    private final Supplier<String> contentTitleSupplier;
+    private volatile Runnable contentActivator = () -> { };
 
     // Mutable state accessed via getters/setters — volatile for thread safety
     private volatile ClaudeSession session;
@@ -45,11 +51,25 @@ public class HandlerContext {
             CodemossSettingsService settingsService,
             JsCallback jsCallback
     ) {
+        this(project, claudeSDKBridge, codexSDKBridge, settingsService, jsCallback, () -> true, () -> null);
+    }
+
+    public HandlerContext(
+            Project project,
+            ClaudeSDKBridge claudeSDKBridge,
+            CodexSDKBridge codexSDKBridge,
+            CodemossSettingsService settingsService,
+            JsCallback jsCallback,
+            BooleanSupplier activeContentSupplier,
+            Supplier<String> contentTitleSupplier
+    ) {
         this.project = project;
         this.claudeSDKBridge = claudeSDKBridge;
         this.codexSDKBridge = codexSDKBridge;
         this.settingsService = settingsService;
         this.jsCallback = jsCallback;
+        this.activeContentSupplier = activeContentSupplier == null ? () -> true : activeContentSupplier;
+        this.contentTitleSupplier = contentTitleSupplier == null ? () -> null : contentTitleSupplier;
     }
 
     // Getters
@@ -105,6 +125,28 @@ public class HandlerContext {
         return disposed;
     }
 
+    public boolean isActiveContent() {
+        try {
+            return activeContentSupplier.getAsBoolean();
+        } catch (RuntimeException e) {
+            return true;
+        }
+    }
+
+    public String getContentTitle() {
+        try {
+            return contentTitleSupplier.get();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    public void activateContent() {
+        if (!disposed) {
+            contentActivator.run();
+        }
+    }
+
     // Setters
     public void setSession(ClaudeSession session) {
         this.session = session;
@@ -124,6 +166,10 @@ public class HandlerContext {
 
     public void setDisposed(boolean disposed) {
         this.disposed = disposed;
+    }
+
+    public void setContentActivator(Runnable contentActivator) {
+        this.contentActivator = contentActivator == null ? () -> { } : contentActivator;
     }
 
     // JavaScript callback proxy methods

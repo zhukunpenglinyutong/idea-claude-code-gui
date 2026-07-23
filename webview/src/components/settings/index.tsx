@@ -18,6 +18,7 @@ import PromptSection from './PromptSection';
 import CommitSection from './CommitSection';
 import PromptEnhancerSection from './PromptEnhancerSection';
 import OtherSettingsSection from './OtherSettingsSection';
+import PetSettingsSection from './PetSettingsSection';
 import { SkillsSettingsSection } from '../skills';
 import SettingsDialogs from './SettingsDialogs';
 import { setNewSessionConfirmEnabled as persistNewSessionConfirmEnabled } from '../../utils/skipNewSessionConfirm';
@@ -645,6 +646,10 @@ const SettingsView = ({
           {/* Skills */}
           <div style={currentTab === 'skills' ? BLOCK_STYLE : NONE_STYLE}>
             <SkillsSettingsSection currentProvider={currentProvider} />
+          </div>
+
+          <div style={currentTab === 'pet' ? BLOCK_STYLE : NONE_STYLE}>
+            {currentTab === 'pet' && <PetSettingsSection addToast={addToast} />}
           </div>
 
           {/* Other settings */}

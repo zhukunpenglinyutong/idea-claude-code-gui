@@ -21,6 +21,13 @@ public class ClaudeSessionTest {
         assertEquals("/workspace/demo", session.getCwd());
     }
 
+    @Test
+    public void hasNoTurnStartTimestampBeforeFirstSubmission() {
+        ClaudeSession session = new ClaudeSession(null, null, null);
+
+        assertEquals(0L, session.getLastTurnStartedAtMillis());
+    }
+
     private static class RecordingCallback implements ClaudeSession.SessionCallback {
         private String lastSessionId;
 

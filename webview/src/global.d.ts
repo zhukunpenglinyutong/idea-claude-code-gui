@@ -165,6 +165,16 @@ interface Window {
    * Show AskUserQuestion dialog
    */
   showAskUserQuestionDialog?: (json: string) => void;
+  updateCodexPets?: (json: string) => void;
+  updateCodexPetPreview?: (json: string) => void;
+  onCodexPetAssetsChanged?: () => void;
+  updateCodexPetConfig?: (json: string) => void;
+  updatePetdexCatalog?: (json: string) => void;
+  updatePetdexPreview?: (json: string) => void;
+  onCodexPetOperation?: (json: string) => void;
+  updateHatchPetStatus?: (json: string) => void;
+  updateHatchPetReference?: (json: string) => void;
+  onHatchPetCommandPrepared?: (json: string) => void;
 
   /**
    * Show PlanApproval dialog

@@ -146,11 +146,7 @@ public class DetachTabAction extends AnAction implements DumbAware {
 
                 // Register the detached window
                 String sessionId = chatWindow.getSessionId();
-                if (sessionId != null) {
-                    DetachedWindowManager.registerDetached(project, sessionId, detachedFrame);
-                } else {
-                    LOG.warn("[DetachTabAction] SessionId is null for: " + tabName);
-                }
+                DetachedWindowManager.registerDetached(project, sessionId, detachedFrame);
 
                 // Show the detached window
                 detachedFrame.setVisible(true);
