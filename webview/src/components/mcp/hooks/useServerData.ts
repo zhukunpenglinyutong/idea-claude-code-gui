@@ -6,7 +6,37 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { McpServer, McpServerStatusInfo, ServerToolsState, RefreshLog, CacheKeys } from '../types';
 import { sendToJava } from '../../../utils/bridge';
-import { readCache, readToolsCache, writeCache } from '../utils';
+import { clearToolsCache, readCache, readToolsCache, writeCache } from '../utils';
+
+const TERMINAL_DISCONNECT_STATUSES = new Set<McpServerStatusInfo['status']>([
+  'failed',
+  'needs-auth',
+  'disabled',
+]);
+
+function normalizeServerKey(value: string | undefined): string {
+  return value?.trim().toLowerCase() ?? '';
+}
+
+function getTerminalStatusNames(statusList: McpServerStatusInfo[]): Set<string> {
+  return new Set(
+    statusList
+      .filter((status) => TERMINAL_DISCONNECT_STATUSES.has(status.status))
+      .map((status) => normalizeServerKey(status.name))
+      .filter(Boolean),
+  );
+}
+
+function getTerminalServerIds(servers: McpServer[], terminalStatusNames: Set<string>): string[] {
+  if (terminalStatusNames.size === 0) {
+    return [];
+  }
+
+  return servers
+    .filter((server) => terminalStatusNames.has(normalizeServerKey(server.id))
+      || terminalStatusNames.has(normalizeServerKey(server.name)))
+    .map((server) => server.id);
+}
 
 export interface UseServerDataOptions {
   isCodexMode: boolean;
@@ -48,7 +78,7 @@ export function useServerData({
   onLog
 }: UseServerDataOptions): UseServerDataReturn {
   // State
-  const [servers, setServers] = useState<McpServer[]>([]);
+  const [servers, setServersState] = useState<McpServer[]>([]);
   const [serverStatus, setServerStatus] = useState<Map<string, McpServerStatusInfo>>(new Map());
   const [loading, setLoading] = useState(true);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -57,6 +87,41 @@ export function useServerData({
 
   // Refs
   const refreshTimersRef = useRef<number[]>([]);
+  const serversRef = useRef<McpServer[]>([]);
+  const terminalStatusNamesRef = useRef<Set<string>>(new Set());
+
+  const setServers = useCallback((value: React.SetStateAction<McpServer[]>) => {
+    if (typeof value !== 'function') {
+      serversRef.current = value;
+      setServersState(value);
+      return;
+    }
+
+    setServersState((previous) => {
+      const next = value(previous);
+      serversRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const clearToolsForTerminalStatuses = useCallback((
+    currentServers: McpServer[],
+    terminalStatusNames: Set<string>,
+  ) => {
+    const terminalServerIds = getTerminalServerIds(currentServers, terminalStatusNames);
+    if (terminalServerIds.length === 0) {
+      return;
+    }
+
+    terminalServerIds.forEach((serverId) => clearToolsCache(serverId, cacheKeys));
+    setServerTools((previous) => {
+      const next = { ...previous };
+      terminalServerIds.forEach((serverId) => {
+        delete next[serverId];
+      });
+      return next;
+    });
+  }, [cacheKeys]);
 
   // Load server list
   const loadServers = useCallback(() => {
@@ -141,6 +206,7 @@ export function useServerData({
 
     // Load data from cache
     const loadFromCache = (): boolean => {
+      terminalStatusNamesRef.current = new Set();
       const cachedServers = readCache<McpServer[]>(cacheKeys.SERVERS, cacheKeys);
       const hasValidCache = !!cachedServers && cachedServers.length > 0;
 
@@ -156,6 +222,9 @@ export function useServerData({
       if (!isCodexMode) {
         const cachedStatus = readCache<McpServerStatusInfo[]>(cacheKeys.STATUS, cacheKeys);
         if (cachedStatus && cachedStatus.length > 0) {
+          const terminalStatusNames = getTerminalStatusNames(cachedStatus);
+          terminalStatusNamesRef.current = terminalStatusNames;
+          clearToolsForTerminalStatuses(cachedServers || [], terminalStatusNames);
           const statusMap = new Map<string, McpServerStatusInfo>();
           cachedStatus.forEach((status) => {
             statusMap.set(status.name, status);
@@ -209,7 +278,7 @@ export function useServerData({
     return () => {
       clearRefreshTimers();
     };
-  }, [cacheKeys, isCodexMode, loadServers, loadServerStatus, t, onLog]);
+  }, [cacheKeys, isCodexMode, loadServers, loadServerStatus, t, onLog, clearToolsForTerminalStatuses]);
 
   // Register server list update callback
   useEffect(() => {
@@ -217,6 +286,7 @@ export function useServerData({
       try {
         const serverList: McpServer[] = JSON.parse(jsonStr);
         setServers(serverList);
+        clearToolsForTerminalStatuses(serverList, terminalStatusNamesRef.current);
         setLoading(false);
         // Persist to cache so subsequent mounts can load instantly
         writeCache(cacheKeys.SERVERS, serverList);
@@ -236,29 +306,9 @@ export function useServerData({
           statusMap.set(status.name, status);
         });
         setServerStatus(statusMap);
-        const terminalDisconnectStatuses = new Set<McpServerStatusInfo['status']>([
-          'failed',
-          'needs-auth',
-          'disabled',
-        ]);
-        const disconnectedNames = new Set(
-          statusList
-            .filter((status) => terminalDisconnectStatuses.has(status.status))
-            .map((status) => status.name.toLowerCase()),
-        );
-        if (disconnectedNames.size > 0) {
-          setServerTools((previous) => {
-            const next = { ...previous };
-            servers.forEach((server) => {
-              const serverId = server.id.toLowerCase();
-              const serverName = (server.name || '').toLowerCase();
-              if (disconnectedNames.has(serverId) || (serverName && disconnectedNames.has(serverName))) {
-                delete next[server.id];
-              }
-            });
-            return next;
-          });
-        }
+        const terminalStatusNames = getTerminalStatusNames(statusList);
+        terminalStatusNamesRef.current = terminalStatusNames;
+        clearToolsForTerminalStatuses(serversRef.current, terminalStatusNames);
         setStatusLoading(false);
         // Persist status to cache
         writeCache(cacheKeys.STATUS, statusList);
@@ -305,7 +355,7 @@ export function useServerData({
         window.updateMcpServerStatus = undefined;
       }
     };
-  }, [isCodexMode, servers, t, onLog]);
+  }, [isCodexMode, t, onLog, clearToolsForTerminalStatuses, setServers]);
 
   return {
     // State

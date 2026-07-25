@@ -116,6 +116,7 @@ export function useServerManagement({
 
     // A toggle invalidates the previous tool result. This forces a fresh
     // tools/list request after the server becomes connected again.
+    clearToolsCache(server.id, cacheKeys);
     setServerTools(prev => {
       const next = { ...prev };
       delete next[server.id];
@@ -132,7 +133,7 @@ export function useServerManagement({
 
     loadServers();
     loadServerStatus();
-  }, [isCodexMode, messagePrefix, onToast, t, loadServers, loadServerStatus]);
+  }, [isCodexMode, messagePrefix, cacheKeys, setServerTools, onToast, t, loadServers, loadServerStatus]);
 
   return {
     serverRefreshStates,
