@@ -65,6 +65,10 @@ interface MessageListProps {
   onNavigateToDependencySettings?: () => void;
   /** Current active provider id; forwarded to MessageItem for streaming-connect label. */
   currentProvider?: string;
+  /** Callback when user clicks the rollback button on a user message */
+  onRollbackUserMessage?: (messageIndex: number, message: ClaudeMessage) => void;
+  /** Whether a rollback operation is currently in progress */
+  isRollingBack?: boolean;
 }
 
 export const MessageList = memo(forwardRef<MessageListRevealHandle, MessageListProps>(function MessageList({
@@ -84,6 +88,8 @@ export const MessageList = memo(forwardRef<MessageListRevealHandle, MessageListP
   onNavigateToProviderSettings,
   onNavigateToDependencySettings,
   currentProvider,
+  onRollbackUserMessage,
+  isRollingBack = false,
 }, ref) {
   // Number of earlier messages revealed beyond VISIBLE_MESSAGE_WINDOW. Grows in
   // page-size chunks as the user clicks "show earlier", avoiding a single huge
@@ -188,6 +194,8 @@ export const MessageList = memo(forwardRef<MessageListRevealHandle, MessageListP
             onNavigateToDependencySettings={onNavigateToDependencySettings}
             toolResultSignature={toolResultSignature}
             currentProvider={currentProvider}
+            onRollback={onRollbackUserMessage}
+            isRollingBack={isRollingBack}
           />
         );
       })}

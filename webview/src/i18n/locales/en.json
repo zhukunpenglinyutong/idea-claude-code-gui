@@ -1839,6 +1839,24 @@
     "notAvailable": "Rewind not available for this session",
     "parseError": "Failed to parse result"
   },
+  "rollback": {
+    "title": "Reset to this point?",
+    "tooltip": "Rollback to here",
+    "rollbackTo": "Rollback to",
+    "impact": "Impact",
+    "confirmMessage": "This will discard all messages after this point.",
+    "messagesAffected_one": "{{count}} message will be discarded",
+    "messagesAffected_other": "{{count}} messages will be discarded",
+    "fileChangesReverted_one": "{{count}} file change will be reverted",
+    "fileChangesReverted_other": "{{count}} file changes will be reverted",
+    "noFileChanges": "No file changes to revert",
+    "cannotUndo": "This action cannot be undone.",
+    "confirm": "Reset",
+    "cancel": "Cancel",
+    "restoring": "Reverting changes...",
+    "success": "Successfully rolled back",
+    "failed": "Rollback failed"
+  },
   "reasoning": {
     "title": "Select reasoning depth",
     "low": {

@@ -39,6 +39,10 @@ export interface MessageItemProps {
   toolResultSignature?: string;
   /** Current active provider id (e.g. 'claude', 'codex'); drives the streaming-connect label. */
   currentProvider?: string;
+  /** Callback when user clicks the rollback button on a user message */
+  onRollback?: (messageIndex: number, message: ClaudeMessage) => void;
+  /** Whether a rollback operation is currently in progress */
+  isRollingBack?: boolean;
 }
 
 /** Map provider id to a human-readable label used in UI text. */
@@ -60,6 +64,14 @@ const CopyIcon = () => (
   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M4 4l0 8a2 2 0 0 0 2 2l8 0a2 2 0 0 0 2 -2l0 -8a2 2 0 0 0 -2 -2l-8 0a2 2 0 0 0 -2 2zm2 0l8 0l0 8l-8 0l0 -8z" fill="currentColor" fillOpacity="0.9"/>
     <path d="M2 2l0 8l-2 0l0 -8a2 2 0 0 1 2 -2l8 0l0 2l-8 0z" fill="currentColor" fillOpacity="0.6"/>
+  </svg>
+);
+
+/** Rollback icon SVG */
+const RollbackIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M5 3.5L1.5 7L5 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M1.5 7L9.5 7C12 7 14 8.5 14 11.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
   </svg>
 );
 
@@ -335,6 +347,8 @@ export const MessageItem = memo(function MessageItem({
   onNavigateToDependencySettings,
   toolResultSignature: _toolResultSignature,
   currentProvider,
+  onRollback,
+  isRollingBack = false,
 }: MessageItemProps): React.ReactElement {
   const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
   const [showStreamingConnectHint, setShowStreamingConnectHint] = useState(false);
@@ -706,6 +720,22 @@ export const MessageItem = memo(function MessageItem({
               copyLabel={t('markdown.copyMessage')}
               copySuccessText={t('markdown.copySuccess')}
             />
+          )}
+          {onRollback && !streamingActive && !isRollingBack && !isLast && (
+            <button
+              type="button"
+              className="message-rollback-btn"
+              onClick={() => onRollback(messageIndex, message)}
+              title={t('rollback.tooltip', 'Rollback to here')}
+              aria-label={t('rollback.tooltip', 'Rollback to here')}
+            >
+              <span className="rollback-icon">
+                <RollbackIcon />
+              </span>
+              <span className="rollback-tooltip">
+                {t('rollback.tooltip', 'Rollback to here')}
+              </span>
+            </button>
           )}
         </div>
       )}
