@@ -8,6 +8,7 @@ import type { ServerToolsState, McpTool, RefreshLog, CacheKeys } from '../types'
 import { writeToolsCache } from '../utils';
 
 export interface UseToolsUpdateOptions {
+  isCodexMode: boolean;
   cacheKeys: CacheKeys;
   setServerTools: React.Dispatch<React.SetStateAction<ServerToolsState>>;
   onLog: (message: string, type: RefreshLog['type'], details?: string, serverName?: string, requestInfo?: string, errorReason?: string) => void;
@@ -15,9 +16,10 @@ export interface UseToolsUpdateOptions {
 
 /**
  * Tools List Update Hook
- * Registers window.updateMcpServerTools callback
+ * Registers the provider-specific MCP tools callback.
  */
 export function useToolsUpdate({
+  isCodexMode,
   cacheKeys,
   setServerTools,
   onLog,
@@ -88,8 +90,8 @@ export function useToolsUpdate({
         }));
 
         onLog(
-          `工具列表加载完成: 0 个工具`,
-          'success',
+          `工具列表为空，服务器已连接但没有可用工具`,
+          'warning',
           undefined,
           serverName || serverId
         );
@@ -102,12 +104,18 @@ export function useToolsUpdate({
       }
     };
 
-    // Register on the window object
-    window.updateMcpServerTools = handleToolsUpdate;
+    if (isCodexMode) {
+      window.updateCodexMcpServerTools = handleToolsUpdate;
+    } else {
+      window.updateMcpServerTools = handleToolsUpdate;
+    }
 
-    // Cleanup
     return () => {
-      window.updateMcpServerTools = undefined;
+      if (isCodexMode && window.updateCodexMcpServerTools === handleToolsUpdate) {
+        window.updateCodexMcpServerTools = undefined;
+      } else if (!isCodexMode && window.updateMcpServerTools === handleToolsUpdate) {
+        window.updateMcpServerTools = undefined;
+      }
     };
-  }, [cacheKeys, setServerTools, onLog]);
+  }, [isCodexMode, cacheKeys, setServerTools, onLog]);
 }

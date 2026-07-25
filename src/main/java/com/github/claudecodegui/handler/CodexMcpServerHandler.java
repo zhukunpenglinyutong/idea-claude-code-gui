@@ -22,6 +22,7 @@ import java.util.concurrent.CompletableFuture;
 public class CodexMcpServerHandler extends BaseMessageHandler {
 
     private static final Logger LOG = Logger.getInstance(CodexMcpServerHandler.class);
+    static final String CODEX_MCP_TOOLS_CALLBACK = "window.updateCodexMcpServerTools";
 
     private static final String[] SUPPORTED_TYPES = {
         "get_codex_mcp_servers",
@@ -200,7 +201,7 @@ public class CodexMcpServerHandler extends BaseMessageHandler {
                 .thenAccept(result -> {
                     String resultJson = gson.toJson(result);
                     ApplicationManager.getApplication().invokeLater(() ->
-                        callJavaScript("window.updateMcpServerTools", escapeJs(resultJson))
+                        callJavaScript(CODEX_MCP_TOOLS_CALLBACK, escapeJs(resultJson))
                     );
                 })
                 .exceptionally(e -> {
@@ -222,7 +223,7 @@ public class CodexMcpServerHandler extends BaseMessageHandler {
         errorResult.add("tools", new com.google.gson.JsonArray());
         String json = gson.toJson(errorResult);
         ApplicationManager.getApplication().invokeLater(() ->
-            callJavaScript("window.updateMcpServerTools", escapeJs(json))
+            callJavaScript(CODEX_MCP_TOOLS_CALLBACK, escapeJs(json))
         );
     }
 

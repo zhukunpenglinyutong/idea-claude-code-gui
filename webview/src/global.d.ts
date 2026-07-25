@@ -286,6 +286,9 @@ interface Window {
    */
   updateMcpServerTools?: (json: string) => void;
 
+  /** Update Codex MCP server tools list. */
+  updateCodexMcpServerTools?: (json: string) => void;
+
   mcpServerToggled?: (json: string) => void;
 
   /**

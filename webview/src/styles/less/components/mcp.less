@@ -8,6 +8,46 @@
     height: 100%;
 }
 
+.mcp-settings-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: 100%;
+}
+
+.mcp-provider-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 3px;
+    width: fit-content;
+    border: 1px solid var(--border-primary);
+    border-radius: 8px;
+    background: var(--bg-secondary);
+}
+
+.mcp-provider-tabs button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.mcp-provider-tabs button:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.mcp-provider-tabs button.active {
+    background: var(--accent-primary);
+    color: var(--text-white);
+}
+
 /* MCP 上下布局容器 */
 .mcp-panels-container {
     display: flex;

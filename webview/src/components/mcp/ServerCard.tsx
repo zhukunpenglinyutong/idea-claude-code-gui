@@ -6,7 +6,7 @@
 import type { McpServer, McpServerStatusInfo } from '../../types/mcp';
 import type { ServerRefreshState, ServerToolsState, McpTool } from './types';
 import { getServerStatusInfo, getStatusIcon, getStatusColor, getStatusText, getIconColor, getServerInitial, isServerEnabled } from './utils';
-import { ServerToolsPanel } from './ServerToolsPanel';
+import { isEmptyToolsResult, ServerToolsPanel } from './ServerToolsPanel';
 
 export interface ServerCardProps {
   server: McpServer;
@@ -54,9 +54,12 @@ export function ServerCard({
       : status;
   const enabled = isServerEnabled(server, isCodexMode);
   const isConnected = effectiveStatus === 'connected';
+  const emptyToolsWarning = hasEmptyToolsWarning(effectiveStatus, toolsInfo, enabled);
 
   const iconStyle: React.CSSProperties = { background: getIconColor(server.id) };
-  const statusColorStyle: React.CSSProperties = { color: getStatusColor(server, effectiveStatus, isCodexMode) };
+  const statusColorStyle: React.CSSProperties = {
+    color: emptyToolsWarning ? 'var(--color-warning)' : getStatusColor(server, effectiveStatus, isCodexMode),
+  };
 
   return (
     <div
@@ -74,9 +77,13 @@ export function ServerCard({
           <span
             className="status-indicator"
             style={statusColorStyle}
-            title={getStatusText(server, effectiveStatus, isCodexMode, t)}
+            title={emptyToolsWarning
+              ? `${getStatusText(server, effectiveStatus, isCodexMode, t)}: ${t('mcp.noTools')}`
+              : getStatusText(server, effectiveStatus, isCodexMode, t)}
           >
-            <span className={`codicon ${getStatusIcon(server, effectiveStatus, isCodexMode)}`}></span>
+            <span className={`codicon ${emptyToolsWarning
+              ? 'codicon-warning'
+              : getStatusIcon(server, effectiveStatus, isCodexMode)}`}></span>
           </span>
         </div>
         <div className="header-right-section" onClick={(e) => e.stopPropagation()}>
@@ -219,4 +226,12 @@ export function ServerCard({
       )}
     </div>
   );
+}
+
+export function hasEmptyToolsWarning(
+  status: McpServerStatusInfo['status'] | undefined,
+  toolsInfo: ServerToolsState[string] | undefined,
+  enabled: boolean,
+): boolean {
+  return enabled && status === 'connected' && isEmptyToolsResult(toolsInfo);
 }

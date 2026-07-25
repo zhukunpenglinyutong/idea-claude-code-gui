@@ -27,6 +27,12 @@ export function ServerToolsPanel({
   onLoadTools,
   onToolHover,
 }: ServerToolsPanelProps) {
+  // Tool results are only meaningful while the server is connected. Keeping a
+  // stale empty result visible after a disconnect makes the panel report
+  // "no tools" instead of the actual connection state.
+  const visibleToolsInfo = isConnected ? toolsInfo : undefined;
+  const emptyToolsResult = isEmptyToolsResult(visibleToolsInfo);
+
   return (
     <div className="server-detail-panel">
       {/* Tools list */}
@@ -46,7 +52,7 @@ export function ServerToolsPanel({
                 <span className="codicon codicon-refresh"></span>
               </button>
             )}
-            {toolsInfo && !toolsInfo.loading && (
+            {visibleToolsInfo && !visibleToolsInfo.loading && (
               <button
                 className="sidebar-icon-btn"
                 onClick={(e) => {
@@ -58,7 +64,7 @@ export function ServerToolsPanel({
                 <span className="codicon codicon-sync"></span>
               </button>
             )}
-            {toolsInfo?.loading && (
+            {visibleToolsInfo?.loading && (
               <span className="sidebar-icon-btn">
                 <span className="codicon codicon-loading codicon-modifier-spin"></span>
               </span>
@@ -67,30 +73,35 @@ export function ServerToolsPanel({
         </div>
 
         <div className="sidebar-content">
-          {!isConnected && !toolsInfo && (
+          {!isConnected && !visibleToolsInfo && (
             <div className="sidebar-section-header">{t('mcp.notConnected')}</div>
           )}
 
-          {toolsInfo?.error && (
+          {visibleToolsInfo?.error && (
             <>
               <div className="sidebar-section-header" style={WARNING_HEADER_STYLE}>
                 {t('mcp.loadFailed')}
               </div>
-              <div className="mcp-load-error-detail">{toolsInfo.error}</div>
+              <div className="mcp-load-error-detail">{visibleToolsInfo.error}</div>
             </>
           )}
 
-          {toolsInfo?.tools && toolsInfo.tools.length === 0 && (
-            <div className="sidebar-section-header">{t('mcp.noTools')}</div>
+          {emptyToolsResult && (
+            <div
+              className="sidebar-section-header"
+              style={isConnected ? WARNING_HEADER_STYLE : undefined}
+            >
+              {t('mcp.noTools')}
+            </div>
           )}
 
-          {toolsInfo?.tools && toolsInfo.tools.length > 0 && (
+          {visibleToolsInfo?.tools && visibleToolsInfo.tools.length > 0 && (
             <>
               <div className="sidebar-section-header">
-                {t('mcp.tools')} ({toolsInfo.tools.length})
+                {t('mcp.tools')} ({visibleToolsInfo.tools.length})
               </div>
               <div className="sidebar-tool-list">
-                {toolsInfo.tools.map((tool, index) => (
+                {visibleToolsInfo.tools.map((tool, index) => (
                   <div
                     key={index}
                     className="sidebar-tool-item"
@@ -123,4 +134,11 @@ export function ServerToolsPanel({
       </div>
     </div>
   );
+}
+
+export function isEmptyToolsResult(toolsInfo: ServerToolsState[string] | undefined): boolean {
+  return toolsInfo != null
+    && !toolsInfo.loading
+    && !toolsInfo.error
+    && toolsInfo.tools.length === 0;
 }
