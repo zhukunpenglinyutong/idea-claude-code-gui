@@ -101,6 +101,7 @@ public class RollbackHandler extends BaseMessageHandler {
             // Remove the target user message itself from the chat — the user's
             // text is restored to the input box so they can edit and re-send.
             int keepCount = targetIndex;
+
             if (keepCount >= messages.size()) {
                 sendResult(true, "No messages to discard");
                 return;
@@ -117,10 +118,7 @@ public class RollbackHandler extends BaseMessageHandler {
             // 2. Truncate in-memory messages
             state.truncateMessages(keepCount);
 
-            // 3. Truncate JSONL on disk (survives IDE restart)
-            truncateSessionJsonl(state, messageUuid);
-
-            // 4. Reset daemon runtime
+            // 3. Reset daemon runtime
             try {
                 context.getClaudeSDKBridge().resetPersistentRuntime(
                     state.getRuntimeSessionEpoch());
@@ -128,7 +126,20 @@ public class RollbackHandler extends BaseMessageHandler {
                 LOG.warn("[RollbackHandler] Daemon reset failed: " + e.getMessage());
             }
 
-            // 5. Push truncated list to frontend
+            // 4. Truncate JSONL on disk (or delete + reset sessionId if empty)
+            if (keepCount == 0) {
+                deleteSessionJsonl(state);
+                // Set sessionId to null so the SDK starts a fresh conversation
+                // (--resume with a non-existent session would fail).
+                state.setSessionId(null);
+                state.setChannelId(null);
+                state.rotateRuntimeSessionEpoch();
+                LOG.info("[RollbackHandler] Session reset — sessionId cleared");
+            } else {
+                truncateSessionJsonl(state, messageUuid);
+            }
+
+            // 5. Push result to frontend
             List<ClaudeSession.Message> truncated = state.getMessagesReference();
             String truncatedJson = MessageJsonConverter.convertMessagesToJson(truncated);
 
@@ -144,7 +155,24 @@ public class RollbackHandler extends BaseMessageHandler {
         }
     }
 
-    // ── JSONL truncation ────────────────────────────────────────────────
+    // ── JSONL operations ────────────────────────────────────────────────
+
+    /** Delete the session JSONL file when resetting to empty state. */
+    private void deleteSessionJsonl(SessionState state) {
+        String sessionId = state.getSessionId();
+        if (sessionId == null || sessionId.isEmpty()) {
+            return;
+        }
+        try {
+            Path jsonlPath = buildJsonlPath(state.getCwd(), sessionId);
+            if (Files.exists(jsonlPath)) {
+                Files.delete(jsonlPath);
+                LOG.info("[RollbackHandler] Deleted JSONL: " + jsonlPath);
+            }
+        } catch (IOException e) {
+            LOG.warn("[RollbackHandler] Failed to delete JSONL: " + e.getMessage());
+        }
+    }
 
     private void truncateSessionJsonl(SessionState state, String messageUuid) {
         String sessionId = state.getSessionId();

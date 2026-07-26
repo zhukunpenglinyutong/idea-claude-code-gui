@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 import type { ClaudeMessage, ClaudeContentBlock, ToolResultBlock } from '../types';
 import { sendToJava } from '../utils/bridge';
-import { collectFileChangesAfterIndex, type UndoFileEntry } from '../utils/collectFileChangesAfterIndex';
+import { collectFileChangesAfterIndex } from '../utils/collectFileChangesAfterIndex';
 import { formatTime } from '../utils/helpers';
 
 export interface RollbackRequest {
@@ -78,8 +78,6 @@ export function useRollbackHandlers(
   const [currentRollbackRequest, setCurrentRollbackRequest] = useState<RollbackRequest | null>(null);
   const [isRollingBack, setIsRollingBack] = useState(false);
 
-  // Store the file changes to revert after message truncation completes
-  const pendingFileChangesRef = useRef<UndoFileEntry[]>([]);
   // Store the original callbacks to restore after interception
   const originalRollbackResultRef = useRef<((json: string) => void) | undefined>(undefined);
   const originalUndoAllResultRef = useRef<((json: string) => void) | undefined>(undefined);
@@ -157,90 +155,86 @@ export function useRollbackHandlers(
     [setDraftInput, resetProcessedFiles, addToast, t],
   );
 
+  /** Send rollback_to_message to Java and wait for onRollbackResult. */
+  const sendRollback = useCallback(
+    (messageContent: string) => {
+      originalRollbackResultRef.current = window.onRollbackResult;
+
+      window.onRollbackResult = (json: string) => {
+        window.onRollbackResult = originalRollbackResultRef.current;
+        try {
+          const r = JSON.parse(json);
+          if (!r.success) {
+            setIsRollingBack(false);
+            addToast(r.message || t('rollback.failed'), 'error');
+            return;
+          }
+          finishRollback(messageContent);
+        } catch {
+          setIsRollingBack(false);
+          addToast(t('rollback.failed'), 'error');
+        }
+      };
+
+      sendToJava('rollback_to_message', {
+        messageUuid: currentRollbackRequest?.messageUuid,
+      });
+    },
+    [currentRollbackRequest, finishRollback, addToast, t],
+  );
+
   const handleRollbackConfirm = useCallback(() => {
     if (!currentRollbackRequest) return;
 
     const { messageIndex, messageContent } = currentRollbackRequest;
 
-    // Collect file changes BEFORE truncation (messages state still has full list)
+    // Collect file changes BEFORE any truncation
     const fileChanges = collectFileChangesAfterIndex(
       messageIndex,
       messages,
       getContentBlocks,
       findToolResult,
     );
-    pendingFileChangesRef.current = fileChanges;
 
     setIsRollingBack(true);
 
-    // Step 1: Intercept onRollbackResult for post-truncation actions
-    originalRollbackResultRef.current = window.onRollbackResult;
+    if (fileChanges.length > 0) {
+      // ── Path A: revert files first, then truncate messages ──
+      originalUndoAllResultRef.current = window.onUndoAllFileResult;
 
-    window.onRollbackResult = (json: string) => {
-      // Restore original handler
-      window.onRollbackResult = originalRollbackResultRef.current;
-
-      try {
-        const result = JSON.parse(json);
-        if (!result.success) {
+      window.onUndoAllFileResult = (undoJson: string) => {
+        window.onUndoAllFileResult = originalUndoAllResultRef.current;
+        try {
+          const r = JSON.parse(undoJson);
+          if (!r.success) {
+            setIsRollingBack(false);
+            addToast(r.error || t('rollback.failed'), 'error');
+            return;
+          }
+          // Files reverted — now truncate messages
+          sendRollback(messageContent);
+        } catch {
           setIsRollingBack(false);
-          addToast(result.message || t('rollback.failed'), 'error');
-          return;
+          addToast(t('rollback.failed'), 'error');
         }
+      };
 
-        // Java already pushed clearMessages + updateMessages with the
-        // truncated list — the UI is already updated at this point.
-
-        // Step 2: If file changes exist, revert them via undo_all_file_changes
-        if (fileChanges.length > 0) {
-          originalUndoAllResultRef.current = window.onUndoAllFileResult;
-
-          window.onUndoAllFileResult = (undoJson: string) => {
-            window.onUndoAllFileResult = originalUndoAllResultRef.current;
-
-            try {
-              const undoResult = JSON.parse(undoJson);
-              if (undoResult.success) {
-                finishRollback(messageContent);
-              } else {
-                setIsRollingBack(false);
-                addToast(
-                  undoResult.error || t('rollback.failed'),
-                  'error',
-                );
-              }
-            } catch {
-              setIsRollingBack(false);
-              addToast(t('rollback.failed'), 'error');
-            }
-          };
-
-          // Send batch undo request to Java
-          const files = fileChanges.map((fc) => ({
-            filePath: fc.filePath,
-            status: fc.status,
-            operations: fc.operations,
-          }));
-          sendToJava('undo_all_file_changes', { files });
-        } else {
-          // No file changes — rollback is complete
-          finishRollback(messageContent);
-        }
-      } catch {
-        setIsRollingBack(false);
-        addToast(t('rollback.failed'), 'error');
-      }
-    };
-
-    // Send rollback request to Java — this finds the message by UUID and
-    // truncates SessionState.messages for persistence across webview reloads.
-    sendToJava('rollback_to_message', { messageUuid: currentRollbackRequest.messageUuid });
+      const files = fileChanges.map((fc) => ({
+        filePath: fc.filePath,
+        status: fc.status,
+        operations: fc.operations,
+      }));
+      sendToJava('undo_all_file_changes', { files });
+    } else {
+      // ── Path B: no files to revert, truncate directly ──
+      sendRollback(messageContent);
+    }
   }, [
     currentRollbackRequest,
     messages,
     getContentBlocks,
     findToolResult,
-    finishRollback,
+    sendRollback,
     addToast,
     t,
   ]);
