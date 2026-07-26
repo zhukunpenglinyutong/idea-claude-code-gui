@@ -29,7 +29,11 @@ import {
   buildErrorPayload
 } from './codex-utils.js';
 import { collectAgentsInstructions } from './codex-agents-loader.js';
-import { createInitialEventState, processCodexEventStream } from './codex-event-handler.js';
+import {
+  createInitialEventState,
+  prepareSessionReplayBoundary,
+  processCodexEventStream,
+} from './codex-event-handler.js';
 
 // ---------------------------------------------------------------------------
 // sendMessage
@@ -249,6 +253,13 @@ export async function sendMessage(
       console.log('[DEBUG] Using string input format');
     }
 
+    const workingDirectory = cwd && cwd.trim() !== '' ? cwd : undefined;
+    const emitMessage = (msg) => {
+      console.log('[MESSAGE]', JSON.stringify(msg));
+    };
+    const state = createInitialEventState(emitMessage);
+    await prepareSessionReplayBoundary(state, threadId);
+
     const turnAbortController = new AbortController();
     const { events } = await thread.runStreamed(runInput, {
       signal: turnAbortController.signal
@@ -259,14 +270,6 @@ export async function sendMessage(
     // ============================================================
     // 7. Delegate Event Processing to codex-event-handler
     // ============================================================
-
-    const workingDirectory = cwd && cwd.trim() !== '' ? cwd : undefined;
-
-    const emitMessage = (msg) => {
-      console.log('[MESSAGE]', JSON.stringify(msg));
-    };
-
-    const state = createInitialEventState(emitMessage);
 
     const config = {
       cwd: workingDirectory,

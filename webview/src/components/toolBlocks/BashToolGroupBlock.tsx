@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
+import { stripAnsi } from '../../utils/stripAnsi';
 
 interface BashItem {
   command: string;
@@ -49,6 +50,7 @@ function parseBashItem(
 
   const command = typeof input.command === 'string' ? input.command : '';
   const description = typeof input.description === 'string' ? input.description : '';
+  if (!command.trim() && !description.trim()) return null;
 
   let output = '';
   if (result) {
@@ -58,6 +60,7 @@ function parseBashItem(
     } else if (Array.isArray(content)) {
       output = content.map((block) => block.text ?? '').join('\n');
     }
+    output = stripAnsi(output);
   }
 
   const isDenied = toolId ? (deniedToolIds?.has(toolId) ?? false) : false;

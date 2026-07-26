@@ -93,9 +93,13 @@
     "attachmentsUploaded": "[Anexos Enviados]",
     "streamingConnected": "{{provider}} conectado, entendendo sua pergunta",
     "showEarlierMessages": "Mostrar {{count}} mensagens anteriores",
+    "showEarlierTurns": "Mostrar {{count}} turnos anteriores (restam {{remaining}} carregados)",
+    "loadEarlierTurns": "Carregar {{count}} turnos anteriores do disco (restam {{remaining}} de {{total}})",
+    "loadingEarlierTurns": "Carregando turnos anteriores...",
     "totalDuration": "Esta resposta levou",
     "tokenUsage": "{{input}} entrada / {{output}} saída",
     "tokenUsageDetail": "Total do turno — entrada {{input}} · gravação de cache {{cacheWrite}} · leitura de cache {{cacheRead}} · saída {{output}}",
+    "cacheHitsWithRatio": " ({{tokens}} acertos de cache, {{ratio}})",
     "search": {
       "ariaLabel": "Pesquisar na conversa",
       "placeholder": "Pesquisar na conversa…",
@@ -261,6 +265,12 @@
         "enabled": "Ativado",
         "disabled": "Desativado",
         "hint": "Quando ativado, exibe uma notificação do sistema quando o Claude faz uma pergunta, para que você não a perca. Quando desativado, nenhuma notificação aparece."
+      },
+      "detailedOutput": {
+        "label": "Informações detalhadas de saída",
+        "enabled": "Ativado",
+        "disabled": "Desativado",
+        "hint": "Quando ativado, o rodapé das mensagens mostra o custo estimado do turno quando disponível e inclui os acertos de cache no resumo de tokens de entrada. O uso de tokens permanece sempre visível."
       },
       "sendShortcut": {
         "label": "Atalho de Envio",
@@ -1601,9 +1611,17 @@
       "tooltipDisabled": "1M contexto não disponível para Haiku"
     },
     "codex": {
-      "gpt53codex": {
-        "label": "GPT-5.3-Codex",
-        "description": "Modelo de codificação agêntico de fronteira mais recente com capacidades aprimoradas."
+      "gpt56sol": {
+        "label": "GPT-5.6 Sol",
+        "description": "Modelo de fronteira para trabalho profissional complexo."
+      },
+      "gpt56terra": {
+        "label": "GPT-5.6 Terra",
+        "description": "Modelo GPT-5.6 que equilibra inteligência e custo."
+      },
+      "gpt56luna": {
+        "label": "GPT-5.6 Luna",
+        "description": "Modelo GPT-5.6 otimizado para cargas de trabalho sensíveis a custo."
       },
       "gpt55": {
         "label": "GPT-5.5",
@@ -1612,30 +1630,6 @@
       "gpt54": {
         "label": "GPT-5.4",
         "description": "Modelo de fronteira mais recente com capacidades aprimoradas."
-      },
-      "gpt52codex": {
-        "label": "GPT-5.2-Codex",
-        "description": "Modelo de codificação agêntico de fronteira."
-      },
-      "gpt51codexMax": {
-        "label": "GPT-5.1-Codex-Max",
-        "description": "Carro-chefe otimizado para Codex com raciocínio profundo e rápido."
-      },
-      "gpt54mini": {
-        "label": "GPT-5.4-Mini",
-        "description": "Modelo de codificação agêntico de fronteira mais leve."
-      },
-      "gpt53codexSpark": {
-        "label": "GPT-5.3-Codex-Spark",
-        "description": "Modelo de codificação ultrarrápido."
-      },
-      "gpt52": {
-        "label": "GPT-5.2",
-        "description": "Otimizado para trabalho profissional e agentes de longa duração."
-      },
-      "gpt51codexMini": {
-        "label": "GPT-5.1-Codex-Mini",
-        "description": "Otimizado para Codex. Mais barato, mais rápido, porém menos capaz."
       }
     }
   },

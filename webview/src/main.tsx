@@ -15,6 +15,7 @@ import { applyLinkifyCapabilitiesPayload } from './utils/linkifyCapabilities';
 import { installRuntimeProviderDispatchers } from './utils/runtimeProviderCapabilities';
 import { sendBridgeEvent } from './utils/bridge';
 import { debugLog } from './utils/debug';
+import { forceWebviewRepaint } from './utils/forceWebviewRepaint';
 import type { UiFontConfig, CodeFontConfig } from './types/uiFontConfig';
 
 // Silence noisy console output in production (including third-party libs).
@@ -671,6 +672,9 @@ if (typeof window !== 'undefined' && !window.showPlanApprovalDialog) {
 if (typeof window !== 'undefined') {
   window.updateLinkifyCapabilities = (json: string) => {
     applyLinkifyCapabilitiesPayload(json);
+  };
+  window.onTabActivated = () => {
+    forceWebviewRepaint('tab-activated');
   };
 }
 

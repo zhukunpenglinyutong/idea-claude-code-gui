@@ -93,9 +93,13 @@
     "attachmentsUploaded": "[अटैचमेंट अपलोड हो गए]",
     "streamingConnected": "{{provider}} कनेक्ट हो गया, आपके प्रश्न को समझ रहा है",
     "showEarlierMessages": "{{count}} पुराने संदेश दिखाएं",
+    "showEarlierTurns": "पहले के {{count}} संवाद दौर दिखाएं ({{remaining}} लोड किए हुए शेष)",
+    "loadEarlierTurns": "डिस्क से पहले के {{count}} दौर लोड करें ({{total}} में से {{remaining}} शेष)",
+    "loadingEarlierTurns": "पहले के संवाद लोड हो रहे हैं...",
     "totalDuration": "इस जवाब में लगा समय",
     "tokenUsage": "{{input}} इन / {{output}} आउट",
     "tokenUsageDetail": "टर्न कुल — इनपुट {{input}} · कैश लेखन {{cacheWrite}} · कैश पठन {{cacheRead}} · आउटपुट {{output}}",
+    "cacheHitsWithRatio": " ({{tokens}} कैश हिट, {{ratio}})",
     "search": {
       "ariaLabel": "बातचीत में खोजें",
       "placeholder": "बातचीत में खोजें...",
@@ -249,6 +253,12 @@
         "enabled": "सक्षम",
         "disabled": "अक्षम",
         "hint": "सक्षम होने पर, Claude द्वारा प्रश्न पूछने पर सिस्टम सूचना दिखाता है ताकि आप इसे मिस न करें। अक्षम होने पर, कोई सूचना नहीं दिखती।"
+      },
+      "detailedOutput": {
+        "label": "विस्तृत आउटपुट जानकारी",
+        "enabled": "चालू",
+        "disabled": "बंद",
+        "hint": "चालू होने पर, उपलब्ध होने पर संदेशों के नीचे अनुमानित टर्न लागत दिखेगी और इनपुट Token सारांश में कैश हिट शामिल होंगे। Token उपयोग हमेशा दिखाई देता रहेगा।"
       },
       "sendShortcut": {
         "label": "भेजने का शॉर्टकट",
@@ -1428,9 +1438,17 @@
       "tooltipDisabled": "Haiku के लिए 1M संदर्भ उपलब्ध नहीं है"
     },
     "codex": {
-      "gpt53codex": {
-        "label": "GPT-5.3-Codex",
-        "description": "नवीनतम फ्रंटियर एजेंटिक कोडिंग मॉडल, उन्नत क्षमताओं के साथ।"
+      "gpt56sol": {
+        "label": "GPT-5.6 Sol",
+        "description": "जटिल पेशेवर कार्यों के लिए फ्रंटियर मॉडल।"
+      },
+      "gpt56terra": {
+        "label": "GPT-5.6 Terra",
+        "description": "बुद्धिमत्ता और लागत में संतुलन वाला GPT-5.6 मॉडल।"
+      },
+      "gpt56luna": {
+        "label": "GPT-5.6 Luna",
+        "description": "लागत-संवेदनशील वर्कलोड के लिए अनुकूलित GPT-5.6 मॉडल।"
       },
       "gpt55": {
         "label": "GPT-5.5",
@@ -1439,30 +1457,6 @@
       "gpt54": {
         "label": "GPT-5.4",
         "description": "उन्नत क्षमताओं के साथ नवीनतम फ्रंटियर मॉडल।"
-      },
-      "gpt52codex": {
-        "label": "GPT-5.2-Codex",
-        "description": "फ्रंटियर एजेंटिक कोडिंग मॉडल।"
-      },
-      "gpt51codexMax": {
-        "label": "GPT-5.1-Codex-Max",
-        "description": "Codex के लिए अनुकूलित फ्लैगशिप मॉडल, गहरी और तेज़ रीज़निंग।"
-      },
-      "gpt54mini": {
-        "label": "GPT-5.4-Mini",
-        "description": "हल्का फ्रंटियर एजेंटिक कोडिंग मॉडल।"
-      },
-      "gpt53codexSpark": {
-        "label": "GPT-5.3-Codex-Spark",
-        "description": "अत्यंत तेज़ कोडिंग मॉडल।"
-      },
-      "gpt52": {
-        "label": "GPT-5.2",
-        "description": "पेशेवर काम और लंबे समय तक चलने वाले एजेंटों के लिए अनुकूलित।"
-      },
-      "gpt51codexMini": {
-        "label": "GPT-5.1-Codex-Mini",
-        "description": "Codex के लिए अनुकूलित। सस्ता और तेज़, लेकिन कम सक्षम।"
       }
     }
   },

@@ -5,6 +5,7 @@ import {
   EFFORT_SUPPORTED_CLAUDE_MODELS,
   MAX_EFFORT_CLAUDE_MODELS,
   XHIGH_EFFORT_CLAUDE_MODELS,
+  codexModelSupportsMaxEffort,
   type ReasoningEffort,
 } from '../types';
 import { useDropdownPosition } from '../../../hooks/useDropdownPosition';
@@ -33,7 +34,7 @@ interface ReasoningSelectProps {
  * ReasoningSelect - Reasoning Effort Selector
  * Controls the depth of reasoning for AI models.
  * Visibility and available levels depend on the selected model:
- * - Codex: low/medium/high/xhigh
+ * - Codex GPT-5.6: low/medium/high/xhigh/max; other Codex models: up to xhigh
  * - Claude Opus 4.8: low/medium/high/xhigh/max
  * - Claude Sonnet 5, Opus 4.6, and Sonnet 4.6: low/medium/high/max
  * - Claude Haiku 4.5 and legacy models: hidden (no adaptive thinking support)
@@ -54,6 +55,9 @@ export const ReasoningSelect = ({ value, onChange, disabled, selectedModel, curr
 
   // Build the list of available levels for the current model
   const availableLevels = REASONING_LEVELS.filter(level => {
+    if (currentProvider === 'codex') {
+      return level.id !== 'max' || (selectedModel !== undefined && codexModelSupportsMaxEffort(selectedModel));
+    }
     if (currentProvider !== 'claude') {
       return level.id !== 'max';
     }

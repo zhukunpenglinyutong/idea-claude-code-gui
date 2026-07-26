@@ -24,6 +24,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1038,7 +1041,20 @@ public class CodemossSettingsService {
      * @throws IOException if reading fails
      */
     public List<JsonObject> getPrompts(PromptScope scope, Project project) throws IOException {
-        return getPromptManager(scope, project).getPrompts();
+        return getPrompts(scope, project, "claude");
+    }
+
+    public List<JsonObject> getPrompts(PromptScope scope, Project project, String provider) throws IOException {
+        String normalizedProvider = normalizePromptProvider(provider);
+        List<JsonObject> result = new ArrayList<>();
+        for (JsonObject prompt : getPromptManager(scope, project).getPrompts()) {
+            if (promptBelongsToProvider(prompt, normalizedProvider)) {
+                JsonObject copy = prompt.deepCopy();
+                copy.addProperty("provider", normalizedProvider);
+                result.add(copy);
+            }
+        }
+        return result;
     }
 
     /**
@@ -1050,7 +1066,23 @@ public class CodemossSettingsService {
      * @throws IOException if writing fails
      */
     public void addPrompt(JsonObject prompt, PromptScope scope, Project project) throws IOException {
-        getPromptManager(scope, project).addPrompt(prompt);
+        addPrompt(prompt, scope, project, "claude");
+    }
+
+    public void addPrompt(JsonObject prompt, PromptScope scope, Project project, String provider) throws IOException {
+        AbstractPromptManager manager = getPromptManager(scope, project);
+        JsonObject copy = prompt.deepCopy();
+        String normalizedProvider = normalizePromptProvider(provider);
+        copy.addProperty("provider", normalizedProvider);
+        if (copy.has("id") && copy.get("id").isJsonPrimitive()) {
+            String id = copy.get("id").getAsString();
+            JsonObject existing = manager.getPrompt(id);
+            if (existing != null && !promptBelongsToProvider(existing, normalizedProvider)) {
+                JsonObject config = manager.readPromptConfig();
+                copy.addProperty("id", manager.generateUniqueId(id, config.getAsJsonObject("prompts")));
+            }
+        }
+        manager.addPrompt(copy);
     }
 
     /**
@@ -1063,7 +1095,19 @@ public class CodemossSettingsService {
      * @throws IOException if writing fails
      */
     public void updatePrompt(String id, JsonObject updates, PromptScope scope, Project project) throws IOException {
-        getPromptManager(scope, project).updatePrompt(id, updates);
+        updatePrompt(id, updates, scope, project, "claude");
+    }
+
+    public void updatePrompt(String id, JsonObject updates, PromptScope scope, Project project, String provider) throws IOException {
+        AbstractPromptManager manager = getPromptManager(scope, project);
+        String normalizedProvider = normalizePromptProvider(provider);
+        JsonObject existing = manager.getPrompt(id);
+        if (!promptBelongsToProvider(existing, normalizedProvider)) {
+            throw new IllegalArgumentException("Prompt with id '" + id + "' not found for provider " + normalizedProvider);
+        }
+        JsonObject copy = updates.deepCopy();
+        copy.addProperty("provider", normalizedProvider);
+        manager.updatePrompt(id, copy);
     }
 
     /**
@@ -1076,7 +1120,17 @@ public class CodemossSettingsService {
      * @throws IOException if writing fails
      */
     public boolean deletePrompt(String id, PromptScope scope, Project project) throws IOException {
-        return getPromptManager(scope, project).deletePrompt(id);
+        return deletePrompt(id, scope, project, "claude");
+    }
+
+    public boolean deletePrompt(String id, PromptScope scope, Project project, String provider) throws IOException {
+        AbstractPromptManager manager = getPromptManager(scope, project);
+        String normalizedProvider = normalizePromptProvider(provider);
+        JsonObject existing = manager.getPrompt(id);
+        if (!promptBelongsToProvider(existing, normalizedProvider)) {
+            return false;
+        }
+        return manager.deletePrompt(id);
     }
 
     /**
@@ -1089,7 +1143,18 @@ public class CodemossSettingsService {
      * @throws IOException if reading fails
      */
     public JsonObject getPrompt(String id, PromptScope scope, Project project) throws IOException {
-        return getPromptManager(scope, project).getPrompt(id);
+        return getPrompt(id, scope, project, "claude");
+    }
+
+    public JsonObject getPrompt(String id, PromptScope scope, Project project, String provider) throws IOException {
+        String normalizedProvider = normalizePromptProvider(provider);
+        JsonObject prompt = getPromptManager(scope, project).getPrompt(id);
+        if (!promptBelongsToProvider(prompt, normalizedProvider)) {
+            return null;
+        }
+        JsonObject copy = prompt.deepCopy();
+        copy.addProperty("provider", normalizedProvider);
+        return copy;
     }
 
     /**
@@ -1103,7 +1168,144 @@ public class CodemossSettingsService {
      * @throws IOException if writing fails
      */
     public Map<String, Object> batchImportPrompts(List<JsonObject> promptsToImport, ConflictStrategy strategy, PromptScope scope, Project project) throws IOException {
-        return getPromptManager(scope, project).batchImportPrompts(promptsToImport, strategy);
+        return batchImportPrompts(promptsToImport, strategy, scope, project, "claude");
+    }
+
+    public Map<String, Object> batchImportPrompts(List<JsonObject> promptsToImport, ConflictStrategy strategy,
+                                                  PromptScope scope, Project project, String provider) throws IOException {
+        AbstractPromptManager manager = getPromptManager(scope, project);
+        String normalizedProvider = normalizePromptProvider(provider);
+        List<JsonObject> scopedPrompts = new ArrayList<>();
+        for (JsonObject prompt : promptsToImport) {
+            JsonObject copy = prompt.deepCopy();
+            copy.addProperty("provider", normalizedProvider);
+            scopedPrompts.add(copy);
+        }
+        return batchImportProviderPrompts(manager, scopedPrompts, strategy, normalizedProvider);
+    }
+
+    public Set<String> detectPromptConflicts(List<JsonObject> promptsToImport, PromptScope scope,
+                                             Project project, String provider) throws IOException {
+        AbstractPromptManager manager = getPromptManager(scope, project);
+        String normalizedProvider = normalizePromptProvider(provider);
+        Set<String> conflicts = new HashSet<>();
+        JsonObject existingPrompts = manager.readPromptConfig().getAsJsonObject("prompts");
+        for (JsonObject prompt : promptsToImport) {
+            if (!prompt.has("id") || !prompt.get("id").isJsonPrimitive()) {
+                continue;
+            }
+            String id = prompt.get("id").getAsString();
+            if (existingPrompts.has(id)
+                    && promptBelongsToProvider(existingPrompts.getAsJsonObject(id), normalizedProvider)) {
+                conflicts.add(id);
+            }
+        }
+        return conflicts;
+    }
+
+    private Map<String, Object> batchImportProviderPrompts(AbstractPromptManager manager,
+                                                           List<JsonObject> promptsToImport,
+                                                           ConflictStrategy strategy,
+                                                           String provider) throws IOException {
+        Map<String, Object> result = new HashMap<>();
+        int imported = 0;
+        int skipped = 0;
+        int updated = 0;
+        List<String> errors = new ArrayList<>();
+
+        JsonObject config = manager.readPromptConfig();
+        JsonObject prompts = config.getAsJsonObject("prompts");
+        Set<String> conflicts = new HashSet<>();
+        for (JsonObject prompt : promptsToImport) {
+            if (!prompt.has("id") || !prompt.get("id").isJsonPrimitive()) {
+                continue;
+            }
+            String id = prompt.get("id").getAsString();
+            if (prompts.has(id) && promptBelongsToProvider(prompts.getAsJsonObject(id), provider)) {
+                conflicts.add(id);
+            }
+        }
+
+        for (JsonObject prompt : promptsToImport) {
+            try {
+                String validationError = manager.validatePrompt(prompt);
+                if (validationError != null) {
+                    errors.add("Validation failed: " + validationError);
+                    skipped++;
+                    continue;
+                }
+
+                String id = prompt.get("id").getAsString();
+                boolean hasSameProviderConflict = conflicts.contains(id);
+
+                if (hasSameProviderConflict) {
+                    switch (strategy) {
+                        case SKIP:
+                            skipped++;
+                            continue;
+                        case OVERWRITE:
+                            JsonObject overwritePrompt = prompt.deepCopy();
+                            overwritePrompt.addProperty("provider", provider);
+                            overwritePrompt.addProperty("updatedAt", System.currentTimeMillis());
+                            prompts.add(id, overwritePrompt);
+                            updated++;
+                            break;
+                        case DUPLICATE:
+                            String duplicateId = manager.generateUniqueId(id, prompts);
+                            JsonObject duplicatePrompt = prompt.deepCopy();
+                            duplicatePrompt.addProperty("id", duplicateId);
+                            duplicatePrompt.addProperty("provider", provider);
+                            if (!duplicatePrompt.has("createdAt")) {
+                                duplicatePrompt.addProperty("createdAt", System.currentTimeMillis());
+                            }
+                            duplicatePrompt.addProperty("updatedAt", System.currentTimeMillis());
+                            prompts.add(duplicateId, duplicatePrompt);
+                            imported++;
+                            break;
+                    }
+                } else {
+                    String targetId = prompts.has(id) ? manager.generateUniqueId(id, prompts) : id;
+                    JsonObject newPrompt = prompt.deepCopy();
+                    newPrompt.addProperty("id", targetId);
+                    newPrompt.addProperty("provider", provider);
+                    if (!newPrompt.has("createdAt")) {
+                        newPrompt.addProperty("createdAt", System.currentTimeMillis());
+                    }
+                    if (!newPrompt.has("updatedAt")) {
+                        newPrompt.addProperty("updatedAt", System.currentTimeMillis());
+                    }
+                    prompts.add(targetId, newPrompt);
+                    imported++;
+                }
+            } catch (Exception e) {
+                errors.add("Failed to import prompt: " + e.getMessage());
+                skipped++;
+            }
+        }
+
+        manager.writePromptConfig(config);
+        result.put("imported", imported);
+        result.put("updated", updated);
+        result.put("skipped", skipped);
+        result.put("errors", errors);
+        result.put("success", errors.isEmpty());
+        return result;
+    }
+
+    public static String normalizePromptProvider(String provider) {
+        return "codex".equalsIgnoreCase(provider) ? "codex" : "claude";
+    }
+
+    private static boolean promptBelongsToProvider(JsonObject prompt, String provider) {
+        if (prompt == null) {
+            return false;
+        }
+        String promptProvider = prompt.has("provider")
+                && prompt.get("provider").isJsonPrimitive()
+                && prompt.get("provider").getAsJsonPrimitive().isString()
+                ? prompt.get("provider").getAsString()
+                : "claude";
+        return normalizePromptProvider(promptProvider).equals(provider);
     }
 
     // ==================== Deprecated Backward-Compatible Methods ====================

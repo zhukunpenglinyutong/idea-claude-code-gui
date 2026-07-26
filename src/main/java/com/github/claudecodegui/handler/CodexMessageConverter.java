@@ -530,7 +530,11 @@ public class CodexMessageConverter {
         toolResult.addProperty("type", "tool_result");
         toolResult.addProperty("tool_use_id", payload.has("call_id") ? payload.get("call_id").getAsString() : "unknown");
 
-        String output = safeGetAsString(payload.get("output"), "");
+        JsonElement outputElement = payload.get("output");
+        String output = extractContentAsString(outputElement);
+        if (output == null || (output.isEmpty() && outputElement != null && outputElement.isJsonArray())) {
+            output = safeGetAsString(outputElement, "");
+        }
         toolResult.addProperty("content", output);
 
         JsonArray content = new JsonArray();
@@ -548,6 +552,13 @@ public class CodexMessageConverter {
         }
 
         return frontendMsg;
+    }
+
+    /**
+     * Convert Codex custom_tool_call_output to the same tool_result protocol used by function calls.
+     */
+    public static JsonObject convertCustomToolCallOutputToToolResult(JsonObject payload, String timestamp) {
+        return convertFunctionCallOutputToToolResult(payload, timestamp);
     }
 
     /**

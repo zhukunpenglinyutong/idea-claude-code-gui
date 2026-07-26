@@ -93,9 +93,13 @@
     "attachmentsUploaded": "[첨부파일 업로드됨]",
     "streamingConnected": "{{provider}} 연결됨, 질문을 이해하는 중",
     "showEarlierMessages": "이전 메시지 {{count}}개 보기",
+    "showEarlierTurns": "이전 {{count}}개 대화 턴 표시 (로드된 턴 {{remaining}}개 남음)",
+    "loadEarlierTurns": "디스크에서 이전 {{count}}개 턴 불러오기 (전체 {{total}}개 중 {{remaining}}개 남음)",
+    "loadingEarlierTurns": "이전 대화를 불러오는 중...",
     "totalDuration": "이번 응답 소요 시간",
     "tokenUsage": "입력 {{input}} / 출력 {{output}}",
     "tokenUsageDetail": "턴 합계 — 입력 {{input}} · 캐시 쓰기 {{cacheWrite}} · 캐시 읽기 {{cacheRead}} · 출력 {{output}}",
+    "cacheHitsWithRatio": " (캐시 히트 {{tokens}}, {{ratio}})",
     "search": {
       "ariaLabel": "대화에서 검색",
       "placeholder": "대화에서 검색...",
@@ -249,6 +253,12 @@
         "enabled": "활성화",
         "disabled": "비활성화",
         "hint": "활성화하면 Claude가 질문할 때 시스템 알림을 표시하여 놓치지 않도록 합니다. 비활성화하면 알림이 표시되지 않습니다."
+      },
+      "detailedOutput": {
+        "label": "자세한 출력 정보",
+        "enabled": "켜짐",
+        "disabled": "꺼짐",
+        "hint": "켜면 사용 가능한 경우 메시지 하단에 이번 턴의 예상 비용을 표시하고 입력 Token 요약 안에 캐시 히트를 함께 표시합니다. Token 사용량은 항상 표시됩니다."
       },
       "sendShortcut": {
         "label": "전송 단축키",
@@ -1546,9 +1556,17 @@
       "tooltipDisabled": "Haiku에서는 1M 컨텍스트를 사용할 수 없습니다"
     },
     "codex": {
-      "gpt53codex": {
-        "label": "GPT-5.3-Codex",
-        "description": "향상된 기능의 최신 프론티어 에이전트 코딩 모델."
+      "gpt56sol": {
+        "label": "GPT-5.6 Sol",
+        "description": "복잡한 전문 작업을 위한 프런티어 모델."
+      },
+      "gpt56terra": {
+        "label": "GPT-5.6 Terra",
+        "description": "지능과 비용의 균형을 맞춘 GPT-5.6 모델."
+      },
+      "gpt56luna": {
+        "label": "GPT-5.6 Luna",
+        "description": "비용 민감형 워크로드에 최적화된 GPT-5.6 모델."
       },
       "gpt55": {
         "label": "GPT-5.5",
@@ -1557,30 +1575,6 @@
       "gpt54": {
         "label": "GPT-5.4",
         "description": "향상된 기능의 최신 프론티어 모델."
-      },
-      "gpt52codex": {
-        "label": "GPT-5.2-Codex",
-        "description": "프론티어 에이전트 코딩 모델."
-      },
-      "gpt51codexMax": {
-        "label": "GPT-5.1-Codex-Max",
-        "description": "깊고 빠른 추론을 위한 Codex 최적화 플래그십."
-      },
-      "gpt54mini": {
-        "label": "GPT-5.4-Mini",
-        "description": "더 가벼운 프론티어 에이전트 코딩 모델."
-      },
-      "gpt53codexSpark": {
-        "label": "GPT-5.3-Codex-Spark",
-        "description": "초고속 코딩 모델."
-      },
-      "gpt52": {
-        "label": "GPT-5.2",
-        "description": "전문 작업과 장시간 에이전트 작업에 최적화."
-      },
-      "gpt51codexMini": {
-        "label": "GPT-5.1-Codex-Mini",
-        "description": "Codex에 최적화. 저렴하고 빠르지만 성능이 낮음."
       }
     }
   },

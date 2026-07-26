@@ -103,6 +103,30 @@ public class CodexHistoryReaderRefactorTest {
     }
 
     @Test
+    public void sessionServiceReadsConcatenatedJsonObjectsFromOnePhysicalLine() throws IOException {
+        Path sessionsDir = Files.createTempDirectory("codex-history-concatenated");
+        try {
+            String first = line("2026-03-10T10:00:00Z", "event_msg",
+                    "{\"type\":\"user_message\",\"message\":\"first\"}");
+            String second = line("2026-03-10T10:01:00Z", "response_item",
+                    "{\"type\":\"message\",\"role\":\"assistant\",\"content\":[]}");
+            writeSessionFile(sessionsDir, "session-concatenated", first + second);
+
+            CodexHistorySessionService service = new CodexHistorySessionService(sessionsDir, gson);
+            Type listType = new TypeToken<List<CodexMessage>>() {}.getType();
+
+            List<CodexMessage> messages = gson.fromJson(
+                    service.getSessionMessagesAsJson("session-concatenated"), listType);
+
+            assertEquals(2, messages.size());
+            assertEquals("event_msg", messages.get(0).type);
+            assertEquals("response_item", messages.get(1).type);
+        } finally {
+            deleteDirectory(sessionsDir);
+        }
+    }
+
+    @Test
     public void indexServiceDeduplicatesSessionsByCanonicalSessionId() {
         SessionInfo first = new SessionInfo();
         first.sessionId = "thread-1";

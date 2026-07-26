@@ -1,5 +1,5 @@
 import type { DropdownItemData } from '../types';
-import type { PromptConfig, PromptScope, GetPromptsMessage } from '../../../types/prompt';
+import type { PromptConfig, PromptProvider, PromptScope, GetPromptsMessage } from '../../../types/prompt';
 import { sendBridgeEvent } from '../../../utils/bridge';
 import i18n from '../../../i18n/config';
 import { debugError, debugLog, debugWarn } from '../../../utils/debug.js';
@@ -13,6 +13,7 @@ export interface PromptItem {
   name: string;
   content: string;
   scope?: PromptScope; // Add scope to track source
+  provider?: PromptProvider;
 }
 
 // ============================================================================
@@ -20,11 +21,13 @@ export interface PromptItem {
 // ============================================================================
 
 type LoadingState = 'idle' | 'loading' | 'success' | 'failed';
+type PromptCallbackPayload = { provider: PromptProvider; prompts: PromptConfig[] };
 
 let cachedGlobalPrompts: PromptItem[] = [];
 let cachedProjectPrompts: PromptItem[] = [];
 let globalLoadingState: LoadingState = 'idle';
 let projectLoadingState: LoadingState = 'idle';
+let activePromptProvider: PromptProvider = 'claude';
 let lastRefreshTime = 0;
 let callbackRegistered = false;
 let retryCount = 0;
@@ -38,6 +41,47 @@ const MAX_PENDING_WAITERS = 10; // Maximum concurrent waiters
 // ============================================================================
 // Core Functions
 // ============================================================================
+
+function normalizePromptProvider(provider?: string | null): PromptProvider {
+  return provider === 'codex' ? 'codex' : 'claude';
+}
+
+function promptOwner(prompt: PromptConfig): PromptProvider {
+  return normalizePromptProvider(prompt.provider);
+}
+
+function setActivePromptProvider(provider?: string | null): PromptProvider {
+  const nextProvider = normalizePromptProvider(provider);
+  if (nextProvider === activePromptProvider) return activePromptProvider;
+  cachedGlobalPrompts = [];
+  cachedProjectPrompts = [];
+  globalLoadingState = 'idle';
+  projectLoadingState = 'idle';
+  lastRefreshTime = 0;
+  retryCount = 0;
+  pendingWaiters.forEach(w => w.reject(new Error('Prompt provider changed')));
+  pendingWaiters = [];
+  activePromptProvider = nextProvider;
+  return activePromptProvider;
+}
+
+function promptToItem(prompt: PromptConfig, scope: PromptScope, provider: PromptProvider): PromptItem {
+  return { id: prompt.id, name: prompt.name, content: prompt.content, scope, provider };
+}
+
+function parsePromptCallbackPayload(json: string): PromptCallbackPayload | null {
+  const parsed: unknown = JSON.parse(json);
+  // Legacy array payloads come from the pre-provider backend and therefore
+  // represent the existing Claude prompt library.
+  if (Array.isArray(parsed)) return { provider: 'claude', prompts: parsed as PromptConfig[] };
+  if (!parsed || typeof parsed !== 'object') return null;
+  const value = parsed as { provider?: unknown; prompts?: unknown };
+  if (!Array.isArray(value.prompts)) return null;
+  return {
+    provider: normalizePromptProvider(typeof value.provider === 'string' ? value.provider : activePromptProvider),
+    prompts: value.prompts as PromptConfig[],
+  };
+}
 
 export function resetPromptsState() {
   cachedGlobalPrompts = [];
@@ -59,17 +103,11 @@ export function setupPromptsCallback() {
     debugLog('[PromptProvider] Received global prompts from backend, length=' + json.length);
 
     try {
-      const parsed = JSON.parse(json);
-      let prompts: PromptItem[] = [];
-
-      if (Array.isArray(parsed)) {
-        prompts = parsed.map((prompt: PromptConfig) => ({
-          id: prompt.id,
-          name: prompt.name,
-          content: prompt.content,
-          scope: 'global' as PromptScope,
-        }));
-      }
+      const payload = parsePromptCallbackPayload(json);
+      if (!payload || payload.provider !== activePromptProvider) return;
+      const prompts = payload.prompts
+        .filter(prompt => promptOwner(prompt) === activePromptProvider)
+        .map(prompt => promptToItem(prompt, 'global', activePromptProvider));
 
       cachedGlobalPrompts = prompts;
       globalLoadingState = 'success';
@@ -89,17 +127,11 @@ export function setupPromptsCallback() {
     debugLog('[PromptProvider] Received project prompts from backend, length=' + json.length);
 
     try {
-      const parsed = JSON.parse(json);
-      let prompts: PromptItem[] = [];
-
-      if (Array.isArray(parsed)) {
-        prompts = parsed.map((prompt: PromptConfig) => ({
-          id: prompt.id,
-          name: prompt.name,
-          content: prompt.content,
-          scope: 'project' as PromptScope,
-        }));
-      }
+      const payload = parsePromptCallbackPayload(json);
+      if (!payload || payload.provider !== activePromptProvider) return;
+      const prompts = payload.prompts
+        .filter(prompt => promptOwner(prompt) === activePromptProvider)
+        .map(prompt => promptToItem(prompt, 'project', activePromptProvider));
 
       cachedProjectPrompts = prompts;
       projectLoadingState = 'success';
@@ -191,7 +223,8 @@ function waitForPrompts(signal: AbortSignal, timeoutMs: number): Promise<void> {
   });
 }
 
-function requestRefresh(force = false): boolean {
+function requestRefresh(force = false, provider?: string): boolean {
+  const requestProvider = setActivePromptProvider(provider ?? activePromptProvider);
   const now = Date.now();
 
   if (!force && now - lastRefreshTime < MIN_REFRESH_INTERVAL) {
@@ -209,8 +242,8 @@ function requestRefresh(force = false): boolean {
   const attempt = force ? 0 : retryCount + 1;
 
   // Request both global and project prompts
-  const globalMessage: GetPromptsMessage = { scope: 'global' };
-  const projectMessage: GetPromptsMessage = { scope: 'project' };
+  const globalMessage: GetPromptsMessage = { scope: 'global', provider: requestProvider };
+  const projectMessage: GetPromptsMessage = { scope: 'project', provider: requestProvider };
 
   const globalSent = sendBridgeEvent('get_prompts', JSON.stringify(globalMessage));
   const projectSent = sendBridgeEvent('get_prompts', JSON.stringify(projectMessage));
@@ -244,13 +277,15 @@ export const EMPTY_STATE_ID = '__empty_state__';
 
 export async function promptProvider(
   query: string,
-  signal: AbortSignal
+  signal: AbortSignal,
+  provider?: string,
 ): Promise<PromptItem[]> {
   if (signal.aborted) {
     throw new DOMException('Aborted', 'AbortError');
   }
 
   setupPromptsCallback();
+  const requestProvider = setActivePromptProvider(provider ?? activePromptProvider);
 
   const now = Date.now();
 
@@ -280,7 +315,7 @@ export async function promptProvider(
   // Attempt to refresh data (non-blocking)
   if ((globalLoadingState === 'idle' || globalLoadingState === 'failed') ||
       (projectLoadingState === 'idle' || projectLoadingState === 'failed')) {
-    requestRefresh();
+    requestRefresh(false, requestProvider);
   } else if (now - lastRefreshTime > LOADING_TIMEOUT) {
     // Handle timeout for each scope separately
     if (globalLoadingState === 'loading') {
@@ -365,7 +400,8 @@ export function promptToDropdownItem(prompt: PromptItem): DropdownItemData {
  * Directly update global prompts cache (called by PromptSection)
  * This ensures cache is always in sync with settings page
  */
-export function updateGlobalPromptsCache(prompts: PromptItem[]) {
+export function updateGlobalPromptsCache(prompts: PromptItem[], provider?: string) {
+  setActivePromptProvider(provider ?? activePromptProvider);
   cachedGlobalPrompts = prompts;
   globalLoadingState = 'success';
   lastRefreshTime = Date.now();
@@ -376,7 +412,8 @@ export function updateGlobalPromptsCache(prompts: PromptItem[]) {
  * Directly update project prompts cache (called by PromptSection)
  * This ensures cache is always in sync with settings page
  */
-export function updateProjectPromptsCache(prompts: PromptItem[]) {
+export function updateProjectPromptsCache(prompts: PromptItem[], provider?: string) {
+  setActivePromptProvider(provider ?? activePromptProvider);
   cachedProjectPrompts = prompts;
   projectLoadingState = 'success';
   lastRefreshTime = Date.now();
@@ -392,7 +429,8 @@ export function updateProjectPromptsCache(prompts: PromptItem[]) {
  * - requestRefresh() has MIN_REFRESH_INTERVAL deduplication protection
  * - Shares state with promptProvider, subsequent calls hit cache directly
  */
-export function preloadPrompts(): void {
+export function preloadPrompts(provider?: string): void {
+  const requestProvider = setActivePromptProvider(provider ?? activePromptProvider);
   // Only preload in idle state, don't interfere with in-progress or completed loads
   if (globalLoadingState !== 'idle' && projectLoadingState !== 'idle') {
     debugLog('[PromptProvider] Preload skipped (globalState=' + globalLoadingState + ', projectState=' + projectLoadingState + ')');
@@ -405,7 +443,7 @@ export function preloadPrompts(): void {
   setupPromptsCallback();
 
   // Request refresh -- built-in deduplication protection
-  requestRefresh();
+  requestRefresh(false, requestProvider);
 }
 
 /**
@@ -413,7 +451,8 @@ export function preloadPrompts(): void {
  * Used when switching to chat view to ensure project prompts are loaded
  * Ignores time interval and retry count limits
  */
-export function forceRefreshPrompts(): void {
+export function forceRefreshPrompts(provider?: string): void {
+  const requestProvider = setActivePromptProvider(provider ?? activePromptProvider);
   debugLog('[PromptProvider] Force refreshing prompts');
 
   // Ensure callback is registered before requesting refresh
@@ -421,7 +460,7 @@ export function forceRefreshPrompts(): void {
 
   // Reset retry count and force refresh
   retryCount = 0;
-  requestRefresh(true);
+  requestRefresh(true, requestProvider);
 }
 
 export default promptProvider;

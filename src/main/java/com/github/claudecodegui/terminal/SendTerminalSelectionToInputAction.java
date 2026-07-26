@@ -60,7 +60,7 @@ public class SendTerminalSelectionToInputAction extends AnAction implements Dumb
 
     @Override
     public @NotNull ActionUpdateThread getActionUpdateThread() {
-        return ActionUpdateThread.EDT;
+        return ActionUpdateThread.BGT;
     }
 
     @Override

@@ -15,6 +15,10 @@ final class TabSessionRestorePolicy {
         return selectedTab && shouldLoadHistory(savedState);
     }
 
+    static boolean shouldStartHistoryLoad(TabStateService.TabSessionState savedState, boolean frontendReady) {
+        return frontendReady && shouldLoadHistory(savedState);
+    }
+
     private static boolean isNonEmpty(String value) {
         return value != null && !value.trim().isEmpty();
     }

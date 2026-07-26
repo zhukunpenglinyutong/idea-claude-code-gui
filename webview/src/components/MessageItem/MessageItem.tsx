@@ -43,6 +43,8 @@ export interface MessageItemProps {
   onRollback?: (messageIndex: number, message: ClaudeMessage) => void;
   /** Whether a rollback operation is currently in progress */
   isRollingBack?: boolean;
+  /** Show opt-in detailed footer extras such as turn cost and cache-hit ratio. */
+  detailedOutputEnabled?: boolean;
 }
 
 /** Map provider id to a human-readable label used in UI text. */
@@ -124,6 +126,7 @@ interface TokenUsageInfo {
   nonCacheInputTokens: number;
   cacheCreationTokens: number;
   cacheReadTokens: number;
+  costUsd?: number;
 }
 
 /**
@@ -152,12 +155,15 @@ function extractTokenUsage(raw: ClaudeMessage['raw']): TokenUsageInfo | null {
   const output = num(usage.output_tokens);
   const input = nonCacheInput + cacheCreation + cacheRead;
   if (input === 0 && output === 0) return null;
+  const rawCost = (raw as Record<string, unknown>).turnCostUsd;
+  const costUsd = typeof rawCost === 'number' && Number.isFinite(rawCost) && rawCost > 0 ? rawCost : undefined;
   return {
     inputTokens: input,
     outputTokens: output,
     nonCacheInputTokens: nonCacheInput,
     cacheCreationTokens: cacheCreation,
     cacheReadTokens: cacheRead,
+    ...(costUsd !== undefined ? { costUsd } : {}),
   };
 }
 
@@ -166,6 +172,19 @@ function formatTokenCount(count: number): string {
   if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
   if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`;
   return String(count);
+}
+
+function formatUsdCost(cost: number): string {
+  if (cost > 0 && cost < 0.0001) return '<$0.0001';
+  if (cost < 0.01) return `$${cost.toFixed(4)}`;
+  if (cost < 1) return `$${cost.toFixed(3)}`;
+  return `$${cost.toFixed(2)}`;
+}
+
+function formatCacheHitRatio(tokenInfo: TokenUsageInfo): string | null {
+  if (tokenInfo.cacheReadTokens <= 0 || tokenInfo.inputTokens <= 0) return null;
+  const ratio = Math.round((tokenInfo.cacheReadTokens / tokenInfo.inputTokens) * 100);
+  return `${Math.min(100, Math.max(0, ratio))}%`;
 }
 
 function isToolBlockOfType(block: ClaudeContentBlock, toolNames: Set<string>): boolean {
@@ -349,6 +368,7 @@ export const MessageItem = memo(function MessageItem({
   currentProvider,
   onRollback,
   isRollingBack = false,
+  detailedOutputEnabled = false,
 }: MessageItemProps): React.ReactElement {
   const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
   const [showStreamingConnectHint, setShowStreamingConnectHint] = useState(false);
@@ -772,6 +792,13 @@ export const MessageItem = memo(function MessageItem({
             {(() => {
               const tokenInfo = extractTokenUsage(message.raw);
               if (!tokenInfo) return null;
+              const cacheHitRatio = detailedOutputEnabled ? formatCacheHitRatio(tokenInfo) : null;
+              const cacheHitLabel = cacheHitRatio
+                ? t('chat.cacheHitsWithRatio', {
+                  tokens: formatTokenCount(tokenInfo.cacheReadTokens),
+                  ratio: cacheHitRatio,
+                })
+                : '';
               return (
                 <>
                   <span className="message-duration-separator">·</span>
@@ -785,10 +812,16 @@ export const MessageItem = memo(function MessageItem({
                     })}
                   >
                     {t('chat.tokenUsage', {
-                      input: formatTokenCount(tokenInfo.inputTokens),
+                      input: `${formatTokenCount(tokenInfo.inputTokens)}${cacheHitLabel}`,
                       output: formatTokenCount(tokenInfo.outputTokens),
                     })}
                   </span>
+                  {detailedOutputEnabled && tokenInfo.costUsd !== undefined && (
+                    <>
+                      <span className="message-duration-separator">·</span>
+                      <span className="message-duration-tokens">{formatUsdCost(tokenInfo.costUsd)}</span>
+                    </>
+                  )}
                 </>
               );
             })()}

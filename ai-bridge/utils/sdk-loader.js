@@ -111,7 +111,7 @@ export function isClaudeSdkAvailable() {
     const npmPackage = '@anthropic-ai/claude-agent-sdk';
     const sdkPath = getPackageDirFromRoot(getSdkRootDir(sdkId), npmPackage);
     const exists = existsSync(sdkPath);
-    console.log('[sdk-loader] isClaudeSdkAvailable:', {
+    console.error('[sdk-loader] isClaudeSdkAvailable:', {
         path: sdkPath,
         exists: exists,
         depsBase: DEPS_BASE
@@ -128,7 +128,7 @@ export function isCodexSdkAvailable() {
     const npmPackage = '@openai/codex-sdk';
     const sdkPath = getPackageDirFromRoot(getSdkRootDir(sdkId), npmPackage);
     const exists = existsSync(sdkPath);
-    console.log('[sdk-loader] isCodexSdkAvailable:', {
+    console.error('[sdk-loader] isCodexSdkAvailable:', {
         path: sdkPath,
         exists: exists
     });
@@ -141,47 +141,47 @@ export function isCodexSdkAvailable() {
  * @throws {Error} If the SDK is not installed
  */
 export async function loadClaudeSdk() {
-    console.log('[DIAG-SDK] loadClaudeSdk() called');
+    console.error('[DIAG-SDK] loadClaudeSdk() called');
 
     // Return the cached SDK if available
     if (sdkCache.has('claude')) {
-        console.log('[DIAG-SDK] Returning cached SDK');
+        console.error('[DIAG-SDK] Returning cached SDK');
         return sdkCache.get('claude');
     }
 
     // If a load is already in progress, return the same promise to prevent duplicate loading
     if (loadingPromises.has('claude')) {
-        console.log('[DIAG-SDK] SDK loading in progress, returning existing promise');
+        console.error('[DIAG-SDK] SDK loading in progress, returning existing promise');
         return loadingPromises.get('claude');
     }
 
     const sdkRootDir = getSdkRootDir('claude-sdk');
     const sdkPath = getPackageDirFromRoot(sdkRootDir, '@anthropic-ai/claude-agent-sdk');
-    console.log('[DIAG-SDK] SDK path:', sdkPath);
-    console.log('[DIAG-SDK] SDK path exists:', existsSync(sdkPath));
+    console.error('[DIAG-SDK] SDK path:', sdkPath);
+    console.error('[DIAG-SDK] SDK path exists:', existsSync(sdkPath));
 
     if (!existsSync(sdkPath)) {
-        console.log('[DIAG-SDK] SDK not installed at path');
+        console.error('[DIAG-SDK] SDK not installed at path');
         throw new Error('SDK_NOT_INSTALLED:claude');
     }
 
     // Create and cache the loading promise
     const loadPromise = (async () => {
         try {
-            console.log('[DIAG-SDK] SDK root dir:', sdkRootDir);
+            console.error('[DIAG-SDK] SDK root dir:', sdkRootDir);
 
             // Node ESM does not support import(directory); must resolve to a concrete file (e.g. sdk.mjs)
             const resolvedUrl = resolveExternalPackageUrl('@anthropic-ai/claude-agent-sdk', sdkRootDir);
-            console.log('[DIAG-SDK] Resolved URL:', resolvedUrl);
+            console.error('[DIAG-SDK] Resolved URL:', resolvedUrl);
 
-            console.log('[DIAG-SDK] Starting dynamic import...');
+            console.error('[DIAG-SDK] Starting dynamic import...');
             const sdk = await import(resolvedUrl);
-            console.log('[DIAG-SDK] SDK imported successfully, exports:', Object.keys(sdk));
+            console.error('[DIAG-SDK] SDK imported successfully, exports:', Object.keys(sdk));
 
             sdkCache.set('claude', sdk);
             return sdk;
         } catch (error) {
-            console.log('[DIAG-SDK] SDK import failed:', error.message);
+            console.error('[DIAG-SDK] SDK import failed:', error.message);
             const pkgDir = getPackageDirFromRoot(sdkRootDir, '@anthropic-ai/claude-agent-sdk');
             const hintFile = join(pkgDir, 'sdk.mjs');
             const hint = existsSync(hintFile) ? ` Did you mean to import ${hintFile}?` : '';

@@ -93,9 +93,13 @@
     "attachmentsUploaded": "[Вложения загружены]",
     "streamingConnected": "{{provider}} обрабатывает запрос",
     "showEarlierMessages": "Показать предыдущие сообщения ({{count}})",
+    "showEarlierTurns": "Показать предыдущие ходы: {{count}} (загружено, осталось: {{remaining}})",
+    "loadEarlierTurns": "Загрузить с диска предыдущие ходы: {{count}} (осталось {{remaining}} из {{total}})",
+    "loadingEarlierTurns": "Загрузка предыдущих ходов...",
     "totalDuration": "Этот ответ занял",
     "tokenUsage": "вход {{input}} / выход {{output}}",
     "tokenUsageDetail": "Итог хода — вход {{input}} · запись кэша {{cacheWrite}} · чтение кэша {{cacheRead}} · выход {{output}}",
+    "cacheHitsWithRatio": " (попадания в кэш {{tokens}}, {{ratio}})",
     "search": {
       "ariaLabel": "Поиск в беседе",
       "placeholder": "Поиск в беседе…",
@@ -249,6 +253,12 @@
         "enabled": "Включено",
         "disabled": "Выключено",
         "hint": "При включении показывает системное уведомление, когда Claude задаёт вопрос, чтобы вы его не пропустили. При выключении уведомление не появляется."
+      },
+      "detailedOutput": {
+        "label": "Подробная информация о выводе",
+        "enabled": "Включено",
+        "disabled": "Отключено",
+        "hint": "Если включено, внизу сообщений при наличии данных показывается оценочная стоимость хода, а попадания в кэш отображаются внутри сводки входных Token. Расход Token всегда остаётся видимым."
       },
       "sendShortcut": {
         "label": "Клавиша отправки",
@@ -1455,9 +1465,17 @@
       "tooltipDisabled": "1M контекст недоступен для Haiku"
     },
     "codex": {
-      "gpt53codex": {
-        "label": "GPT-5.3-Codex",
-        "description": "Новейшая агентная модель для кодинга с улучшенными возможностями."
+      "gpt56sol": {
+        "label": "GPT-5.6 Sol",
+        "description": "Передовая модель для сложной профессиональной работы."
+      },
+      "gpt56terra": {
+        "label": "GPT-5.6 Terra",
+        "description": "Модель GPT-5.6, сочетающая интеллект и экономичность."
+      },
+      "gpt56luna": {
+        "label": "GPT-5.6 Luna",
+        "description": "Модель GPT-5.6, оптимизированная для экономичных рабочих нагрузок."
       },
       "gpt55": {
         "label": "GPT-5.5",
@@ -1466,30 +1484,6 @@
       "gpt54": {
         "label": "GPT-5.4",
         "description": "Новейшая модель с расширенными возможностями."
-      },
-      "gpt52codex": {
-        "label": "GPT-5.2-Codex",
-        "description": "Агентная модель для кодинга класса frontier."
-      },
-      "gpt51codexMax": {
-        "label": "GPT-5.1-Codex-Max",
-        "description": "Флагманская модель Codex для глубоких и быстрых рассуждений."
-      },
-      "gpt54mini": {
-        "label": "GPT-5.4-Mini",
-        "description": "Более лёгкая агентная модель для кодинга класса frontier."
-      },
-      "gpt53codexSpark": {
-        "label": "GPT-5.3-Codex-Spark",
-        "description": "Сверхбыстрая модель для кодинга."
-      },
-      "gpt52": {
-        "label": "GPT-5.2",
-        "description": "Оптимизирована для профессиональной работы и длительных агентных задач."
-      },
-      "gpt51codexMini": {
-        "label": "GPT-5.1-Codex-Mini",
-        "description": "Оптимизирована для Codex. Дешевле, быстрее, но менее мощная."
       }
     }
   },

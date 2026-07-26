@@ -16,7 +16,6 @@ import com.intellij.util.messages.MessageBusConnection;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
-import java.util.function.BiConsumer;
 
 /**
  * Watches for changes to .codemoss/prompt.json files and notifies listeners.
@@ -28,7 +27,7 @@ public class PromptFileWatcher implements BulkFileListener {
     private final Project project;
     private final CodemossSettingsService settingsService;
     private final Gson gson;
-    private final BiConsumer<PromptScope, String> onPromptsChanged;
+    private final PromptChangeListener onPromptsChanged;
     private MessageBusConnection connection;
 
     /**
@@ -36,12 +35,12 @@ public class PromptFileWatcher implements BulkFileListener {
      *
      * @param project IntelliJ Project instance
      * @param settingsService Settings service for loading prompts
-     * @param onPromptsChanged Callback when prompts change: (scope, promptsJson) -> void
+     * @param onPromptsChanged Callback when prompts change: (scope, provider, promptsJson) -> void
      */
     public PromptFileWatcher(
         Project project,
         CodemossSettingsService settingsService,
-        BiConsumer<PromptScope, String> onPromptsChanged
+        PromptChangeListener onPromptsChanged
     ) {
         this.project = project;
         this.settingsService = settingsService;
@@ -110,19 +109,21 @@ public class PromptFileWatcher implements BulkFileListener {
      */
     private void reloadAndNotify(PromptScope scope) {
         try {
-            // Reload prompts from file
-            List<JsonObject> prompts = settingsService.getPrompts(scope, project);
-            String promptsJson = gson.toJson(prompts);
-
-            // Notify listeners (will update frontend cache)
-            if (onPromptsChanged != null) {
-                onPromptsChanged.accept(scope, promptsJson);
-            }
-
-            LOG.info("[PromptFileWatcher] Reloaded " + prompts.size() + " prompts for scope=" + scope.getValue());
+            notifyProvider(scope, "claude");
+            notifyProvider(scope, "codex");
         } catch (Exception e) {
             LOG.error("[PromptFileWatcher] Failed to reload prompts for scope=" + scope.getValue(), e);
         }
+    }
+
+    private void notifyProvider(PromptScope scope, String provider) throws Exception {
+        List<JsonObject> prompts = settingsService.getPrompts(scope, project, provider);
+        String promptsJson = gson.toJson(prompts);
+        if (onPromptsChanged != null) {
+            onPromptsChanged.accept(scope, provider, promptsJson);
+        }
+        LOG.info("[PromptFileWatcher] Reloaded " + prompts.size()
+                + " prompts for scope=" + scope.getValue() + ", provider=" + provider);
     }
 
     /**
@@ -153,5 +154,10 @@ public class PromptFileWatcher implements BulkFileListener {
             connection = null;
             LOG.info("[PromptFileWatcher] Stopped watching prompt files");
         }
+    }
+
+    @FunctionalInterface
+    public interface PromptChangeListener {
+        void accept(PromptScope scope, String provider, String promptsJson);
     }
 }

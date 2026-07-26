@@ -38,6 +38,8 @@ public class SessionCallbackAdapter implements ClaudeSession.SessionCallback {
     private final StreamDeltaThrottler thinkingDeltaThrottler;
     private final Alarm streamEndFallbackAlarm;
     private volatile boolean active = true;
+    /** Lock making deactivate() atomic with onMessageUpdate()'s active-check-then-enqueue. */
+    private final Object lifecycleLock = new Object();
     /** Guards against duplicate onStreamEnd delivery from dual-path dispatch. */
     private volatile boolean streamEndSignalSent = false;
 
@@ -73,7 +75,9 @@ public class SessionCallbackAdapter implements ClaudeSession.SessionCallback {
     }
 
     public void deactivate() {
-        active = false;
+        synchronized (lifecycleLock) {
+            active = false;
+        }
         contentDeltaThrottler.dispose();
         thinkingDeltaThrottler.dispose();
         streamEndFallbackAlarm.cancelAllRequests();
@@ -85,10 +89,14 @@ public class SessionCallbackAdapter implements ClaudeSession.SessionCallback {
 
     @Override
     public void onMessageUpdate(List<ClaudeSession.Message> messages) {
-        if (isInactive()) {
-            return;
+        // Atomic vs deactivate(): a stale-session reload landing mid-transition
+        // must not enqueue with a post-barrier sequence and resurrect the cleared list.
+        synchronized (lifecycleLock) {
+            if (!active) {
+                return;
+            }
+            streamCoalescer.enqueue(messages);
         }
-        streamCoalescer.enqueue(messages);
     }
 
     @Override

@@ -44,7 +44,7 @@ export function rewriteToolInputPaths(toolName, input) {
     // Verify the resolved path is still within the project root
     const resolvedRoot = resolve(projectRoot);
     if (!sanitized.startsWith(resolvedRoot + sep) && sanitized !== resolvedRoot) {
-      console.log(`[PERMISSION][PATH_REWRITE_BLOCKED] Rewritten path escaped project root: ${pathValue} → ${sanitized} (root: ${resolvedRoot})`);
+      console.error(`[PERMISSION][PATH_REWRITE_BLOCKED] Rewritten path escaped project root: ${pathValue} → ${sanitized} (root: ${resolvedRoot})`);
       return pathValue;
     }
 
@@ -74,7 +74,7 @@ export function rewriteToolInputPaths(toolName, input) {
   traverse(input);
 
   if (rewrites.length > 0) {
-    console.log(`[PERMISSION] Rewrote paths for ${toolName}:`, JSON.stringify(rewrites));
+    console.error(`[PERMISSION] Rewrote paths for ${toolName}:`, JSON.stringify(rewrites));
   }
 
   return { changed: rewrites.length > 0 };

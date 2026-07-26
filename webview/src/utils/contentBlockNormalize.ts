@@ -24,17 +24,17 @@ export const ORIGIN_KINDS = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Optimized regex patterns - single pattern instead of multiple matches
-// NOTE: These regexes assume SDK outputs tags in a fixed order
-// (command-message → command-name → command-args → skill-format).
-// If SDK changes tag order, these must be updated.
+// Command tag extraction (supports multiline content).
+// NOTE: The CLI does NOT emit these tags in one fixed order — the dominant
+// real-world layout is command-name → command-message → command-args, but
+// message-first also occurs. Each tag is therefore extracted with its own
+// independent regex so intervening tags can never break the match.
 // ---------------------------------------------------------------------------
 
-// Regex to extract command-message and related tags (supports multiline content)
-const COMMAND_TAGS_REGEX = /<command-message>([\s\S]*?)<\/command-message>(?:[\s\n]*<command-name>([\s\S]*?)<\/command-name>)?(?:[\s\n]*<command-args>([\s\S]*?)<\/command-args>)?(?:[\s\n]*<skill-format>([\s\S]*?)<\/skill-format>)?/;
-
-// Regex for resubmit format - only needs command-name and command-args (no command-message required)
-const COMMAND_NAME_REGEX = /<command-name>([\s\S]*?)<\/command-name>(?:[\s\n]*<command-args>([\s\S]*?)<\/command-args>)?/;
+const COMMAND_MESSAGE_REGEX = /<command-message>([\s\S]*?)<\/command-message>/;
+const COMMAND_NAME_REGEX = /<command-name>([\s\S]*?)<\/command-name>/;
+const COMMAND_ARGS_REGEX = /<command-args>([\s\S]*?)<\/command-args>/;
+const SKILL_FORMAT_REGEX = /<skill-format>([\s\S]*?)<\/skill-format>/;
 
 // Regex to extract task-notification tags (supports multiline content)
 // Actual SDK format: <task-notification><task-id>...<status>...<summary>...<result>...<usage>...</task-notification>
@@ -42,6 +42,8 @@ const COMMAND_NAME_REGEX = /<command-name>([\s\S]*?)<\/command-name>(?:[\s\n]*<c
 // Two regexes: one for full format (with status), one for minimal format (only summary)
 const TASK_NOTIFICATION_REGEX_WITH_STATUS = /<task-notification>[\s\S]*?<status>([\s\S]*?)<\/status>[\s\S]*?<summary>([\s\S]*?)<\/summary>[\s\S]*?<\/task-notification>/;
 const TASK_NOTIFICATION_REGEX_NO_STATUS = /<task-notification>[\s\S]*?<summary>([\s\S]*?)<\/summary>[\s\S]*?<\/task-notification>/;
+// Monitor events carry the observed payload (log line, error, …) in <event>
+const TASK_NOTIFICATION_EVENT_REGEX = /<event>([\s\S]*?)<\/event>/;
 
 // ---------------------------------------------------------------------------
 // Internal XML tags that should be hidden (not rendered as user messages)
@@ -81,15 +83,15 @@ export function hasCommandMessageTag(text: string): boolean {
 export function formatCommandForDisplay(text: string): string | null {
   if (!text) return null;
 
-  // Single regex match extracts all tags at once (performance optimization)
-  const match = COMMAND_TAGS_REGEX.exec(text);
-  if (!match?.[1]) return null;
+  // Independent per-tag extraction — tolerant to any tag order
+  const messageMatch = COMMAND_MESSAGE_REGEX.exec(text);
+  if (!messageMatch?.[1]) return null;
 
-  const commandMessage = match[1].trim();
+  const commandMessage = messageMatch[1].trim();
   if (!commandMessage) return null;
 
-  const args = match[3]?.trim() ?? '';
-  const isSkillFormat = match[4]?.trim() === 'true';
+  const args = COMMAND_ARGS_REGEX.exec(text)?.[1]?.trim() ?? '';
+  const isSkillFormat = SKILL_FORMAT_REGEX.exec(text)?.[1]?.trim() === 'true';
 
   if (isSkillFormat) {
     // Skill loading message: "Skill(name)"
@@ -111,14 +113,16 @@ export function formatCommandForDisplay(text: string): string | null {
 export function formatCommandForResubmit(text: string): string | null {
   if (!text) return null;
 
-  // Use dedicated regex that matches command-name without requiring command-message
-  const match = COMMAND_NAME_REGEX.exec(text);
-  if (!match?.[1]) return null;
+  // command-name and command-args are extracted independently: the CLI puts
+  // <command-message> between them, which used to defeat a single combined regex
+  // and silently dropped the args from copy/export.
+  const nameMatch = COMMAND_NAME_REGEX.exec(text);
+  if (!nameMatch?.[1]) return null;
 
-  const commandName = match[1].trim();
+  const commandName = nameMatch[1].trim();
   if (!commandName) return null;
 
-  const args = match[2]?.trim() ?? '';
+  const args = COMMAND_ARGS_REGEX.exec(text)?.[1]?.trim() ?? '';
   return args ? `${commandName} ${args}` : commandName;
 }
 
@@ -143,14 +147,18 @@ export const TASK_STATUS_COLORS: Record<string, string> = {
 /**
  * Format task-notification for display, matching CLI's UserAgentNotificationMessage behavior.
  * Returns "● summary" with status-based color (no status text prefix).
+ * Monitor events additionally carry the observed payload in <event>, returned as `detail`
+ * so an error-carrying event stays distinguishable from a benign one.
  *
  * @param text - Raw text containing <task-notification> tags
- * @returns Object with icon, summary, and status, or null if no summary
+ * @returns Object with icon, summary, status, and optional detail, or null if no summary
  */
 export function formatTaskNotificationForDisplay(
   text: string
-): { icon: string; summary: string; status: string } | null {
+): { icon: string; summary: string; status: string; detail?: string } | null {
   if (!text) return null;
+
+  const detail = TASK_NOTIFICATION_EVENT_REGEX.exec(text)?.[1]?.trim() || undefined;
 
   // Try full format first (with status)
   const matchWithStatus = TASK_NOTIFICATION_REGEX_WITH_STATUS.exec(text);
@@ -158,7 +166,7 @@ export function formatTaskNotificationForDisplay(
     const summary = matchWithStatus[2].trim();
     if (!summary) return null;
     const status = matchWithStatus[1]?.trim() ?? 'completed';
-    return { icon: '●', summary, status };
+    return detail ? { icon: '●', summary, status, detail } : { icon: '●', summary, status };
   }
 
   // Fallback: minimal format (only summary)
@@ -166,7 +174,9 @@ export function formatTaskNotificationForDisplay(
   if (matchNoStatus?.[1]) {
     const summary = matchNoStatus[1].trim();
     if (!summary) return null;
-    return { icon: '●', summary, status: 'completed' };
+    return detail
+      ? { icon: '●', summary, status: 'completed', detail }
+      : { icon: '●', summary, status: 'completed' };
   }
 
   return null;
@@ -179,7 +189,7 @@ export function formatTaskNotificationForDisplay(
 export function createTaskNotificationBlock(text: string): ClaudeContentBlock | null {
   const n = formatTaskNotificationForDisplay(text);
   if (!n) return null;
-  return { type: 'task_notification' as const, icon: n.icon, summary: n.summary, status: n.status };
+  return { type: 'task_notification' as const, icon: n.icon, summary: n.summary, status: n.status, detail: n.detail };
 }
 
 /**

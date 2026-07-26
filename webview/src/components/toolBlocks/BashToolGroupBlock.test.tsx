@@ -9,6 +9,22 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('BashToolGroupBlock', () => {
+  it('filters empty placeholders from batch counts and rows', () => {
+    const { container } = render(
+      <BashToolGroupBlock
+        items={[
+          { toolId: 'empty-object', input: {} },
+          { toolId: 'empty-strings', input: { command: '  ', description: '\n' } },
+          { toolId: 'real-command', input: { command: 'npm test' } },
+        ]}
+      />,
+    );
+
+    expect(container.querySelector('.bash-group-header')?.textContent).toContain('(1)');
+    expect(container.querySelectorAll('.bash-timeline-item')).toHaveLength(1);
+    expect(container.querySelector('.bash-timeline-description')?.textContent).toBe('npm test');
+  });
+
   it('keeps the batch header expandable without rendering a chevron icon', () => {
     const { container } = render(
       <BashToolGroupBlock

@@ -5,15 +5,14 @@
  */
 
 import { appendFile, mkdir, access, open as fsOpen, stat as fsStat, readFile } from 'fs/promises';
-import { join, basename } from 'path';
+import { join } from 'path';
 import { setupApiKey, loadClaudeSettings, getCliUserAgent } from '../config/api-config.js';
 import { ensureAnthropicSdk, ensureBedrockSdk } from './claude/message-utils.js';
 import { resolveModelFromSettings } from '../utils/model-utils.js';
-import { getClaudeDir, getCodemossDir } from '../utils/path-utils.js';
+import { getClaudeProjectSessionFilePath, getCodemossDir } from '../utils/path-utils.js';
 
 const DEFAULT_HAIKU_MODEL = 'claude-haiku-4-5-20251001';
 const MAX_CONVERSATION_TEXT = 1000;
-const MAX_SANITIZED_LENGTH = 200;
 // Aligns with Java HistoryDeleteService.SESSION_ID_PATTERN — alphanumeric,
 // dot, dash, underscore. Defeats path-traversal payloads in upstream payloads.
 const SESSION_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
@@ -133,31 +132,8 @@ async function isTitleGenerationEnabled() {
   }
 }
 
-// --- Path utilities (matching CLI's sanitizePath logic) ---
-
-function djb2Hash(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
-  }
-  return hash;
-}
-
-function sanitizePath(name) {
-  const sanitized = name.replace(/[^a-zA-Z0-9]/g, '-');
-  if (sanitized.length <= MAX_SANITIZED_LENGTH) {
-    return sanitized;
-  }
-  const hash = Math.abs(djb2Hash(name)).toString(36);
-  return `${sanitized.slice(0, MAX_SANITIZED_LENGTH)}-${hash}`;
-}
-
 function getSessionFilePath(sessionId, cwd) {
-  const projectsDir = join(getClaudeDir(), 'projects');
-  const sanitizedCwd = sanitizePath(cwd || process.cwd());
-  // Use basename as a defensive second layer in case validation is bypassed
-  // by future refactors — basename strips any path separators that slip through.
-  return join(projectsDir, sanitizedCwd, `${basename(sessionId)}.jsonl`);
+  return getClaudeProjectSessionFilePath(sessionId, cwd);
 }
 
 // --- API ---

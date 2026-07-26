@@ -34,7 +34,7 @@ export function mapModelIdToSdkName(modelId) {
  * those values are written to ~/.claude/settings.json as ANTHROPIC_DEFAULT_*_MODEL env vars.
  * This function checks those settings and returns the mapped model name if configured.
  *
- * Priority: ANTHROPIC_MODEL (global override) > ANTHROPIC_DEFAULT_*_MODEL > original modelId
+ * Priority: ANTHROPIC_DEFAULT_*_MODEL for the selected family > ANTHROPIC_MODEL fallback > original modelId
  *
  * IMPORTANT: The `[1m]` suffix is controlled by the input modelId from the
  * webview, not by stale settings.env mappings.
@@ -60,30 +60,28 @@ export function resolveModelFromSettings(modelId, userEnv) {
     return requestHas1M ? `${base}[1m]` : base;
   };
 
-  // ANTHROPIC_MODEL is a global override that applies to all model types
-  if (userEnv.ANTHROPIC_MODEL && String(userEnv.ANTHROPIC_MODEL).trim()) {
-    return applySuffix(String(userEnv.ANTHROPIC_MODEL).trim());
-  }
+  const readMapped = (key) => {
+    const mapped = userEnv[key];
+    return mapped && String(mapped).trim() ? applySuffix(String(mapped).trim()) : null;
+  };
 
-  // Check model-specific env vars based on the internal model ID's type
+  // Check family-specific env vars first. A stale generic mapping must not
+  // silently route a selected Haiku/Sonnet/Opus model to another family.
   if (lowerModel.includes('opus')) {
-    const mapped = userEnv.ANTHROPIC_DEFAULT_OPUS_MODEL;
-    if (mapped && String(mapped).trim()) {
-      return applySuffix(String(mapped).trim());
-    }
+    return readMapped('ANTHROPIC_DEFAULT_OPUS_MODEL')
+      || readMapped('ANTHROPIC_MODEL')
+      || modelId;
   } else if (lowerModel.includes('haiku')) {
-    const mapped = userEnv.ANTHROPIC_DEFAULT_HAIKU_MODEL;
-    if (mapped && String(mapped).trim()) {
-      return applySuffix(String(mapped).trim());
-    }
+    return readMapped('ANTHROPIC_DEFAULT_HAIKU_MODEL')
+      || readMapped('ANTHROPIC_MODEL')
+      || modelId;
   } else if (lowerModel.includes('sonnet')) {
     // Only apply sonnet mapping when the model ID actually contains 'sonnet'.
     // Non-Anthropic model names (e.g. 'qwen3.5-plus', 'deepseek-v3') should NOT be
     // remapped to the sonnet setting, as they are already the intended model name.
-    const mapped = userEnv.ANTHROPIC_DEFAULT_SONNET_MODEL;
-    if (mapped && String(mapped).trim()) {
-      return applySuffix(String(mapped).trim());
-    }
+    return readMapped('ANTHROPIC_DEFAULT_SONNET_MODEL')
+      || readMapped('ANTHROPIC_MODEL')
+      || modelId;
   }
   // For non-Anthropic model IDs that don't contain 'opus'/'haiku'/'sonnet',
   // skip mapping and use the original model ID as-is.

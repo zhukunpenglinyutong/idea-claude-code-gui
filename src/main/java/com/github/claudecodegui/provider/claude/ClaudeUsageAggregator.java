@@ -1,6 +1,7 @@
 package com.github.claudecodegui.provider.claude;
 
-import com.github.claudecodegui.provider.CustomPricingProvider;
+import com.github.claudecodegui.provider.pricing.ClaudePricing;
+import com.github.claudecodegui.provider.pricing.ClaudePricingTable;
 import com.github.claudecodegui.util.PathUtils;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -32,50 +33,6 @@ class ClaudeUsageAggregator {
     private static final String JSONL_SUFFIX = ".jsonl";
     private static final String UNKNOWN_MODEL = "unknown";
     private static final String DEFAULT_MODEL = "claude-sonnet-4-6";
-    private static final double ONE_MILLION = 1_000_000.0;
-    private static final long TIER_THRESHOLD = 200_000;
-
-    private static final Pricing DEFAULT_PRICING = new Pricing(3.0, 15.0, 3.75, 0.30);
-    private static final Pricing TIERED_SONNET_PRICING = new Pricing(3.0, 15.0, 3.75, 0.30, 6.0, 22.5, 7.5, 0.60);
-    private static final Pricing LEGACY_OPUS_PRICING = new Pricing(15.0, 75.0, 18.75, 1.50);
-    private static final Pricing OPUS_4_5_PRICING = new Pricing(5.0, 25.0, 6.25, 0.50);
-    private static final Pricing FABLE_5_PRICING = new Pricing(10.0, 50.0, 12.5, 1.0);
-    private static final Pricing HAIKU_4_5_PRICING = new Pricing(1.0, 5.0, 1.25, 0.10);
-
-    private static final Map<String, Pricing> MODEL_PRICING = Map.ofEntries(
-            Map.entry("claude-opus-4", LEGACY_OPUS_PRICING),
-            Map.entry("claude-opus-4-1", LEGACY_OPUS_PRICING),
-            Map.entry("claude-opus-4-20250514", LEGACY_OPUS_PRICING),
-            Map.entry("claude-opus-4-5", OPUS_4_5_PRICING),
-            Map.entry("claude-opus-4-6", OPUS_4_5_PRICING),
-            Map.entry("claude-opus-4-7", OPUS_4_5_PRICING),
-            Map.entry("claude-opus-4-8", OPUS_4_5_PRICING),
-            Map.entry("claude-fable-5", FABLE_5_PRICING),
-            Map.entry("claude-sonnet-4", TIERED_SONNET_PRICING),
-            Map.entry("claude-sonnet-4-20250514", TIERED_SONNET_PRICING),
-            Map.entry("claude-sonnet-4-5", TIERED_SONNET_PRICING),
-            Map.entry("claude-sonnet-4-6", DEFAULT_PRICING),
-            Map.entry("claude-sonnet-5", DEFAULT_PRICING),
-            Map.entry("claude-haiku-4", HAIKU_4_5_PRICING),
-            Map.entry("claude-haiku-4-5", HAIKU_4_5_PRICING)
-    );
-    private static final List<String> MODEL_PREFIXES = List.of(
-            "claude-fable-5",
-            "claude-opus-4-20250514",
-            "claude-opus-4-8",
-            "claude-opus-4-7",
-            "claude-opus-4-6",
-            "claude-opus-4-5",
-            "claude-opus-4-1",
-            "claude-opus-4",
-            "claude-sonnet-4-20250514",
-            "claude-sonnet-5",
-            "claude-sonnet-4-6",
-            "claude-sonnet-4-5",
-            "claude-sonnet-4",
-            "claude-haiku-4-5",
-            "claude-haiku-4"
-    );
 
     private static final DateTimeFormatter DATE_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneId.systemDefault());
@@ -265,66 +222,8 @@ class ClaudeUsageAggregator {
     }
 
     private double calculateCost(ClaudeHistoryReader.UsageData usage, String model) {
-        Pricing pricing = resolvePricing(model);
-        long requestTokens = usage.totalTokens;
-        return bill(usage.inputTokens, pricing.inputRate(requestTokens))
-                + bill(usage.outputTokens, pricing.outputRate(requestTokens))
-                + bill(usage.cacheWriteTokens, pricing.cacheWriteRate(requestTokens))
-                + bill(usage.cacheReadTokens, pricing.cacheReadRate(requestTokens));
-    }
-
-    private Pricing resolvePricing(String model) {
-        // User-configured pricing takes precedence over the hardcoded table. It is used for
-        // plugin-level custom models and for pricing-only Claude mapped model entries. Cache
-        // is mtime-invalidated automatically.
-        Pricing builtin = MODEL_PRICING.getOrDefault(normalizeModel(model), null);
-        Pricing customPricing = resolveCustomPricing(model, builtin);
-        if (customPricing != null) {
-            return customPricing;
-        }
-        return builtin != null ? builtin : DEFAULT_PRICING;
-    }
-
-    /**
-     * Build a {@link Pricing} from user-configured pricing, or {@code null} if the model has no
-     * configured pricing. The above-200K tier fields are left {@code null} so user-configured
-     * models are billed at a flat rate. Unspecified base dimensions fall back to the overridden
-     * model's OWN built-in rate when it is a known model, otherwise 0 — never the generic default
-     * model's rate, which previously turned a partial custom price into a large over-estimate.
-     */
-    private static Pricing resolveCustomPricing(String model, Pricing builtin) {
-        if (model == null || model.isBlank()) {
-            return null;
-        }
-        return CustomPricingProvider.getInstance().getPricing("claude", model)
-                .map(p -> new Pricing(
-                        p.inputCostPer1M() != null ? p.inputCostPer1M() : (builtin != null ? builtin.inputCostPer1M() : 0.0),
-                        p.outputCostPer1M() != null ? p.outputCostPer1M() : (builtin != null ? builtin.outputCostPer1M() : 0.0),
-                        p.cacheWriteCostPer1M() != null ? p.cacheWriteCostPer1M() : (builtin != null ? builtin.cacheWriteCostPer1M() : 0.0),
-                        p.cacheReadCostPer1M() != null ? p.cacheReadCostPer1M() : (builtin != null ? builtin.cacheReadCostPer1M() : 0.0),
-                        null, null, null, null))
-                .orElse(null);
-    }
-
-    private String normalizeModel(String model) {
-        if (model == null || model.isBlank()) {
-            return DEFAULT_MODEL;
-        }
-
-        String normalized = model.toLowerCase();
-        int claudeIndex = normalized.indexOf("claude-");
-        if (claudeIndex >= 0) {
-            normalized = normalized.substring(claudeIndex);
-        }
-
-        return MODEL_PREFIXES.stream()
-                .filter(normalized::startsWith)
-                .findFirst()
-                .orElse(normalized);
-    }
-
-    private double bill(long tokens, double ratePer1M) {
-        return (tokens / ONE_MILLION) * ratePer1M;
+        ClaudePricing pricing = ClaudePricingTable.resolveOrDefault(model);
+        return pricing.costUsd(usage.inputTokens, usage.outputTokens, usage.cacheWriteTokens, usage.cacheReadTokens);
     }
 
     private void processSessions(
@@ -437,49 +336,5 @@ class ClaudeUsageAggregator {
 
     private long readLong(JsonObject json, String key) {
         return json != null && json.has(key) && !json.get(key).isJsonNull() ? json.get(key).getAsLong() : 0;
-    }
-
-    private record Pricing(
-            double inputCostPer1M,
-            double outputCostPer1M,
-            double cacheWriteCostPer1M,
-            double cacheReadCostPer1M,
-            Double inputCostPer1MAbove200K,
-            Double outputCostPer1MAbove200K,
-            Double cacheWriteCostPer1MAbove200K,
-            Double cacheReadCostPer1MAbove200K
-    ) {
-        private Pricing(double input, double output, double cacheWrite, double cacheRead) {
-            this(
-                    input,
-                    output,
-                    cacheWrite,
-                    cacheRead,
-                    null,
-                    null,
-                    null,
-                    null
-            );
-        }
-
-        private double inputRate(long requestTokens) {
-            return rate(requestTokens, inputCostPer1M, inputCostPer1MAbove200K);
-        }
-
-        private double outputRate(long requestTokens) {
-            return rate(requestTokens, outputCostPer1M, outputCostPer1MAbove200K);
-        }
-
-        private double cacheWriteRate(long requestTokens) {
-            return rate(requestTokens, cacheWriteCostPer1M, cacheWriteCostPer1MAbove200K);
-        }
-
-        private double cacheReadRate(long requestTokens) {
-            return rate(requestTokens, cacheReadCostPer1M, cacheReadCostPer1MAbove200K);
-        }
-
-        private double rate(long requestTokens, double baseRate, Double tierRate) {
-            return requestTokens > TIER_THRESHOLD && tierRate != null ? tierRate : baseRate;
-        }
     }
 }

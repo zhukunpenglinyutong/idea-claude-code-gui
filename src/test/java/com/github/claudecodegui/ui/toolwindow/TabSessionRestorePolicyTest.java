@@ -33,4 +33,13 @@ public class TabSessionRestorePolicyTest {
         assertTrue(TabSessionRestorePolicy.shouldLoadImmediately(savedState, true));
         assertFalse(TabSessionRestorePolicy.shouldLoadImmediately(savedState, false));
     }
+
+    @Test
+    public void shouldStartHistoryLoadOnlyAfterFrontendIsReady() {
+        TabStateService.TabSessionState savedState = new TabStateService.TabSessionState();
+        savedState.sessionId = "session-123";
+
+        assertFalse(TabSessionRestorePolicy.shouldStartHistoryLoad(savedState, false));
+        assertTrue(TabSessionRestorePolicy.shouldStartHistoryLoad(savedState, true));
+    }
 }

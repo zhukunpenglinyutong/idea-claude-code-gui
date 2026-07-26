@@ -93,9 +93,13 @@
     "attachmentsUploaded": "[Attachments Uploaded]",
     "streamingConnected": "{{provider}} connected, understanding your question",
     "showEarlierMessages": "Show {{count}} earlier messages",
+    "showEarlierTurns": "Show {{count}} earlier turns ({{remaining}} loaded turns remaining)",
+    "loadEarlierTurns": "Load {{count}} earlier turns from disk ({{remaining}} of {{total}} remaining)",
+    "loadingEarlierTurns": "Loading earlier turns...",
     "totalDuration": "This reply took",
     "tokenUsage": "{{input}} in / {{output}} out",
     "tokenUsageDetail": "Turn total — input {{input}} · cache write {{cacheWrite}} · cache read {{cacheRead}} · output {{output}}",
+    "cacheHitsWithRatio": " (cache hit {{tokens}}, {{ratio}})",
     "search": {
       "ariaLabel": "Search in conversation",
       "placeholder": "Search in conversation…",
@@ -265,6 +269,12 @@
         "enabled": "Enabled",
         "disabled": "Disabled",
         "hint": "When enabled, shows a system notification when Claude asks you a question, so you won't miss it. When disabled, no notification appears."
+      },
+      "detailedOutput": {
+        "label": "Detailed Output Information",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "hint": "When enabled, message footers show estimated turn cost when available and include cache hits inside the input token summary. Token usage remains visible either way."
       },
       "sendShortcut": {
         "label": "Send Shortcut",
@@ -1667,9 +1677,17 @@
       }
     },
     "codex": {
-      "gpt53codex": {
-        "label": "GPT-5.3-Codex",
-        "description": "Latest frontier agentic coding model with enhanced capabilities."
+      "gpt56sol": {
+        "label": "GPT-5.6 Sol",
+        "description": "Frontier model for complex professional work."
+      },
+      "gpt56terra": {
+        "label": "GPT-5.6 Terra",
+        "description": "GPT-5.6 model that balances intelligence and cost."
+      },
+      "gpt56luna": {
+        "label": "GPT-5.6 Luna",
+        "description": "GPT-5.6 model optimized for cost-sensitive workloads."
       },
       "gpt55": {
         "label": "GPT-5.5",
@@ -1678,30 +1696,6 @@
       "gpt54": {
         "label": "GPT-5.4",
         "description": "Latest frontier model with enhanced capabilities."
-      },
-      "gpt52codex": {
-        "label": "GPT-5.2-Codex",
-        "description": "Frontier agentic coding model."
-      },
-      "gpt51codexMax": {
-        "label": "GPT-5.1-Codex-Max",
-        "description": "Codex-optimized flagship for deep and fast reasoning."
-      },
-      "gpt54mini": {
-        "label": "GPT-5.4-Mini",
-        "description": "Smaller frontier agentic coding model."
-      },
-      "gpt53codexSpark": {
-        "label": "GPT-5.3-Codex-Spark",
-        "description": "Ultra-fast coding model."
-      },
-      "gpt52": {
-        "label": "GPT-5.2",
-        "description": "Optimized for professional work and long-running agents."
-      },
-      "gpt51codexMini": {
-        "label": "GPT-5.1-Codex-Mini",
-        "description": "Optimized for Codex. Cheaper, faster, but less capable."
       }
     }
   },

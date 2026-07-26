@@ -271,4 +271,21 @@ public class MessageMergerTest {
         assertEquals(2, mergedContent.size());
         assertEquals("Now I have thinking content.", mergedContent.get(0).getAsJsonObject().get("thinking").getAsString());
     }
+
+    @Test
+    public void mergeAssistantMessageFillsEmptyTextBlockWithIncomingSameSegmentText() {
+        MessageMerger merger = new MessageMerger();
+
+        // SDK first frame may carry an empty text placeholder; the next frame grows
+        // it. The empty block must be filled in place rather than duplicated.
+        JsonObject existingRaw = assistantMessage(textBlock(""));
+        JsonObject newRaw = assistantMessage(textBlock("full answer"));
+
+        JsonArray mergedContent = merger.mergeAssistantMessage(existingRaw, newRaw)
+                .getAsJsonObject("message")
+                .getAsJsonArray("content");
+
+        assertEquals(1, mergedContent.size());
+        assertEquals("full answer", mergedContent.get(0).getAsJsonObject().get("text").getAsString());
+    }
 }

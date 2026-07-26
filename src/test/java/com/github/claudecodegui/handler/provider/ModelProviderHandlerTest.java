@@ -13,14 +13,27 @@ import static org.junit.Assert.assertTrue;
 public class ModelProviderHandlerTest {
 
     @Test
-    public void shouldPreferMainModelOverrideForAllClaudeModelFamilies() {
+    public void shouldUseMainModelAsFallbackWhenFamilyMappingIsMissing() {
         JsonObject env = new JsonObject();
         env.addProperty("ANTHROPIC_MODEL", "glm-4.7");
-        env.addProperty("ANTHROPIC_DEFAULT_SONNET_MODEL", "ignored-sonnet");
 
         String resolved = ModelProviderHandler.resolveConfiguredClaudeModel("claude-opus-4-6", env);
 
         assertEquals("glm-4.7", resolved);
+    }
+
+    @Test
+    public void shouldPreferFamilySpecificMappingOverMainModel() {
+        JsonObject env = new JsonObject();
+        env.addProperty("ANTHROPIC_MODEL", "deepseek-v4-pro");
+        env.addProperty("ANTHROPIC_DEFAULT_HAIKU_MODEL", "deepseek-v4-flash");
+        env.addProperty("ANTHROPIC_DEFAULT_SONNET_MODEL", "deepseek-v4-flash");
+
+        String haiku = ModelProviderHandler.resolveConfiguredClaudeModel("claude-haiku-4-5", env);
+        String sonnet = ModelProviderHandler.resolveConfiguredClaudeModel("claude-sonnet-4-6", env);
+
+        assertEquals("deepseek-v4-flash", haiku);
+        assertEquals("deepseek-v4-flash", sonnet);
     }
 
     @Test

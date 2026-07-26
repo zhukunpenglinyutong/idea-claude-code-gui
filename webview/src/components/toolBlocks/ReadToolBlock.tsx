@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
 import { useIsToolDenied } from '../../hooks/useIsToolDenied';
 import { openFile } from '../../utils/bridge';
+import { extractToolResultImages } from '../../utils/toolResultImages';
 import { useResolvedFileLinkTooltip } from '../../hooks/useResolvedFileLinkTooltip';
 import { getFileIcon, getFolderIcon } from '../../utils/fileIcons';
 import { getToolLineInfo, resolveToolTarget } from '../../utils/toolPresentation';
@@ -64,6 +65,21 @@ const PARAM_VALUE_STYLE: React.CSSProperties = {
   flex: 1,
 };
 
+const RESULT_IMAGE_STYLE: React.CSSProperties = {
+  maxWidth: '100%',
+  maxHeight: '300px',
+  borderRadius: '4px',
+  objectFit: 'contain',
+};
+
+const IMAGE_HINT_STYLE: React.CSSProperties = {
+  marginLeft: '8px',
+  fontSize: '12px',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '2px',
+};
+
 const ReadToolBlock = ({ input, result, toolId }: ReadToolBlockProps) => {
   const [expanded, setExpanded] = useState(false);
   const { t } = useTranslation();
@@ -117,6 +133,9 @@ const ReadToolBlock = ({ input, result, toolId }: ReadToolBlockProps) => {
     key !== 'description'   // Omit Codex description field
   );
 
+  // Nested image blocks in the tool_result (Read of an image file)
+  const resultImages = extractToolResultImages(result);
+
   const headerStyle: React.CSSProperties = {
     borderBottom: expanded ? '1px solid var(--border-primary)' : undefined,
   };
@@ -154,12 +173,18 @@ const ReadToolBlock = ({ input, result, toolId }: ReadToolBlockProps) => {
                 : t('tools.lineSingle', { line: lineInfo.start })}
             </span>
           )}
+          {resultImages.length > 0 && (
+            <span className="tool-title-summary" style={IMAGE_HINT_STYLE}>
+              <span className="codicon codicon-file-media" />
+              {resultImages.length}
+            </span>
+          )}
         </div>
 
         <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />
       </div>
 
-      {expanded && params.length > 0 && (
+      {expanded && (params.length > 0 || resultImages.length > 0) && (
         <div className="task-details" style={TASK_DETAILS_STYLE}>
           <div style={PARAMS_CONTAINER_STYLE}>
             {params.map(([key, value]) => (
@@ -169,6 +194,14 @@ const ReadToolBlock = ({ input, result, toolId }: ReadToolBlockProps) => {
                   {String(value)}
                 </span>
               </div>
+            ))}
+            {resultImages.map((image, idx) => (
+              <img
+                key={`result-image-${idx}`}
+                src={image.src}
+                alt={image.mediaType ?? 'image'}
+                style={RESULT_IMAGE_STYLE}
+              />
             ))}
           </div>
         </div>

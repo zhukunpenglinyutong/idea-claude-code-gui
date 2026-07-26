@@ -39,13 +39,22 @@ test('resolveModelFromSettings applies model-specific settings mapping', () => {
   assert.equal(resolveModelFromSettings('claude-haiku-4-5', env), 'glm-4.7-flash');
 });
 
-test('resolveModelFromSettings honors global ANTHROPIC_MODEL override', () => {
+test('resolveModelFromSettings uses ANTHROPIC_MODEL as fallback when family mapping is absent', () => {
   const env = {
     ANTHROPIC_MODEL: 'override-everywhere',
-    ANTHROPIC_DEFAULT_SONNET_MODEL: 'ignored',
   };
   assert.equal(resolveModelFromSettings('claude-sonnet-4-6', env), 'override-everywhere');
   assert.equal(resolveModelFromSettings('claude-opus-4-8', env), 'override-everywhere');
+});
+
+test('resolveModelFromSettings prefers family mapping over stale ANTHROPIC_MODEL', () => {
+  const env = {
+    ANTHROPIC_MODEL: 'deepseek-v4-pro',
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: 'deepseek-v4-flash',
+    ANTHROPIC_DEFAULT_SONNET_MODEL: 'deepseek-v4-flash',
+  };
+  assert.equal(resolveModelFromSettings('claude-haiku-4-5', env), 'deepseek-v4-flash');
+  assert.equal(resolveModelFromSettings('claude-sonnet-4-6', env), 'deepseek-v4-flash');
 });
 
 test('resolveModelFromSettings ignores empty / whitespace mapping values', () => {

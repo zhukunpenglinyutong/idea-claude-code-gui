@@ -1,5 +1,6 @@
 package com.github.claudecodegui.dependency;
 
+import com.github.claudecodegui.util.PlatformUtils;
 import org.junit.Test;
 
 import java.nio.file.Paths;
@@ -97,5 +98,17 @@ public class NpmPermissionHelperTest {
 
         assertTrue(cmd.contains("pkg-a@1.0.0"));
         assertTrue(cmd.contains("pkg-b"));
+    }
+
+    @Test
+    public void permissionSolutionMatchesCurrentPlatform() {
+        String solution = NpmPermissionHelper.generateErrorSolution("EACCES permission denied");
+
+        if (PlatformUtils.isWindows()) {
+            assertTrue(solution.contains("npm config set cache"));
+            assertTrue(!solution.contains("sudo chown"));
+        } else {
+            assertTrue(solution.contains("sudo chown"));
+        }
     }
 }

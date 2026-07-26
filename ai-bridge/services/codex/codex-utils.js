@@ -21,7 +21,7 @@ export const DEBUG_LEVEL = process.env.CODEX_DEBUG_LEVEL ? parseInt(process.env.
  */
 export function debugLog(level, tag, ...args) {
   if (DEBUG_LEVEL >= level) {
-    console.log(`[${tag}]`, ...args);
+    console.error(`[${tag}]`, ...args);
   }
 }
 

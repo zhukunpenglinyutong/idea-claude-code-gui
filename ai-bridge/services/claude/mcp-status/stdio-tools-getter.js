@@ -87,6 +87,7 @@ export async function getStdioServerTools(serverName, serverConfig) {
       const spawnOptions = {
         env,
         stdio: ['pipe', 'pipe', 'pipe'],
+        cwd: serverConfig.cwd || undefined,
         // Hide the console window on Windows
         windowsHide: true
       };

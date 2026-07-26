@@ -12,6 +12,7 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -263,6 +264,19 @@ public class CodexHistoryReader {
     public String getSessionMessagesAsJson(String sessionId) {
         logSessionAccessWithoutLocalConfigAuthorization();
         return sessionService.getSessionMessagesAsJson(sessionId);
+    }
+
+    /**
+     * Stream one session without materializing the complete JSONL file in memory.
+     *
+     * @return number of parsed top-level Codex records
+     */
+    public int forEachSessionMessage(String sessionId, Consumer<JsonObject> consumer) throws IOException {
+        logSessionAccessWithoutLocalConfigAuthorization();
+        return sessionService.forEachSessionMessage(sessionId, message -> {
+            JsonObject raw = gson.toJsonTree(message).getAsJsonObject();
+            consumer.accept(raw);
+        });
     }
 
     /**

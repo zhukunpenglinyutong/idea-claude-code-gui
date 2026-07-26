@@ -283,7 +283,10 @@ public class NpmPermissionHelper {
             solution.append("\n\n🔧 Detected npm permission error. Possible solutions:\n");
             solution.append("1. Run: npm cache clean --force\n");
             solution.append("2. Or manually delete: ~/.npm/_cacache\n");
-            if (!PlatformUtils.isWindows()) {
+            if (PlatformUtils.isWindows()) {
+                solution.append("3. Restart the IDE as Administrator if Node/npm was installed in a protected directory\n");
+                solution.append("4. Or move npm cache to a writable directory: npm config set cache \"%USERPROFILE%\\.npm-cache\" --global\n");
+            } else {
                 solution.append("3. Fix ownership: sudo chown -R $(whoami) ~/.npm\n");
             }
         } else if (hasCacheError(logs)) {

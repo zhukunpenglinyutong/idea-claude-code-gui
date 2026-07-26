@@ -115,4 +115,49 @@ describe('GenericToolBlock', () => {
     // still show the user where the link points before the backend resolves.
     expect(hookMocks.useResolvedFileLinkTooltip).toHaveBeenCalledWith(absolutePath, absolutePath);
   });
+
+  it('caps huge param values instead of dumping them into the DOM', () => {
+    const hugeContent = 'x'.repeat(50_000);
+    const { container } = render(
+      <GenericToolBlock
+        name="Write"
+        input={{
+          file_path: '/tmp/generated.ts',
+          content: hugeContent,
+        }}
+      />,
+    );
+
+    fireEvent.click(container.querySelector('.task-header') as HTMLElement);
+
+    const fieldContent = container.querySelector('.task-field-content');
+    expect(fieldContent?.textContent?.length).toBeLessThan(4100);
+    expect(fieldContent?.textContent?.endsWith('… (+46000 more chars)')).toBe(true);
+  });
+
+  it('renders nested tool_result images and makes the card expandable', () => {
+    const { container } = render(
+      <GenericToolBlock
+        name="Read"
+        input={{ file_path: '/tmp/screenshot.png' }}
+        result={{
+          type: 'tool_result',
+          tool_use_id: 'toolu_img',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'iVBORw0KGgo=' } } as never,
+          ],
+        }}
+      />,
+    );
+
+    // Image-count hint in the header even though there are no other params
+    expect(container.querySelector('.codicon-file-media')).toBeTruthy();
+    expect(container.querySelector('.task-details-accordion')).toBeTruthy();
+
+    fireEvent.click(container.querySelector('.task-header') as HTMLElement);
+
+    const img = container.querySelector('.task-details-accordion img') as HTMLImageElement;
+    expect(img).toBeTruthy();
+    expect(img.src).toBe('data:image/png;base64,iVBORw0KGgo=');
+  });
 });

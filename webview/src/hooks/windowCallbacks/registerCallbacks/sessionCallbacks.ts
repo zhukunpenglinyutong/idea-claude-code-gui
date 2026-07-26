@@ -38,6 +38,7 @@ export function registerSessionAndSdkCallbacks(
   window.setSessionId = (sessionId: string) => {
     const oldId = currentSessionIdRef.current;
     releaseSessionTransition();
+    currentSessionIdRef.current = sessionId;
     setCurrentSessionId(sessionId);
 
     // B-011 + B-014: Persist custom title under the real SDK session ID.

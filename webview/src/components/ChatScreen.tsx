@@ -259,6 +259,7 @@ export const ChatScreen = ({
                   currentProvider={currentProvider}
                   onRollbackUserMessage={onRollbackUserMessage}
                   isRollingBack={isRollingBack}
+                  currentSessionId={currentSessionId}
                 />
               </ToolResultRawContext.Provider>
             </SubagentHistoryContext.Provider>

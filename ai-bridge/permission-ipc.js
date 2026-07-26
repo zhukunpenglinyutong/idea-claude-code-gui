@@ -11,7 +11,7 @@ import { randomUUID } from 'crypto';
 export function debugLog(tag, message, data = null) {
   const timestamp = new Date().toISOString();
   const dataStr = data ? ` | Data: ${JSON.stringify(data)}` : '';
-  console.log(`[${timestamp}][PERM_DEBUG][${tag}] ${message}${dataStr}`);
+  console.error(`[${timestamp}][PERM_DEBUG][${tag}] ${message}${dataStr}`);
 }
 
 export function errorClass(error) {

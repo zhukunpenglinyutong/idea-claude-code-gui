@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { PromptScope } from '../../../types/prompt';
+import type { PromptConfig, PromptProvider, PromptScope } from '../../../types/prompt';
 import { usePromptManagement } from '../hooks/usePromptManagement';
 import { updateGlobalPromptsCache, updateProjectPromptsCache } from '../../ChatInputBox/providers';
 import PromptScopeSection from './PromptScopeSection';
@@ -10,14 +10,36 @@ import PromptExportDialog from './PromptExportDialog';
 import PromptImportConfirmDialog from './PromptImportConfirmDialog';
 import styles from './style.module.less';
 
+type PromptCallbackPayload = { provider: PromptProvider; prompts: PromptConfig[] };
+
 interface PromptSectionProps {
   onSuccess?: (message: string) => void;
+  currentProvider?: 'claude' | 'codex' | string;
+}
+
+function normalizePromptProvider(provider?: string | null): PromptProvider {
+  return provider === 'codex' ? 'codex' : 'claude';
+}
+
+function parsePromptCallbackPayload(json: string, fallbackProvider: PromptProvider): PromptCallbackPayload | null {
+  const parsed: unknown = JSON.parse(json);
+  // Legacy payloads predate provider routing and belong to Claude by default.
+  if (Array.isArray(parsed)) return { provider: 'claude', prompts: parsed as PromptConfig[] };
+  if (!parsed || typeof parsed !== 'object') return null;
+  const value = parsed as { provider?: unknown; prompts?: unknown };
+  if (!Array.isArray(value.prompts)) return null;
+  return {
+    provider: normalizePromptProvider(typeof value.provider === 'string' ? value.provider : fallbackProvider),
+    prompts: value.prompts as PromptConfig[],
+  };
 }
 
 export default function PromptSection({
   onSuccess,
+  currentProvider = 'claude',
 }: PromptSectionProps) {
   const { t } = useTranslation();
+  const promptProvider: PromptProvider = normalizePromptProvider(currentProvider);
 
   // Use prompt management hook
   const {
@@ -50,7 +72,7 @@ export default function PromptSection({
     handleSaveImportedPrompts,
     handlePromptImportResult,
     cleanupPromptsTimeout,
-  } = usePromptManagement({ onSuccess });
+  } = usePromptManagement({ onSuccess, provider: promptProvider });
 
   // Load project info and prompts on mount
   useEffect(() => {
@@ -61,7 +83,7 @@ export default function PromptSection({
     // Then load prompts
     loadAllPrompts();
     return () => cleanupPromptsTimeout();
-  }, [loadAllPrompts, cleanupPromptsTimeout]);
+  }, [loadAllPrompts, cleanupPromptsTimeout, promptProvider]);
 
   // Setup window callbacks
   useEffect(() => {
@@ -76,17 +98,23 @@ export default function PromptSection({
     // Chain our handlers with existing ones
     window.updateGlobalPrompts = (json: string) => {
       try {
-        const promptsList = JSON.parse(json);
+        const payload = parsePromptCallbackPayload(json, promptProvider);
+        if (!payload || payload.provider !== promptProvider) {
+          originalUpdateGlobalPrompts?.(json);
+          return;
+        }
+        const promptsList = payload.prompts;
         updateGlobalPrompts(promptsList);
 
         // ✅ Sync update promptProvider cache
-        const promptItems = promptsList.map((prompt: any) => ({
+        const promptItems = promptsList.map((prompt) => ({
           id: prompt.id,
           name: prompt.name,
           content: prompt.content,
           scope: 'global' as PromptScope,
+          provider: promptProvider,
         }));
-        updateGlobalPromptsCache(promptItems);
+        updateGlobalPromptsCache(promptItems, promptProvider);
       } catch (error) {
         console.error('[PromptSection] Failed to parse global prompts:', error);
       }
@@ -96,17 +124,23 @@ export default function PromptSection({
 
     window.updateProjectPrompts = (json: string) => {
       try {
-        const promptsList = JSON.parse(json);
+        const payload = parsePromptCallbackPayload(json, promptProvider);
+        if (!payload || payload.provider !== promptProvider) {
+          originalUpdateProjectPrompts?.(json);
+          return;
+        }
+        const promptsList = payload.prompts;
         updateProjectPrompts(promptsList);
 
         // ✅ Sync update promptProvider cache
-        const promptItems = promptsList.map((prompt: any) => ({
+        const promptItems = promptsList.map((prompt) => ({
           id: prompt.id,
           name: prompt.name,
           content: prompt.content,
           scope: 'project' as PromptScope,
+          provider: promptProvider,
         }));
-        updateProjectPromptsCache(promptItems);
+        updateProjectPromptsCache(promptItems, promptProvider);
       } catch (error) {
         console.error('[PromptSection] Failed to parse project prompts:', error);
       }
@@ -175,6 +209,7 @@ export default function PromptSection({
     handlePromptOperationResult,
     handlePromptImportPreviewResult,
     handlePromptImportResult,
+    promptProvider,
   ]);
 
   // Get all prompts for export dialog (combining global and project based on export scope)

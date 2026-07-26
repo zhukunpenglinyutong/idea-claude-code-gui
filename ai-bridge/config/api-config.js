@@ -11,7 +11,7 @@ import { getClaudeDir, getCodemossDir, getManagedSettingsPath } from '../utils/p
 const DEBUG = process.env.CLAUDE_DEBUG === '1' || process.env.CLAUDE_DEBUG === 'true';
 function debugLog(...args) {
   if (DEBUG) {
-    console.log(...args);
+    console.error(...args);
   }
 }
 

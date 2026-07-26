@@ -186,6 +186,7 @@ Footer 包含：
                 FilePath filePath = ChangesUtil.getFilePath(change);
                 Change.Type changeType = change.getType();
 
+                int changeStart = diff.length();
                 diff.append("\n=== ").append(changeType.name()).append(": ")
                         .append(filePath.getPath()).append(" ===\n");
 
@@ -210,7 +211,12 @@ Footer 包含：
                     String after = afterRevision.getContent();
 
                     if (before != null && after != null) {
-                        diff.append(generateSimpleDiff(before, after));
+                        String simpleDiff = generateSimpleDiff(before, after);
+                        if (simpleDiff.isEmpty()) {
+                            diff.setLength(changeStart);
+                            continue;
+                        }
+                        diff.append(simpleDiff);
                     }
                 }
 
@@ -232,8 +238,14 @@ Footer 包含：
      * Generate a simple diff (showing added/removed lines).
      */
     private String generateSimpleDiff(String before, String after) {
-        String[] beforeLines = before.split("\n");
-        String[] afterLines = after.split("\n");
+        String normalizedBefore = normalizeLineEndings(before);
+        String normalizedAfter = normalizeLineEndings(after);
+        if (normalizedBefore.equals(normalizedAfter)) {
+            return "";
+        }
+
+        String[] beforeLines = normalizedBefore.split("\n");
+        String[] afterLines = normalizedAfter.split("\n");
 
         StringBuilder diff = new StringBuilder();
         int maxLines = Math.max(beforeLines.length, afterLines.length);
@@ -261,6 +273,10 @@ Footer 包含：
         }
 
         return diff.toString();
+    }
+
+    private String normalizeLineEndings(String content) {
+        return content.replace("\r\n", "\n").replace('\r', '\n');
     }
 
     /**

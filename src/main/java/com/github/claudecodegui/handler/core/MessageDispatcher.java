@@ -1,15 +1,20 @@
 package com.github.claudecodegui.handler.core;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Message dispatcher.
  * Routes messages to the appropriate handler for processing.
+ *
+ * <p>The handler list is a {@link CopyOnWriteArrayList} so {@link #dispatch} (which runs on the
+ * JCEF UI thread from {@code handleJavaScriptMessage}) never races {@link #clear()} (which runs on
+ * the EDT during {@code dispose}). This removes the last reason to hold the host window monitor
+ * while dispatching, keeping the JCEF UI thread free to render and process mouse selection.</p>
  */
 public class MessageDispatcher {
 
-    private final List<MessageHandler> handlers = new ArrayList<>();
+    private final List<MessageHandler> handlers = new CopyOnWriteArrayList<>();
 
     /**
      * Register a message handler.

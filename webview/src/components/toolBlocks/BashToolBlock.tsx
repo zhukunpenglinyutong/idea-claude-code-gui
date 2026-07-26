@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
 import { useIsToolDenied } from '../../hooks/useIsToolDenied';
+import { stripAnsi } from '../../utils/stripAnsi';
 
 const TASK_DETAILS_STYLE: React.CSSProperties = { padding: 0, border: 'none' };
 const TASK_CONTENT_WRAPPER_STYLE: React.CSSProperties = { paddingLeft: '40px', position: 'relative', zIndex: 1 };
@@ -18,6 +19,7 @@ interface BashToolBlockProps {
 const BashToolBlock = ({ input, result, toolId }: BashToolBlockProps) => {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
+  const isDenied = useIsToolDenied(toolId);
 
   if (!input) {
     return null;
@@ -25,8 +27,7 @@ const BashToolBlock = ({ input, result, toolId }: BashToolBlockProps) => {
 
   const command = typeof input.command === 'string' ? input.command : '';
   const description = typeof input.description === 'string' ? input.description : '';
-
-  const isDenied = useIsToolDenied(toolId);
+  if (!command.trim() && !description.trim()) return null;
 
   // Determine tool call status based on result
   // If denied, treat as completed (show error state)
@@ -43,6 +44,7 @@ const BashToolBlock = ({ input, result, toolId }: BashToolBlockProps) => {
     } else if (Array.isArray(content)) {
       output = content.map((block) => block.text ?? '').join('\n');
     }
+    output = stripAnsi(output);
   }
 
   return (

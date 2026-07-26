@@ -8,6 +8,8 @@ import {
   selectWorkingDirectory,
   isBridgeDirectory,
   normalizePathForComparison,
+  getClaudeProjectKey,
+  getClaudeProjectSessionFilePath,
 } from './path-utils.js';
 
 // This test sits in <bridge>/utils/, so the bridge install dir is one level up.
@@ -101,4 +103,32 @@ test('selectWorkingDirectory skips bridge dir when it appears as process.cwd() c
     const result = selectWorkingDirectory('');
     assert.ok(!samePath(result, BRIDGE_DIR), `expected non-bridge dir, got ${result}`);
   });
+});
+
+test('getClaudeProjectKey matches the session writer for common paths', () => {
+  assert.equal(getClaudeProjectKey('D:\\Projects\\My Project'), 'D--Projects-My-Project');
+  assert.equal(getClaudeProjectKey('/Users/test/demo'), '-Users-test-demo');
+});
+
+test('getClaudeProjectKey preserves the complete key for long paths', () => {
+  const longPath = `C:\\Users\\name\\${'deep\\'.repeat(60)}project`;
+  const projectKey = getClaudeProjectKey(longPath);
+
+  assert.equal(projectKey, longPath.replace(/[^a-zA-Z0-9]/g, '-'));
+  assert.ok(projectKey.length > 200);
+});
+
+test('getClaudeProjectSessionFilePath uses the shared project key', () => {
+  const cwd = `C:\\Users\\name\\${'deep\\'.repeat(60)}project`;
+  const sessionFile = getClaudeProjectSessionFilePath('session-1', cwd);
+
+  assert.ok(sessionFile.includes(getClaudeProjectKey(cwd)));
+  assert.ok(sessionFile.endsWith('session-1.jsonl'));
+});
+
+test('getClaudeProjectSessionFilePath rejects path-like session IDs', () => {
+  assert.throws(
+    () => getClaudeProjectSessionFilePath('../outside', 'C:\\project'),
+    /Invalid session ID/,
+  );
 });

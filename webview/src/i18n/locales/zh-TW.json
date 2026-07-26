@@ -93,9 +93,13 @@
     "attachmentsUploaded": "[已上傳附件]",
     "streamingConnected": "{{provider}} 已成功連接，正在理解問題",
     "showEarlierMessages": "顯示之前的 {{count}} 則訊息",
+    "showEarlierTurns": "顯示更早的 {{count}} 輪對話（目前已載入尚餘 {{remaining}} 輪）",
+    "loadEarlierTurns": "從磁碟載入更早的 {{count}} 輪（共 {{total}} 輪，尚餘 {{remaining}} 輪）",
+    "loadingEarlierTurns": "正在載入更早的對話...",
     "totalDuration": "本次耗時",
     "tokenUsage": "輸入 {{input}} / 輸出 {{output}}",
     "tokenUsageDetail": "本輪合計 — 輸入 {{input}} · 快取寫入 {{cacheWrite}} · 快取讀取 {{cacheRead}} · 輸出 {{output}}",
+    "cacheHitsWithRatio": "（快取命中 {{tokens}}，{{ratio}}）",
     "search": {
       "ariaLabel": "在對話中搜尋",
       "placeholder": "在對話中搜尋...",
@@ -249,6 +253,12 @@
         "enabled": "已開啟",
         "disabled": "已關閉",
         "hint": "開啟後，當 Claude 向你提問時顯示系統通知提醒，避免錯過。關閉後不顯示通知。"
+      },
+      "detailedOutput": {
+        "label": "詳細輸出資訊",
+        "enabled": "已開啟",
+        "disabled": "已關閉",
+        "hint": "開啟後，訊息底部會在可用時顯示本輪預估費用，並在輸入 Token 中標明快取命中。Token 消耗資訊始終保持顯示。"
       },
       "sendShortcut": {
         "label": "發送快捷鍵",
@@ -1434,9 +1444,17 @@
       "tooltipDisabled": "Haiku不支援1M上下文"
     },
     "codex": {
-      "gpt53codex": {
-        "label": "GPT-5.3-Codex",
-        "description": "最新前沿智慧編程模型，能力全面增強"
+      "gpt56sol": {
+        "label": "GPT-5.6 Sol",
+        "description": "面向複雜專業工作的前沿模型"
+      },
+      "gpt56terra": {
+        "label": "GPT-5.6 Terra",
+        "description": "智慧與成本兼顧的 GPT-5.6 模型"
+      },
+      "gpt56luna": {
+        "label": "GPT-5.6 Luna",
+        "description": "針對成本敏感場景優化的 GPT-5.6 模型"
       },
       "gpt55": {
         "label": "GPT-5.5",
@@ -1445,30 +1463,6 @@
       "gpt54": {
         "label": "GPT-5.4",
         "description": "最新前沿模型，能力進一步增強"
-      },
-      "gpt52codex": {
-        "label": "GPT-5.2-Codex",
-        "description": "前沿智慧編程模型"
-      },
-      "gpt51codexMax": {
-        "label": "GPT-5.1-Codex-Max",
-        "description": "針對Codex優化的旗艦模型，深度與快速推理兼備"
-      },
-      "gpt54mini": {
-        "label": "GPT-5.4-Mini",
-        "description": "更輕量的前沿智慧編程模型"
-      },
-      "gpt53codexSpark": {
-        "label": "GPT-5.3-Codex-Spark",
-        "description": "超高速編程模型"
-      },
-      "gpt52": {
-        "label": "GPT-5.2",
-        "description": "針對專業工作與長程代理任務優化"
-      },
-      "gpt51codexMini": {
-        "label": "GPT-5.1-Codex-Mini",
-        "description": "針對Codex優化。更便宜、更快，但性能較差"
       }
     }
   },

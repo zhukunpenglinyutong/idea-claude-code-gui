@@ -58,8 +58,8 @@ public class SessionState {
     }
 
     // Session identifiers
-    private String sessionId;
-    private String channelId;
+    private volatile String sessionId;
+    private volatile String channelId;
     private volatile String runtimeSessionEpoch = UUID.randomUUID().toString();
 
     // Session state — accessed only on EDT / single handler thread, no volatile needed.

@@ -129,6 +129,19 @@ public class ErrorPanelBuilder {
      * Build a centered icon+title+message panel (used for JCEF errors and loading).
      */
     public static JPanel buildCenteredPanel(String icon, String title, String message) {
+        return buildCenteredPanel(icon, title, message, null, null);
+    }
+
+    /**
+     * Build a centered icon+title+message panel with an optional action button.
+     */
+    public static JPanel buildCenteredPanel(
+            String icon,
+            String title,
+            String message,
+            String actionText,
+            Runnable action
+    ) {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(new Color(30, 30, 30));
 
@@ -162,6 +175,13 @@ public class ErrorPanelBuilder {
         centerPanel.add(titleLabel);
         centerPanel.add(Box.createVerticalStrut(20));
         centerPanel.add(messageArea);
+        if (actionText != null && action != null) {
+            centerPanel.add(Box.createVerticalStrut(16));
+            JButton actionButton = new JButton(actionText);
+            actionButton.setAlignmentX(Component.CENTER_ALIGNMENT);
+            actionButton.addActionListener(event -> action.run());
+            centerPanel.add(actionButton);
+        }
 
         panel.add(centerPanel, BorderLayout.CENTER);
         return panel;

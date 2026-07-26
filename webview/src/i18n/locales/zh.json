@@ -93,9 +93,13 @@
     "attachmentsUploaded": "[已上传附件]",
     "streamingConnected": "{{provider}} 已成功连接，正在理解问题",
     "showEarlierMessages": "显示之前的 {{count}} 条消息",
+    "showEarlierTurns": "显示更早的 {{count}} 轮对话（当前已加载还剩 {{remaining}} 轮）",
+    "loadEarlierTurns": "从磁盘加载更早的 {{count}} 轮（共 {{total}} 轮，尚有 {{remaining}} 轮）",
+    "loadingEarlierTurns": "正在加载更早的对话...",
     "totalDuration": "本次耗时",
     "tokenUsage": "输入 {{input}} / 输出 {{output}}",
     "tokenUsageDetail": "本轮合计 — 输入 {{input}} · 缓存写入 {{cacheWrite}} · 缓存读取 {{cacheRead}} · 输出 {{output}}",
+    "cacheHitsWithRatio": "（缓存命中 {{tokens}}，{{ratio}}）",
     "search": {
       "ariaLabel": "在对话中搜索",
       "placeholder": "在对话中搜索…",
@@ -265,6 +269,12 @@
         "enabled": "已开启",
         "disabled": "已关闭",
         "hint": "开启后，当 Claude 向你提问时显示系统通知提醒，避免错过。关闭后不显示通知。"
+      },
+      "detailedOutput": {
+        "label": "详细输出信息",
+        "enabled": "已开启",
+        "disabled": "已关闭",
+        "hint": "开启后，消息底部会在可用时显示本轮预估费用，并在输入 Token 中标明缓存命中。Token 消耗信息始终保持显示。"
       },
       "sendShortcut": {
         "label": "发送快捷键",
@@ -1672,9 +1682,17 @@
       }
     },
     "codex": {
-      "gpt53codex": {
-        "label": "GPT-5.3-Codex",
-        "description": "最新前沿智能编程模型，能力全面增强"
+      "gpt56sol": {
+        "label": "GPT-5.6 Sol",
+        "description": "面向复杂专业工作的前沿模型"
+      },
+      "gpt56terra": {
+        "label": "GPT-5.6 Terra",
+        "description": "智能与成本兼顾的 GPT-5.6 模型"
+      },
+      "gpt56luna": {
+        "label": "GPT-5.6 Luna",
+        "description": "针对成本敏感场景优化的 GPT-5.6 模型"
       },
       "gpt55": {
         "label": "GPT-5.5",
@@ -1683,30 +1701,6 @@
       "gpt54": {
         "label": "GPT-5.4",
         "description": "最新前沿模型，能力进一步增强"
-      },
-      "gpt52codex": {
-        "label": "GPT-5.2-Codex",
-        "description": "前沿智能编程模型"
-      },
-      "gpt51codexMax": {
-        "label": "GPT-5.1-Codex-Max",
-        "description": "针对Codex优化的旗舰模型，深度与快速推理兼备"
-      },
-      "gpt54mini": {
-        "label": "GPT-5.4-Mini",
-        "description": "更轻量的前沿智能编程模型"
-      },
-      "gpt53codexSpark": {
-        "label": "GPT-5.3-Codex-Spark",
-        "description": "超高速编程模型"
-      },
-      "gpt52": {
-        "label": "GPT-5.2",
-        "description": "针对专业工作与长程代理任务优化"
-      },
-      "gpt51codexMini": {
-        "label": "GPT-5.1-Codex-Mini",
-        "description": "针对Codex优化。更便宜、更快，但性能较差"
       }
     }
   },

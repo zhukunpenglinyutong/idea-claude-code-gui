@@ -37,6 +37,10 @@ describe('ProviderSelect Codex quota submenu', () => {
     render(<ProviderSelect value="claude" />);
 
     fireEvent.click(screen.getByRole('button'));
+    const providerDropdown = document.querySelector('.selector-dropdown') as HTMLElement;
+    // The quota panel is positioned above this dropdown. Setting overflow-x to
+    // hidden also clips vertical overflow, so the panel becomes invisible.
+    expect(providerDropdown.style.overflowX).toBe('');
     const codexRow = screen.getByText('Codex').closest('.selector-option')!;
     expect(codexRow.querySelector('.codicon-chevron-right')).toBeTruthy();
 

@@ -4,6 +4,8 @@ import com.github.claudecodegui.handler.core.HandlerContext;
 import com.intellij.ui.jcef.JBCefBrowser;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
@@ -84,5 +86,80 @@ public class StreamMessageCoalescerStreamEndHookTest {
         } finally {
             coalescer.dispose();
         }
+    }
+
+    @Test
+    public void firstLongConversationSnapshotKeepsTheFullPrefix() {
+        List<ClaudeSession.Message> messages = messages(400);
+
+        StreamMessageCoalescer.MessageTransport transport =
+                StreamMessageCoalescer.selectMessageTransport(messages, null);
+
+        assertFalse(transport.tailUpdate());
+        assertEquals(0, transport.baseIndex());
+        assertEquals(messages, transport.messages());
+    }
+
+    @Test
+    public void thresholdConversationKeepsTheFullSnapshot() {
+        List<ClaudeSession.Message> messages = messages(300);
+
+        StreamMessageCoalescer.MessageTransport transport =
+                StreamMessageCoalescer.selectMessageTransport(messages, null);
+
+        assertFalse(transport.tailUpdate());
+        assertEquals(0, transport.baseIndex());
+        assertEquals(messages, transport.messages());
+    }
+
+    @Test
+    public void growingConversationWithStablePrefixUsesTail() {
+        List<ClaudeSession.Message> previous = messages(300);
+        List<ClaudeSession.Message> growing = new ArrayList<>(previous);
+        for (int i = 300; i < 400; i++) {
+            growing.add(new ClaudeSession.Message(ClaudeSession.Message.Type.USER, "message-" + i));
+        }
+
+        StreamMessageCoalescer.MessageTransport transport =
+                StreamMessageCoalescer.selectMessageTransport(growing, previous);
+
+        assertTrue(transport.tailUpdate());
+        assertEquals(220, transport.baseIndex());
+        assertEquals(180, transport.messages().size());
+    }
+
+    @Test
+    public void shrinkingConversationForcesAFullRebase() {
+        List<ClaudeSession.Message> previous = messages(400);
+        List<ClaudeSession.Message> compacted = new ArrayList<>(previous.subList(0, 350));
+
+        StreamMessageCoalescer.MessageTransport transport =
+                StreamMessageCoalescer.selectMessageTransport(compacted, previous);
+
+        assertFalse(transport.tailUpdate());
+        assertEquals(0, transport.baseIndex());
+        assertEquals(compacted, transport.messages());
+    }
+
+    @Test
+    public void replacedPrefixForcesAFullRebase() {
+        List<ClaudeSession.Message> previous = messages(400);
+        List<ClaudeSession.Message> rebuilt = new ArrayList<>(previous);
+        rebuilt.set(10, new ClaudeSession.Message(ClaudeSession.Message.Type.SYSTEM, "summary"));
+
+        StreamMessageCoalescer.MessageTransport transport =
+                StreamMessageCoalescer.selectMessageTransport(rebuilt, previous);
+
+        assertFalse(transport.tailUpdate());
+        assertEquals(0, transport.baseIndex());
+        assertEquals(rebuilt, transport.messages());
+    }
+
+    private static List<ClaudeSession.Message> messages(int count) {
+        List<ClaudeSession.Message> messages = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            messages.add(new ClaudeSession.Message(ClaudeSession.Message.Type.USER, "message-" + i));
+        }
+        return messages;
     }
 }
