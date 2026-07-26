@@ -117,26 +117,29 @@
     line-height: 1;
 }
 
-/* Rollback button - appears on hover for user messages */
+/* Rollback button — always visible inline. top: 8px mirrors the copy
+   button's inherited offset from .message-copy-btn so the two align. */
 .message-rollback-btn {
     position: relative;
+    top: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 20px;
     height: 20px;
+    padding: 2px;
     background: transparent;
     border: none;
     cursor: pointer;
-    padding: 2px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     color: var(--text-secondary);
-    transition: opacity 0.2s ease, visibility 0.2s ease, color 0.2s ease;
-    opacity: 0;
-    visibility: hidden;
+    transition: color 0.2s ease, background 0.2s ease;
+    opacity: 0.7;
     border-radius: 3px;
     flex-shrink: 0;
+    vertical-align: middle;
 
     &:hover {
+        opacity: 1;
         color: var(--color-accent, #d4a574);
         background: rgba(128, 128, 128, 0.1);
     }
@@ -175,15 +178,6 @@
         opacity: 1;
         visibility: visible;
     }
-}
-
-.message.user:hover .message-rollback-btn {
-    opacity: 0.6;
-    visibility: visible;
-}
-
-.message.user .message-rollback-btn:hover {
-    opacity: 1;
 }
 
 /* Assistant Message: Row layout for alignment */
