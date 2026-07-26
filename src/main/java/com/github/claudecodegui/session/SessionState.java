@@ -275,6 +275,21 @@ public class SessionState {
     }
 
     /**
+     * Truncate messages, keeping only the first {@code keepCount} entries.
+     * If keepCount >= messages.size(), this is a no-op.
+     * @param keepCount number of messages to retain from the beginning
+     */
+    public void truncateMessages(int keepCount) {
+        if (keepCount < 0) {
+            return;
+        }
+        if (keepCount >= messages.size()) {
+            return;
+        }
+        messages.subList(keepCount, messages.size()).clear();
+    }
+
+    /**
      * Update the last modified time to the current time.
      */
     public void updateLastModifiedTime() {

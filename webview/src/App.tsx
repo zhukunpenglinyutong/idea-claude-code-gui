@@ -430,7 +430,6 @@ const App = () => {
     t,
     addToast,
     messages: mergedMessages,
-    setMessages,
     getContentBlocks,
     findToolResult,
     getMessageText,

@@ -1858,7 +1858,8 @@
     "cancel": "取消",
     "restoring": "正在恢复修改...",
     "success": "已成功回退",
-    "failed": "回退失败"
+    "failed": "回退失败",
+    "notAvailable": "此消息不支持撤回"
   },
   "reasoning": {
     "title": "选择思考深度",

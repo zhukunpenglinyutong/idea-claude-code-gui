@@ -1855,7 +1855,8 @@
     "cancel": "Cancel",
     "restoring": "Reverting changes...",
     "success": "Successfully rolled back",
-    "failed": "Rollback failed"
+    "failed": "Rollback failed",
+    "notAvailable": "Rollback not available for this message"
   },
   "reasoning": {
     "title": "Select reasoning depth",
