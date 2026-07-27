@@ -1669,9 +1669,13 @@
         "label": "Haiku 4.5",
         "description": "Haiku 速度最快，适合快速答复"
       },
+      "opus5": {
+        "label": "Opus 5",
+        "description": "Opus 5 · 最新最强大的模型"
+      },
       "opus48": {
         "label": "Opus 4.8",
-        "description": "Opus 4.8 · 最新最强大的模型"
+        "description": "Opus 4.8 · 上一代旗舰"
       },
       "fable5": {
         "label": "Fable 5",

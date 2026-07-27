@@ -29,6 +29,15 @@ public class PricingTableTest {
     }
 
     @Test
+    public void claudeResolvesOpus5AtOpusTierWithoutShadowingOpus4() {
+        // claude-opus-5 is $5 / $25 per MTok and must not fall through to a claude-opus-4* prefix.
+        ClaudePricing opus5 = ClaudePricingTable.resolve("claude-opus-5");
+        assertNotNull(opus5);
+        assertEquals(5.0, opus5.inputCostPer1M(), 1e-9);
+        assertEquals(25.0, opus5.outputCostPer1M(), 1e-9);
+    }
+
+    @Test
     public void claudeAppliesAbove200KTierForSonnet4() {
         ClaudePricing pricing = ClaudePricingTable.resolve("claude-sonnet-4");
         assertNotNull(pricing);

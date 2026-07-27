@@ -1420,9 +1420,13 @@
         "label": "Haiku 4.5",
         "description": "Haiku 4.5 · Le plus rapide pour des réponses rapides"
       },
+      "opus5": {
+        "label": "Opus 5",
+        "description": "Opus 5 · Le plus récent et le plus performant"
+      },
       "opus48": {
         "label": "Opus 4.8",
-        "description": "Opus 4.8 · Le plus récent et le plus performant"
+        "description": "Opus 4.8 · Modèle phare précédent"
       },
       "fable5": {
         "label": "Fable 5",

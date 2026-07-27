@@ -134,6 +134,7 @@ export const ButtonArea = ({
     const modelKeyMap: Record<string, keyof typeof mapping> = {
       'claude-sonnet-5': 'sonnet',
       'claude-sonnet-4-6': 'sonnet',
+      'claude-opus-5': 'opus',
       'claude-opus-4-8': 'opus',
       'claude-haiku-4-5': 'haiku',
     };

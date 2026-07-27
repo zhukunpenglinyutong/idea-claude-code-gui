@@ -1446,9 +1446,13 @@
         "label": "Haiku 4.5",
         "description": "Haiku 4.5 · Самая быстрая для быстрых ответов"
       },
+      "opus5": {
+        "label": "Opus 5",
+        "description": "Opus 5 · Новейшая и самая мощная"
+      },
       "opus48": {
         "label": "Opus 4.8",
-        "description": "Opus 4.8 · Новейшая и самая мощная"
+        "description": "Opus 4.8 · Флагман предыдущего поколения"
       },
       "fable5": {
         "label": "Fable 5",

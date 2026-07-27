@@ -314,9 +314,14 @@ export function normalizeClaudeModelId(modelId: string | undefined | null): stri
  */
 export const CLAUDE_MODELS: ModelInfo[] = [
   {
+    id: 'claude-opus-5',
+    label: 'Opus 5',
+    description: 'Opus 5 · Latest and most capable',
+  },
+  {
     id: 'claude-opus-4-8',
     label: 'Opus 4.8',
-    description: 'Opus 4.8 · Latest and most capable',
+    description: 'Opus 4.8 · Previous flagship',
   },
   {
     id: 'claude-sonnet-5',
@@ -402,6 +407,7 @@ export const AVAILABLE_PROVIDERS: ProviderInfo[] = [
  */
 export const EFFORT_SUPPORTED_CLAUDE_MODELS = new Set([
   'claude-fable-5',
+  'claude-opus-5',
   'claude-opus-4-8',
   'claude-opus-4-6',
   'claude-opus-4-6[1m]',
@@ -414,6 +420,7 @@ export const EFFORT_SUPPORTED_CLAUDE_MODELS = new Set([
  */
 export const XHIGH_EFFORT_CLAUDE_MODELS = new Set([
   'claude-fable-5',
+  'claude-opus-5',
   'claude-opus-4-8',
 ]);
 
@@ -422,6 +429,7 @@ export const XHIGH_EFFORT_CLAUDE_MODELS = new Set([
  */
 export const MAX_EFFORT_CLAUDE_MODELS = new Set([
   'claude-fable-5',
+  'claude-opus-5',
   'claude-opus-4-8',
   'claude-opus-4-6',
   'claude-opus-4-6[1m]',

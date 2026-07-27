@@ -78,9 +78,11 @@ public class ModelProviderHandlerTest {
         assertTrue(ModelProviderHandler.MODEL_CONTEXT_LIMITS.containsKey("claude-sonnet-5[1m]"));
         assertEquals(200_000, ModelProviderHandler.getModelContextLimit("claude-sonnet-5"));
         assertEquals(200_000, ModelProviderHandler.getModelContextLimit("claude-sonnet-4-6"));
+        assertEquals(200_000, ModelProviderHandler.getModelContextLimit("claude-opus-5"));
         assertEquals(200_000, ModelProviderHandler.getModelContextLimit("claude-opus-4-8"));
         assertEquals(200_000, ModelProviderHandler.getModelContextLimit("claude-opus-4-6"));
         // IDs with [1m] suffix - 1M context
+        assertEquals(1_000_000, ModelProviderHandler.getModelContextLimit("claude-opus-5[1m]"));
         assertEquals(1_000_000, ModelProviderHandler.getModelContextLimit("claude-sonnet-5[1m]"));
         assertEquals(1_000_000, ModelProviderHandler.getModelContextLimit("claude-sonnet-4-6[1m]"));
         assertEquals(1_000_000, ModelProviderHandler.getModelContextLimit("claude-opus-4-8[1m]"));

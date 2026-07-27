@@ -29,12 +29,14 @@ public class ModelProviderHandler {
         MODEL_CONTEXT_LIMITS.put("claude-sonnet-5", 200_000);
         MODEL_CONTEXT_LIMITS.put("claude-sonnet-4-6", 200_000);
         MODEL_CONTEXT_LIMITS.put("claude-fable-5", 200_000);
+        MODEL_CONTEXT_LIMITS.put("claude-opus-5", 200_000);
         MODEL_CONTEXT_LIMITS.put("claude-opus-4-8", 200_000);
         MODEL_CONTEXT_LIMITS.put("claude-opus-4-6", 200_000);
         // Claude models with [1m] suffix - 1M context
         MODEL_CONTEXT_LIMITS.put("claude-sonnet-5[1m]", 1_000_000);
         MODEL_CONTEXT_LIMITS.put("claude-sonnet-4-6[1m]", 1_000_000);
         MODEL_CONTEXT_LIMITS.put("claude-fable-5[1m]", 1_000_000);
+        MODEL_CONTEXT_LIMITS.put("claude-opus-5[1m]", 1_000_000);
         MODEL_CONTEXT_LIMITS.put("claude-opus-4-8[1m]", 1_000_000);
         MODEL_CONTEXT_LIMITS.put("claude-opus-4-6[1m]", 1_000_000);
         // Haiku - no 1M context available
