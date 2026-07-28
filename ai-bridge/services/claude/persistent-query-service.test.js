@@ -1,7 +1,77 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { __testing } from './persistent-query-service.js';
 import { createTurnSink } from './runtime-lifecycle.js';
+
+// buildRequestContext() calls setupApiKey(), which reads credentials ONLY from
+// ~/.claude/settings.json and gates that read on ~/.codemoss/config.json.
+// Running it in-process therefore depends on the developer's real configuration
+// and throws "API Key not configured" on a bare machine — which is exactly how
+// these tests failed in CI while passing locally. getRealHomeDir() caches its
+// result, so overriding HOME in this process is not reliable; mirror
+// api-config.test.js and run the call in an isolated child process whose HOME
+// points at a temp home we control.
+const PQS_MODULE_URL = new URL('./persistent-query-service.js', import.meta.url).href;
+const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+
+function createTempHome() {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ccg-pqs-home-'));
+  // access:'local' — otherwise loadClaudeSettings() skips the read entirely.
+  fs.mkdirSync(path.join(home, '.codemoss'), { recursive: true });
+  fs.writeFileSync(
+    path.join(home, '.codemoss', 'config.json'),
+    JSON.stringify({ claude: { current: '__local_settings_json__' } }),
+    'utf8',
+  );
+  fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
+  fs.writeFileSync(
+    path.join(home, '.claude', 'settings.json'),
+    JSON.stringify({ env: { ANTHROPIC_API_KEY: 'sk-ant-test-key' } }),
+    'utf8',
+  );
+  return home;
+}
+
+/** Resolve buildRequestContext's thinking options under a controlled HOME. */
+function resolveThinkingOptions(request, settings) {
+  const home = createTempHome();
+  try {
+    const script = `
+      import { __testing } from ${JSON.stringify(PQS_MODULE_URL)};
+      const context = await __testing.buildRequestContext(
+        ${JSON.stringify(request)}, false, ${JSON.stringify({ settings })},
+      );
+      process.stdout.write('@@' + JSON.stringify({
+        thinking: context.options.thinking ?? null,
+        maxThinkingTokens: context.options.maxThinkingTokens ?? null,
+      }));
+    `;
+    const stdout = execFileSync(process.execPath, ['--input-type=module', '--eval', script], {
+      // api-config resolves some paths relative to the repo root.
+      cwd: REPO_ROOT,
+      env: {
+        ...process.env,
+        HOME: home,
+        USERPROFILE: home,
+        // setupApiKey ignores shell credentials, but keep them out anyway so the
+        // temp settings.json is unambiguously the only source.
+        ANTHROPIC_API_KEY: '',
+        ANTHROPIC_AUTH_TOKEN: '',
+      },
+      encoding: 'utf8',
+    });
+    const marker = stdout.lastIndexOf('@@');
+    assert.ok(marker >= 0, `child produced no result payload:\n${stdout}`);
+    return JSON.parse(stdout.slice(marker + 2));
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+}
 
 test('abortCurrentTurn marks runtime as user-aborted before disposing it', async () => {
   let disposed = false;
@@ -304,34 +374,31 @@ test('messages route to turnSink when active, not when null', () => {
 // Thinking config: Mythos-class models need an explicit visible display
 // ============================================================================
 
-test('buildRequestContext sends thinking adaptive+summarized for Fable instead of maxThinkingTokens', async () => {
-  const context = await __testing.buildRequestContext(
+test('buildRequestContext sends thinking adaptive+summarized for Fable instead of maxThinkingTokens', () => {
+  const options = resolveThinkingOptions(
     { message: 'hi', model: 'claude-fable-5' },
-    false,
-    { settings: { alwaysThinkingEnabled: true } },
+    { alwaysThinkingEnabled: true },
   );
-  assert.deepEqual(context.options.thinking, { type: 'adaptive', display: 'summarized' });
-  assert.equal(context.options.maxThinkingTokens, undefined);
+  assert.deepEqual(options.thinking, { type: 'adaptive', display: 'summarized' });
+  assert.equal(options.maxThinkingTokens, null);
 });
 
-test('buildRequestContext sends thinking disabled for Fable when disableThinking is set', async () => {
-  const context = await __testing.buildRequestContext(
+test('buildRequestContext sends thinking disabled for Fable when disableThinking is set', () => {
+  const options = resolveThinkingOptions(
     { message: 'hi', model: 'claude-fable-5', disableThinking: true },
-    false,
-    { settings: { alwaysThinkingEnabled: true } },
+    { alwaysThinkingEnabled: true },
   );
-  assert.deepEqual(context.options.thinking, { type: 'disabled' });
-  assert.equal(context.options.maxThinkingTokens, undefined);
+  assert.deepEqual(options.thinking, { type: 'disabled' });
+  assert.equal(options.maxThinkingTokens, null);
 });
 
-test('buildRequestContext keeps the legacy maxThinkingTokens path for models with visible default display', async () => {
-  const context = await __testing.buildRequestContext(
+test('buildRequestContext keeps the legacy maxThinkingTokens path for models with visible default display', () => {
+  const options = resolveThinkingOptions(
     { message: 'hi', model: 'claude-sonnet-4-6' },
-    false,
-    { settings: { alwaysThinkingEnabled: true, maxThinkingTokens: 12000 } },
+    { alwaysThinkingEnabled: true, maxThinkingTokens: 12000 },
   );
-  assert.equal(context.options.thinking, undefined);
-  assert.equal(context.options.maxThinkingTokens, 12000);
+  assert.equal(options.thinking, null);
+  assert.equal(options.maxThinkingTokens, 12000);
 });
 
 console.log('\n✅ All persistent-query-service tests updated with turnSink coverage');
