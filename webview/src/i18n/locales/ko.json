@@ -113,8 +113,6 @@
       "openTooltip": "대화에서 검색 (Cmd/Ctrl+F)"
     },
     "autoResume": {
-      "tooltipOn": "사용량 한도 초기화 후 자동 재개: 켜짐",
-      "tooltipOff": "사용량 한도 초기화 후 자동 재개: 꺼짐",
       "toggleLabel": "사용량 한도 초기화 후 자동 재개",
       "countdown": "사용량 한도에 도달했습니다 — {{time}}에 자동 재개 (남은 시간 {{remaining}})",
       "attempt": "시도 {{current}}/{{max}}",

@@ -88,6 +88,8 @@ export const ButtonArea = ({
   onToggleThinking,
   streamingEnabled = true,
   onStreamingEnabledChange,
+  autoResumeEnabled = false,
+  onToggleAutoResume,
   selectedAgent,
   onAgentSelect,
   onOpenAgentSettings,
@@ -260,6 +262,8 @@ export const ButtonArea = ({
           onToggleThinking={onToggleThinking}
           streamingEnabled={streamingEnabled}
           onStreamingEnabledChange={onStreamingEnabledChange}
+          autoResumeEnabled={autoResumeEnabled}
+          onToggleAutoResume={onToggleAutoResume}
           selectedAgent={selectedAgent}
           onAgentSelect={onAgentSelect}
           onOpenAgentSettings={onOpenAgentSettings}

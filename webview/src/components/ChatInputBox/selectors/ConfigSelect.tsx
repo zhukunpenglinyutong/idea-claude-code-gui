@@ -18,6 +18,12 @@ interface ConfigSelectProps {
   onToggleThinking?: (enabled: boolean) => void;
   streamingEnabled?: boolean;
   onStreamingEnabledChange?: (enabled: boolean) => void;
+  autoResumeEnabled?: boolean;
+  /**
+   * Toggles auto-resume after a usage-limit reset. Only provided for the Claude
+   * provider — the row is hidden when absent.
+   */
+  onToggleAutoResume?: (enabled: boolean) => void;
   selectedAgent?: SelectedAgent | null;
   onAgentSelect?: (agent: SelectedAgent) => void;
   onOpenAgentSettings?: () => void;
@@ -129,7 +135,7 @@ function getAgentOptionStyle(isInfo: boolean): React.CSSProperties {
 }
 
 /**
- * ConfigSelect - Configuration menu (Agent, Streaming, Thinking)
+ * ConfigSelect - Configuration menu (Agent, Streaming, Thinking, Auto-resume)
  * Provider selection has been moved to a standalone ProviderSelect icon button.
  */
 export const ConfigSelect = ({
@@ -137,6 +143,8 @@ export const ConfigSelect = ({
   onToggleThinking,
   streamingEnabled,
   onStreamingEnabledChange,
+  autoResumeEnabled,
+  onToggleAutoResume,
   selectedAgent,
   onAgentSelect,
   onOpenAgentSettings,
@@ -549,6 +557,42 @@ export const ConfigSelect = ({
               }}
             />
           </div>
+
+          {/*
+            Auto-resume Switch Item — an occasionally-used opt-in preference, so
+            it lives here beside the input next to its peers (streaming,
+            thinking) rather than in the header, which is reserved for
+            high-frequency actions. Claude-only: the handler is omitted for other
+            providers, which hides the row.
+          */}
+          {onToggleAutoResume && (
+            <>
+              <div style={FAINT_DIVIDER_STYLE} />
+              <div
+                className="selector-option"
+                data-testid="config-option-auto-resume"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleAutoResume(!autoResumeEnabled);
+                }}
+                onMouseEnter={() => setActiveSubmenu('none')}
+                style={SWITCH_OPTION_STYLE}
+              >
+                <div style={SWITCH_LABEL_STYLE}>
+                  <span className="codicon codicon-debug-restart" />
+                  <span>{t('chat.autoResume.toggleLabel', { defaultValue: 'Auto-resume after usage limit reset' })}</span>
+                </div>
+                <Switch
+                  size="small"
+                  checked={autoResumeEnabled ?? false}
+                  onClick={(checked, e) => {
+                    e.stopPropagation();
+                    onToggleAutoResume(checked);
+                  }}
+                />
+              </div>
+            </>
+          )}
         </div>
       )}
 

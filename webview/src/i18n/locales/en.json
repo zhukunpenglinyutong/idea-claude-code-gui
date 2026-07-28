@@ -113,8 +113,6 @@
       "openTooltip": "Search in conversation (Cmd/Ctrl+F)"
     },
     "autoResume": {
-      "tooltipOn": "Auto-resume after usage limit reset: on",
-      "tooltipOff": "Auto-resume after usage limit reset: off",
       "toggleLabel": "Auto-resume after usage limit reset",
       "countdown": "Usage limit reached — auto-resume at {{time}} (in {{remaining}})",
       "attempt": "attempt {{current}}/{{max}}",

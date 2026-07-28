@@ -113,8 +113,6 @@
       "openTooltip": "Rechercher dans la conversation (Cmd/Ctrl+F)"
     },
     "autoResume": {
-      "tooltipOn": "Reprise automatique après réinitialisation de la limite : activée",
-      "tooltipOff": "Reprise automatique après réinitialisation de la limite : désactivée",
       "toggleLabel": "Reprise automatique après réinitialisation de la limite d'utilisation",
       "countdown": "Limite d'utilisation atteinte — reprise automatique à {{time}} (dans {{remaining}})",
       "attempt": "tentative {{current}}/{{max}}",

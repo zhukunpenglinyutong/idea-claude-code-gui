@@ -117,6 +117,10 @@ export interface ChatScreenProps {
   // Auto-resume after usage limit reset
   autoResumePending: AutoResumePending | null;
   onCancelAutoResume: () => void;
+  /** Current auto-resume preference; drives the toggle beside the input box. */
+  autoResumeEnabled: boolean;
+  /** Toggle handler; undefined for providers without the feature (non-Claude). */
+  onToggleAutoResume?: (enabled: boolean) => void;
 }
 
 /**
@@ -147,7 +151,7 @@ export const ChatScreen = ({
   onStreamingEnabledChange,
   onAutoOpenFileEnabledChange, onLongContextChange,
   messageQueue, onRemoveFromQueue,
-  autoResumePending, onCancelAutoResume,
+  autoResumePending, onCancelAutoResume, autoResumeEnabled, onToggleAutoResume,
 }: ChatScreenProps) => {
   const { t } = useTranslation();
   const { messages, loading, isThinking, streamingActive, loadingStartTime, subagentHistories } = useMessages();
@@ -319,6 +323,8 @@ export const ChatScreen = ({
           onToggleThinking={onToggleThinking}
           streamingEnabled={streamingEnabledSetting}
           onStreamingEnabledChange={onStreamingEnabledChange}
+          autoResumeEnabled={autoResumeEnabled}
+          onToggleAutoResume={onToggleAutoResume}
           sendShortcut={sendShortcut}
           selectedAgent={selectedAgent}
           onAgentSelect={onAgentSelect}

@@ -113,8 +113,6 @@
       "openTooltip": "在对话中搜索 (Cmd/Ctrl+F)"
     },
     "autoResume": {
-      "tooltipOn": "用量限制重置后自动恢复:已开启",
-      "tooltipOff": "用量限制重置后自动恢复:已关闭",
       "toggleLabel": "用量限制重置后自动恢复",
       "countdown": "已达到用量限制 — 将于 {{time}} 自动恢复(还剩 {{remaining}})",
       "attempt": "第 {{current}}/{{max}} 次尝试",

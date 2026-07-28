@@ -624,6 +624,10 @@ export interface ChatInputBoxProps {
   streamingEnabled?: boolean;
   /** Toggle streaming */
   onStreamingEnabledChange?: (enabled: boolean) => void;
+  /** Whether auto-resume after a usage-limit reset is enabled */
+  autoResumeEnabled?: boolean;
+  /** Toggle auto-resume after a usage-limit reset (Claude only; omit to hide) */
+  onToggleAutoResume?: (enabled: boolean) => void;
 
   /** Send shortcut setting: 'enter' = Enter sends | 'cmdEnter' = Cmd/Ctrl+Enter sends */
   sendShortcut?: 'enter' | 'cmdEnter';
@@ -718,6 +722,10 @@ export interface ButtonAreaProps {
   streamingEnabled?: boolean;
   /** Toggle streaming */
   onStreamingEnabledChange?: (enabled: boolean) => void;
+  /** Whether auto-resume after a usage-limit reset is enabled */
+  autoResumeEnabled?: boolean;
+  /** Toggle auto-resume after a usage-limit reset (Claude only; omit to hide) */
+  onToggleAutoResume?: (enabled: boolean) => void;
   /** Currently selected agent */
   selectedAgent?: SelectedAgent | null;
   /** Agent selection callback */

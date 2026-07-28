@@ -348,8 +348,10 @@ const App = () => {
 
   // ── Auto-resume after usage limit reset (Claude only) ──
   const autoResumeEnabled = useAutoResumeEnabled();
-  const handleToggleAutoResume = useCallback(() => {
-    setAutoResumeOnLimit(!getAutoResumeOnLimit());
+  // The Switch reports the requested state; fall back to inverting the stored
+  // value for callers that toggle without one.
+  const handleToggleAutoResume = useCallback((enabled?: boolean) => {
+    setAutoResumeOnLimit(enabled ?? !getAutoResumeOnLimit());
   }, []);
   const sendAutoResumeContinue = useCallback(() => {
     executeMessage('continue');
@@ -466,8 +468,6 @@ const App = () => {
           setCurrentView('settings');
         }}
         onOpenSearch={() => setSearchOpen(true)}
-        onToggleAutoResume={currentProvider === 'claude' ? handleToggleAutoResume : undefined}
-        autoResumeEnabled={autoResumeEnabled}
         titleEditable
         onTitleChange={(newTitle) => {
           setCustomSessionTitle(newTitle);
@@ -554,6 +554,8 @@ const App = () => {
           onRemoveFromQueue={dequeueMessage}
           autoResumePending={autoResumePending}
           onCancelAutoResume={cancelAutoResume}
+          autoResumeEnabled={autoResumeEnabled}
+          onToggleAutoResume={currentProvider === 'claude' ? handleToggleAutoResume : undefined}
         />
       ) : (
         <HistoryView
