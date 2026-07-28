@@ -28,6 +28,7 @@ export interface AskUserQuestionRequest {
   requestId: string;
   toolName: string;
   questions: Question[];
+  provider?: 'claude' | 'codex';
 }
 
 interface AskUserQuestionDialogProps {
@@ -87,6 +88,10 @@ const AskUserQuestionDialog = ({
   const normalizedQuestions = (Array.isArray(request?.questions) ? request!.questions : [])
     .map(normalizeQuestion)
     .filter(Boolean) as Question[];
+  const isCodexRequest = request?.provider === 'codex' || request?.toolName === 'request_user_input';
+  const dialogTitle = isCodexRequest
+    ? t('askUserQuestion.codexTitle', 'Codex 有一些问题想问你')
+    : t('askUserQuestion.title', 'Claude 有一些问题想问你');
 
   const handleCancel = useCallback(() => {
     if (request && markSubmitted()) {
@@ -139,7 +144,7 @@ const AskUserQuestionDialog = ({
       <div className="permission-dialog-overlay">
         <div className="ask-user-question-dialog">
           <h3 className="ask-user-question-dialog-title">
-            {t('askUserQuestion.title', 'Claude 有一些问题想问你')}
+            {dialogTitle}
           </h3>
           <p className="question-text">
             {t('askUserQuestion.invalidFormat', '问题数据格式不支持，请取消后重试。')}
@@ -167,7 +172,7 @@ const AskUserQuestionDialog = ({
       <div className="permission-dialog-overlay">
         <div className="ask-user-question-dialog">
           <h3 className="ask-user-question-dialog-title">
-            {t('askUserQuestion.title', 'Claude 有一些问题想问你')}
+            {dialogTitle}
           </h3>
           <p className="question-text">
             {t('askUserQuestion.loading', '正在加载问题...')}
@@ -277,7 +282,7 @@ const AskUserQuestionDialog = ({
         {/* Header area - with collapse/expand button */}
         <div className="ask-user-question-dialog-header">
           <h3 className="ask-user-question-dialog-title">
-            {t('askUserQuestion.title', 'Claude 有一些问题想问你')}
+            {dialogTitle}
           </h3>
           <button
             className="collapse-toggle-button"

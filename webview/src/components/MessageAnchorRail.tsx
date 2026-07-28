@@ -17,7 +17,18 @@ interface MessageAnchorRailProps {
 }
 
 const MAX_PREVIEW_LENGTH = 300;
+const MAX_ANCHOR_COUNT = 30;
 const TOOLTIP_DELAY_MS = 500;
+
+export function sampleAnchorItems(items: AnchorItem[], maxCount = MAX_ANCHOR_COUNT): AnchorItem[] {
+  if (items.length <= maxCount || maxCount < 2) {
+    return items;
+  }
+  return Array.from({ length: maxCount }, (_, index) => {
+    const sourceIndex = Math.round((index / (maxCount - 1)) * (items.length - 1));
+    return items[sourceIndex];
+  });
+}
 
 function getAnchorStyle(position: number): React.CSSProperties {
   return { top: `${position * 100}%` };
@@ -87,10 +98,12 @@ export const MessageAnchorRail = memo(function MessageAnchorRail({
     }
     // Guard: also prevents division by zero in the position calculation below
     if (userMessages.length <= 1) return [];
-    // Distribute positions evenly between 4% and 96%
-    return userMessages.map((item, idx) => ({
+    // Keep the rail usable for long conversations by sampling evenly across the
+    // full message range while retaining the first and last user messages.
+    const visibleMessages = sampleAnchorItems(userMessages);
+    return visibleMessages.map((item, idx) => ({
       ...item,
-      position: 0.04 + (idx / (userMessages.length - 1)) * 0.92,
+      position: 0.04 + (idx / (visibleMessages.length - 1)) * 0.92,
     }));
   }, [messages, collapsedCount]);
 

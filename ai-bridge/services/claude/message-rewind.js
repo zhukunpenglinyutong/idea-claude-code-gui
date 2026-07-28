@@ -5,9 +5,8 @@
 
 import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
-import { join } from 'path';
 import { setupApiKey, buildCliEnv, buildWebviewControlledSettingsOverride } from '../../config/api-config.js';
-import { getClaudeDir, getRealHomeDir, selectWorkingDirectory } from '../../utils/path-utils.js';
+import { getClaudeProjectSessionFilePath, getRealHomeDir, selectWorkingDirectory } from '../../utils/path-utils.js';
 import { ensureClaudeSdk, hasClaudeProjectSessionFile, waitForClaudeProjectSessionFile, isNoConversationFoundError } from './message-utils.js';
 import { getActiveQueryResult, getActiveSessionIds } from './message-session-registry.js';
 import { getClaudeCliPathOverride } from '../../utils/claude-cli-path.js';
@@ -253,9 +252,7 @@ async function resolveRewindCandidateMessageIds(sessionId, cwd, providedMessageI
 
 async function readClaudeProjectSessionMessages(sessionId, cwd) {
   try {
-    const projectsDir = join(getClaudeDir(), 'projects');
-    const sanitizedCwd = (cwd || process.cwd()).replace(/[^a-zA-Z0-9]/g, '-');
-    const sessionFile = join(projectsDir, sanitizedCwd, `${sessionId}.jsonl`);
+    const sessionFile = getClaudeProjectSessionFilePath(sessionId, cwd);
     if (!existsSync(sessionFile)) {
       return [];
     }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
 import { useIsToolDenied } from '../../hooks/useIsToolDenied';
@@ -6,6 +6,7 @@ import { isTerminalFailure, toolStatusIndicatorClass, useBackgroundTaskState } f
 import { useResolvedFileLinkTooltip } from '../../hooks/useResolvedFileLinkTooltip';
 import { openFile } from '../../utils/bridge';
 import { formatParamValue, truncate } from '../../utils/helpers';
+import { extractToolResultImages } from '../../utils/toolResultImages';
 import { getFileIcon, getFolderIcon } from '../../utils/fileIcons';
 import { isCommandToolName, parseCommandType } from '../../utils/toolCommandPath';
 import { getToolLineInfo, resolveToolTarget, summarizeToolCommand, extractPathsFromPatch } from '../../utils/toolPresentation';
@@ -38,6 +39,30 @@ const PATCH_FILE_LINK_STYLE: React.CSSProperties = {
 const LINE_INFO_STYLE: React.CSSProperties = {
   marginLeft: '8px',
   fontSize: '12px',
+};
+
+const RESULT_IMAGE_STYLE: React.CSSProperties = {
+  maxWidth: '100%',
+  maxHeight: '300px',
+  borderRadius: '4px',
+  objectFit: 'contain',
+};
+
+const IMAGE_HINT_STYLE: React.CSSProperties = {
+  marginLeft: '8px',
+  fontSize: '12px',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '2px',
+};
+
+/** Cap rendered param values so a huge Write `content` param (tens of KB) never lands in the DOM. */
+const MAX_PARAM_VALUE_CHARS = 4000;
+
+const formatParamValueCapped = (value: unknown): string => {
+  const text = formatParamValue(value);
+  if (text.length <= MAX_PARAM_VALUE_CHARS) return text;
+  return `${text.slice(0, MAX_PARAM_VALUE_CHARS)}… (+${text.length - MAX_PARAM_VALUE_CHARS} more chars)`;
 };
 
 const CODICON_MAP: Record<string, string> = {
@@ -209,7 +234,7 @@ const PatchFileLink = ({ path }: PatchFileLinkProps) => {
   );
 };
 
-const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps) => {
+const GenericToolBlock = memo(function GenericToolBlock({ name, input, result, toolId }: GenericToolBlockProps) {
   const { t } = useTranslation();
   const lowerName = (name ?? '').toLowerCase();
   const [expanded, setExpanded] = useState(false);
@@ -281,7 +306,10 @@ const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps
     ([key]) => !omitFields.has(key) && key !== 'pattern',
   );
 
-  const hasExpandableContent = otherParams.length > 0;
+  // Nested image blocks in the tool_result (Read of image files, screenshots)
+  const resultImages = extractToolResultImages(result);
+
+  const hasExpandableContent = otherParams.length > 0 || resultImages.length > 0;
   const isDirectoryPath = target?.isDirectory ?? false;
   const isFilePath = target?.isFile ?? false;
   const lineInfo = input && target ? getToolLineInfo(input, target) : {};
@@ -375,6 +403,12 @@ const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps
               · {t('tools.runningInBackground', 'running in background…')}
             </span>
           )}
+          {resultImages.length > 0 && (
+            <span className="tool-title-summary" style={IMAGE_HINT_STYLE}>
+              <span className="codicon codicon-file-media" />
+              {resultImages.length}
+            </span>
+          )}
         </div>
 
         <div className={`tool-status-indicator ${toolStatusIndicatorClass(isError, isCompleted, background.terminalStatus)}`} />
@@ -386,7 +420,13 @@ const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps
               {otherParams.map(([key, value]) => (
                 <div key={key} className="task-field">
                   <div className="task-field-label">{key}</div>
-                  <div className="task-field-content">{formatParamValue(value)}</div>
+                  <div className="task-field-content">{formatParamValueCapped(value)}</div>
+                </div>
+              ))}
+              {/* Only mount the (potentially large base64) images while expanded */}
+              {expanded && resultImages.map((image, idx) => (
+                <div key={`result-image-${idx}`} className="task-field">
+                  <img src={image.src} alt={image.mediaType ?? 'image'} style={RESULT_IMAGE_STYLE} />
                 </div>
               ))}
             </div>
@@ -395,6 +435,6 @@ const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps
       )}
     </div>
   );
-};
+});
 
 export default GenericToolBlock;

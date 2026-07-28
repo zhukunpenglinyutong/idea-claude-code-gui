@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type {
   PromptConfig,
+  PromptProvider,
   PromptScope,
   GetPromptsMessage,
   AddPromptMessage,
@@ -47,10 +48,11 @@ export interface ExportDialogState {
 export interface UsePromptManagementOptions {
   onError?: (message: string) => void;
   onSuccess?: (message: string) => void;
+  provider?: PromptProvider;
 }
 
 export function usePromptManagement(options: UsePromptManagementOptions = {}) {
-  const { onSuccess, onError } = options;
+  const { onSuccess, onError, provider = 'claude' } = options;
   const { t } = useTranslation();
 
   // Timeout timer reference (using useRef to avoid global variable pollution)
@@ -97,7 +99,7 @@ export function usePromptManagement(options: UsePromptManagementOptions = {}) {
     const TIMEOUT = 2000; // 2-second timeout
 
     setPromptsLoading(true);
-    const message: GetPromptsMessage = { scope };
+    const message: GetPromptsMessage = { scope, provider };
     sendToJava(`get_prompts:${JSON.stringify(message)}`);
 
     // Set up timeout timer - show empty list after timeout
@@ -109,7 +111,7 @@ export function usePromptManagement(options: UsePromptManagementOptions = {}) {
 
     // Store timeout ID in ref
     promptsLoadingTimeoutRef.current = timeoutId;
-  }, []);
+  }, [provider]);
 
   // Convenience functions for loading prompts
   const loadGlobalPrompts = useCallback(() => loadPrompts('global'), [loadPrompts]);
@@ -186,10 +188,12 @@ export function usePromptManagement(options: UsePromptManagementOptions = {}) {
         // Add new prompt
         const message: AddPromptMessage = {
           scope,
+          provider,
           prompt: {
             id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
             name: data.name,
             content: data.content,
+            provider,
             createdAt: Date.now(),
           },
         };
@@ -198,10 +202,12 @@ export function usePromptManagement(options: UsePromptManagementOptions = {}) {
         // Update existing prompt
         const message: UpdatePromptMessage = {
           scope,
+          provider,
           id: promptDialog.prompt.id,
           updates: {
             name: data.name,
             content: data.content,
+            provider,
             updatedAt: Date.now(),
           },
         };
@@ -212,7 +218,7 @@ export function usePromptManagement(options: UsePromptManagementOptions = {}) {
       // Reload list after prompt operation (with timeout protection)
       loadPrompts(scope);
     },
-    [promptDialog, loadPrompts]
+    [promptDialog, loadPrompts, provider]
   );
 
   // Confirm prompt deletion
@@ -223,13 +229,14 @@ export function usePromptManagement(options: UsePromptManagementOptions = {}) {
 
     const message: DeletePromptMessage = {
       scope,
+      provider,
       id: prompt.id,
     };
     sendToJava(`delete_prompt:${JSON.stringify(message)}`);
     setDeletePromptConfirm({ isOpen: false, prompt: null, scope: 'global' });
     // Reload list after deletion (with timeout protection)
     loadPrompts(scope);
-  }, [deletePromptConfirm, loadPrompts]);
+  }, [deletePromptConfirm, loadPrompts, provider]);
 
   // Cancel prompt deletion
   const cancelDeletePrompt = useCallback(() => {
@@ -268,18 +275,19 @@ export function usePromptManagement(options: UsePromptManagementOptions = {}) {
     const scope = exportDialog.scope;
     const message: ExportPromptsMessage = {
       scope,
+      provider,
       promptIds: selectedIds,
     };
     sendToJava(`export_prompts:${JSON.stringify(message)}`);
     setExportDialog({ isOpen: false, scope: 'global' });
-  }, [exportDialog.scope]);
+  }, [exportDialog.scope, provider]);
 
   // Import prompts from file
   const handleImportPromptsFile = useCallback((scope: PromptScope) => {
     currentImportScopeRef.current = scope;
-    const message: ImportPromptsFileMessage = { scope };
+    const message: ImportPromptsFileMessage = { scope, provider };
     sendToJava(`import_prompts_file:${JSON.stringify(message)}`);
-  }, []);
+  }, [provider]);
 
   // Handle import preview result (used by window callback)
   const handlePromptImportPreviewResult = useCallback(
@@ -313,6 +321,7 @@ export function usePromptManagement(options: UsePromptManagementOptions = {}) {
 
       const message: SaveImportedPromptsMessage = {
         scope,
+        provider,
         prompts: selectedPrompts,
         strategy,
       };
@@ -320,7 +329,7 @@ export function usePromptManagement(options: UsePromptManagementOptions = {}) {
       sendToJava(`save_imported_prompts:${JSON.stringify(message)}`);
       setImportPreviewDialog({ isOpen: false, previewData: null, scope: 'global' });
     },
-    [importPreviewDialog.previewData]
+    [importPreviewDialog.previewData, provider]
   );
 
   // Handle import result (used by window callback)

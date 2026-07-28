@@ -670,6 +670,37 @@ public class DaemonBridge {
                 break;
             }
 
+            case "task_event": {
+                // Async subagent lifecycle event (task_notification for a
+                // background Agent invoked with run_in_background:true). Emitted
+                // by the ai-bridge perpetual reader's inter-turn branch; dispatch
+                // to listeners exactly like session_updated so ClaudeChatWindow
+                // can forward it to the frontend.
+                //
+                // Dual delivery path (intentional defense-in-depth): task_* may
+                // ALSO reach the frontend in-turn via the [MESSAGE] stream
+                // (ClaudeMessageHandler.handleSystemMessage -> notifyTaskEvent),
+                // depending on whether the SDK drains task_notification before or
+                // after the turn's result. Both paths converge on
+                // SessionCallbackAdapter.onTaskEvent -> window.onTaskEvent, where
+                // registerCallbacks.ts dedups by tool_use_id + observable fields,
+                // so a duplicate delivery is a no-op rather than a double update.
+                // Do NOT delete either path without first confirming at runtime
+                // which is active (enable LOG.debug below + ai-bridge's
+                // [PERPETUAL_READER] Inter-turn log to verify).
+                String taskSessionId = obj.has("sessionId") && obj.get("sessionId").isJsonPrimitive()
+                        ? obj.get("sessionId").getAsString() : "?";
+                LOG.debug("[DaemonBridge] task_event received: sessionId=" + taskSessionId);
+                for (DaemonEventListener listener : eventListeners) {
+                    try {
+                        listener.onDaemonEvent(event, obj);
+                    } catch (Exception ex) {
+                        LOG.warn("[DaemonBridge] Listener threw while handling " + event, ex);
+                    }
+                }
+                break;
+            }
+
             default:
                 LOG.debug("[DaemonBridge] Unhandled daemon event: " + event);
         }

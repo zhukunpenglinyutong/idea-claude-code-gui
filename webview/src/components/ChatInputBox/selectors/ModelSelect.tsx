@@ -42,41 +42,37 @@ const DEFAULT_MODEL_MAP: Record<string, ModelInfo> = AVAILABLE_MODELS.reduce(
 );
 
 const MODEL_LABEL_KEYS: Record<string, string> = {
+  'claude-opus-5': 'models.claude.opus5.label',
   'claude-sonnet-5': 'models.claude.sonnet5.label',
+  'claude-sonnet-4-7': 'models.claude.sonnet47.label',
   'claude-sonnet-4-6': 'models.claude.sonnet46.label',
   'claude-fable-5': 'models.claude.fable5.label',
   'claude-opus-4-8': 'models.claude.opus48.label',
   'claude-opus-4-6': 'models.claude.opus46_1m.label',
   'claude-opus-4-6[1m]': 'models.claude.opus46_1m.label',
   'claude-haiku-4-5': 'models.claude.haiku45.label',
+  'gpt-5.6-sol': 'models.codex.gpt56sol.label',
+  'gpt-5.6-terra': 'models.codex.gpt56terra.label',
+  'gpt-5.6-luna': 'models.codex.gpt56luna.label',
   'gpt-5.5': 'models.codex.gpt55.label',
   'gpt-5.4': 'models.codex.gpt54.label',
-  'gpt-5.2-codex': 'models.codex.gpt52codex.label',
-  'gpt-5.1-codex-max': 'models.codex.gpt51codexMax.label',
-  'gpt-5.4-mini': 'models.codex.gpt54mini.label',
-  'gpt-5.3-codex': 'models.codex.gpt53codex.label',
-  'gpt-5.3-codex-spark': 'models.codex.gpt53codexSpark.label',
-  'gpt-5.2': 'models.codex.gpt52.label',
-  'gpt-5.1-codex-mini': 'models.codex.gpt51codexMini.label',
 };
 
 const MODEL_DESCRIPTION_KEYS: Record<string, string> = {
+  'claude-opus-5': 'models.claude.opus5.description',
   'claude-sonnet-5': 'models.claude.sonnet5.description',
+  'claude-sonnet-4-7': 'models.claude.sonnet47.description',
   'claude-sonnet-4-6': 'models.claude.sonnet46.description',
   'claude-fable-5': 'models.claude.fable5.description',
   'claude-opus-4-8': 'models.claude.opus48.description',
   'claude-opus-4-6': 'models.claude.opus46_1m.description',
   'claude-opus-4-6[1m]': 'models.claude.opus46_1m.description',
   'claude-haiku-4-5': 'models.claude.haiku45.description',
+  'gpt-5.6-sol': 'models.codex.gpt56sol.description',
+  'gpt-5.6-terra': 'models.codex.gpt56terra.description',
+  'gpt-5.6-luna': 'models.codex.gpt56luna.description',
   'gpt-5.5': 'models.codex.gpt55.description',
   'gpt-5.4': 'models.codex.gpt54.description',
-  'gpt-5.2-codex': 'models.codex.gpt52codex.description',
-  'gpt-5.1-codex-max': 'models.codex.gpt51codexMax.description',
-  'gpt-5.4-mini': 'models.codex.gpt54mini.description',
-  'gpt-5.3-codex': 'models.codex.gpt53codex.description',
-  'gpt-5.3-codex-spark': 'models.codex.gpt53codexSpark.description',
-  'gpt-5.2': 'models.codex.gpt52.description',
-  'gpt-5.1-codex-mini': 'models.codex.gpt51codexMini.description',
 };
 
 /**
@@ -85,7 +81,10 @@ const MODEL_DESCRIPTION_KEYS: Record<string, string> = {
  * Legacy Opus 4.6 IDs share the same opus mapping bucket.
  */
 const MODEL_ID_TO_MAPPING_KEY: Record<string, string> = {
+  'claude-fable-5': 'fable',
+  'claude-opus-5': 'opus',
   'claude-sonnet-5': 'sonnet',
+  'claude-sonnet-4-7': 'sonnet',
   'claude-sonnet-4-6': 'sonnet',
   'claude-opus-4-8': 'opus',
   'claude-opus-4-6': 'opus',

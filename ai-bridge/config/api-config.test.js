@@ -220,6 +220,7 @@ function runBuildCliEnv(tempHome) {
 
 test('isWebviewControlledEnvVar classifies model, context, and reasoning controls correctly', () => {
   assert.equal(isWebviewControlledEnvVar('ANTHROPIC_MODEL'), true);
+  assert.equal(isWebviewControlledEnvVar('ANTHROPIC_DEFAULT_FABLE_MODEL'), true);
   assert.equal(isWebviewControlledEnvVar('anthropic_model'), true); // case-insensitive
   assert.equal(isWebviewControlledEnvVar('CLAUDE_CODE_EFFORT_LEVEL'), true);
   assert.equal(isWebviewControlledEnvVar('MAX_THINKING_TOKENS'), true);

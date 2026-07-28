@@ -257,7 +257,7 @@ const _sessionCleanupTimer = setInterval(async () => {
 // unref() so the timer does not prevent natural process exit
 _sessionCleanupTimer.unref();
 
-async function executeTurn(runtime, requestContext, turnMeta) {
+  async function executeTurn(runtime, requestContext, turnMeta) {
   if (!runtime || runtime.closed) {
     const err = new Error('Runtime is closed');
     err.runtimeTerminated = true;
@@ -317,6 +317,16 @@ async function executeTurn(runtime, requestContext, turnMeta) {
         turnState.streamStarted = true;
       }
 
+      // Subagent (sidechain) messages carry a non-null parent_tool_use_id pointing
+      // at the main turn's Agent/Task tool_use. Their detailed thinking and tool
+      // calls belong to the sidechain transcript, which the frontend loads
+      // separately via onSubagentHistoryLoaded - so never emit them into the main
+      // session stream, otherwise the subagent's internals pollute the main chat.
+      // task_notification (type:'system') has no parent_tool_use_id and is preserved.
+      if (msg?.parent_tool_use_id) {
+        continue;
+      }
+
       if (msg?.type === 'stream_event' && turnState.streamingEnabled) {
         turnState.hasStreamEvents = true;
         processStreamEvent(msg, turnState);
@@ -347,6 +357,16 @@ async function executeTurn(runtime, requestContext, turnMeta) {
         if (msg.is_error) {
           throw new Error(msg.result || msg.message || 'API request failed');
         }
+        // A task_notification for a background (run_in_background) Agent that
+        // settles AFTER this result cannot ride the in-turn [MESSAGE] stream:
+        // executeTurn breaks here and clears turnSink in the finally below
+        // (synchronously, before the perpetual reader's next query.next()
+        // resolves), so the perpetual reader routes that late event to the
+        // inter-turn daemon path (emitTaskEvent -> DaemonBridge "task_event"
+        // -> window.onTaskEvent). task_notification that settles BEFORE the
+        // result is still processed above in the in-turn [MESSAGE] stream.
+        // Both paths converge on window.onTaskEvent, which dedups by
+        // tool_use_id + observable fields - see DaemonBridge.handleDaemonEvent.
         break;
       }
     }

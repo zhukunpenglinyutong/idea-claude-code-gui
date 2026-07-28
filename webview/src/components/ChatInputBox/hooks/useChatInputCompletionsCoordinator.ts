@@ -140,9 +140,14 @@ export function useChatInputCompletionsCoordinator({
     },
   });
 
+  const promptDataProvider = useCallback(
+    (query: string, signal: AbortSignal) => promptProvider(query, signal, currentProvider),
+    [currentProvider],
+  );
+
   const promptCompletion = useCompletionDropdown<PromptItem>({
     trigger: '!',
-    provider: promptProvider,
+    provider: promptDataProvider,
     toDropdownItem: promptToDropdownItem,
     onSelect: (prompt, query) => {
       if (

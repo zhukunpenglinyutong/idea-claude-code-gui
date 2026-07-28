@@ -139,12 +139,20 @@ public class HandlerContext {
      * Execute JavaScript on the EDT (Event Dispatch Thread).
      */
     public void executeJavaScriptOnEDT(String jsCode) {
-        if (browser != null && !disposed) {
-            ApplicationManager.getApplication().invokeLater(() -> {
-                if (browser != null && !disposed) {
-                    browser.getCefBrowser().executeJavaScript(jsCode, browser.getCefBrowser().getURL(), 0);
-                }
-            });
+        JBCefBrowser targetBrowser = this.browser;
+        if (targetBrowser == null || this.disposed) {
+            return;
         }
+        ApplicationManager.getApplication().invokeLater(() -> {
+            if (this.disposed || this.browser != targetBrowser) {
+                return;
+            }
+            try {
+                org.cef.browser.CefBrowser cefBrowser = targetBrowser.getCefBrowser();
+                cefBrowser.executeJavaScript(jsCode, cefBrowser.getURL(), 0);
+            } catch (Exception | LinkageError ignored) {
+                // The webview may be disposed between the generation check and execution.
+            }
+        });
     }
 }

@@ -11,8 +11,10 @@ import com.intellij.openapi.project.Project;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 /**
  * Session management for Claude conversations.
@@ -128,6 +130,21 @@ public class ClaudeSession {
         }
 
         default void onUserMessageUuidPatched(String content, String uuid) {
+        }
+
+        /**
+         * Called when a Claude Code task_* SDK system event is received
+         * (task_started / task_progress / task_notification).
+         *
+         * <p>Async subagents (Agent/Task tool invoked with run_in_background:true) run
+         * in a background sidechain whose detailed
+         * messages never enter the main SDK stream. The main stream only carries these
+         * lightweight system events, which carry the agent's lifecycle signals: launch,
+         * per-tool progress, and terminal completion (with result + usage). Forwarding
+         * them to the frontend lets the subagent list reflect real running/completed
+         * state instead of being stuck on the launch summary.</p>
+         */
+        default void onTaskEvent(String eventJson) {
         }
     }
 
@@ -498,13 +515,18 @@ public class ClaudeSession {
      * Interrupt the current execution.
      */
     public CompletableFuture<Void> interrupt() {
-        if (state.getChannelId() == null) {
+        String provider = state.getProvider();
+        String channelId = state.getChannelId();
+        if (channelId == null) {
             return CompletableFuture.completedFuture(null);
         }
 
         return CompletableFuture.runAsync(() -> {
             try {
-                providerRouter.interruptChannel(state.getProvider(), state.getChannelId());
+                providerRouter.interruptChannel(provider, channelId);
+                if (!isCurrentChannel(provider, channelId)) {
+                    return;
+                }
                 state.setError(null);  // Clear previous error state
                 state.setBusy(false);
                 state.setLoading(false);  // Also reset loading state
@@ -517,11 +539,19 @@ public class ClaudeSession {
 
                 callbackFacade.notifyStateChange(state.isBusy(), state.isLoading(), state.getError());
             } catch (Exception e) {
-                state.setError(e.getMessage());
-                state.setLoading(false);  // Also reset loading on error
-                callbackFacade.notifyStateChange(state.isBusy(), state.isLoading(), state.getError());
+                if (isCurrentChannel(provider, channelId)) {
+                    state.setError(e.getMessage());
+                    state.setLoading(false);  // Also reset loading on error
+                    callbackFacade.notifyStateChange(state.isBusy(), state.isLoading(), state.getError());
+                }
+                throw new CompletionException(e);
             }
         });
+    }
+
+    private boolean isCurrentChannel(String provider, String channelId) {
+        return Objects.equals(provider, state.getProvider())
+                && Objects.equals(channelId, state.getChannelId());
     }
 
     /**

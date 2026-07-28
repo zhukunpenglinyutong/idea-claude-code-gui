@@ -66,17 +66,19 @@ public class PromptHandler extends BaseMessageHandler {
         this.fileWatcher = new PromptFileWatcher(
             context.getProject(),
             settingsService,
-            (scope, promptsJson) -> {
+            (scope, provider, promptsJson) -> {
                 // When file changes, notify frontend to update cache
                 final String callbackName = scope == PromptScope.GLOBAL
                     ? "window.updateGlobalPrompts"
                     : "window.updateProjectPrompts";
+                final String payloadJson = promptListPayloadJson(provider, promptsJson);
 
                 ApplicationManager.getApplication().invokeLater(() -> {
-                    callJavaScript(callbackName, escapeJs(promptsJson));
+                    callJavaScript(callbackName, escapeJs(payloadJson));
                 });
 
-                LOG.info("[PromptHandler] File watcher triggered update for scope=" + scope.getValue());
+                LOG.info("[PromptHandler] File watcher triggered update for scope="
+                        + scope.getValue() + ", provider=" + provider);
             }
         );
 
@@ -157,6 +159,36 @@ public class PromptHandler extends BaseMessageHandler {
         }
     }
 
+    private String parseProviderFromData(String data) {
+        if (data == null || data.trim().isEmpty()) {
+            return "claude";
+        }
+        try {
+            JsonObject json = gson.fromJson(data, JsonObject.class);
+            if (json == null || !json.has("provider")) {
+                return "claude";
+            }
+            return CodemossSettingsService.normalizePromptProvider(json.get("provider").getAsString());
+        } catch (Exception e) {
+            LOG.warn("[PromptHandler] Failed to parse provider, defaulting to Claude: " + e.getMessage());
+            return "claude";
+        }
+    }
+
+    private String promptRefreshJson(PromptScope scope, String provider) {
+        JsonObject payload = new JsonObject();
+        payload.addProperty("scope", scope.getValue());
+        payload.addProperty("provider", CodemossSettingsService.normalizePromptProvider(provider));
+        return gson.toJson(payload);
+    }
+
+    private String promptListPayloadJson(String provider, String promptsJson) {
+        JsonObject payload = new JsonObject();
+        payload.addProperty("provider", CodemossSettingsService.normalizePromptProvider(provider));
+        payload.add("prompts", JsonParser.parseString(promptsJson));
+        return gson.toJson(payload);
+    }
+
     /**
      * Get all prompts.
      * Supports scope parameter for filtering by GLOBAL or PROJECT scope.
@@ -166,12 +198,14 @@ public class PromptHandler extends BaseMessageHandler {
     private void handleGetPrompts(String content) {
         try {
             PromptScope scope = parseScopeFromData(content);
-            LOG.debug("[PromptHandler] Getting prompts for scope: " + scope.getValue());
+            String provider = parseProviderFromData(content);
+            LOG.debug("[PromptHandler] Getting prompts for scope=" + scope.getValue() + ", provider=" + provider);
 
-            List<JsonObject> prompts = settingsService.getPrompts(scope, context.getProject());
-            LOG.debug("[PromptHandler] Retrieved " + prompts.size() + " prompts for scope: " + scope.getValue());
+            List<JsonObject> prompts = settingsService.getPrompts(scope, context.getProject(), provider);
+            LOG.debug("[PromptHandler] Retrieved " + prompts.size()
+                    + " prompts for scope=" + scope.getValue() + ", provider=" + provider);
 
-            String promptsJson = gson.toJson(prompts);
+            String promptsJson = promptListPayloadJson(provider, gson.toJson(prompts));
 
             // Call different window callbacks based on scope
             final String callbackName = scope == PromptScope.GLOBAL
@@ -199,7 +233,8 @@ public class PromptHandler extends BaseMessageHandler {
 
             ApplicationManager.getApplication().invokeLater(() -> {
                 LOG.error("[PromptHandler] Sending empty prompts list due to error: " + e.getMessage());
-                callJavaScript(callbackName, escapeJs("[]"));
+                String provider = parseProviderFromData(content);
+                callJavaScript(callbackName, escapeJs(promptListPayloadJson(provider, "[]")));
             });
         } catch (Exception e) {
             LOG.error("[PromptHandler] Failed to get prompts: " + e.getMessage(), e);
@@ -212,7 +247,8 @@ public class PromptHandler extends BaseMessageHandler {
 
             ApplicationManager.getApplication().invokeLater(() -> {
                 LOG.error("[PromptHandler] Sending empty prompts list due to error");
-                callJavaScript(callbackName, escapeJs("[]"));
+                String provider = parseProviderFromData(content);
+                callJavaScript(callbackName, escapeJs(promptListPayloadJson(provider, "[]")));
             });
         }
     }
@@ -274,6 +310,7 @@ public class PromptHandler extends BaseMessageHandler {
             if (data.has("scope")) {
                 scope = PromptScope.fromString(data.get("scope").getAsString());
             }
+            String provider = parseProviderFromData(content);
 
             // Extract prompt object (support both new and legacy formats)
             JsonObject prompt;
@@ -284,14 +321,14 @@ public class PromptHandler extends BaseMessageHandler {
                 prompt = data;
             }
 
-            settingsService.addPrompt(prompt, scope, context.getProject());
+            settingsService.addPrompt(prompt, scope, context.getProject(), provider);
 
             // Refresh the list
             final PromptScope finalScope = scope;
+            final String finalProvider = provider;
             ApplicationManager.getApplication().invokeLater(() -> {
                 // Refresh with the same scope
-                String scopeJson = "{\"scope\":\"" + finalScope.getValue() + "\"}";
-                handleGetPrompts(scopeJson);
+                handleGetPrompts(promptRefreshJson(finalScope, finalProvider));
                 callJavaScript("window.promptOperationResult", escapeJs("{\"success\":true,\"operation\":\"add\"}"));
             });
         } catch (Exception e) {
@@ -327,18 +364,19 @@ public class PromptHandler extends BaseMessageHandler {
             if (data.has("scope")) {
                 scope = PromptScope.fromString(data.get("scope").getAsString());
             }
+            String provider = parseProviderFromData(content);
 
             String id = data.get("id").getAsString();
             JsonObject updates = data.getAsJsonObject("updates");
 
-            settingsService.updatePrompt(id, updates, scope, context.getProject());
+            settingsService.updatePrompt(id, updates, scope, context.getProject(), provider);
 
             // Refresh the list
             final PromptScope finalScope = scope;
+            final String finalProvider = provider;
             ApplicationManager.getApplication().invokeLater(() -> {
                 // Refresh with the same scope
-                String scopeJson = "{\"scope\":\"" + finalScope.getValue() + "\"}";
-                handleGetPrompts(scopeJson);
+                handleGetPrompts(promptRefreshJson(finalScope, finalProvider));
                 callJavaScript("window.promptOperationResult", escapeJs("{\"success\":true,\"operation\":\"update\"}"));
             });
         } catch (Exception e) {
@@ -369,18 +407,19 @@ public class PromptHandler extends BaseMessageHandler {
             if (data.has("scope")) {
                 scope = PromptScope.fromString(data.get("scope").getAsString());
             }
+            String provider = parseProviderFromData(content);
 
             String id = data.get("id").getAsString();
 
-            boolean deleted = settingsService.deletePrompt(id, scope, context.getProject());
+            boolean deleted = settingsService.deletePrompt(id, scope, context.getProject(), provider);
 
             if (deleted) {
                 // Refresh the list
                 final PromptScope finalScope = scope;
+                final String finalProvider = provider;
                 ApplicationManager.getApplication().invokeLater(() -> {
                     // Refresh with the same scope
-                    String scopeJson = "{\"scope\":\"" + finalScope.getValue() + "\"}";
-                    handleGetPrompts(scopeJson);
+                    handleGetPrompts(promptRefreshJson(finalScope, finalProvider));
                     callJavaScript("window.promptOperationResult", escapeJs("{\"success\":true,\"operation\":\"delete\"}"));
                 });
             } else {
@@ -423,7 +462,8 @@ public class PromptHandler extends BaseMessageHandler {
             try {
                 // Parse scope (default to GLOBAL)
                 PromptScope scope = parseScopeFromData(content);
-                List<JsonObject> prompts = settingsService.getPrompts(scope, context.getProject());
+                String provider = parseProviderFromData(content);
+                List<JsonObject> prompts = settingsService.getPrompts(scope, context.getProject(), provider);
 
                 // Filter prompts by selected IDs if provided
                 if (content != null && !content.isEmpty()) {
@@ -466,6 +506,7 @@ public class PromptHandler extends BaseMessageHandler {
                 exportData.addProperty("format", "claude-code-prompts-export-v1");
                 exportData.addProperty("exportTime", exportTime);
                 exportData.addProperty("promptCount", prompts.size());
+                exportData.addProperty("provider", provider);
 
                 JsonArray promptsArray = new JsonArray();
                 for (JsonObject prompt : prompts) {
@@ -537,6 +578,7 @@ public class PromptHandler extends BaseMessageHandler {
             try {
                 // Parse scope (default to GLOBAL)
                 PromptScope scope = parseScopeFromData(content);
+                String provider = parseProviderFromData(content);
                 // Create file chooser descriptor for JSON files
                 FileChooserDescriptor descriptor = new FileChooserDescriptor(
                     true,  // chooseFiles
@@ -610,12 +652,15 @@ public class PromptHandler extends BaseMessageHandler {
                 List<JsonObject> promptsToImport = new ArrayList<>();
 
                 for (int i = 0; i < promptsArray.size(); i++) {
-                    promptsToImport.add(promptsArray.get(i).getAsJsonObject());
+                    JsonObject prompt = promptsArray.get(i).getAsJsonObject().deepCopy();
+                    prompt.addProperty("provider", provider);
+                    promptsToImport.add(prompt);
                 }
 
                 // Validate and detect conflicts
                 AbstractPromptManager promptManager = settingsService.getPromptManager(scope, context.getProject());
-                Set<String> conflicts = promptManager.detectConflicts(promptsToImport);
+                Set<String> conflicts = settingsService.detectPromptConflicts(
+                        promptsToImport, scope, context.getProject(), provider);
 
                 // Prepare preview data
                 JsonObject previewData = new JsonObject();
@@ -687,6 +732,7 @@ public class PromptHandler extends BaseMessageHandler {
             if (data.has("scope")) {
                 scope = PromptScope.fromString(data.get("scope").getAsString());
             }
+            String provider = parseProviderFromData(content);
 
             JsonArray selectedPromptsArray = data.getAsJsonArray("prompts");
             String strategyStr = data.get("strategy").getAsString();
@@ -694,24 +740,27 @@ public class PromptHandler extends BaseMessageHandler {
 
             List<JsonObject> promptsToImport = new ArrayList<>();
             for (int i = 0; i < selectedPromptsArray.size(); i++) {
-                promptsToImport.add(selectedPromptsArray.get(i).getAsJsonObject());
+                JsonObject prompt = selectedPromptsArray.get(i).getAsJsonObject().deepCopy();
+                prompt.addProperty("provider", provider);
+                promptsToImport.add(prompt);
             }
 
-            AbstractPromptManager promptManager = settingsService.getPromptManager(scope, context.getProject());
-            Map<String, Object> result = promptManager.batchImportPrompts(promptsToImport, strategy);
+            Map<String, Object> result = settingsService.batchImportPrompts(
+                    promptsToImport, strategy, scope, context.getProject(), provider);
 
             // Add scope to result for frontend to know which list to refresh
             result.put("scope", scope.getValue());
+            result.put("provider", provider);
 
             // Send result to frontend
             final PromptScope finalScope = scope;
+            final String finalProvider = provider;
             ApplicationManager.getApplication().invokeLater(() -> {
                 String resultJson = gson.toJson(result);
                 callJavaScript("window.promptImportResult", escapeJs(resultJson));
 
                 // Refresh the list with the same scope
-                String scopeJson = "{\"scope\":\"" + finalScope.getValue() + "\"}";
-                handleGetPrompts(scopeJson);
+                handleGetPrompts(promptRefreshJson(finalScope, finalProvider));
 
                 // Show notification
                 boolean success = Boolean.TRUE.equals(result.get("success"));

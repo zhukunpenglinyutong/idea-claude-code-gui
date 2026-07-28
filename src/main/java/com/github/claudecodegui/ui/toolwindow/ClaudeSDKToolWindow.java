@@ -47,6 +47,9 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
     private static final Map<Content, ClaudeChatWindow> contentToWindowMap = new ConcurrentHashMap<>();
     private static volatile boolean shutdownHookRegistered = false;
     private static final String TAB_NAME_PREFIX = "AI";
+    /** Matches tab names like "AI1", "AI1..." (answering) or "AI1 (completed)" — extracts the numeric part. */
+    private static final java.util.regex.Pattern TAB_NAME_PATTERN =
+            java.util.regex.Pattern.compile("^" + TAB_NAME_PREFIX + "(\\d+)");
     private static final Set<Content> detachingContents =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
 
@@ -64,9 +67,15 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
 
         for (Content content : contentManager.getContents()) {
             String displayName = content.getDisplayName();
-            if (displayName != null && displayName.startsWith(TAB_NAME_PREFIX)) {
+            if (displayName == null) {
+                continue;
+            }
+            // Extract the leading number after the "AI" prefix so status suffixes
+            // like "AI1..." (answering) or "AI1 (completed)" still count.
+            java.util.regex.Matcher matcher = TAB_NAME_PATTERN.matcher(displayName);
+            if (matcher.find()) {
                 try {
-                    int number = Integer.parseInt(displayName.substring(TAB_NAME_PREFIX.length()));
+                    int number = Integer.parseInt(matcher.group(1));
                     if (number > maxNumber) {
                         maxNumber = number;
                     }
@@ -306,8 +315,12 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
 
             @Override
             public void selectionChanged(@NotNull ContentManagerEvent event) {
+                if (contentManager.getSelectedContent() != event.getContent()) {
+                    return;
+                }
                 ClaudeChatWindow window = contentToWindowMap.get(event.getContent());
                 if (window != null) {
+                    window.onTabActivated();
                     window.loadRestoredHistoryIfNeeded();
                 }
             }

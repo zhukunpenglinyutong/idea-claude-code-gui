@@ -628,27 +628,27 @@ public class DependencyManager {
             return resolveWslNpmPath(nodePath);
         }
 
-        String npmName = PlatformUtils.isWindows() ? "npm.cmd" : "npm";
+        boolean windows = PlatformUtils.isWindows();
 
         // 1. Try to find npm in the same directory as Node.js
         if (nodePath != null && !"node".equals(nodePath)) {
             File nodeFile = new File(nodePath);
             String dir = nodeFile.getParent();
             if (dir != null) {
-                File npmFile = new File(dir, npmName);
-                if (npmFile.exists()) {
+                File npmFile = findNpmFile(new File(dir), windows);
+                if (npmFile != null) {
                     return npmFile.getAbsolutePath();
                 }
             }
         }
 
-        // 2. Windows: try to find the full path to npm.cmd from the PATH environment variable
-        if (PlatformUtils.isWindows()) {
+        // 2. Windows: try to find the full path to npm from the PATH environment variable
+        if (windows) {
             String pathEnv = System.getenv("PATH");
             if (pathEnv != null) {
                 for (String pathDir : pathEnv.split(File.pathSeparator)) {
-                    File npmFile = new File(pathDir, npmName);
-                    if (npmFile.exists()) {
+                    File npmFile = findNpmFile(new File(pathDir), windows);
+                    if (npmFile != null) {
                         LOG.info("[DependencyManager] Found npm in PATH: " + npmFile.getAbsolutePath());
                         return npmFile.getAbsolutePath();
                     }
@@ -657,7 +657,31 @@ public class DependencyManager {
         }
 
         // 3. Fall back to the bare command name (usually works on Unix)
-        return PlatformUtils.isWindows() ? npmName : "npm";
+        return windows ? "npm.cmd" : "npm";
+    }
+
+    /**
+     * 在指定目录中查找 npm 可执行文件。
+     * <p>Windows 上 npm 可能以 {@code npm.cmd}（标准 Node.js 安装）或
+     * {@code npm.exe}（mise、Volta 等版本管理器）形式存在，需按优先级依次查找；
+     * 其他平台查找 {@code npm}。
+     *
+     * @param dir     待查找的目录，为 {@code null} 时返回 {@code null}
+     * @param windows 是否在 Windows 平台查找，决定候选文件名集合
+     * @return 找到的 npm 文件，未找到返回 {@code null}
+     */
+    static File findNpmFile(File dir, boolean windows) {
+        if (dir == null) {
+            return null;
+        }
+        String[] candidates = windows ? new String[]{"npm.cmd", "npm.exe"} : new String[]{"npm"};
+        for (String name : candidates) {
+            File candidate = new File(dir, name);
+            if (candidate.exists()) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     /**

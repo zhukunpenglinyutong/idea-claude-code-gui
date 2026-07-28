@@ -60,27 +60,45 @@ describe('findLatestConversationTurnStart', () => {
 });
 
 describe('finalizeSubagentsForSettledTurn', () => {
-  const running = (id: string, isBackground: boolean): SubagentInfo => ({
-    id,
-    type: 'general-purpose',
-    description: '',
+  const subagent = (overrides: Partial<SubagentInfo>): SubagentInfo => ({
+    id: 'tu_1',
+    type: 'research',
+    description: 'task',
     status: 'running',
     messageIndex: 0,
-    isBackground,
+    ...overrides,
   });
 
-  it('completes foreground subagents when the turn settles but keeps background ones running', () => {
-    const [foreground, background] = finalizeSubagentsForSettledTurn(
-      [running('fg', false), running('bg', true)],
+  it('does not infer async completion from a settled main turn', () => {
+    const result = finalizeSubagentsForSettledTurn([subagent({ isAsync: true })], false);
+    expect(result[0].status).toBe('running');
+  });
+
+  it('preserves terminal status supplied by task_notification or sidechain history', () => {
+    const result = finalizeSubagentsForSettledTurn(
+      [
+        subagent({ isAsync: true, status: 'completed' }),
+        subagent({ isAsync: true, status: 'error' }),
+      ],
       false,
     );
-    expect(foreground.status).toBe('completed');
-    expect(background.status).toBe('running');
+    expect(result.map((item) => item.status)).toEqual(['completed', 'error']);
   });
 
-  it('leaves everything running while streaming', () => {
-    const finalized = finalizeSubagentsForSettledTurn([running('fg', false)], true);
-    expect(finalized[0].status).toBe('running');
+  it('does not mutate sync extraction results', () => {
+    const running = subagent({ isAsync: false });
+    const completed = subagent({ isAsync: false, status: 'completed' });
+    const result = finalizeSubagentsForSettledTurn([running, completed], false);
+    expect(result).toEqual([running, completed]);
+  });
+
+  it('returns the same states while streaming', () => {
+    const result = finalizeSubagentsForSettledTurn(
+      [subagent({ isAsync: false }), subagent({ isAsync: true })],
+      true,
+    );
+    expect(result[0].status).toBe('running');
+    expect(result[1].status).toBe('running');
   });
 });
 

@@ -93,9 +93,13 @@
     "attachmentsUploaded": "[Вложения загружены]",
     "streamingConnected": "{{provider}} обрабатывает запрос",
     "showEarlierMessages": "Показать предыдущие сообщения ({{count}})",
+    "showEarlierTurns": "Показать предыдущие ходы: {{count}} (загружено, осталось: {{remaining}})",
+    "loadEarlierTurns": "Загрузить с диска предыдущие ходы: {{count}} (осталось {{remaining}} из {{total}})",
+    "loadingEarlierTurns": "Загрузка предыдущих ходов...",
     "totalDuration": "Этот ответ занял",
     "tokenUsage": "вход {{input}} / выход {{output}}",
     "tokenUsageDetail": "Итог хода — вход {{input}} · запись кэша {{cacheWrite}} · чтение кэша {{cacheRead}} · выход {{output}}",
+    "cacheHitsWithRatio": " (попадания в кэш {{tokens}}, {{ratio}})",
     "search": {
       "ariaLabel": "Поиск в беседе",
       "placeholder": "Поиск в беседе…",
@@ -249,6 +253,12 @@
         "enabled": "Включено",
         "disabled": "Выключено",
         "hint": "При включении показывает системное уведомление, когда Claude задаёт вопрос, чтобы вы его не пропустили. При выключении уведомление не появляется."
+      },
+      "detailedOutput": {
+        "label": "Подробная информация о выводе",
+        "enabled": "Включено",
+        "disabled": "Отключено",
+        "hint": "Если включено, внизу сообщений при наличии данных показывается оценочная стоимость хода, а попадания в кэш отображаются внутри сводки входных Token. Расход Token всегда остаётся видимым."
       },
       "sendShortcut": {
         "label": "Клавиша отправки",
@@ -593,6 +603,8 @@
         "modelMapping": "Маппинг моделей (будет добавлен в JSON env)",
         "mainModel": "Основная модель",
         "mainModelPlaceholder": "например, claude-sonnet-4-6",
+        "fableModel": "Модель Fable по умолчанию",
+        "fableModelPlaceholder": "например, claude-fable-5",
         "haikuModel": "Модель Haiku по умолчанию",
         "haikuModelPlaceholder": "например, claude-haiku-4-5",
         "sonnetModel": "Модель Sonnet по умолчанию",
@@ -619,12 +631,17 @@
       "presets": {
         "custom": "Своё",
         "zhipu": "Zhipu GLM",
-        "kimi": "Kimi K2",
+        "kimi": "Kimi",
+        "kimiCoding": "Kimi Coding",
         "deepseek": "DeepSeek",
         "minimax": "MiniMax",
         "xiaomi": "Xiaomi MiMo",
         "xiaomiPlan": "Xiaomi MiMo Plan",
         "qwen": "Alibaba Qwen",
+        "bailian": "Bailian",
+        "bailianCoding": "Bailian Coding",
+        "longcat": "LongCat",
+        "opencodeGo": "OpenCode Go",
         "openrouter": "OpenRouter"
       }
     },
@@ -643,6 +660,9 @@
         "editTitle": "Редактировать провайдер: {{name}}",
         "addDescription": "Настройте нового провайдера Codex, данные записываются в ~/.codex/",
         "editDescription": "Изменения будут немедленно применены к ~/.codex/",
+        "officialPreset": "Прямое подключение OpenAI",
+        "officialSectionHint": "Используйте вручную введенный OPENAI_API_KEY с официальной конечной точкой https://api.openai.com/v1.",
+        "presetHint": "Эти пресеты включают только сторонние или прокси-конечные точки, совпадающие с набором провайдеров Claude Code.",
         "providerName": "Имя провайдера",
         "providerNamePlaceholder": "например, Codex Official",
         "configJson": "Конфигурация",
@@ -1431,6 +1451,14 @@
         "label": "Sonnet 5",
         "description": "Sonnet 5 · Обновленная модель Sonnet 4.6"
       },
+      "sonnet47": {
+        "label": "Sonnet 4.7",
+        "description": "Sonnet 4.7 · Модель по умолчанию"
+      },
+      "opus5": {
+        "label": "Opus 5",
+        "description": "Opus 5 · Последнее обновление Opus"
+      },
       "opus46_1m": {
         "label": "Opus 4.6",
         "description": "Opus 4.6 · Высокопроизводительная модель рассуждений"
@@ -1441,7 +1469,7 @@
       },
       "opus48": {
         "label": "Opus 4.8",
-        "description": "Opus 4.8 · Новейшая и самая мощная"
+        "description": "Opus 4.8 · Предыдущее поколение Opus"
       },
       "fable5": {
         "label": "Fable 5",
@@ -1455,9 +1483,17 @@
       "tooltipDisabled": "1M контекст недоступен для Haiku"
     },
     "codex": {
-      "gpt53codex": {
-        "label": "GPT-5.3-Codex",
-        "description": "Новейшая агентная модель для кодинга с улучшенными возможностями."
+      "gpt56sol": {
+        "label": "GPT-5.6 Sol",
+        "description": "Передовая модель для сложной профессиональной работы."
+      },
+      "gpt56terra": {
+        "label": "GPT-5.6 Terra",
+        "description": "Модель GPT-5.6, сочетающая интеллект и экономичность."
+      },
+      "gpt56luna": {
+        "label": "GPT-5.6 Luna",
+        "description": "Модель GPT-5.6, оптимизированная для экономичных рабочих нагрузок."
       },
       "gpt55": {
         "label": "GPT-5.5",
@@ -1466,30 +1502,6 @@
       "gpt54": {
         "label": "GPT-5.4",
         "description": "Новейшая модель с расширенными возможностями."
-      },
-      "gpt52codex": {
-        "label": "GPT-5.2-Codex",
-        "description": "Агентная модель для кодинга класса frontier."
-      },
-      "gpt51codexMax": {
-        "label": "GPT-5.1-Codex-Max",
-        "description": "Флагманская модель Codex для глубоких и быстрых рассуждений."
-      },
-      "gpt54mini": {
-        "label": "GPT-5.4-Mini",
-        "description": "Более лёгкая агентная модель для кодинга класса frontier."
-      },
-      "gpt53codexSpark": {
-        "label": "GPT-5.3-Codex-Spark",
-        "description": "Сверхбыстрая модель для кодинга."
-      },
-      "gpt52": {
-        "label": "GPT-5.2",
-        "description": "Оптимизирована для профессиональной работы и длительных агентных задач."
-      },
-      "gpt51codexMini": {
-        "label": "GPT-5.1-Codex-Mini",
-        "description": "Оптимизирована для Codex. Дешевле, быстрее, но менее мощная."
       }
     }
   },

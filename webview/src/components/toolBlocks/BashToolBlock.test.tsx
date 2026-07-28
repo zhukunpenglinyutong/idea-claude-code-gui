@@ -13,6 +13,18 @@ vi.mock('../../hooks/useIsToolDenied', () => ({
 }));
 
 describe('BashToolBlock', () => {
+  it('hides empty placeholders until command details arrive', () => {
+    const { container, rerender } = render(<BashToolBlock input={{}} />);
+
+    expect(container.firstChild).toBeNull();
+
+    rerender(<BashToolBlock input={{ command: 'npm test' }} />);
+    expect(container.querySelector('.bash-tool-header')).not.toBeNull();
+
+    rerender(<BashToolBlock input={{ command: '  ', description: '\n' }} />);
+    expect(container.firstChild).toBeNull();
+  });
+
   it('renders command and stdout text in code-font-targeted nodes', () => {
     const { container } = render(
       <BashToolBlock

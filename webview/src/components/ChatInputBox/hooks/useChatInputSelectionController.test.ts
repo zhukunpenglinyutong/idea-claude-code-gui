@@ -33,6 +33,12 @@ describe('useChatInputSelectionController', () => {
     const selection = {
       removeAllRanges: vi.fn(),
       addRange: vi.fn(),
+      // A real Selection exposes these; focusInput checks isCollapsed to
+      // decide whether the user is holding a selection. Mock an empty
+      // (collapsed) selection so focus is allowed.
+      toString: () => '',
+      isCollapsed: true,
+      rangeCount: 0,
     };
     vi.spyOn(window, 'getSelection').mockReturnValue(selection as unknown as Selection);
 

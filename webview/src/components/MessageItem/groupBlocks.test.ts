@@ -5,6 +5,40 @@ import type { ClaudeContentBlock } from '../../types';
 const tool = (id: string, name: string): ClaudeContentBlock => ({ type: 'tool_use', id, name, input: {} });
 const text = (value: string): ClaudeContentBlock => ({ type: 'text', text: value });
 
+describe('groupBlocks - restored Codex command batches', () => {
+  it('renders replayed shell commands as one existing Bash command group', () => {
+    const blocks: ClaudeContentBlock[] = [
+      {
+        type: 'tool_use',
+        id: 'codex_exec_call_0',
+        name: 'bash',
+        input: { command: 'first', description: 'Run powershell.exe' },
+      },
+      {
+        type: 'tool_use',
+        id: 'codex_exec_call_1',
+        name: 'bash',
+        input: { command: 'second', description: 'Run powershell.exe' },
+      },
+      {
+        type: 'tool_use',
+        id: 'codex_exec_call_2',
+        name: 'bash',
+        input: { command: 'third', description: 'Run powershell.exe' },
+      },
+    ];
+
+    const grouped = groupBlocks(blocks);
+
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0]).toMatchObject({
+      type: 'bash_group',
+      blocks,
+      startIndex: 0,
+    });
+  });
+});
+
 describe('groupBlocks – agent group absorption', () => {
   it('absorbs following tool_use blocks into the agent group until a text boundary', () => {
     const blocks = [tool('a1', 'Task'), tool('r1', 'Read'), tool('e1', 'Edit'), text('done')];

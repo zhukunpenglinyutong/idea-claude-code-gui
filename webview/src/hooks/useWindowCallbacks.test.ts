@@ -105,6 +105,9 @@ describe('useWindowCallbacks integration', () => {
   beforeEach(() => {
     window.__sessionTransitioning = false;
     window.__sessionTransitionToken = null;
+    window.__minAcceptedUpdateSequence = 0;
+    window.__prependedHistoryMessageCount = 0;
+    window.__messageBaseIndex = 0;
     window.__pendingSessionTransitionToast = undefined;
     window.__deniedToolIds = new Set();
     window.sendToJava = vi.fn();
@@ -130,6 +133,7 @@ describe('useWindowCallbacks integration', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    delete window.__codexHistoryPageInfo;
   });
 
   /**
@@ -165,6 +169,20 @@ describe('useWindowCallbacks integration', () => {
 
     expect(window.__sessionTransitioning).toBe(false);
     expect(window.__sessionTransitionToken).toBeNull();
+  });
+
+  it('older Codex page rendering does not release the session transition guard', () => {
+    const opts = createOptions();
+    renderHook(() => useWindowCallbacks(opts));
+    window.__sessionTransitioning = true;
+    window.__sessionTransitionToken = 'newer-transition';
+
+    act(() => {
+      window.codexHistoryPageRenderComplete!();
+    });
+
+    expect(window.__sessionTransitioning).toBe(true);
+    expect(window.__sessionTransitionToken).toBe('newer-transition');
   });
 
   it('historyLoadComplete shows pending session transition toast', () => {
@@ -370,6 +388,338 @@ describe('useWindowCallbacks integration', () => {
     expect(opts.setMessages).toHaveBeenCalled();
   });
 
+  it('buffers a Codex history page and prepends it in one ordered state update', () => {
+    const { opts, buffer } = createOptsWithMessages([{ type: 'user', content: 'newer' }]);
+    opts.currentSessionIdRef.current = 'session-1';
+    renderHook(() => useWindowCallbacks(opts));
+    window.__codexHistoryPageInfo = {
+      pageId: 'page-current', sessionId: 'session-1', mode: 'replace',
+      fromTurn: 40, toTurn: 70, totalTurns: 70, hasMore: true, loadedMessageCount: 1,
+    };
+
+    act(() => {
+      window.beginCodexHistoryPage!(JSON.stringify({
+        pageId: 'page-1', sessionId: 'session-1', mode: 'prepend',
+      }));
+      window.appendCodexHistoryPageBatch!('page-1', JSON.stringify([
+        { type: 'user', content: 'older-1' },
+      ]));
+      window.appendCodexHistoryPageBatch!('page-1', JSON.stringify([
+        { type: 'assistant', content: 'older-2' },
+      ]));
+      window.completeCodexHistoryPage!(JSON.stringify({
+        pageId: 'page-1', sessionId: 'session-1', mode: 'prepend',
+        fromTurn: 10, toTurn: 40, totalTurns: 70, hasMore: true, loadedMessageCount: 2,
+      }));
+    });
+
+    expect(buffer.current.map(message => message.content)).toEqual(['older-1', 'older-2', 'newer']);
+    expect(window.__codexHistoryPageInfo?.fromTurn).toBe(10);
+  });
+
+  it('resets the prepended history offset when a page replaces the transcript', () => {
+    const { opts, buffer } = createOptsWithMessages([
+      { type: 'user', content: 'older-user' },
+      { type: 'assistant', content: 'current-answer' },
+    ]);
+    opts.currentSessionIdRef.current = 'session-1';
+    window.__prependedHistoryMessageCount = 1;
+    renderHook(() => useWindowCallbacks(opts));
+
+    act(() => {
+      window.beginCodexHistoryPage!(JSON.stringify({
+        pageId: 'page-replace', sessionId: 'session-1', mode: 'replace',
+      }));
+      window.appendCodexHistoryPageBatch!('page-replace', JSON.stringify([
+        { type: 'user', content: 'replacement' },
+      ]));
+      window.completeCodexHistoryPage!(JSON.stringify({
+        pageId: 'page-replace', sessionId: 'session-1', mode: 'replace',
+        fromTurn: 0, toTurn: 1, totalTurns: 1, hasMore: false, loadedMessageCount: 1,
+      }));
+    });
+
+    expect(buffer.current.map(message => message.content)).toEqual(['replacement']);
+    expect(window.__prependedHistoryMessageCount).toBe(0);
+  });
+
+  it('keeps the streaming assistant index aligned when history is prepended', () => {
+    const { opts, buffer } = createOptsWithMessages([
+      { type: 'user', content: 'current-user' },
+      { type: 'assistant', content: 'streaming-answer', isStreaming: true },
+    ]);
+    opts.currentSessionIdRef.current = 'session-1';
+    opts.isStreamingRef.current = true;
+    opts.streamingMessageIndexRef.current = 1;
+    renderHook(() => useWindowCallbacks(opts));
+    window.__codexHistoryPageInfo = {
+      pageId: 'page-current', sessionId: 'session-1', mode: 'replace',
+      fromTurn: 40, toTurn: 70, totalTurns: 70, hasMore: true, loadedMessageCount: 2,
+    };
+
+    act(() => {
+      window.beginCodexHistoryPage!(JSON.stringify({
+        pageId: 'page-older', sessionId: 'session-1', mode: 'prepend',
+      }));
+      window.appendCodexHistoryPageBatch!('page-older', JSON.stringify([
+        { type: 'user', content: 'older-user' },
+        { type: 'assistant', content: 'older-answer' },
+      ]));
+      window.completeCodexHistoryPage!(JSON.stringify({
+        pageId: 'page-older', sessionId: 'session-1', mode: 'prepend',
+        fromTurn: 10, toTurn: 40, totalTurns: 70, hasMore: true, loadedMessageCount: 2,
+      }));
+    });
+
+    expect(buffer.current.map(message => message.content)).toEqual([
+      'older-user', 'older-answer', 'current-user', 'streaming-answer',
+    ]);
+    expect(opts.streamingMessageIndexRef.current).toBe(3);
+  });
+
+  it('drops a late Codex history page from a previously selected session', () => {
+    const { opts, buffer } = createOptsWithMessages([{ type: 'user', content: 'current' }]);
+    opts.currentSessionIdRef.current = 'session-current';
+    renderHook(() => useWindowCallbacks(opts));
+
+    act(() => {
+      window.beginCodexHistoryPage!(JSON.stringify({
+        pageId: 'page-old', sessionId: 'session-old', mode: 'prepend',
+      }));
+      window.appendCodexHistoryPageBatch!('page-old', JSON.stringify([
+        { type: 'user', content: 'stale' },
+      ]));
+      window.completeCodexHistoryPage!(JSON.stringify({
+        pageId: 'page-old', sessionId: 'session-old', mode: 'prepend',
+        fromTurn: 0, toTurn: 30, totalTurns: 60, hasMore: false, loadedMessageCount: 1,
+      }));
+    });
+
+    expect(buffer.current.map(message => message.content)).toEqual(['current']);
+  });
+
+  it('rejects a non-contiguous Codex history page and allows the UI to retry', () => {
+    const { opts, buffer } = createOptsWithMessages([{ type: 'user', content: 'current' }]);
+    opts.currentSessionIdRef.current = 'session-1';
+    renderHook(() => useWindowCallbacks(opts));
+    window.__codexHistoryPageInfo = {
+      pageId: 'page-current', sessionId: 'session-1', mode: 'replace',
+      fromTurn: 40, toTurn: 70, totalTurns: 70, hasMore: true, loadedMessageCount: 1,
+    };
+
+    act(() => {
+      window.beginCodexHistoryPage!(JSON.stringify({
+        pageId: 'page-gap', sessionId: 'session-1', mode: 'prepend',
+      }));
+      window.completeCodexHistoryPage!(JSON.stringify({
+        pageId: 'page-gap', sessionId: 'session-1', mode: 'prepend',
+        fromTurn: 0, toTurn: 30, totalTurns: 70, hasMore: false, loadedMessageCount: 0,
+      }));
+    });
+
+    expect(buffer.current.map(message => message.content)).toEqual(['current']);
+    expect(opts.addToast).toHaveBeenCalledWith(
+      'Codex history changed while loading; please retry',
+      'error',
+    );
+  });
+
+  it('patches only the transported tail when the full prefix is present', () => {
+    const initial = Array.from({ length: 400 }, (_, index): ClaudeMessage => ({
+      type: index % 2 === 0 ? 'user' : 'assistant',
+      content: `old-${index}`,
+    }));
+    const { opts, buffer } = createOptsWithMessages(initial);
+    renderHook(() => useWindowCallbacks(opts));
+
+    act(() => window.updateMessageTail!(JSON.stringify([
+      { type: 'user', content: 'new-398' },
+      { type: 'assistant', content: 'new-399' },
+    ]), 398, 7));
+
+    expect(buffer.current).toHaveLength(400);
+    expect(buffer.current[397]?.content).toBe('old-397');
+    expect(buffer.current[398]?.content).toBe('new-398');
+    expect(buffer.current[399]?.content).toBe('new-399');
+    expect(window.__messageBaseIndex).toBe(0);
+    expect(window.__minAcceptedUpdateSequence).toBe(7);
+  });
+
+  it('keeps prepended history aligned when patching the backend tail', () => {
+    const initial = Array.from({ length: 400 }, (_, index): ClaudeMessage => ({
+      type: index % 2 === 0 ? 'user' : 'assistant',
+      content: `current-${index}`,
+    }));
+    const older = Array.from({ length: 100 }, (_, index): ClaudeMessage => ({
+      type: index % 2 === 0 ? 'user' : 'assistant',
+      content: `older-${index}`,
+    }));
+    const { opts, buffer } = createOptsWithMessages(initial);
+    opts.currentSessionIdRef.current = 'session-1';
+    renderHook(() => useWindowCallbacks(opts));
+    window.__codexHistoryPageInfo = {
+      pageId: 'page-current', sessionId: 'session-1', mode: 'replace',
+      fromTurn: 40, toTurn: 70, totalTurns: 70, hasMore: true, loadedMessageCount: 400,
+    };
+
+    act(() => {
+      window.beginCodexHistoryPage!(JSON.stringify({
+        pageId: 'page-older', sessionId: 'session-1', mode: 'prepend',
+      }));
+      window.appendCodexHistoryPageBatch!('page-older', JSON.stringify(older));
+      window.completeCodexHistoryPage!(JSON.stringify({
+        pageId: 'page-older', sessionId: 'session-1', mode: 'prepend',
+        fromTurn: 10, toTurn: 40, totalTurns: 70, hasMore: true, loadedMessageCount: 100,
+      }));
+      window.updateMessageTail!(JSON.stringify([
+        { type: 'user', content: 'updated-398' },
+        { type: 'assistant', content: 'updated-399' },
+      ]), 398, 7);
+    });
+
+    expect(buffer.current).toHaveLength(500);
+    expect(buffer.current[99]?.content).toBe('older-99');
+    expect(buffer.current[100]?.content).toBe('current-0');
+    expect(buffer.current[497]?.content).toBe('current-397');
+    expect(buffer.current[498]?.content).toBe('updated-398');
+    expect(buffer.current[499]?.content).toBe('updated-399');
+    expect(window.__prependedHistoryMessageCount).toBe(100);
+    expect(window.__messageBaseIndex).toBe(0);
+  });
+
+  it('preserves prepended history and its cursor across a full backend snapshot', () => {
+    const { opts, buffer } = createOptsWithMessages([
+      { type: 'user', content: 'current-user' },
+      { type: 'assistant', content: 'current-answer' },
+    ]);
+    opts.currentSessionIdRef.current = 'session-1';
+    renderHook(() => useWindowCallbacks(opts));
+    window.__codexHistoryPageInfo = {
+      pageId: 'page-current', sessionId: 'session-1', mode: 'replace',
+      fromTurn: 40, toTurn: 70, totalTurns: 70, hasMore: true, loadedMessageCount: 2,
+    };
+
+    act(() => {
+      window.beginCodexHistoryPage!(JSON.stringify({
+        pageId: 'page-older', sessionId: 'session-1', mode: 'prepend',
+      }));
+      window.appendCodexHistoryPageBatch!('page-older', JSON.stringify([
+        { type: 'user', content: 'older-user' },
+        { type: 'assistant', content: 'older-answer' },
+      ]));
+      window.completeCodexHistoryPage!(JSON.stringify({
+        pageId: 'page-older', sessionId: 'session-1', mode: 'prepend',
+        fromTurn: 10, toTurn: 40, totalTurns: 70, hasMore: true, loadedMessageCount: 2,
+      }));
+      window.updateMessages!(JSON.stringify([
+        { type: 'user', content: 'current-user' },
+        { type: 'assistant', content: 'updated-answer' },
+        { type: 'user', content: 'new-user' },
+      ]), 8);
+    });
+
+    expect(buffer.current.map(message => message.content)).toEqual([
+      'older-user', 'older-answer', 'current-user', 'updated-answer', 'new-user',
+    ]);
+    expect(window.__prependedHistoryMessageCount).toBe(2);
+    expect(window.__codexHistoryPageInfo?.fromTurn).toBe(10);
+  });
+
+  it('reconstructs settled turn metadata after a tail update', () => {
+    const { opts, buffer } = createOptsWithMessages([]);
+    renderHook(() => useWindowCallbacks(opts));
+
+    act(() => window.updateMessageTail!(JSON.stringify([
+      {
+        type: 'user',
+        content: 'question',
+        raw: { type: 'user', timestamp: '2026-07-23T10:00:00.000Z' },
+      },
+      {
+        type: 'assistant',
+        content: 'answer',
+        raw: {
+          type: 'assistant',
+          timestamp: '2026-07-23T10:00:05.000Z',
+          message: {
+            id: 'msg-1',
+            usage: { input_tokens: 12, output_tokens: 3 },
+            content: [{ type: 'text', text: 'answer' }],
+          },
+        },
+      },
+    ]), 0, 1));
+
+    expect(buffer.current[1]?.durationMs).toBe(5_000);
+    expect((buffer.current[1]?.raw as Record<string, unknown>)?.turnUsage).toEqual({
+      input_tokens: 12,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+      output_tokens: 3,
+    });
+  });
+
+  it('keeps a recreated tail window aligned across growth and compaction', () => {
+    const { opts, buffer } = createOptsWithMessages([]);
+    renderHook(() => useWindowCallbacks(opts));
+
+    act(() => window.updateMessageTail!(JSON.stringify([
+      { type: 'user', content: 'message-220' },
+      { type: 'assistant', content: 'message-221' },
+    ]), 220, 7));
+    expect(buffer.current.map((message) => message.content)).toEqual(['message-220', 'message-221']);
+    expect(window.__messageBaseIndex).toBe(220);
+
+    act(() => window.updateMessageTail!(JSON.stringify([
+      { type: 'user', content: 'message-221' },
+      { type: 'assistant', content: 'message-222' },
+    ]), 221, 8));
+    expect(buffer.current.map((message) => message.content)).toEqual(['message-221', 'message-222']);
+    expect(window.__messageBaseIndex).toBe(221);
+
+    act(() => window.updateMessageTail!(JSON.stringify([
+      { type: 'user', content: 'compacted-170' },
+      { type: 'assistant', content: 'compacted-171' },
+    ]), 170, 9));
+    expect(buffer.current.map((message) => message.content)).toEqual(['compacted-170', 'compacted-171']);
+    expect(window.__messageBaseIndex).toBe(170);
+  });
+
+  it('ignores stale or invalid long-conversation tail updates', () => {
+    const { opts, buffer } = createOptsWithMessages([
+      { type: 'user', content: 'current' },
+      { type: 'assistant', content: 'answer' },
+    ]);
+    window.__minAcceptedUpdateSequence = 8;
+    renderHook(() => useWindowCallbacks(opts));
+
+    act(() => window.updateMessageTail!(JSON.stringify([
+      { type: 'assistant', content: 'stale' },
+    ]), 1, 7));
+    act(() => window.updateMessageTail!(JSON.stringify([
+      { type: 'assistant', content: 'invalid-base' },
+    ]), '1oops', 9));
+
+    expect(buffer.current.map((message) => message.content)).toEqual(['current', 'answer']);
+    expect(window.__minAcceptedUpdateSequence).toBe(8);
+  });
+
+  it('resets the tail base when a full snapshot arrives', () => {
+    const { opts, buffer } = createOptsWithMessages([]);
+    renderHook(() => useWindowCallbacks(opts));
+    act(() => window.updateMessageTail!(JSON.stringify([
+      { type: 'assistant', content: 'tail-only' },
+    ]), 220, 7));
+
+    act(() => window.updateMessages!(JSON.stringify([
+      { type: 'user', content: 'full-user' },
+      { type: 'assistant', content: 'full-answer' },
+    ]), 8));
+
+    expect(buffer.current.map((message) => message.content)).toEqual(['full-user', 'full-answer']);
+    expect(window.__messageBaseIndex).toBe(0);
+  });
+
   it('patchMessageUuid updates the latest unresolved user message using raw text fallback', () => {
     const opts = createOptions({
       extractRawBlocks: (raw) => {
@@ -556,6 +906,7 @@ describe('useWindowCallbacks integration', () => {
       streamingMessageIndexRef,
     });
     renderHook(() => useWindowCallbacks(opts));
+    window.__prependedHistoryMessageCount = 12;
 
     act(() => {
       window.clearMessages!();
@@ -570,6 +921,7 @@ describe('useWindowCallbacks integration', () => {
     expect(isStreamingRef.current).toBe(false);
     expect(streamingContentRef.current).toBe('');
     expect(streamingMessageIndexRef.current).toBe(-1);
+    expect(window.__prependedHistoryMessageCount).toBe(0);
   });
 
   // ===== clearMessages forces a webview repaint to clear JCEF ghosting =====

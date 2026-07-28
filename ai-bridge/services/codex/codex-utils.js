@@ -21,7 +21,7 @@ export const DEBUG_LEVEL = process.env.CODEX_DEBUG_LEVEL ? parseInt(process.env.
  */
 export function debugLog(level, tag, ...args) {
   if (DEBUG_LEVEL >= level) {
-    console.log(`[${tag}]`, ...args);
+    console.error(`[${tag}]`, ...args);
   }
 }
 
@@ -38,6 +38,24 @@ export const CODEX_CLI_ENV_BLOCKLIST = new Set([
   'CODEX_SANDBOX_NETWORK_DISABLED',
   'CODEX_CI'
 ]);
+export const CODEX_PROXY_ENV_OPT_IN = 'CC_GUI_CODEX_INHERIT_PROXY';
+// Codex connects directly (including through OS-level TUN routing) unless a
+// user explicitly opts into inheriting Rider's HTTP/SOCKS proxy environment.
+export const PROXY_ENV_KEYS = new Set([
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'ALL_PROXY',
+  'NPM_CONFIG_PROXY',
+  'NPM_CONFIG_HTTPS_PROXY'
+]);
+
+function shouldInheritProxyEnvironment(baseEnv) {
+  const optInEntry = Object.entries(baseEnv).find(
+    ([key]) => key.toUpperCase() === CODEX_PROXY_ENV_OPT_IN
+  );
+  const value = optInEntry?.[1];
+  return typeof value === 'string' && /^(1|true|yes|on)$/i.test(value.trim());
+}
 
 /**
  * Reads sandbox mode override from environment variables.
@@ -83,11 +101,19 @@ export function buildCodexCliEnvironment(baseEnv) {
     return { cliEnv, removedKeys };
   }
 
+  const inheritProxyEnvironment = shouldInheritProxyEnvironment(baseEnv);
+
   for (const [key, rawValue] of Object.entries(baseEnv)) {
     if (typeof rawValue !== 'string' || rawValue.length === 0) {
       continue;
     }
     if (CODEX_CLI_ENV_BLOCKLIST.has(key)) {
+      removedKeys.push(key);
+      continue;
+    }
+    const normalizedKey = key.toUpperCase();
+    if (normalizedKey === CODEX_PROXY_ENV_OPT_IN ||
+        (!inheritProxyEnvironment && PROXY_ENV_KEYS.has(normalizedKey))) {
       removedKeys.push(key);
       continue;
     }

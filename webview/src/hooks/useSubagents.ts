@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { ClaudeMessage, ClaudeRawMessage, ClaudeContentBlock, ToolResultBlock, SubagentInfo, SubagentStatus } from '../types';
+import type { ClaudeMessage, ClaudeRawMessage, ClaudeContentBlock, ToolResultBlock, SubagentHistoryResponse, SubagentInfo, SubagentStatus, TaskEvent, TaskEventMap } from '../types';
 import { normalizeToolInput } from '../utils/toolInputNormalization';
 import { AGENT_TOOL_NAMES, normalizeToolName } from '../utils/toolConstants';
 import { extractWorkflowMeta } from '../utils/workflowMeta';
@@ -12,6 +12,8 @@ import {
   useBackgroundTaskUsageMap,
   useFinishedBackgroundTasks,
 } from '../utils/backgroundTasks';
+import { extractResultText, isAsyncAgentInput } from '../utils/subagentResult';
+import { useTaskEvents } from '../contexts/SubagentContext';
 
 type GetToolResultRawFn = (toolUseId: string) => ClaudeRawMessage | null;
 
@@ -20,74 +22,90 @@ interface UseSubagentsParams {
   getContentBlocks: (message: ClaudeMessage) => ClaudeContentBlock[];
   findToolResult: (toolUseId?: string, messageIndex?: number) => ToolResultBlock | null;
   getToolResultRaw: GetToolResultRawFn;
+  subagentHistories?: Record<string, SubagentHistoryResponse>;
 }
 
 /**
- * Determine subagent status based on tool result. A background launch's
- * immediate tool_result is not completion — the subagent stays running until
- * its task-notification lands in the transcript.
+ * Determine subagent status.
+ *
+ * Async agents (Agent/Task tool invoked with run_in_background:true) only
+ * receive a launch acknowledgment tool_result, not a completion signal. The
+ * terminal status arrives from a live task_notification event, and — when no
+ * live event exists — from the notification the CLI persisted in the transcript.
+ * Both sources are needed: task events only exist for the session that produced
+ * them, so after a webview reload or when opening a past session the transcript
+ * is the only evidence a background agent ever finished.
+ *
+ * Sync agents (task/agent without run_in_background) run inline: a tool_result
+ * means the agent is done.
  */
 function determineStatus(
   result: ToolResultBlock | null,
+  isAsync: boolean,
+  taskEvent: TaskEvent | undefined,
   launch: BackgroundLaunchInfo,
   toolUseId: string,
   finishedBackgroundTasks: ReadonlyMap<string, string>,
 ): SubagentStatus {
+  if (isAsync) {
+    if (taskEvent) {
+      return taskEvent.status === 'failed' || taskEvent.status === 'stopped' ? 'error' : 'completed';
+    }
+    // Reload / history fallback: the transcript's own task-notification.
+    const persisted = getFinishedBackgroundTaskStatus(finishedBackgroundTasks, launch, toolUseId);
+    if (persisted) {
+      if (persisted === 'failed' || persisted === 'killed') return 'error';
+      if (persisted === 'stopped') return 'stopped';
+      return 'completed';
+    }
+    // A failed launch (validation error before the background task was
+    // registered) returns an is_error tool_result and never emits a
+    // task_notification - surface it as an error instead of staying stuck on
+    // "running" forever.
+    if (result?.is_error) {
+      return 'error';
+    }
+    return 'running';
+  }
   if (!result) {
     return 'running';
   }
   if (result.is_error) {
     return 'error';
   }
-  if (launch.isBackground) {
-    const terminalStatus = getFinishedBackgroundTaskStatus(finishedBackgroundTasks, launch, toolUseId);
-    if (!terminalStatus) return 'running';
-    if (terminalStatus === 'failed' || terminalStatus === 'killed') return 'error';
-    if (terminalStatus === 'stopped') return 'stopped';
-    return 'completed';
-  }
   return 'completed';
-}
-
-function extractResultText(result: ToolResultBlock | null): string | undefined {
-  if (!result) return undefined;
-  if (typeof result.content === 'string') return result.content;
-  if (!Array.isArray(result.content)) return undefined;
-  const text = result.content
-    .map((item) => (item && typeof item.text === 'string' ? item.text : ''))
-    .filter(Boolean)
-    .join('\n');
-  return text || undefined;
 }
 
 function extractResultMetadata(
   result: ToolResultBlock | null,
   getToolResultRaw: GetToolResultRawFn,
   toolUseId: string,
+  taskEvent: TaskEvent | undefined,
 ): Partial<SubagentInfo> {
   const rawMessage = getToolResultRaw(toolUseId);
   const metadata = rawMessage?.toolUseResult;
-  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
-    return { resultText: extractResultText(result) };
-  }
+  const record = metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+    ? (metadata as Record<string, unknown>)
+    : null;
 
-  const record = metadata as Record<string, unknown>;
   const getString = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : undefined);
   const getNumber = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
-  const toolStats = record.toolStats && typeof record.toolStats === 'object' && !Array.isArray(record.toolStats)
+  const toolStats = record?.toolStats && typeof record.toolStats === 'object' && !Array.isArray(record.toolStats)
     ? Object.fromEntries(
       Object.entries(record.toolStats as Record<string, unknown>)
         .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1])),
     )
     : undefined;
 
+  // task_notification wins over toolUseResult: for async agents the launch
+  // tool_result carries no usage, so the event is the only source of truth.
   return {
-    agentId: getString(record.agentId),
-    totalDurationMs: getNumber(record.totalDurationMs),
-    totalTokens: getNumber(record.totalTokens),
-    totalToolUseCount: getNumber(record.totalToolUseCount),
+    agentId: taskEvent?.agentId ?? getString(record?.agentId),
+    totalDurationMs: taskEvent?.totalDurationMs ?? getNumber(record?.totalDurationMs),
+    totalTokens: taskEvent?.totalTokens ?? getNumber(record?.totalTokens),
+    totalToolUseCount: taskEvent?.totalToolUseCount ?? getNumber(record?.totalToolUseCount),
     toolStats,
-    resultText: extractResultText(result),
+    resultText: taskEvent?.summary ?? extractResultText(result),
   };
 }
 
@@ -96,6 +114,7 @@ export function extractSubagentsFromMessages(
   getContentBlocks: (message: ClaudeMessage) => ClaudeContentBlock[],
   findToolResult: (toolUseId?: string, messageIndex?: number) => ToolResultBlock | null,
   getToolResultRaw: GetToolResultRawFn,
+  taskEvents: TaskEventMap = {},
   finishedBackgroundTasks: ReadonlyMap<string, string> = new Map(),
   backgroundTaskUsage: ReadonlyMap<string, BackgroundTaskUsage> = new Map(),
 ): SubagentInfo[] {
@@ -139,11 +158,18 @@ export function extractSubagentsFromMessages(
       // Check tool result to determine status
       const toolUseId = block.id ?? '';
       const result = findToolResult(toolUseId, messageIndex);
-      const resultMetadata = extractResultMetadata(result, getToolResultRaw, toolUseId);
+      const taskEvent = taskEvents[toolUseId];
+      const resultMetadata = extractResultMetadata(result, getToolResultRaw, toolUseId, taskEvent);
       const launch = parseBackgroundLaunch(resultMetadata.resultText);
-      const status = determineStatus(result, launch, toolUseId, finishedBackgroundTasks);
-      // A background launch's toolUseResult carries no stats — the completion
-      // notification's <usage> block is the only source of tokens/duration.
+      // The run_in_background input flag is authoritative (shared with the
+      // inline Agent cards via isAsyncAgentInput). The launch-text fallback
+      // still matters for launches whose input carries no flag — notably a
+      // SendMessage that revives a background agent.
+      const isAsync = isAsyncAgentInput(input) || launch.isBackground;
+      const status = determineStatus(result, isAsync, taskEvent, launch, toolUseId, finishedBackgroundTasks);
+      // A background launch's toolUseResult carries no stats; the live task
+      // event supplies them, and for a reloaded session the transcript
+      // notification's <usage> block is the only remaining source.
       const usage = getBackgroundTaskUsage(backgroundTaskUsage, launch, toolUseId);
 
       subagents.push({
@@ -152,6 +178,7 @@ export function extractSubagentsFromMessages(
         description,
         prompt,
         status,
+        isAsync,
         messageIndex,
         isBackground: launch.isBackground,
         ...resultMetadata,
@@ -168,21 +195,44 @@ export function extractSubagentsFromMessages(
   return subagents;
 }
 
+export function applySubagentHistoryCompletion(
+  subagents: SubagentInfo[],
+  subagentHistories: Record<string, SubagentHistoryResponse>,
+): SubagentInfo[] {
+  return subagents.map((subagent) => {
+    if (!subagent.isAsync || subagent.status !== 'running') return subagent;
+    const history = subagentHistories[subagent.id]
+      ?? (subagent.agentId ? subagentHistories[subagent.agentId] : undefined);
+    return history?.completed ? { ...subagent, status: 'completed' as const } : subagent;
+  });
+}
+
 /**
- * Hook to extract subagent information from Task tool calls
+ * Hook to extract subagent information from Task tool calls.
  */
 export function useSubagents({
   messages,
   getContentBlocks,
   findToolResult,
   getToolResultRaw,
+  subagentHistories = {},
 }: UseSubagentsParams): SubagentInfo[] {
+  const taskEvents = useTaskEvents();
   const finishedBackgroundTasks = useFinishedBackgroundTasks();
   const backgroundTaskUsage = useBackgroundTaskUsageMap();
-  return useMemo(
-    () => extractSubagentsFromMessages(
-      messages, getContentBlocks, findToolResult, getToolResultRaw, finishedBackgroundTasks, backgroundTaskUsage,
-    ),
-    [messages, getContentBlocks, findToolResult, getToolResultRaw, finishedBackgroundTasks, backgroundTaskUsage],
-  );
+  return useMemo(() => {
+    const extracted = extractSubagentsFromMessages(
+      messages,
+      getContentBlocks,
+      findToolResult,
+      getToolResultRaw,
+      taskEvents,
+      finishedBackgroundTasks,
+      backgroundTaskUsage,
+    );
+    return applySubagentHistoryCompletion(extracted, subagentHistories);
+  }, [
+    messages, getContentBlocks, findToolResult, getToolResultRaw,
+    taskEvents, finishedBackgroundTasks, backgroundTaskUsage, subagentHistories,
+  ]);
 }

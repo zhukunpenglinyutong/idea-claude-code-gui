@@ -1,16 +1,25 @@
-import { fireEvent, render, screen, cleanup } from '@testing-library/react';
+import { act, fireEvent, render, screen, cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createRef } from 'react';
+import { createRef, useState } from 'react';
 import type { ClaudeMessage, ClaudeContentBlock, ToolResultBlock } from '../types';
 import { MessageList } from './MessageList';
 
 // Mock MessageItem to keep this suite focused on list-level paging behaviour.
 vi.mock('./MessageItem', () => ({
-  MessageItem: ({ messageKey, message }: { messageKey: string; message: ClaudeMessage }) => (
-    <div data-testid="message-item" data-key={messageKey} data-type={message.type}>
-      {message.content}
-    </div>
-  ),
+  MessageItem: ({ messageKey, message }: { messageKey: string; message: ClaudeMessage }) => {
+    const [localState, setLocalState] = useState('initial');
+    return (
+      <div
+        data-testid="message-item"
+        data-key={messageKey}
+        data-type={message.type}
+        data-local-state={localState}
+        onClick={() => setLocalState('preserved')}
+      >
+        {message.content}
+      </div>
+    );
+  },
 }));
 
 vi.mock('./WaitingIndicator', () => ({
@@ -39,6 +48,13 @@ const t = ((key: string, opts?: Record<string, unknown>) => {
     const count = opts?.count ?? 0;
     return `Show ${count} earlier`;
   }
+  if (key === 'chat.showEarlierTurns') {
+    return `Show ${opts?.count ?? 0} earlier turns (${opts?.remaining ?? 0} remaining)`;
+  }
+  if (key === 'chat.loadEarlierTurns') {
+    return `Load ${opts?.count ?? 0} earlier turns (${opts?.remaining ?? 0} remaining)`;
+  }
+  if (key === 'chat.loadingEarlierTurns') return 'Loading earlier turns...';
   return key;
 }) as never;
 
@@ -48,6 +64,26 @@ function makeMessages(count: number, idPrefix = 'm'): ClaudeMessage[] {
     content: `message ${i}`,
     id: `${idPrefix}-${i}`,
   }) as unknown as ClaudeMessage);
+}
+
+function makeToolDenseTurns(turnCount: number): ClaudeMessage[] {
+  return Array.from({ length: turnCount }, (_, turn) => [
+    { type: 'user', content: `user ${turn}`, id: `user-${turn}` },
+    { type: 'assistant', content: `thinking ${turn}`, id: `thinking-${turn}` },
+    {
+      type: 'assistant',
+      content: `tool ${turn}`,
+      id: `tool-${turn}`,
+      raw: { content: [{ type: 'tool_use', id: `call-${turn}`, name: 'Read', input: {} }] },
+    },
+    {
+      type: 'user',
+      content: '[tool_result]',
+      id: `result-${turn}`,
+      raw: { content: [{ type: 'tool_result', tool_use_id: `call-${turn}`, content: 'ok' }] },
+    },
+    { type: 'assistant', content: `answer ${turn}`, id: `answer-${turn}` },
+  ]).flat() as unknown as ClaudeMessage[];
 }
 
 const noopGetText = (m: ClaudeMessage) => m.content ?? '';
@@ -75,50 +111,68 @@ function renderList(messages: ClaudeMessage[]) {
 }
 
 describe('MessageList paged collapse', () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    delete window.sendToJava;
+    delete window.__codexHistoryPageInfo;
+  });
 
-  it('renders all messages when total ≤ visible window (15)', () => {
+  it('renders all messages when there are at most five user turns', () => {
     renderList(makeMessages(10));
     expect(screen.getAllByTestId('message-item')).toHaveLength(10);
     expect(screen.queryByText(/Show.*earlier/)).toBeNull();
   });
 
-  it('collapses earlier messages when total > visible window', () => {
+  it('collapses earlier complete turns when there are more than five user turns', () => {
     const { container } = renderList(makeMessages(50));
-    // Visible: last 15 messages
-    expect(screen.getAllByTestId('message-item')).toHaveLength(15);
-    // Indicator shows next chunk size (30) and remaining total (35) appended
+    expect(screen.getAllByTestId('message-item')).toHaveLength(10);
     const indicator = container.querySelector('.collapsed-messages-indicator');
     expect(indicator).toBeTruthy();
-    expect(indicator?.textContent).toContain('Show 30 earlier');
-    expect(indicator?.textContent).toContain('(35)');
+    expect(indicator?.textContent).toBe('Show 5 earlier turns (20 remaining)');
   });
 
-  it('reveals one chunk per click instead of expanding everything', () => {
+  it('reveals five complete turns per click instead of expanding everything', () => {
     const { container } = renderList(makeMessages(100));
-    expect(screen.getAllByTestId('message-item')).toHaveLength(15);
+    expect(screen.getAllByTestId('message-item')).toHaveLength(10);
 
     const indicator = container.querySelector('.collapsed-messages-indicator');
-    expect(indicator?.textContent).toContain('Show 30 earlier');
+    expect(indicator?.textContent).toBe('Show 5 earlier turns (45 remaining)');
     fireEvent.click(indicator!);
-    // 15 + 30 chunk
-    expect(screen.getAllByTestId('message-item')).toHaveLength(45);
+    expect(screen.getAllByTestId('message-item')).toHaveLength(20);
 
     fireEvent.click(container.querySelector('.collapsed-messages-indicator')!);
-    expect(screen.getAllByTestId('message-item')).toHaveLength(75);
+    expect(screen.getAllByTestId('message-item')).toHaveLength(30);
   });
 
   it('removes the indicator once everything is revealed', () => {
-    const { container } = renderList(makeMessages(40));
+    const { container } = renderList(makeMessages(16));
     const indicator = container.querySelector('.collapsed-messages-indicator');
-    // 40 - 15 = 25 collapsed → next click size = min(30, 25) = 25
-    expect(indicator?.textContent).toContain('Show 25 earlier');
-    // Total <= chunk → no extra " (N)" suffix
-    expect(indicator?.textContent).not.toMatch(/\(\d+\)/);
+    expect(indicator?.textContent).toBe('Show 3 earlier turns (3 remaining)');
 
     fireEvent.click(indicator!);
-    expect(screen.getAllByTestId('message-item')).toHaveLength(40);
+    expect(screen.getAllByTestId('message-item')).toHaveLength(16);
     expect(container.querySelector('.collapsed-messages-indicator')).toBeNull();
+  });
+
+  it('never starts rendering in the middle of an assistant and tool chain', () => {
+    const { container } = renderList(makeToolDenseTurns(8));
+    const visible = screen.getAllByTestId('message-item');
+
+    expect(visible).toHaveLength(25);
+    expect(visible[0].textContent).toBe('user 3');
+    expect(container.querySelector('.collapsed-messages-indicator')?.textContent)
+      .toBe('Show 3 earlier turns (3 remaining)');
+  });
+
+  it('tolerates malformed raw content blocks from history transport', () => {
+    const messages = makeMessages(14);
+    messages[0] = {
+      ...messages[0],
+      raw: { content: [null, 'unexpected'] },
+    } as unknown as ClaudeMessage;
+
+    expect(() => renderList(messages)).not.toThrow();
+    expect(screen.getAllByTestId('message-item')).toHaveLength(10);
   });
 
   it('reports collapsedCount changes to parent for anchor rail sync', () => {
@@ -142,13 +196,12 @@ describe('MessageList paged collapse', () => {
       />
     );
 
-    // Initial: 60 - 15 = 45 collapsed
-    expect(onCollapsedCountChange).toHaveBeenLastCalledWith(45);
+    expect(onCollapsedCountChange).toHaveBeenLastCalledWith(50);
 
     // Reveal one chunk
     const indicator = container.querySelector('.collapsed-messages-indicator');
     fireEvent.click(indicator!);
-    expect(onCollapsedCountChange).toHaveBeenLastCalledWith(15);
+    expect(onCollapsedCountChange).toHaveBeenLastCalledWith(40);
 
     // Trigger a session switch via first-message-id change
     rerender(
@@ -167,13 +220,208 @@ describe('MessageList paged collapse', () => {
         onCollapsedCountChange={onCollapsedCountChange}
       />
     );
-    // Reset → 50 - 15 = 35 collapsed
-    expect(onCollapsedCountChange).toHaveBeenLastCalledWith(35);
+    expect(onCollapsedCountChange).toHaveBeenLastCalledWith(40);
+  });
+
+  it('resets revealed turns when id-less history messages switch sessions', () => {
+    const firstSession = makeMessages(40).map(({ id: _id, ...message }, index) => ({
+      ...message,
+      timestamp: `2026-07-16T10:00:${String(index).padStart(2, '0')}.000Z`,
+    })) as ClaudeMessage[];
+    const secondSession = makeMessages(40).map(({ id: _id, ...message }, index) => ({
+      ...message,
+      timestamp: `2026-07-17T10:00:${String(index).padStart(2, '0')}.000Z`,
+    })) as ClaudeMessage[];
+    const endRef = createRef<HTMLDivElement>();
+    const { container, rerender } = render(
+      <MessageList
+        messages={firstSession}
+        streamingActive={false}
+        isThinking={false}
+        loading={false}
+        loadingStartTime={null}
+        t={t}
+        getMessageText={noopGetText}
+        getContentBlocks={noopGetBlocks}
+        findToolResult={noopFindToolResult}
+        extractMarkdownContent={noopExtractMd}
+        messagesEndRef={endRef}
+      />
+    );
+
+    fireEvent.click(container.querySelector('.collapsed-messages-indicator')!);
+    expect(screen.getAllByTestId('message-item')).toHaveLength(20);
+
+    rerender(
+      <MessageList
+        messages={secondSession}
+        streamingActive={false}
+        isThinking={false}
+        loading={false}
+        loadingStartTime={null}
+        t={t}
+        getMessageText={noopGetText}
+        getContentBlocks={noopGetBlocks}
+        findToolResult={noopFindToolResult}
+        extractMarkdownContent={noopExtractMd}
+        messagesEndRef={endRef}
+      />
+    );
+
+    expect(screen.getAllByTestId('message-item')).toHaveLength(10);
+  });
+
+  it('requests the previous disk page only after all loaded turns are revealed', () => {
+    const sendToJava = vi.fn();
+    window.sendToJava = sendToJava;
+    const endRef = createRef<HTMLDivElement>();
+    const { container } = render(
+      <MessageList
+        messages={makeMessages(20)}
+        streamingActive={false}
+        isThinking={false}
+        loading={false}
+        loadingStartTime={null}
+        t={t}
+        getMessageText={noopGetText}
+        getContentBlocks={noopGetBlocks}
+        findToolResult={noopFindToolResult}
+        extractMarkdownContent={noopExtractMd}
+        messagesEndRef={endRef}
+        currentProvider="codex"
+        currentSessionId="session-1"
+      />
+    );
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent('codex-history-page-info', {
+        detail: {
+          pageId: 'page-1',
+          sessionId: 'session-1',
+          mode: 'replace',
+          fromTurn: 70,
+          toTurn: 100,
+          totalTurns: 100,
+          hasMore: true,
+          loadedMessageCount: 20,
+        },
+      }));
+    });
+
+    fireEvent.click(container.querySelector('.collapsed-messages-indicator')!);
+    expect(container.querySelector('.collapsed-messages-indicator')?.textContent)
+      .toBe('Load 30 earlier turns (70 remaining)');
+
+    fireEvent.click(container.querySelector('.collapsed-messages-indicator')!);
+    expect(sendToJava).toHaveBeenCalledWith(
+      'load_codex_history_page:{"sessionId":"session-1","beforeTurn":70}',
+    );
+    expect(container.querySelector('.collapsed-messages-indicator')?.textContent)
+      .toBe('Loading earlier turns...');
   });
 });
 
 describe('MessageList container behaviour', () => {
   afterEach(cleanup);
+
+  it('preserves the live assistant component when a tool snapshot adds its UUID', () => {
+    const initialMessage: ClaudeMessage = {
+      type: 'assistant',
+      content: '',
+      timestamp: '2026-07-28T09:00:00.000Z',
+      isStreaming: true,
+      __turnId: 42,
+      raw: {
+        message: {
+          content: [{ type: 'thinking', thinking: 'Working through it' }],
+        },
+      },
+    };
+    const endRef = createRef<HTMLDivElement>();
+    const renderMessageList = (messages: ClaudeMessage[]) => (
+      <MessageList
+        messages={messages}
+        streamingActive
+        isThinking
+        loading={false}
+        loadingStartTime={null}
+        t={t}
+        getMessageText={noopGetText}
+        getContentBlocks={noopGetBlocks}
+        findToolResult={noopFindToolResult}
+        extractMarkdownContent={noopExtractMd}
+        messagesEndRef={endRef}
+      />
+    );
+    const { rerender } = render(renderMessageList([initialMessage]));
+    const liveItem = screen.getByTestId('message-item');
+
+    fireEvent.click(liveItem);
+    expect(liveItem.getAttribute('data-local-state')).toBe('preserved');
+
+    const toolSnapshot: ClaudeMessage = {
+      ...initialMessage,
+      raw: {
+        uuid: 'backend-assistant-uuid',
+        message: {
+          content: [
+            { type: 'thinking', thinking: 'Working through it' },
+            { type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: '/tmp/example' } },
+          ],
+        },
+      },
+    };
+    rerender(renderMessageList([toolSnapshot]));
+
+    expect(screen.getByTestId('message-item')).toBe(liveItem);
+    expect(liveItem.getAttribute('data-key')).toBe('turn-42');
+    expect(liveItem.getAttribute('data-local-state')).toBe('preserved');
+
+    rerender(renderMessageList([{ ...toolSnapshot, __turnId: undefined }]));
+
+    expect(screen.getByTestId('message-item')).toBe(liveItem);
+    expect(liveItem.getAttribute('data-key')).toBe('turn-42');
+    expect(liveItem.getAttribute('data-local-state')).toBe('preserved');
+  });
+
+  it('preserves a UUID-keyed replay message when a runtime turn ID is attached', () => {
+    const replayMessage: ClaudeMessage = {
+      type: 'assistant',
+      content: '',
+      timestamp: '2026-07-28T09:00:00.000Z',
+      raw: {
+        uuid: 'replay-assistant-uuid',
+        message: {
+          content: [{ type: 'thinking', thinking: 'Resuming the thought' }],
+        },
+      },
+    };
+    const endRef = createRef<HTMLDivElement>();
+    const renderMessageList = (message: ClaudeMessage) => (
+      <MessageList
+        messages={[message]}
+        streamingActive
+        isThinking
+        loading={false}
+        loadingStartTime={null}
+        t={t}
+        getMessageText={noopGetText}
+        getContentBlocks={noopGetBlocks}
+        findToolResult={noopFindToolResult}
+        extractMarkdownContent={noopExtractMd}
+        messagesEndRef={endRef}
+      />
+    );
+    const { rerender } = render(renderMessageList(replayMessage));
+    const replayItem = screen.getByTestId('message-item');
+
+    fireEvent.click(replayItem);
+    rerender(renderMessageList({ ...replayMessage, isStreaming: true, __turnId: 43 }));
+
+    expect(screen.getByTestId('message-item')).toBe(replayItem);
+    expect(replayItem.getAttribute('data-key')).toBe('replay-assistant-uuid');
+    expect(replayItem.getAttribute('data-local-state')).toBe('preserved');
+  });
 
   it('uses the latest message index for isLast even when paginated', () => {
     const messages = makeMessages(40);

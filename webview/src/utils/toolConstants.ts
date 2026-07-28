@@ -62,3 +62,27 @@ export function isTransientInternalToolName(toolName: string | undefined): boole
   const lower = toolName.toLowerCase();
   return TRANSIENT_INTERNAL_TOOL_NAMES.has(lower) || TRANSIENT_INTERNAL_TOOL_NAMES.has(normalizeToolName(lower));
 }
+
+/**
+ * Whether a content block is a tool_use that renders nothing in the message
+ * list (TodoWrite, TaskCreate, update_plan, and transient internal tools once
+ * streaming ends). Mirrors the null-return branches in ContentBlockRenderer so
+ * callers can filter such blocks before rendering - their arrival otherwise
+ * re-renders the message and shifts the streaming thinking block's last-block
+ * status, which flickered the thinking block. Pass the message's streaming
+ * flag so the transient-internal branch matches the renderer's behavior.
+ */
+export function isNonRenderedToolUse(
+  block: { type?: string; name?: string },
+  isStreaming: boolean,
+): boolean {
+  if (block.type !== 'tool_use') return false;
+  const toolName = normalizeToolName(block.name ?? '');
+  if (toolName === 'todowrite' || toolName === 'update_plan' || TASK_MANAGE_TOOL_NAMES.has(toolName)) {
+    return true;
+  }
+  if (!isStreaming && isTransientInternalToolName(block.name)) {
+    return true;
+  }
+  return false;
+}

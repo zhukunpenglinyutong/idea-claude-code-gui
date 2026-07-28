@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { memo, useState, useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
 import { useIsToolDenied } from '../../hooks/useIsToolDenied';
@@ -7,14 +7,24 @@ import { openFile, showDiff, refreshFile } from '../../utils/bridge';
 import { getFileIcon } from '../../utils/fileIcons';
 import { getToolLineInfo, getToolEditCount, resolveToolTarget } from '../../utils/toolPresentation';
 import { normalizeToolInput } from '../../utils/toolInputNormalization';
+import EditToolGroupBlock from './EditToolGroupBlock';
 import GenericToolBlock from './GenericToolBlock';
 
-interface EditToolBlockProps {
+/** A single edit tool call within a (possibly batched) edit group. */
+export interface EditToolItem {
   name?: string;
   input?: ToolInput;
   result?: ToolResultBlock | null;
   /** Unique ID of the tool call, used to determine if the user denied permission */
   toolId?: string;
+}
+
+interface EditToolBlockProps {
+  /** One or more edit tool calls. A single item renders the inline-diff view;
+      multiple items delegate to EditToolGroupBlock. Routing both cases through
+      this one component keeps the instance (and its state) alive as edits
+      stream in 1 -> 2 -> ..., so the transition no longer unmounts the block. */
+  items: EditToolItem[];
 }
 
 type DiffLineType = 'unchanged' | 'deleted' | 'added';
@@ -233,7 +243,7 @@ function computeDiff(oldLines: string[], newLines: string[]): DiffResult {
   return { lines: diffLines, additions, deletions };
 }
 
-const EditToolBlock = ({ name, input, result, toolId }: EditToolBlockProps) => {
+const EditToolBlock = memo(function EditToolBlock({ items }: EditToolBlockProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(() => {
     try {
@@ -242,6 +252,17 @@ const EditToolBlock = ({ name, input, result, toolId }: EditToolBlockProps) => {
       return false;
     }
   });
+
+  // The inline-diff view below serves the single-item case; when there are
+  // multiple items we delegate to EditToolGroupBlock. That delegation return
+  // must sit *after* every hook, so we read items[0] up front to keep the hook
+  // order identical for any item count - React then reuses this instance (and
+  // its state) across the 1 -> N transition instead of unmounting it.
+  const firstItem = items[0];
+  const name = firstItem?.name;
+  const input = firstItem?.input;
+  const result = firstItem?.result;
+  const toolId = firstItem?.toolId;
 
   const isDenied = useIsToolDenied(toolId);
 
@@ -276,19 +297,36 @@ const EditToolBlock = ({ name, input, result, toolId }: EditToolBlockProps) => {
     '';
 
   const diff = useMemo(() => {
+    // When delegating to the grouped view (items.length > 1) the diff is never
+    // rendered, so skip the O(m*n) LCS pass for the first item - the early
+    // return below hands off to EditToolGroupBlock before this result is used.
+    if (items.length !== 1) {
+      return { lines: [], additions: 0, deletions: 0 };
+    }
     const oldLines = oldString ? oldString.split('\n') : [];
     const newLines = newString ? newString.split('\n') : [];
     return computeDiff(oldLines, newLines);
-  }, [oldString, newString]);
+  }, [items.length, oldString, newString]);
 
   // Auto-refresh file in IDEA when the tool call completes successfully
   const hasRefreshed = useRef(false);
   useEffect(() => {
+    // Only the single-item view refreshes here; the grouped view runs its own
+    // refresh effect, so skip when delegating to avoid duplicate refreshes.
+    if (items.length !== 1) return;
     if (filePath && isCompleted && !isError && !hasRefreshed.current) {
       hasRefreshed.current = true;
       refreshFile(filePath);
     }
-  }, [filePath, isCompleted, isError]);
+  }, [items.length, filePath, isCompleted, isError]);
+
+  // Multiple edits: delegate to the grouped list view. This return sits after
+  // all hooks, so the component instance (and the state above) is preserved
+  // when the item count crosses from 1 to many - React reuses this instance
+  // and only swaps the rendered subtree, instead of unmounting EditToolBlock.
+  if (items.length > 1) {
+    return <EditToolGroupBlock items={items} />;
+  }
 
   if (!normalizedInput) {
     return null;
@@ -452,6 +490,6 @@ const EditToolBlock = ({ name, input, result, toolId }: EditToolBlockProps) => {
       </div>
     </div>
   );
-};
+});
 
 export default EditToolBlock;

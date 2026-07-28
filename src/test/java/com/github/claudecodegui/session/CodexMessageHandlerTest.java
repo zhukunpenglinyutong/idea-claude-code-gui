@@ -3,8 +3,12 @@ package com.github.claudecodegui.session;
 import com.github.claudecodegui.provider.common.SDKResult;
 import com.github.claudecodegui.session.ClaudeSession.Message;
 import com.github.claudecodegui.permission.PermissionRequest;
+import com.google.gson.JsonArray;
 import org.junit.Test;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -214,6 +218,52 @@ public class CodexMessageHandlerTest {
     }
 
     @Test
+    public void userMessageWithOnlySkillMetadataIsFiltered() {
+        SessionState state = new SessionState();
+
+        CallbackHandler callbackHandler = new CallbackHandler();
+        RecordingCallback callback = new RecordingCallback();
+        callbackHandler.setCallback(callback);
+
+        CodexMessageHandler handler = new CodexMessageHandler(state, callbackHandler);
+        handler.onMessage("user", "{\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\","
+                + "\"text\":\"<skill>\\n<name>autopilot</name>\\n<path>/tmp/SKILL.md</path>\\n</skill>\"}]}}");
+
+        assertEquals(0, state.getMessages().size());
+        assertEquals(0, callback.messageUpdateCount);
+    }
+
+    @Test
+    public void userMessageStripsCodexImagePlaceholderFromContentAndRawBlocks() throws Exception {
+        Path imagePath = Files.createTempFile("codex-live-image", ".png");
+        Files.write(imagePath, "png-bytes".getBytes(StandardCharsets.UTF_8));
+        SessionState state = new SessionState();
+
+        try {
+            CallbackHandler callbackHandler = new CallbackHandler();
+            RecordingCallback callback = new RecordingCallback();
+            callbackHandler.setCallback(callback);
+
+            CodexMessageHandler handler = new CodexMessageHandler(state, callbackHandler);
+            handler.onMessage("user", "{\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\","
+                    + "\"text\":\"<image name=[Image #1] path=\\\"" + imagePath + "\\\">\\n</image>\\n\\n测试通讯\"}]}}");
+
+            assertEquals(1, state.getMessages().size());
+            Message message = state.getMessages().get(0);
+            assertEquals("测试通讯", message.content);
+            JsonArray contentBlocks = message.raw
+                    .getAsJsonObject("message")
+                    .getAsJsonArray("content");
+            assertEquals(2, contentBlocks.size());
+            assertEquals("image", contentBlocks.get(0).getAsJsonObject().get("type").getAsString());
+            assertTrue(contentBlocks.get(0).getAsJsonObject().get("src").getAsString().startsWith("data:image/png;base64,"));
+            assertEquals("测试通讯", contentBlocks.get(1).getAsJsonObject().get("text").getAsString());
+        } finally {
+            Files.deleteIfExists(imagePath);
+        }
+    }
+
+    @Test
     public void onCompleteFinalizesStreamingTurnWhenStreamEndIsMissing() {
         SessionState state = new SessionState();
         state.setBusy(true);
@@ -283,6 +333,7 @@ public class CodexMessageHandlerTest {
     @Test
     public void resultMessageStampsNormalizedTurnUsageOnLastAssistant() {
         SessionState state = new SessionState();
+        state.setModel("gpt-5.1");
 
         CallbackHandler callbackHandler = new CallbackHandler();
         RecordingCallback callback = new RecordingCallback();
@@ -304,6 +355,47 @@ public class CodexMessageHandlerTest {
         assertEquals(36310, turnUsage.get("cache_read_input_tokens").getAsInt());
         assertEquals(0, turnUsage.get("cache_creation_input_tokens").getAsInt());
         assertEquals(353, turnUsage.get("output_tokens").getAsInt());
+        assertEquals(0.00893125, message.raw.get("turnCostUsd").getAsDouble(), 0.0000001);
+    }
+
+    @Test
+    public void resultMessageAcceptsCodexCachedInputTokenAlias() {
+        SessionState state = new SessionState();
+        state.setModel("gpt-5.1");
+
+        CallbackHandler callbackHandler = new CallbackHandler();
+        RecordingCallback callback = new RecordingCallback();
+        callbackHandler.setCallback(callback);
+
+        CodexMessageHandler handler = new CodexMessageHandler(state, callbackHandler);
+        handler.onMessage("assistant", "{\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"done\"}]}}");
+        handler.onMessage("result", "{\"type\":\"result\",\"subtype\":\"usage\",\"usage\":{"
+                + "\"input_tokens\":37000,\"output_tokens\":353,\"cached_input_tokens\":36310}}");
+
+        Message message = state.getMessages().get(0);
+        var turnUsage = message.raw.getAsJsonObject("turnUsage");
+        assertEquals(690, turnUsage.get("input_tokens").getAsInt());
+        assertEquals(36310, turnUsage.get("cache_read_input_tokens").getAsInt());
+        assertEquals(0.00893125, message.raw.get("turnCostUsd").getAsDouble(), 0.0000001);
+    }
+
+    @Test
+    public void resultMessageDoesNotStampTurnCostWhenModelHasNoPricing() {
+        SessionState state = new SessionState();
+        state.setModel("custom-codex-without-pricing");
+
+        CallbackHandler callbackHandler = new CallbackHandler();
+        RecordingCallback callback = new RecordingCallback();
+        callbackHandler.setCallback(callback);
+
+        CodexMessageHandler handler = new CodexMessageHandler(state, callbackHandler);
+        handler.onMessage("assistant", "{\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"done\"}]}}");
+        handler.onMessage("result", "{\"type\":\"result\",\"subtype\":\"usage\",\"usage\":{"
+                + "\"input_tokens\":1200,\"output_tokens\":456}}");
+
+        Message message = state.getMessages().get(0);
+        assertTrue(message.raw.has("turnUsage"));
+        assertFalse(message.raw.has("turnCostUsd"));
     }
 
     @Test

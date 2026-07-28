@@ -7,10 +7,12 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.ui.jcef.JBCefBrowser;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -163,12 +165,7 @@ public class MessageJsonConverter {
                 if (c.isJsonPrimitive() && c.getAsJsonPrimitive().isString()) {
                     String s = c.getAsString();
                     if (s.length() > MAX_TOOL_RESULT_CHARS) {
-                        int head = (int) Math.floor(MAX_TOOL_RESULT_CHARS * 0.65);
-                        int tail = MAX_TOOL_RESULT_CHARS - head;
-                        String prefix = s.substring(0, Math.min(head, s.length()));
-                        String suffix = tail > 0 ? s.substring(Math.max(0, s.length() - tail)) : "";
-                        String truncated = prefix + "\n...\n(truncated, original length: " + s.length() + " chars)\n...\n" + suffix;
-                        block.addProperty("content", truncated);
+                        block.addProperty("content", truncateString(s));
                     }
                 }
             }
@@ -205,10 +202,18 @@ public class MessageJsonConverter {
         copyFieldIfPresent(raw, transport, "origin");
         // Whole-turn aggregated usage stamped by ClaudeMessageHandler.handleResult /
         // CodexMessageHandler.handleResultMessage, for the per-turn token display.
+        // Whole-turn estimated cost is calculated by the backend from the same pricing
+        // configuration used by Usage Statistics; the frontend only formats it.
         // Deliberately NOT copying the top-level usage or message.usage fields:
         // those carry per-call / session-cumulative values for the status bar and
         // would be misleading if rendered per message.
         copyFieldIfPresent(raw, transport, "turnUsage");
+        copyFieldIfPresent(raw, transport, "turnCostUsd");
+        // Agent/Task tool metadata (agentId, totalDurationMs, totalTokens,
+        // toolStats, ...) stamped by the SDK on tool_result messages. The
+        // frontend's SubagentList / AgentGroupBlock read this to render
+        // subagent usage and status; without it sync subagents show no metadata.
+        copyToolUseResultIfPresent(raw, transport);
 
         if (raw.has("content")) {
             transport.add("content", raw.get("content").deepCopy());
@@ -249,6 +254,74 @@ public class MessageJsonConverter {
         if (source.has(fieldName)) {
             target.add(fieldName, source.get(fieldName).deepCopy());
         }
+    }
+
+    /**
+     * Copy the toolUseResult metadata field, truncating any oversized string
+     * values so a chatty subagent result cannot blow up the transport payload.
+     * The SDK may stamp toolUseResult as a raw error string, a usage object, or
+     * an object holding nested arrays of content blocks, so truncation must
+     * walk every shape rather than only the top-level object.
+     */
+    private static void copyToolUseResultIfPresent(JsonObject source, JsonObject target) {
+        if (!source.has("toolUseResult") || source.get("toolUseResult").isJsonNull()) {
+            return;
+        }
+        JsonElement toolUseResult = source.get("toolUseResult").deepCopy();
+        target.add("toolUseResult", truncateStringFields(toolUseResult));
+    }
+
+    /**
+     * Recursively truncate oversized strings inside any JSON shape (primitive,
+     * object, or array) so no single field can exceed the transport budget.
+     */
+    private static JsonElement truncateStringFields(JsonElement el) {
+        if (el == null || el.isJsonNull()) {
+            return el;
+        }
+        if (el.isJsonPrimitive()) {
+            JsonPrimitive primitive = el.getAsJsonPrimitive();
+            if (primitive.isString()) {
+                String s = primitive.getAsString();
+                return s.length() > MAX_TOOL_RESULT_CHARS
+                        ? new JsonPrimitive(truncateString(s)) : el;
+            }
+            // Non-string primitives (number, boolean) pass through unchanged.
+            return el;
+        }
+        if (el.isJsonObject()) {
+            JsonObject obj = el.getAsJsonObject();
+            for (String key : new ArrayList<>(obj.keySet())) {
+                obj.add(key, truncateStringFields(obj.get(key)));
+            }
+            return obj;
+        }
+        if (el.isJsonArray()) {
+            JsonArray arr = el.getAsJsonArray();
+            for (int i = 0; i < arr.size(); i++) {
+                arr.set(i, truncateStringFields(arr.get(i)));
+            }
+            return arr;
+        }
+        return el;
+    }
+
+    /**
+     * Truncate a string to fit within {@link #MAX_TOOL_RESULT_CHARS}, preserving
+     * both the head and the tail and inserting a marker that records the original
+     * length. The marker's overhead is reserved up front so the returned string
+     * never exceeds the budget (naive head/tail split ignores the marker and can
+     * overshoot by the marker length).
+     */
+    private static String truncateString(String s) {
+        if (s.length() <= MAX_TOOL_RESULT_CHARS) {
+            return s;
+        }
+        String marker = "\n...\n(truncated, original length: " + s.length() + " chars)\n...\n";
+        int available = Math.max(0, MAX_TOOL_RESULT_CHARS - marker.length());
+        int head = available * 2 / 3;
+        int tail = available - head;
+        return s.substring(0, head) + marker + s.substring(s.length() - tail);
     }
 
     /**

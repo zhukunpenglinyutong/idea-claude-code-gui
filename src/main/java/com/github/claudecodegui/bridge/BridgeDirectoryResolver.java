@@ -271,8 +271,12 @@ public class BridgeDirectoryResolver {
 
                 // Mark as in progress BEFORE checking EDT thread
                 // Also initialize extractionFutureRef to ensure waitForExtraction() works
+                // COMPLETED is allowed here because we only reach this point when the extracted
+                // directory is no longer valid (e.g. the plugin was updated under a running IDE
+                // and the old extracted dir was removed), so we must re-extract.
                 if (!this.extractionState.compareAndSet(ExtractionState.NOT_STARTED, ExtractionState.IN_PROGRESS) &&
-                    !this.extractionState.compareAndSet(ExtractionState.FAILED, ExtractionState.IN_PROGRESS)) {
+                    !this.extractionState.compareAndSet(ExtractionState.FAILED, ExtractionState.IN_PROGRESS) &&
+                    !this.extractionState.compareAndSet(ExtractionState.COMPLETED, ExtractionState.IN_PROGRESS)) {
                     // Another thread just started extraction, wait for it
                     LOG.debug("[BridgeResolver] Another thread just started extraction, waiting...");
                     return waitForExtraction();

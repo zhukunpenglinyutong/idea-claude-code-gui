@@ -93,9 +93,13 @@
     "attachmentsUploaded": "[添付ファイルがアップロードされました]",
     "streamingConnected": "{{provider}}に接続しました、質問を理解しています",
     "showEarlierMessages": "以前の{{count}}件のメッセージを表示",
+    "showEarlierTurns": "前の{{count}}ターンを表示（読み込み済み残り{{remaining}}ターン）",
+    "loadEarlierTurns": "ディスクから前の{{count}}ターンを読み込む（全{{total}}ターン中、残り{{remaining}}ターン）",
+    "loadingEarlierTurns": "以前の会話を読み込み中...",
     "totalDuration": "今回の応答時間",
     "tokenUsage": "入力 {{input}} / 出力 {{output}}",
     "tokenUsageDetail": "ターン合計 — 入力 {{input}} · キャッシュ書き込み {{cacheWrite}} · キャッシュ読み取り {{cacheRead}} · 出力 {{output}}",
+    "cacheHitsWithRatio": "（キャッシュヒット {{tokens}}、{{ratio}}）",
     "search": {
       "ariaLabel": "会話内を検索",
       "placeholder": "会話内を検索...",
@@ -249,6 +253,12 @@
         "enabled": "有効",
         "disabled": "無効",
         "hint": "有効にすると、Claude が質問した時にシステム通知を表示し、見逃しを防ぎます。無効の場合、通知は表示されません。"
+      },
+      "detailedOutput": {
+        "label": "詳細な出力情報",
+        "enabled": "有効",
+        "disabled": "無効",
+        "hint": "有効にすると、利用可能な場合にメッセージ下部へターンの推定コストを表示し、入力 Token の概要内にキャッシュヒットを含めます。Token 消費量は常に表示されます。"
       },
       "sendShortcut": {
         "label": "送信ショートカット",
@@ -586,6 +596,8 @@
         "modelMapping": "モデルマッピング (JSON環境に注入されます)",
         "mainModel": "メインモデル",
         "mainModelPlaceholder": "例: claude-sonnet-4-6",
+        "fableModel": "Fableデフォルトモデル",
+        "fableModelPlaceholder": "例: claude-fable-5",
         "haikuModel": "Haikuデフォルトモデル",
         "haikuModelPlaceholder": "例: claude-haiku-4-5",
         "sonnetModel": "Sonnetデフォルトモデル",
@@ -612,12 +624,17 @@
       "presets": {
         "custom": "カスタム",
         "zhipu": "Zhipu GLM",
-        "kimi": "Kimi K2",
+        "kimi": "Kimi",
+        "kimiCoding": "Kimi Coding",
         "deepseek": "DeepSeek",
         "minimax": "MiniMax",
         "xiaomi": "Xiaomi MiMo",
         "xiaomiPlan": "Xiaomi MiMo Plan",
         "qwen": "Alibaba Qwen",
+        "bailian": "Bailian",
+        "bailianCoding": "Bailian Coding",
+        "longcat": "LongCat",
+        "opencodeGo": "OpenCode Go",
         "openrouter": "OpenRouter"
       }
     },
@@ -636,6 +653,9 @@
         "editTitle": "Edit Provider: {{name}}",
         "addDescription": "Configure new Codex provider, will be written to ~/.codex/ directory",
         "editDescription": "Changes will be applied immediately to ~/.codex/ directory",
+        "officialPreset": "OpenAI Official Direct",
+        "officialSectionHint": "Use your manually entered OPENAI_API_KEY with the official endpoint https://api.openai.com/v1.",
+        "presetHint": "These presets include only third-party or proxy endpoints that match the Claude Code provider set.",
         "providerName": "Provider Name",
         "providerNamePlaceholder": "e.g., Codex Official",
         "configJson": "Config",
@@ -1416,6 +1436,14 @@
         "label": "Sonnet 5",
         "description": "Sonnet 5 · Sonnet 4.6 のアップグレードモデル"
       },
+      "sonnet47": {
+        "label": "Sonnet 4.7",
+        "description": "Sonnet 4.7 · デフォルトモデルを使用"
+      },
+      "opus5": {
+        "label": "Opus 5",
+        "description": "Opus 5 · 最新の Opus アップグレード"
+      },
       "opus46_1m": {
         "label": "Opus 4.6",
         "description": "Opus 4.6 · 高性能推論モデル"
@@ -1426,7 +1454,7 @@
       },
       "opus48": {
         "label": "Opus 4.8",
-        "description": "Opus 4.8 · 最新かつ最も優れたモデル"
+        "description": "Opus 4.8 · 前世代の Opus モデル"
       },
       "fable5": {
         "label": "Fable 5",
@@ -1434,9 +1462,17 @@
       }
     },
     "codex": {
-      "gpt53codex": {
-        "label": "GPT-5.3-Codex",
-        "description": "最新の最先端エージェントコーディングモデル（機能強化版）"
+      "gpt56sol": {
+        "label": "GPT-5.6 Sol",
+        "description": "複雑なプロフェッショナル業務向けのフロンティアモデル"
+      },
+      "gpt56terra": {
+        "label": "GPT-5.6 Terra",
+        "description": "知能とコストのバランスに優れた GPT-5.6 モデル"
+      },
+      "gpt56luna": {
+        "label": "GPT-5.6 Luna",
+        "description": "コスト重視のワークロードに最適化された GPT-5.6 モデル"
       },
       "gpt55": {
         "label": "GPT-5.5",
@@ -1445,30 +1481,6 @@
       "gpt54": {
         "label": "GPT-5.4",
         "description": "拡張された能力を備えた最新の最先端モデル"
-      },
-      "gpt52codex": {
-        "label": "GPT-5.2-Codex",
-        "description": "最先端のエージェントコーディングモデル"
-      },
-      "gpt51codexMax": {
-        "label": "GPT-5.1-Codex-Max",
-        "description": "Codex最適化のフラッグシップ、深い推論と高速処理を両立"
-      },
-      "gpt54mini": {
-        "label": "GPT-5.4-Mini",
-        "description": "より軽量な最先端エージェントコーディングモデル"
-      },
-      "gpt53codexSpark": {
-        "label": "GPT-5.3-Codex-Spark",
-        "description": "超高速コーディングモデル"
-      },
-      "gpt52": {
-        "label": "GPT-5.2",
-        "description": "プロ向け作業と長時間エージェント向けに最適化"
-      },
-      "gpt51codexMini": {
-        "label": "GPT-5.1-Codex-Mini",
-        "description": "Codex用に最適化。より安価で高速ですが、性能は低下"
       }
     }
   },

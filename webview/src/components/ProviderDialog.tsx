@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ProviderConfig } from '../types/provider';
 import { CLAUDE_MODEL_MAPPING_ENV_KEYS, PROVIDER_PRESETS } from '../types/provider';
+import { ProviderModelIcon } from './shared/ProviderModelIcon';
 
 const INFO_ICON_STYLE: React.CSSProperties = { fontSize: '12px', marginRight: '4px' };
 const NOTICE_MT_STYLE: React.CSSProperties = { marginTop: '8px' };
@@ -39,6 +40,10 @@ const readHaikuModel = (env: Record<string, unknown>): string => (
   trimString(env.ANTHROPIC_DEFAULT_HAIKU_MODEL)
 );
 
+const readFableModel = (env: Record<string, unknown>): string => (
+  trimString(env.ANTHROPIC_DEFAULT_FABLE_MODEL)
+);
+
 export function normalizeProviderEnvForSave(
   env: Record<string, unknown>,
   options: { stripAllModelMappings?: boolean } = {}
@@ -59,6 +64,7 @@ export function normalizeProviderEnvForSave(
   }
 
   const specificModels = [
+    trimString(nextEnv.ANTHROPIC_DEFAULT_FABLE_MODEL),
     trimString(nextEnv.ANTHROPIC_DEFAULT_HAIKU_MODEL),
     trimString(nextEnv.ANTHROPIC_DEFAULT_SONNET_MODEL),
     trimString(nextEnv.ANTHROPIC_DEFAULT_OPUS_MODEL),
@@ -128,6 +134,7 @@ export default function ProviderDialog({
   const [activePreset, setActivePreset] = useState<string>('custom');
 
   const [haikuModel, setHaikuModel] = useState('');
+  const [fableModel, setFableModel] = useState('');
   const [sonnetModel, setSonnetModel] = useState('');
   const [opusModel, setOpusModel] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
@@ -153,6 +160,7 @@ export default function ProviderDialog({
         ANTHROPIC_AUTH_TOKEN: '',
         ANTHROPIC_BASE_URL: defaultBaseUrl,
         ...(includeModelMapping ? {
+          ANTHROPIC_DEFAULT_FABLE_MODEL: '',
           ANTHROPIC_DEFAULT_SONNET_MODEL: '',
           ANTHROPIC_DEFAULT_OPUS_MODEL: '',
           ANTHROPIC_DEFAULT_HAIKU_MODEL: '',
@@ -200,6 +208,7 @@ export default function ProviderDialog({
       setJsonConfig(JSON.stringify(config, null, 2));
       setApiKey('');
       setApiUrl(OFFICIAL_ANTHROPIC_URL);
+      setFableModel('');
       setHaikuModel('');
       setSonnetModel('');
       setOpusModel('');
@@ -215,6 +224,7 @@ export default function ProviderDialog({
       setJsonConfig(JSON.stringify(config, null, 2));
       setApiKey('');
       setApiUrl('');
+      setFableModel('');
       setHaikuModel('');
       setSonnetModel('');
       setOpusModel('');
@@ -233,6 +243,7 @@ export default function ProviderDialog({
     const env = preset.env;
     setApiUrl(env.ANTHROPIC_BASE_URL || '');
     setApiKey(env.ANTHROPIC_AUTH_TOKEN || '');
+    setFableModel(readFableModel(env));
     setHaikuModel(readHaikuModel(env));
     setSonnetModel(env.ANTHROPIC_DEFAULT_SONNET_MODEL || '');
     setOpusModel(env.ANTHROPIC_DEFAULT_OPUS_MODEL || '');
@@ -286,6 +297,7 @@ export default function ProviderDialog({
         // Auto-detect matching preset
         setActivePreset(detectMatchingPreset(env));
 
+        setFableModel(readFableModel(env));
         setHaikuModel(readHaikuModel(env));
         setSonnetModel(env.ANTHROPIC_DEFAULT_SONNET_MODEL || '');
         setOpusModel(env.ANTHROPIC_DEFAULT_OPUS_MODEL || '');
@@ -300,6 +312,7 @@ export default function ProviderDialog({
         setApiKey('');
         setApiUrl(OFFICIAL_ANTHROPIC_URL);
 
+        setFableModel('');
         setHaikuModel('');
         setSonnetModel('');
         setOpusModel('');
@@ -343,6 +356,12 @@ export default function ProviderDialog({
     updateEnvField('ANTHROPIC_DEFAULT_HAIKU_MODEL', value);
   };
 
+  const handleFableModelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setFableModel(value);
+    updateEnvField('ANTHROPIC_DEFAULT_FABLE_MODEL', value);
+  };
+
   const handleSonnetModelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setSonnetModel(value);
@@ -378,6 +397,12 @@ export default function ProviderDialog({
       }
 
       setActivePreset(detectMatchingPreset(env));
+
+      if (Object.prototype.hasOwnProperty.call(env, 'ANTHROPIC_DEFAULT_FABLE_MODEL')) {
+        setFableModel(readFableModel(env));
+      } else {
+        setFableModel('');
+      }
 
       if (Object.prototype.hasOwnProperty.call(env, 'ANTHROPIC_DEFAULT_HAIKU_MODEL')) {
         setHaikuModel(readHaikuModel(env));
@@ -415,6 +440,7 @@ export default function ProviderDialog({
         finalJsonConfig = JSON.stringify(buildConfig({
           envOverrides: {
             ANTHROPIC_AUTH_TOKEN: apiKey,
+            ANTHROPIC_DEFAULT_FABLE_MODEL: fableModel,
             ANTHROPIC_DEFAULT_HAIKU_MODEL: haikuModel,
             ANTHROPIC_DEFAULT_SONNET_MODEL: sonnetModel,
             ANTHROPIC_DEFAULT_OPUS_MODEL: opusModel,
@@ -433,6 +459,7 @@ export default function ProviderDialog({
         envOverrides: {
           ANTHROPIC_AUTH_TOKEN: apiKey,
           ANTHROPIC_BASE_URL: finalApiUrl,
+          ANTHROPIC_DEFAULT_FABLE_MODEL: fableModel,
           ANTHROPIC_DEFAULT_HAIKU_MODEL: haikuModel,
           ANTHROPIC_DEFAULT_SONNET_MODEL: sonnetModel,
           ANTHROPIC_DEFAULT_OPUS_MODEL: opusModel,
@@ -485,6 +512,9 @@ export default function ProviderDialog({
                 className={`preset-btn ${activePreset === OFFICIAL_DIRECT_PRESET_ID ? 'active' : ''}`}
                 onClick={() => handlePresetClick(OFFICIAL_DIRECT_PRESET_ID)}
               >
+                <span aria-hidden="true" className="preset-btn-icon">
+                  <ProviderModelIcon providerId="claude" size={16} colored />
+                </span>
                 {t('settings.provider.dialog.officialPreset')}
               </button>
             </div>
@@ -503,6 +533,9 @@ export default function ProviderDialog({
                   className={`preset-btn ${activePreset === preset.id ? 'active' : ''}`}
                   onClick={() => handlePresetClick(preset.id)}
                 >
+                  <span aria-hidden="true" className="preset-btn-icon">
+                    <ProviderModelIcon providerId={preset.id} size={16} colored />
+                  </span>
                   {t(preset.nameKey)}
                 </button>
               ))}
@@ -596,6 +629,17 @@ export default function ProviderDialog({
               <label>{t('settings.provider.dialog.modelMapping')}</label>
               <div className="model-mapping-grid">
                 <div className="model-mapping-field">
+                  <label htmlFor="fableModel">{t('settings.provider.dialog.fableModel')}</label>
+                  <input
+                    id="fableModel"
+                    type="text"
+                    className="form-input"
+                    placeholder={t('settings.provider.dialog.fableModelPlaceholder')}
+                    value={fableModel}
+                    onChange={handleFableModelChange}
+                  />
+                </div>
+                <div className="model-mapping-field">
                   <label htmlFor="sonnetModel">{t('settings.provider.dialog.sonnetModel')}</label>
                   <input
                     id="sonnetModel"
@@ -667,6 +711,7 @@ export default function ProviderDialog({
     "ANTHROPIC_AUTH_TOKEN": "",
     "ANTHROPIC_BASE_URL": "",
     "ANTHROPIC_MODEL": "",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL": "",
     "ANTHROPIC_DEFAULT_SONNET_MODEL": "",
     "ANTHROPIC_DEFAULT_OPUS_MODEL": "",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL": ""

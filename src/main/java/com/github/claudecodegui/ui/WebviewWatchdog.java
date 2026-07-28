@@ -219,7 +219,14 @@ public class WebviewWatchdog {
                 mainPanel.revalidate();
                 mainPanel.repaint();
             } catch (Exception e) {
-                LOG.warn("[WebviewWatchdog] Reload failed: " + e.getMessage(), e);
+                LOG.warn("[WebviewWatchdog] Reload failed, escalating to recreate: " + e.getMessage(), e);
+                // A reload that throws under an already-stalled webview almost
+                // always means the shared CefServer process is unhealthy. Waiting
+                // another full heartbeat timeout for the next checkHealth cycle
+                // only prolongs the dead screen - escalate straight to recreate,
+                // which either recovers (fresh browser on a recovering CefServer)
+                // or lands on the terminal JCEF restart panel.
+                onRecreateWebview.run();
             }
         });
     }

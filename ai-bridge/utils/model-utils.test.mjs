@@ -11,8 +11,11 @@ import {
 // --- mapModelIdToSdkName ------------------------------------------------
 
 test('mapModelIdToSdkName maps Claude families to short SDK names', () => {
+  assert.equal(mapModelIdToSdkName('claude-fable-5'), 'fable');
+  assert.equal(mapModelIdToSdkName('claude-opus-5'), 'opus');
   assert.equal(mapModelIdToSdkName('claude-opus-4-8'), 'opus');
   assert.equal(mapModelIdToSdkName('claude-haiku-4-5'), 'haiku');
+  assert.equal(mapModelIdToSdkName('claude-sonnet-4-7'), 'sonnet');
   assert.equal(mapModelIdToSdkName('claude-sonnet-4-6'), 'sonnet');
   // Unknown / third-party IDs fall back to sonnet (because the SDK uses
   // ANTHROPIC_DEFAULT_SONNET_MODEL as the lookup target for arbitrary names).
@@ -30,29 +33,47 @@ test('resolveModelFromSettings returns original when no settings env provided', 
 
 test('resolveModelFromSettings applies model-specific settings mapping', () => {
   const env = {
+    ANTHROPIC_DEFAULT_FABLE_MODEL: 'glm-5.2-fable',
     ANTHROPIC_DEFAULT_OPUS_MODEL: 'glm-4.7-opus',
     ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-4.7',
     ANTHROPIC_DEFAULT_HAIKU_MODEL: 'glm-4.7-flash',
   };
+  assert.equal(resolveModelFromSettings('claude-fable-5', env), 'glm-5.2-fable');
+  assert.equal(resolveModelFromSettings('claude-opus-5', env), 'glm-4.7-opus');
   assert.equal(resolveModelFromSettings('claude-opus-4-8', env), 'glm-4.7-opus');
+  assert.equal(resolveModelFromSettings('claude-sonnet-4-7', env), 'glm-4.7');
   assert.equal(resolveModelFromSettings('claude-sonnet-4-6', env), 'glm-4.7');
   assert.equal(resolveModelFromSettings('claude-haiku-4-5', env), 'glm-4.7-flash');
 });
 
-test('resolveModelFromSettings honors global ANTHROPIC_MODEL override', () => {
+test('resolveModelFromSettings uses ANTHROPIC_MODEL as fallback when family mapping is absent', () => {
   const env = {
     ANTHROPIC_MODEL: 'override-everywhere',
-    ANTHROPIC_DEFAULT_SONNET_MODEL: 'ignored',
   };
+  assert.equal(resolveModelFromSettings('claude-fable-5', env), 'override-everywhere');
   assert.equal(resolveModelFromSettings('claude-sonnet-4-6', env), 'override-everywhere');
   assert.equal(resolveModelFromSettings('claude-opus-4-8', env), 'override-everywhere');
 });
 
+test('resolveModelFromSettings prefers family mapping over stale ANTHROPIC_MODEL', () => {
+  const env = {
+    ANTHROPIC_MODEL: 'deepseek-v4-pro',
+    ANTHROPIC_DEFAULT_FABLE_MODEL: 'deepseek-v4-pro',
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: 'deepseek-v4-flash',
+    ANTHROPIC_DEFAULT_SONNET_MODEL: 'deepseek-v4-flash',
+  };
+  assert.equal(resolveModelFromSettings('claude-fable-5', env), 'deepseek-v4-pro');
+  assert.equal(resolveModelFromSettings('claude-haiku-4-5', env), 'deepseek-v4-flash');
+  assert.equal(resolveModelFromSettings('claude-sonnet-4-6', env), 'deepseek-v4-flash');
+});
+
 test('resolveModelFromSettings ignores empty / whitespace mapping values', () => {
   const env = {
+    ANTHROPIC_DEFAULT_FABLE_MODEL: '   ',
     ANTHROPIC_DEFAULT_SONNET_MODEL: '   ',
     ANTHROPIC_DEFAULT_OPUS_MODEL: '',
   };
+  assert.equal(resolveModelFromSettings('claude-fable-5', env), 'claude-fable-5');
   assert.equal(resolveModelFromSettings('claude-sonnet-4-6', env), 'claude-sonnet-4-6');
   assert.equal(resolveModelFromSettings('claude-opus-4-8', env), 'claude-opus-4-8');
 });
@@ -116,6 +137,29 @@ test('resolveModelFromSettings preserves [1m] for opus mapping', () => {
 
 // --- setModelEnvironmentVariables ---------------------------------------
 
+test('setModelEnvironmentVariables sets fable env for fable-family base model', () => {
+  const previous = {
+    ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL,
+    ANTHROPIC_DEFAULT_FABLE_MODEL: process.env.ANTHROPIC_DEFAULT_FABLE_MODEL,
+    ANTHROPIC_DEFAULT_SONNET_MODEL: process.env.ANTHROPIC_DEFAULT_SONNET_MODEL,
+  };
+  try {
+    delete process.env.ANTHROPIC_MODEL;
+    delete process.env.ANTHROPIC_DEFAULT_FABLE_MODEL;
+    delete process.env.ANTHROPIC_DEFAULT_SONNET_MODEL;
+
+    setModelEnvironmentVariables('glm-5.2-fable[1m]', 'claude-fable-5[1m]');
+
+    assert.equal(process.env.ANTHROPIC_MODEL, 'glm-5.2-fable[1m]');
+    assert.equal(process.env.ANTHROPIC_DEFAULT_FABLE_MODEL, 'glm-5.2-fable[1m]');
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
 test('setModelEnvironmentVariables sets sonnet env for sonnet-family base model', () => {
   const previous = {
     ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL,
@@ -161,6 +205,8 @@ test('setModelEnvironmentVariables routes haiku base to haiku env', () => {
 
 test('modelSupportsVision only matches the canonical claude- prefix', () => {
   assert.equal(modelSupportsVision('claude-sonnet-4-6'), true);
+  assert.equal(modelSupportsVision('claude-fable-5'), true);
+  assert.equal(modelSupportsVision('claude-opus-5'), true);
   assert.equal(modelSupportsVision('claude-opus-4-8'), true);
   // Third-party proxies that merely contain "claude" must NOT be treated as
   // native vision-capable models.

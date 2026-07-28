@@ -163,7 +163,8 @@ public class ClaudeStatusBarWidget implements CustomStatusBarWidget, StatusBarWi
         // Add Model Info (Shorten names)
         if (model != null && !model.isEmpty()) {
             String shortModel = model;
-            if (model.contains("sonnet")) { shortModel = "Sonnet"; }
+            if (model.contains("fable")) { shortModel = "Fable"; }
+            else if (model.contains("sonnet")) { shortModel = "Sonnet"; }
             else if (model.contains("opus")) { shortModel = "Opus"; }
             else if (model.contains("haiku")) { shortModel = "Haiku"; }
             text.append(" [").append(shortModel).append("]");

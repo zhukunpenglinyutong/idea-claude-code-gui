@@ -4,6 +4,10 @@ import com.github.claudecodegui.handler.CodexMessageConverter;
 import com.github.claudecodegui.provider.common.MessageCallback;
 import com.github.claudecodegui.provider.common.SDKResult;
 import com.github.claudecodegui.session.ClaudeSession.Message;
+import com.github.claudecodegui.util.UsageCostCalculator;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.intellij.openapi.diagnostic.Logger;
 
 /**
@@ -299,15 +303,24 @@ public class CodexMessageHandler implements MessageCallback {
      * @since 1.0.0
      */
     private static com.google.gson.JsonObject buildTurnUsage(com.google.gson.JsonObject usage) {
-        int input = usage.has("input_tokens") ? usage.get("input_tokens").getAsInt() : 0;
-        int output = usage.has("output_tokens") ? usage.get("output_tokens").getAsInt() : 0;
-        int cacheRead = usage.has("cache_read_input_tokens") ? usage.get("cache_read_input_tokens").getAsInt() : 0;
+        int input = readInt(usage, "input_tokens");
+        int output = readInt(usage, "output_tokens");
+        int cacheRead = readInt(usage, "cache_read_input_tokens", "cached_input_tokens");
         com.google.gson.JsonObject turnUsage = new com.google.gson.JsonObject();
         turnUsage.addProperty("input_tokens", Math.max(0, input - cacheRead));
         turnUsage.addProperty("cache_creation_input_tokens", 0);
         turnUsage.addProperty("cache_read_input_tokens", cacheRead);
         turnUsage.addProperty("output_tokens", output);
         return turnUsage;
+    }
+
+    private static int readInt(com.google.gson.JsonObject json, String... keys) {
+        for (String key : keys) {
+            if (json.has(key) && !json.get(key).isJsonNull()) {
+                return Math.max(0, json.get(key).getAsInt());
+            }
+        }
+        return 0;
     }
 
     /**
@@ -383,6 +396,10 @@ public class CodexMessageHandler implements MessageCallback {
                 msg.raw.add("usage", usage);
                 if (turnUsage != null) {
                     msg.raw.add("turnUsage", turnUsage);
+                    Double turnCostUsd = UsageCostCalculator.calculateTurnCostUsd("codex", turnUsage, state.getModel());
+                    if (turnCostUsd != null) {
+                        msg.raw.addProperty("turnCostUsd", turnCostUsd);
+                    }
                 }
                 return true;
             }
@@ -481,13 +498,20 @@ public class CodexMessageHandler implements MessageCallback {
 
     private Message buildUserMessage(com.google.gson.JsonObject msg, String content) {
         boolean hasToolResult = containsToolResult(msg);
+        JsonArray imageBlocks = new JsonArray();
         if (!hasToolResult) {
+            imageBlocks = collectUserImageBlocks(msg, content);
             content = CodexMessageConverter.stripSystemTags(content);
-            if (content != null && !content.trim().isEmpty()) {
-                rewriteUserRawContent(msg, content);
+            if ((content != null && !content.trim().isEmpty()) || imageBlocks.size() > 0) {
+                rewriteUserRawContent(msg, content, imageBlocks);
             }
         }
         if (content == null || content.trim().isEmpty()) {
+            if (imageBlocks.size() > 0) {
+                Message result = new Message(Message.Type.USER, "");
+                result.raw = msg;
+                return result;
+            }
             if (hasToolResult) {
                 Message result = new Message(Message.Type.USER, "[tool_result]");
                 result.raw = msg;
@@ -635,18 +659,37 @@ public class CodexMessageHandler implements MessageCallback {
      * @param content visible content
      * @since 1.0.0
      */
-    private void rewriteUserRawContent(com.google.gson.JsonObject msg, String content) {
-        com.google.gson.JsonArray contentBlocks = new com.google.gson.JsonArray();
-        com.google.gson.JsonObject textBlock = new com.google.gson.JsonObject();
-        textBlock.addProperty("type", "text");
-        textBlock.addProperty("text", content);
-        contentBlocks.add(textBlock);
+    private void rewriteUserRawContent(com.google.gson.JsonObject msg, String content, JsonArray imageBlocks) {
+        JsonArray contentBlocks = CodexMessageConverter.userContentBlocks(imageBlocks, content);
 
         if (msg.has("message") && msg.get("message").isJsonObject()) {
             msg.getAsJsonObject("message").add("content", contentBlocks);
         } else {
             msg.add("content", contentBlocks);
         }
+    }
+
+    private JsonArray collectUserImageBlocks(com.google.gson.JsonObject msg, String originalContent) {
+        JsonArray imageBlocks = new JsonArray();
+        JsonElement contentElement = getMessageContentElement(msg);
+        if (contentElement != null && contentElement.isJsonArray()) {
+            JsonArray contentArray = contentElement.getAsJsonArray();
+            for (int i = 0; i < contentArray.size(); i++) {
+                JsonElement element = contentArray.get(i);
+                if (!element.isJsonObject()) {
+                    continue;
+                }
+                JsonObject block = element.getAsJsonObject();
+                if (block.has("type") && "image".equals(block.get("type").getAsString())) {
+                    imageBlocks.add(block.deepCopy());
+                }
+            }
+        }
+        JsonArray restoredImages = CodexMessageConverter.restoreCodexImagePlaceholderBlocks(originalContent);
+        for (JsonElement restoredImage : restoredImages) {
+            imageBlocks.add(restoredImage);
+        }
+        return imageBlocks;
     }
 
     /**

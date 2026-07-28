@@ -6,6 +6,7 @@ import com.github.claudecodegui.notifications.ClaudeNotifier;
 import com.github.claudecodegui.provider.common.MessageCallback;
 import com.github.claudecodegui.provider.common.SDKResult;
 import com.github.claudecodegui.util.TokenUsageUtils;
+import com.github.claudecodegui.util.UsageCostCalculator;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -618,7 +619,12 @@ public class ClaudeMessageHandler implements MessageCallback {
                 // top-level turnUsage field for the per-turn token display in the webview.
                 // Distinct from message.usage below, which tracks per-call context occupancy
                 // for the status bar and must keep its semantics.
-                currentAssistantMessage.raw.add("turnUsage", resultJson.getAsJsonObject("usage").deepCopy());
+                JsonObject turnUsage = resultJson.getAsJsonObject("usage");
+                currentAssistantMessage.raw.add("turnUsage", turnUsage.deepCopy());
+                Double turnCostUsd = UsageCostCalculator.calculateTurnCostUsd(state.getProvider(), turnUsage, state.getModel());
+                if (turnCostUsd != null) {
+                    currentAssistantMessage.raw.addProperty("turnCostUsd", turnCostUsd);
+                }
 
                 // Fallback: only update usage from result if no usage was received via [USAGE] tag or assistant message
                 JsonObject msg = currentAssistantMessage.raw.has("message")
@@ -636,6 +642,7 @@ public class ClaudeMessageHandler implements MessageCallback {
                     callbackHandler.notifyUsageUpdate(usedTokens, maxTokens);
                     LOG.debug("Fallback: updated token usage from result message: " + usedTokens);
                 }
+                callbackHandler.notifyMessageUpdate(state.getMessages());
             }
         } catch (Exception e) {
             LOG.warn("Failed to parse result message: " + e.getMessage());
@@ -664,11 +671,39 @@ public class ClaudeMessageHandler implements MessageCallback {
      * Handle a system-level message (not from AI, but from the system).
      */
     private void handleSystemMessage(String content) {
-        LOG.debug("System message: " + content);
+        // Truncate to avoid dumping full system messages (which may carry
+        // slash_commands or task_notification payloads) into the IDE log.
+        LOG.debug("System message: " + (content.length() > 200 ? content.substring(0, 200) + "..." : content));
 
         // Parse slash_commands field from the system message
         try {
             JsonObject systemObj = gson.fromJson(content, JsonObject.class);
+            // gson.fromJson returns null for a JSON "null" literal; guard the
+            // has()/get() calls below against NPE. In practice [MESSAGE]
+            // payloads are always JSON objects, but keep the parse defensive.
+            if (systemObj == null) {
+                return;
+            }
+
+            // Forward task_* SDK system events (async subagent lifecycle) to the
+            // frontend. Async agents run in a background sidechain whose detailed
+            // messages never enter the main stream; the only mainstream signal of
+            // their existence is these lightweight events (task_started /
+            // task_progress / task_notification). Without forwarding, the subagent
+            // list cannot tell launch from completion, and async results vanish.
+            //
+            // This is the in-turn [MESSAGE] delivery path. task_notification may
+            // also arrive inter-turn via the daemon channel (DaemonBridge
+            // "task_event" -> ClaudeChatWindow -> onTaskEvent); both paths are
+            // intentional defense-in-depth - see DaemonBridge.handleDaemonEvent.
+            String subtype = systemObj.has("subtype") && !systemObj.get("subtype").isJsonNull()
+                    ? systemObj.get("subtype").getAsString() : null;
+            if (subtype != null && subtype.startsWith("task_")) {
+                callbackHandler.notifyTaskEvent(content);
+                // task_* events carry no slash_commands; skip the rest.
+                return;
+            }
+
             if (systemObj.has("slash_commands") && systemObj.get("slash_commands").isJsonArray()) {
                 JsonArray commandsArray = systemObj.getAsJsonArray("slash_commands");
                 List<String> commands = new ArrayList<>();
@@ -680,7 +715,7 @@ public class ClaudeMessageHandler implements MessageCallback {
                 callbackHandler.notifySlashCommandsReceived(commands);
             }
         } catch (Exception e) {
-            LOG.warn("Failed to extract slash commands from system message: " + e.getMessage());
+            LOG.warn("Failed to parse system message: " + e.getMessage());
         }
     }
 

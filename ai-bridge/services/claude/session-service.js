@@ -5,10 +5,10 @@
 
 import { existsSync, createReadStream, mkdirSync, readFileSync, appendFileSync, statSync } from 'fs';
 import { readFile } from 'fs/promises';
-import { join } from 'path';
+import { dirname } from 'path';
 import { randomUUID } from 'crypto';
 import { createInterface } from 'readline';
-import { getClaudeDir } from '../../utils/path-utils.js';
+import { getClaudeProjectSessionFilePath } from '../../utils/path-utils.js';
 
 /**
  * Append a message to the JSONL history file.
@@ -16,11 +16,9 @@ import { getClaudeDir } from '../../utils/path-utils.js';
  */
 export function persistJsonlMessage(sessionId, cwd, obj) {
   try {
-    const projectsDir = join(getClaudeDir(), 'projects');
-    const sanitizedCwd = (cwd || process.cwd()).replace(/[^a-zA-Z0-9]/g, '-');
-    const projectHistoryDir = join(projectsDir, sanitizedCwd);
+    const sessionFile = getClaudeProjectSessionFilePath(sessionId, cwd);
+    const projectHistoryDir = dirname(sessionFile);
     mkdirSync(projectHistoryDir, { recursive: true });
-    const sessionFile = join(projectHistoryDir, `${sessionId}.jsonl`);
 
     // Add necessary metadata fields to ensure compatibility with ClaudeHistoryReader
     const enrichedObj = {
@@ -43,9 +41,7 @@ export function persistJsonlMessage(sessionId, cwd, obj) {
  */
 export function loadSessionHistory(sessionId, cwd) {
   try {
-    const projectsDir = join(getClaudeDir(), 'projects');
-    const sanitizedCwd = (cwd || process.cwd()).replace(/[^a-zA-Z0-9]/g, '-');
-    const sessionFile = join(projectsDir, sanitizedCwd, `${sessionId}.jsonl`);
+    const sessionFile = getClaudeProjectSessionFilePath(sessionId, cwd);
 
     if (!existsSync(sessionFile)) {
       return [];
@@ -214,8 +210,5 @@ function resolveSessionFile(sessionId, cwd = null) {
   if (!sessionId || /[\/\\]/.test(sessionId)) {
     throw new Error('Invalid session ID');
   }
-  const projectsDir = join(getClaudeDir(), 'projects');
-  const sanitizedCwd = (cwd || process.cwd()).replace(/[^a-zA-Z0-9]/g, '-');
-  const projectHistoryDir = join(projectsDir, sanitizedCwd);
-  return join(projectHistoryDir, `${sessionId}.jsonl`);
+  return getClaudeProjectSessionFilePath(sessionId, cwd);
 }

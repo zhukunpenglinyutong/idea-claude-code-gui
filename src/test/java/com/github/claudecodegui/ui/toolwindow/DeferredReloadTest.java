@@ -156,6 +156,48 @@ public class DeferredReloadTest {
         assertFalse("coordinator is drained at the end", d.hasPending());
     }
 
+    // ── Safety backstop decision (decideDeferredReloadSafety) ────────────────
+    //
+    // onStreamEnded is the fast, edge-triggered drain. The backstop covers the
+    // hole: a defer that races the stream-end edge, or the LAST fan-out answer
+    // with no following stream end, would otherwise leave a parked reload
+    // orphaned and the answer invisible forever. These pin the pure decision.
+
+    @Test
+    public void safetyDrainsWhenParkedAndStreamIdle() {
+        // The orphan-rescue case: something is parked, the stream is no longer
+        // active, and no onStreamEnded edge arrived for this defer — drain now.
+        assertEquals(ClaudeChatWindow.SafetyDrainAction.DRAIN,
+                ClaudeChatWindow.decideDeferredReloadSafety(false, true, false));
+    }
+
+    @Test
+    public void safetyRechecksWhileStreamStillActive() {
+        // Parked but a stream is active: reloading now would race the streaming
+        // append, so wait and re-check rather than drain.
+        assertEquals(ClaudeChatWindow.SafetyDrainAction.RECHECK_LATER,
+                ClaudeChatWindow.decideDeferredReloadSafety(false, true, true));
+    }
+
+    @Test
+    public void safetyStopsWhenNothingParked() {
+        // The fast onStreamEnded path already drained it: nothing to do, and the
+        // poll must stop (both idle and still-streaming variants).
+        assertEquals(ClaudeChatWindow.SafetyDrainAction.DONE,
+                ClaudeChatWindow.decideDeferredReloadSafety(false, false, false));
+        assertEquals(ClaudeChatWindow.SafetyDrainAction.DONE,
+                ClaudeChatWindow.decideDeferredReloadSafety(false, false, true));
+    }
+
+    @Test
+    public void safetyStopsWhenDisposedEvenIfParked() {
+        // A disposed window must never drive a reload, parked or not.
+        assertEquals(ClaudeChatWindow.SafetyDrainAction.DONE,
+                ClaudeChatWindow.decideDeferredReloadSafety(true, true, false));
+        assertEquals(ClaudeChatWindow.SafetyDrainAction.DONE,
+                ClaudeChatWindow.decideDeferredReloadSafety(true, true, true));
+    }
+
     private static void awaitQuietly(CountDownLatch latch) {
         try {
             latch.await();

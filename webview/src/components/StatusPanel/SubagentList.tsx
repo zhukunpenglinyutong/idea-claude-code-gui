@@ -92,7 +92,7 @@ const SubagentRow = memo(({ subagent, isExpanded, history, canLoad, sessionId, o
 
 SubagentRow.displayName = 'SubagentRow';
 
-const SubagentList = memo(({ subagents, histories = {}, currentSessionId, isStreaming = false }: SubagentListProps) => {
+const SubagentList = memo(({ subagents, histories = {}, currentSessionId, isStreaming }: SubagentListProps) => {
   const { t } = useTranslation();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -114,6 +114,11 @@ const SubagentList = memo(({ subagents, histories = {}, currentSessionId, isStre
     }, minIntervalMs);
   }, [currentSessionId]);
 
+  // Track the expanded row's status so the fetch effect below re-runs when it
+  // transitions out of "running": at that point the row may hold only a
+  // tail-limited live-poll snapshot, and the full fetch has to replace it.
+  const expandedStatus = subagents.find((item) => item.id === expandedId)?.status;
+
   useEffect(() => {
     if (!expandedId) return;
     const subagent = subagentsRef.current.find((item) => item.id === expandedId);
@@ -125,7 +130,7 @@ const SubagentList = memo(({ subagents, histories = {}, currentSessionId, isStre
     if (!existing || (subagent.status !== 'running' && existing.truncated === true)) {
       requestHistory(subagent, undefined, 0);
     }
-  }, [currentSessionId, expandedId, requestHistory]);
+  }, [currentSessionId, expandedId, requestHistory, expandedStatus]);
 
   // Poll every running subagent while the turn streams — not just the expanded
   // row — so the panel reflects live progress. Background launches keep

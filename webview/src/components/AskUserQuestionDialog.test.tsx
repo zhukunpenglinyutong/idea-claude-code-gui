@@ -28,6 +28,21 @@ const buildRequest = (overrides: Partial<AskUserQuestionRequest> = {}): AskUserQ
   ...overrides,
 });
 
+describe('AskUserQuestionDialog provider label', () => {
+  it('identifies Codex request_user_input requests', () => {
+    render(
+      <AskUserQuestionDialog
+        isOpen
+        request={buildRequest({ toolName: 'request_user_input', provider: 'codex' })}
+        onSubmit={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+
+    expect(screen.getByText('Codex 有一些问题想问你')).toBeTruthy();
+  });
+});
+
 describe('AskUserQuestionDialog countdown', () => {
   beforeEach(() => {
     vi.useFakeTimers();

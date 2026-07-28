@@ -28,6 +28,8 @@ import java.util.regex.Pattern;
  */
 public class CodexSettingsManager {
     private static final Logger LOG = Logger.getInstance(CodexSettingsManager.class);
+    private static final String MCP_SERVERS_KEY = "mcp_servers";
+    private static final String MODEL_ALIASES_KEY = "model_aliases";
 
     // Pattern to validate TOML bare keys (letters, digits, hyphens, underscores)
     private static final Pattern TOML_KEY_PATTERN = Pattern.compile("^[a-zA-Z0-9_-]+$");
@@ -148,7 +150,8 @@ public class CodexSettingsManager {
         // Check if provider has configToml (raw string format)
         if (provider.has("configToml") && provider.get("configToml").isJsonPrimitive()) {
             String configTomlContent = provider.get("configToml").getAsString();
-            writeConfigTomlRaw(configTomlContent);
+            String mergedConfigTomlContent = preserveExistingMcpServers(configTomlContent);
+            writeConfigTomlRaw(mergedConfigTomlContent);
         }
 
         // Check if provider has authJson (raw string format)
@@ -166,6 +169,39 @@ public class CodexSettingsManager {
 
         String providerId = provider.has("id") ? provider.get("id").getAsString() : "unknown";
         LOG.info("[CodexSettingsManager] Applied provider to ~/.codex: " + providerId);
+    }
+
+    private String preserveExistingMcpServers(String providerConfigToml) throws IOException {
+        Map<String, Object> existingConfig = readConfigToml();
+        if (existingConfig == null) {
+            return providerConfigToml;
+        }
+
+        Object existingMcpServersObj = existingConfig.get(MCP_SERVERS_KEY);
+        if (!(existingMcpServersObj instanceof Map)) {
+            return providerConfigToml;
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> existingMcpServers = (Map<String, Object>) existingMcpServersObj;
+        if (existingMcpServers.isEmpty()) {
+            return providerConfigToml;
+        }
+
+        Map<String, Object> providerConfig = parseToml(providerConfigToml == null ? "" : providerConfigToml);
+        Object providerMcpServersObj = providerConfig.get(MCP_SERVERS_KEY);
+        if (providerMcpServersObj instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> providerMcpServers = (Map<String, Object>) providerMcpServersObj;
+            for (Map.Entry<String, Object> entry : existingMcpServers.entrySet()) {
+                providerMcpServers.putIfAbsent(entry.getKey(), entry.getValue());
+            }
+        } else {
+            providerConfig.put(MCP_SERVERS_KEY, existingMcpServers);
+        }
+
+        LOG.info("[CodexSettingsManager] Preserved existing Codex MCP servers while applying provider");
+        return generateToml(providerConfig);
     }
 
     /**
@@ -370,6 +406,34 @@ public class CodexSettingsManager {
         return result;
     }
 
+    /** Resolve a UI model id using the optional [model_aliases] table. */
+    public String resolveModelAlias(String selectedModel) {
+        if (selectedModel == null || selectedModel.trim().isEmpty()) {
+            return selectedModel;
+        }
+        try {
+            return resolveModelAlias(selectedModel, readConfigToml());
+        } catch (IOException e) {
+            LOG.warn("[CodexSettingsManager] Failed to read model aliases: " + e.getMessage());
+            return selectedModel;
+        }
+    }
+
+    static String resolveModelAlias(String selectedModel, Map<String, Object> configToml) {
+        if (selectedModel == null || selectedModel.trim().isEmpty() || configToml == null) {
+            return selectedModel;
+        }
+        Object aliasesObject = configToml.get(MODEL_ALIASES_KEY);
+        if (!(aliasesObject instanceof Map)) {
+            return selectedModel;
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> aliases = (Map<String, Object>) aliasesObject;
+        Object alias = aliases.get(selectedModel.trim());
+        return alias instanceof String && !((String) alias).trim().isEmpty()
+                ? ((String) alias).trim() : selectedModel;
+    }
+
     // ==================== TOML Parsing Utilities ====================
 
     /**
@@ -472,6 +536,7 @@ public class CodexSettingsManager {
             int eqIndex = line.indexOf('=');
             if (eqIndex > 0) {
                 String key = line.substring(0, eqIndex).trim();
+                key = normalizeTomlKey(key);
                 String valueStr = line.substring(eqIndex + 1).trim();
                 Object value = parseTomlValue(valueStr);
                 currentSection.put(key, value);
@@ -508,9 +573,11 @@ public class CodexSettingsManager {
         }
 
         // String (quoted)
-        if ((valueStr.startsWith("\"") && valueStr.endsWith("\"")) ||
-                    (valueStr.startsWith("'") && valueStr.endsWith("'"))) {
+        if (valueStr.length() >= 2 && valueStr.startsWith("\"") && valueStr.endsWith("\"")) {
             return unescapeTomlString(valueStr.substring(1, valueStr.length() - 1));
+        }
+        if (valueStr.length() >= 2 && valueStr.startsWith("'") && valueStr.endsWith("'")) {
+            return valueStr.substring(1, valueStr.length() - 1);
         }
 
         // Number
@@ -568,15 +635,21 @@ public class CodexSettingsManager {
             if (eqIndex > 0) {
                 String key = pair.substring(0, eqIndex).trim();
                 String valueStr = pair.substring(eqIndex + 1).trim();
-                // Remove quotes from key if present
-                if ((key.startsWith("\"") && key.endsWith("\"")) ||
-                            (key.startsWith("'") && key.endsWith("'"))) {
-                    key = key.substring(1, key.length() - 1);
-                }
-                result.put(key, parseTomlValue(valueStr));
+                result.put(normalizeTomlKey(key), parseTomlValue(valueStr));
             }
         }
         return result;
+    }
+
+    private String normalizeTomlKey(String key) {
+        String trimmed = key == null ? "" : key.trim();
+        if (trimmed.length() >= 2 && trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
+            return unescapeTomlString(trimmed.substring(1, trimmed.length() - 1));
+        }
+        if (trimmed.length() >= 2 && trimmed.startsWith("'") && trimmed.endsWith("'")) {
+            return trimmed.substring(1, trimmed.length() - 1);
+        }
+        return trimmed;
     }
 
     /**
@@ -697,11 +770,7 @@ public class CodexSettingsManager {
         for (Map.Entry<String, Object> entry : config.entrySet()) {
             Object val = entry.getValue();
             if (!(val instanceof Map) && !isArrayOfTables(val)) {
-                if (!isValidTomlKey(entry.getKey())) {
-                    LOG.warn("[CodexSettingsManager] Skipping invalid TOML key: " + entry.getKey());
-                    continue;
-                }
-                sb.append(entry.getKey()).append(" = ").append(toTomlValue(val)).append("\n");
+                sb.append(toTomlKey(entry.getKey())).append(" = ").append(toTomlValue(val)).append("\n");
             }
         }
 
@@ -730,11 +799,8 @@ public class CodexSettingsManager {
                 for (Map<String, Object> tableEntry : tableList) {
                     sb.append("\n[[").append(entry.getKey()).append("]]\n");
                     for (Map.Entry<String, Object> kv : tableEntry.entrySet()) {
-                        if (!isValidTomlKey(kv.getKey())) {
-                            LOG.warn("[CodexSettingsManager] Skipping invalid TOML key in array entry: " + kv.getKey());
-                            continue;
-                        }
-                        sb.append(kv.getKey()).append(" = ").append(toTomlValue(kv.getValue())).append("\n");
+                        sb.append(toTomlKey(kv.getKey())).append(" = ")
+                                .append(toTomlValue(kv.getValue())).append("\n");
                     }
                 }
             }
@@ -764,11 +830,7 @@ public class CodexSettingsManager {
                             || (val instanceof List && ((List<?>) val).isEmpty())) {
                     continue;
                 }
-                if (!isValidTomlKey(entry.getKey())) {
-                    LOG.warn("[CodexSettingsManager] Skipping invalid TOML key in section: " + entry.getKey());
-                    continue;
-                }
-                sb.append(entry.getKey()).append(" = ").append(toTomlValue(val)).append("\n");
+                sb.append(toTomlKey(entry.getKey())).append(" = ").append(toTomlValue(val)).append("\n");
             }
         }
 
@@ -805,11 +867,8 @@ public class CodexSettingsManager {
                 for (Map<String, Object> tableEntry : tableList) {
                     sb.append("\n[[").append(arrayPath).append("]]\n");
                     for (Map.Entry<String, Object> kv : tableEntry.entrySet()) {
-                        if (!isValidTomlKey(kv.getKey())) {
-                            LOG.warn("[CodexSettingsManager] Skipping invalid TOML key in array entry: " + kv.getKey());
-                            continue;
-                        }
-                        sb.append(kv.getKey()).append(" = ").append(toTomlValue(kv.getValue())).append("\n");
+                        sb.append(toTomlKey(kv.getKey())).append(" = ")
+                                .append(toTomlValue(kv.getValue())).append("\n");
                     }
                 }
             }
@@ -821,6 +880,13 @@ public class CodexSettingsManager {
      */
     private boolean isValidTomlKey(String key) {
         return key != null && !key.isEmpty() && TOML_KEY_PATTERN.matcher(key).matches();
+    }
+
+    private String toTomlKey(String key) {
+        if (isValidTomlKey(key)) {
+            return key;
+        }
+        return "\"" + escapeTomlString(key == null ? "" : key) + "\"";
     }
 
     /**

@@ -4,6 +4,8 @@ import org.cef.handler.CefKeyboardHandler;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public class JBCefBrowserFactoryTest {
 
     @Test
@@ -99,6 +101,27 @@ public class JBCefBrowserFactoryTest {
     public static class JcefConfigWithoutRemoteApi {
     }
 
+    /** Mimics a newer JCEF browser implementation that exposes isClosed(). */
+    public static class BrowserWithClosedApi {
+        public boolean isClosed() {
+            return false;
+        }
+    }
+
+    /** Mimics a 233-era JCEF browser implementation without isClosed(). */
+    public static class BrowserWithoutClosedApi {
+    }
+
+    @Test
+    public void findsOptionalBrowserClosedApiWhenPresent() {
+        Assert.assertTrue(JBCefBrowserFactory.findIsClosedMethod(BrowserWithClosedApi.class).isPresent());
+    }
+
+    @Test
+    public void toleratesBrowserClosedApiMissingOnOlderPlatforms() {
+        Assert.assertTrue(JBCefBrowserFactory.findIsClosedMethod(BrowserWithoutClosedApi.class).isEmpty());
+    }
+
     @Test
     public void remoteApiNotRequiredOnPlatformsBefore2026() {
         Assert.assertFalse(JBCefBrowserFactory.isRemoteApiRequiredByPlatform(233));
@@ -121,5 +144,90 @@ public class JBCefBrowserFactoryTest {
     @Test
     public void detectsMissingRemoteApi() {
         Assert.assertFalse(JBCefBrowserFactory.hasJcefRemoteApi(JcefConfigWithoutRemoteApi.class));
+    }
+
+    @Test
+    public void disabledRegistryShortCircuitsPlatformSupportCheck() {
+        AtomicBoolean platformChecked = new AtomicBoolean(false);
+        AtomicBoolean remoteApiChecked = new AtomicBoolean(false);
+        AtomicBoolean pluginChecked = new AtomicBoolean(false);
+
+        JBCefBrowserFactory.JcefSupportStatus status = JBCefBrowserFactory.determineJcefSupport(
+                false,
+                () -> platformChecked.getAndSet(true),
+                () -> remoteApiChecked.getAndSet(true),
+                () -> pluginChecked.getAndSet(true)
+        );
+
+        Assert.assertEquals(JBCefBrowserFactory.JcefSupportStatus.DISABLED_BY_REGISTRY, status);
+        Assert.assertFalse(platformChecked.get());
+        Assert.assertFalse(remoteApiChecked.get());
+        Assert.assertFalse(pluginChecked.get());
+    }
+
+    @Test
+    public void platformSupportDoesNotRequireStandaloneJcefPlugin() {
+        AtomicBoolean pluginChecked = new AtomicBoolean(false);
+
+        JBCefBrowserFactory.JcefSupportStatus status = JBCefBrowserFactory.determineJcefSupport(
+                true,
+                () -> true,
+                () -> false,
+                () -> {
+                    pluginChecked.set(true);
+                    return true;
+                }
+        );
+
+        Assert.assertEquals(JBCefBrowserFactory.JcefSupportStatus.SUPPORTED, status);
+        Assert.assertFalse(pluginChecked.get());
+    }
+
+    @Test
+    public void reportsMissingAndroidStudioJcefPlugin() {
+        JBCefBrowserFactory.JcefSupportStatus status = JBCefBrowserFactory.determineJcefSupport(
+                true,
+                () -> false,
+                () -> false,
+                () -> true
+        );
+
+        Assert.assertEquals(JBCefBrowserFactory.JcefSupportStatus.ANDROID_STUDIO_PLUGIN_MISSING, status);
+    }
+
+    @Test
+    public void reportsOutdatedJbrAfterPlatformSupportCheck() {
+        JBCefBrowserFactory.JcefSupportStatus status = JBCefBrowserFactory.determineJcefSupport(
+                true,
+                () -> true,
+                () -> true,
+                () -> false
+        );
+
+        Assert.assertEquals(JBCefBrowserFactory.JcefSupportStatus.OUTDATED_JBR, status);
+    }
+
+    @Test
+    public void reportsUnavailableWhenPlatformRejectsJcef() {
+        JBCefBrowserFactory.JcefSupportStatus status = JBCefBrowserFactory.determineJcefSupport(
+                true,
+                () -> false,
+                () -> false,
+                () -> false
+        );
+
+        Assert.assertEquals(JBCefBrowserFactory.JcefSupportStatus.UNAVAILABLE, status);
+    }
+
+    @Test
+    public void reportsSupportedJcef() {
+        JBCefBrowserFactory.JcefSupportStatus status = JBCefBrowserFactory.determineJcefSupport(
+                true,
+                () -> true,
+                () -> false,
+                () -> false
+        );
+
+        Assert.assertEquals(JBCefBrowserFactory.JcefSupportStatus.SUPPORTED, status);
     }
 }

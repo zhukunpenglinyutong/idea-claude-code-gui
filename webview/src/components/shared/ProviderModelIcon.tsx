@@ -19,6 +19,11 @@ import DeepSeekColor from '@lobehub/icons/es/DeepSeek/components/Color';
 import DeepSeekMono from '@lobehub/icons/es/DeepSeek/components/Mono';
 import KimiColor from '@lobehub/icons/es/Kimi/components/Color';
 import KimiMono from '@lobehub/icons/es/Kimi/components/Mono';
+import BailianColor from '@lobehub/icons/es/Bailian/components/Color';
+import BailianMono from '@lobehub/icons/es/Bailian/components/Mono';
+import LongCatColor from '@lobehub/icons/es/LongCat/components/Color';
+import LongCatMono from '@lobehub/icons/es/LongCat/components/Mono';
+import OpenCodeMono from '@lobehub/icons/es/OpenCode/components/Mono';
 import MoonshotMono from '@lobehub/icons/es/Moonshot/components/Mono';
 import ZhipuColor from '@lobehub/icons/es/Zhipu/components/Color';
 import ZhipuMono from '@lobehub/icons/es/Zhipu/components/Mono';
@@ -108,6 +113,12 @@ const VENDOR_ICON_MAP: Record<
     colored ? <DeepSeekColor size={size} /> : <DeepSeekMono size={size} />,
   kimi: (size, colored) =>
     colored ? <KimiColor size={size} /> : <KimiMono size={size} />,
+  bailian: (size, colored) =>
+    colored ? <BailianColor size={size} /> : <BailianMono size={size} />,
+  longcat: (size, colored) =>
+    colored ? <LongCatColor size={size} /> : <LongCatMono size={size} />,
+  opencode: (size, _colored) =>
+    <OpenCodeMono size={size} />,
   moonshot: (size, _colored) =>
     <MoonshotMono size={size} />,
   zhipu: (size, colored) =>

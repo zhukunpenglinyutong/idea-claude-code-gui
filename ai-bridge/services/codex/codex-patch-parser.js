@@ -15,7 +15,46 @@ export function extractPatchFromExecCommand(cmd) {
   if (begin < 0 || end < begin) {
     return '';
   }
-  return cmd.slice(begin, end + '*** End Patch'.length);
+  const patchText = cmd.slice(begin, end + '*** End Patch'.length);
+
+  // `custom_tool_call(exec)` carries JavaScript source rather than the raw
+  // apply_patch input. In that source the patch is commonly stored in a quoted
+  // string, so its line breaks arrive as literal `\\n` sequences. Decode one
+  // string-literal layer before handing the patch to the line-oriented parser.
+  // Raw multiline patches already contain real newlines and must stay untouched.
+  if (!patchText.includes('\n') && patchText.includes('\\n')) {
+    try {
+      return JSON.parse(`"${patchText}"`);
+    } catch {
+      return patchText
+        .replace(/\\r\\n/g, '\n')
+        .replace(/\\n/g, '\n')
+        .replace(/\\r/g, '\n')
+        .replace(/\\t/g, '\t')
+        .replace(/\\"/g, '"')
+        .replace(/\\'/g, "'")
+        .replace(/\\\\/g, '\\');
+    }
+  }
+
+  return patchText;
+}
+
+function extractPatchFromCustomToolInput(input) {
+  if (typeof input === 'string') {
+    return extractPatchFromExecCommand(input);
+  }
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return '';
+  }
+
+  const candidates = [input.patch, input.input, input.code, input.command, input.cmd];
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    const patch = extractPatchFromExecCommand(candidate);
+    if (patch) return patch;
+  }
+  return '';
 }
 
 /**
@@ -41,7 +80,8 @@ function parseHunkHeader(line) {
 
 /**
  * Extracts apply_patch text from a response_item payload.
- * Supports function_call(exec_command/apply_patch) and custom_tool_call(apply_patch).
+ * Supports function_call(exec_command/apply_patch) and
+ * custom_tool_call(apply_patch/exec).
  */
 export function extractPatchFromResponseItemPayload(payload) {
   if (!payload || typeof payload !== 'object') {
@@ -49,7 +89,11 @@ export function extractPatchFromResponseItemPayload(payload) {
   }
 
   const payloadType = payload.type;
-  const name = payload.name;
+  const name = typeof payload.name === 'string' ? payload.name.toLowerCase() : '';
+
+  if (payloadType === 'custom_tool_call' && name === 'exec') {
+    return extractPatchFromCustomToolInput(payload.input);
+  }
 
   if (payloadType === 'custom_tool_call' && name === 'apply_patch') {
     if (typeof payload.input === 'string') {

@@ -420,9 +420,9 @@ function shouldSkipTextNode(textNode: Text): boolean {
     return true;
   }
 
-  // Skip anchors (already linked) and code fences (pre blocks)
+  // Skip anchors (already linked), code fences (pre blocks), and KaTeX output.
   // Note: <code> is NOT skipped - inline code content should be linkified
-  return parentElement.closest('a, pre') !== null;
+  return parentElement.closest('a, pre, .katex') !== null;
 }
 
 const FILE_URI_SCHEME_REGEX = /^file:/i;

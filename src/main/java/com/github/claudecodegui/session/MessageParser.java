@@ -24,6 +24,19 @@ public class MessageParser {
             return null;
         }
 
+        // Filter out sidechain messages (subagent transcripts) so they never
+        // enter the main session list. This mirrors the isSidechain filter
+        // ClaudeSessionLiteReader applies on history reload, keeping reloaded
+        // history consistent with the live stream (whose subagent messages are
+        // already filtered upstream by ai-bridge's parent_tool_use_id check).
+        // parseServerMessage runs on the history-reload path, so this is a
+        // defense-in-depth guard against any isSidechain-tagged entry slipping
+        // through into the rendered chat.
+        if (msg.has("isSidechain") && !msg.get("isSidechain").isJsonNull()
+                && msg.get("isSidechain").getAsBoolean()) {
+            return null;
+        }
+
         // Filter out command messages - only for user messages
         // Assistant messages may contain these tags in code examples.
         // Use rawMessage (not msg) so a normalized history envelope, whose "message"

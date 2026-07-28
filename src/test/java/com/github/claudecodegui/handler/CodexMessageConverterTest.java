@@ -162,6 +162,27 @@ public class CodexMessageConverterTest {
     }
 
     @Test
+    public void customExecHistoryToolIsFiltered() {
+        JsonObject payload = new JsonObject();
+        payload.addProperty("name", "exec");
+        payload.addProperty("call_id", "custom-exec-1");
+        payload.addProperty("input", "const result = await tools.shell_command({ command: 'git status' });");
+
+        assertNull(CodexMessageConverter.convertCustomToolCallToToolUse(payload, null));
+    }
+
+    @Test
+    public void functionWaitHistoryToolIsFiltered() {
+        JsonObject payload = new JsonObject();
+        payload.addProperty("type", "function_call");
+        payload.addProperty("name", "wait");
+        payload.addProperty("call_id", "wait-1");
+        payload.addProperty("arguments", "{\"cell_id\":5,\"terminate\":true,\"max_tokens\":10000}");
+
+        assertNull(CodexMessageConverter.convertFunctionCallToToolUse(payload, null));
+    }
+
+    @Test
     public void customToolCallWithJsonObjectInput() {
         JsonObject structuredInput = new JsonObject();
         structuredInput.addProperty("file", "test.py");

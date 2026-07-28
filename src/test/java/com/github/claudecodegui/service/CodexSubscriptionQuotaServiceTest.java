@@ -98,6 +98,73 @@ public class CodexSubscriptionQuotaServiceTest {
     }
 
     @Test
+    public void mapsWeeklyOnlyPrimaryWindowToWeeklySlot() {
+        JsonObject usage = JsonParser.parseString("""
+                {
+                  "rate_limit": {
+                    "primary_window": {
+                      "used_percent": 2,
+                      "limit_window_seconds": 604800,
+                      "reset_at": 1784511152
+                    }
+                  }
+                }
+                """).getAsJsonObject();
+
+        JsonObject payload = CodexSubscriptionQuotaService.buildPayloadFromUsage(usage, 1710000000000L);
+        JsonObject windows = payload.getAsJsonObject("windows");
+        JsonObject fiveHour = windows.getAsJsonObject("fiveHour");
+        JsonObject weekly = windows.getAsJsonObject("weekly");
+
+        assertTrue(fiveHour.get("usedPercent").isJsonNull());
+        assertEquals(2.0, weekly.get("usedPercent").getAsDouble(), 0.001);
+        assertEquals(98.0, weekly.get("remainingPercent").getAsDouble(), 0.001);
+        assertEquals(168, weekly.get("windowHours").getAsInt());
+        assertEquals(1784511152000L, weekly.get("resetsAt").getAsLong());
+    }
+
+    @Test
+    public void mapsWeeklyOnlySessionPrimaryToWeeklySlot() {
+        JsonObject rateLimits = JsonParser.parseString("""
+                {
+                  "primary": {
+                    "used_percent": 2,
+                    "window_minutes": 10080,
+                    "resets_at": 1784511152
+                  }
+                }
+                """).getAsJsonObject();
+
+        JsonObject payload = CodexSubscriptionQuotaService.buildPayloadFromSessionRateLimits(
+                rateLimits,
+                1710000000000L
+        );
+        JsonObject windows = payload.getAsJsonObject("windows");
+
+        assertTrue(windows.getAsJsonObject("fiveHour").get("usedPercent").isJsonNull());
+        assertEquals(2.0, windows.getAsJsonObject("weekly").get("usedPercent").getAsDouble(), 0.001);
+        assertEquals(168, windows.getAsJsonObject("weekly").get("windowHours").getAsInt());
+    }
+
+    @Test
+    public void keepsLegacyPositionalMappingWhenDurationsAreMissing() {
+        JsonObject usage = JsonParser.parseString("""
+                {
+                  "rate_limit": {
+                    "primary_window": { "used_percent": 30 },
+                    "secondary_window": { "used_percent": 40 }
+                  }
+                }
+                """).getAsJsonObject();
+
+        JsonObject payload = CodexSubscriptionQuotaService.buildPayloadFromUsage(usage, 1710000000000L);
+        JsonObject windows = payload.getAsJsonObject("windows");
+
+        assertEquals(30.0, windows.getAsJsonObject("fiveHour").get("usedPercent").getAsDouble(), 0.001);
+        assertEquals(40.0, windows.getAsJsonObject("weekly").get("usedPercent").getAsDouble(), 0.001);
+    }
+
+    @Test
     public void returnsFreshSessionSnapshotWithoutFetching() {
         AtomicLong now = new AtomicLong(BASE_NOW);
         AtomicInteger fetchCount = new AtomicInteger();

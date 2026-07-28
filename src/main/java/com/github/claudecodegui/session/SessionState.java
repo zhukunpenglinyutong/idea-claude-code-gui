@@ -58,13 +58,19 @@ public class SessionState {
     }
 
     // Session identifiers
-    private String sessionId;
-    private String channelId;
+    private volatile String sessionId;
+    private volatile String channelId;
     private volatile String runtimeSessionEpoch = UUID.randomUUID().toString();
 
-    // Session state — accessed only on EDT / single handler thread, no volatile needed.
-    private boolean busy = false;
-    private boolean loading = false;
+    // Session state. busy/loading are volatile: they are written on the EDT /
+    // handler thread but READ from the daemon event thread by
+    // ClaudeChatWindow.shouldDeferSessionReload, which uses them as the
+    // authoritative "turn in flight" signal when streaming is disabled. Without
+    // volatile that thread could observe a stale value and let a session_updated
+    // reload land inside an active turn — the race the guard exists to prevent.
+    private volatile boolean busy = false;
+    private volatile boolean loading = false;
+    // error stays non-volatile: still EDT / single-handler-thread only.
     private String error = null;
 
     // Message history

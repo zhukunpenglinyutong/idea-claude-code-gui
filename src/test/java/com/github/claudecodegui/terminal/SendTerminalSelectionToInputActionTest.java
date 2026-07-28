@@ -1,6 +1,7 @@
 package com.github.claudecodegui.terminal;
 
 import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.ActionPopupMenu;
 import com.intellij.openapi.actionSystem.ActionToolbar;
@@ -34,6 +35,13 @@ public class SendTerminalSelectionToInputActionTest {
     @After
     public void tearDown() {
         SendTerminalSelectionToInputAction.resetSelectionProvider();
+    }
+
+    @Test
+    public void updateRunsOnBackgroundThread() {
+        SendTerminalSelectionToInputAction action = new SendTerminalSelectionToInputAction();
+
+        Assert.assertEquals(ActionUpdateThread.BGT, action.getActionUpdateThread());
     }
 
     @Test

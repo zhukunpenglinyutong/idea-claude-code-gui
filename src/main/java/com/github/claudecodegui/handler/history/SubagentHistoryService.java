@@ -78,6 +78,7 @@ class SubagentHistoryService {
             }
             response.addProperty("success", true);
             response.addProperty("truncated", truncated);
+            response.addProperty("completed", hasCompleted(messages));
             response.add("messages", messages);
         } catch (Exception e) {
             LOG.warn("[SubagentHistory] Failed to load subagent log: " + e.getMessage());
@@ -405,6 +406,35 @@ class SubagentHistoryService {
             }
         }
         return messages;
+    }
+
+    /**
+     * Whether the sidechain has finished. Safe to call on a truncated tail: it
+     * scans backwards for the LAST assistant record, which the tail retains.
+     */
+    static boolean hasCompleted(JsonArray messages) {
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            if (!messages.get(i).isJsonObject()) {
+                continue;
+            }
+            JsonObject record = messages.get(i).getAsJsonObject();
+            if (!"assistant".equals(getString(record, "type"))
+                    || !record.has("message") || !record.get("message").isJsonObject()) {
+                continue;
+            }
+            JsonObject message = record.getAsJsonObject("message");
+            String stopReason = getString(message, "stop_reason");
+            // The sidechain's last assistant stop_reason is the only persisted
+            // completion signal (task_notification is a live event, not stored).
+            // tool_use means the agent is still mid-turn (waiting on a tool
+            // result); a null/missing value means streaming/incomplete. Any
+            // other value (end_turn, stop_sequence, max_tokens, pause_turn,
+            // refusal) means the agent's turn ended - treat it as terminal so
+            // the UI does not stay stuck on "running" after a max_tokens or
+            // refusal termination, which would reproduce the bug this fixes.
+            return stopReason != null && !"tool_use".equals(stopReason);
+        }
+        return false;
     }
 
     private void sendResponse(JsonObject response) {

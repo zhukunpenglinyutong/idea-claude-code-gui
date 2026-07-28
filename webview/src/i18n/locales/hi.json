@@ -93,9 +93,13 @@
     "attachmentsUploaded": "[अटैचमेंट अपलोड हो गए]",
     "streamingConnected": "{{provider}} कनेक्ट हो गया, आपके प्रश्न को समझ रहा है",
     "showEarlierMessages": "{{count}} पुराने संदेश दिखाएं",
+    "showEarlierTurns": "पहले के {{count}} संवाद दौर दिखाएं ({{remaining}} लोड किए हुए शेष)",
+    "loadEarlierTurns": "डिस्क से पहले के {{count}} दौर लोड करें ({{total}} में से {{remaining}} शेष)",
+    "loadingEarlierTurns": "पहले के संवाद लोड हो रहे हैं...",
     "totalDuration": "इस जवाब में लगा समय",
     "tokenUsage": "{{input}} इन / {{output}} आउट",
     "tokenUsageDetail": "टर्न कुल — इनपुट {{input}} · कैश लेखन {{cacheWrite}} · कैश पठन {{cacheRead}} · आउटपुट {{output}}",
+    "cacheHitsWithRatio": " ({{tokens}} कैश हिट, {{ratio}})",
     "search": {
       "ariaLabel": "बातचीत में खोजें",
       "placeholder": "बातचीत में खोजें...",
@@ -249,6 +253,12 @@
         "enabled": "सक्षम",
         "disabled": "अक्षम",
         "hint": "सक्षम होने पर, Claude द्वारा प्रश्न पूछने पर सिस्टम सूचना दिखाता है ताकि आप इसे मिस न करें। अक्षम होने पर, कोई सूचना नहीं दिखती।"
+      },
+      "detailedOutput": {
+        "label": "विस्तृत आउटपुट जानकारी",
+        "enabled": "चालू",
+        "disabled": "बंद",
+        "hint": "चालू होने पर, उपलब्ध होने पर संदेशों के नीचे अनुमानित टर्न लागत दिखेगी और इनपुट Token सारांश में कैश हिट शामिल होंगे। Token उपयोग हमेशा दिखाई देता रहेगा।"
       },
       "sendShortcut": {
         "label": "भेजने का शॉर्टकट",
@@ -581,6 +591,8 @@
         "modelMapping": "मॉडल मैपिंग (JSON के env में इंजेक्ट किया जाएगा)",
         "mainModel": "मुख्य मॉडल",
         "mainModelPlaceholder": "उदाहरण: claude-sonnet-4-6",
+        "fableModel": "Fable डिफ़ॉल्ट मॉडल",
+        "fableModelPlaceholder": "उदाहरण: claude-fable-5",
         "haikuModel": "Haiku डिफ़ॉल्ट मॉडल",
         "haikuModelPlaceholder": "उदाहरण: claude-haiku-4-5",
         "sonnetModel": "Sonnet डिफ़ॉल्ट मॉडल",
@@ -607,12 +619,17 @@
       "presets": {
         "custom": "Custom",
         "zhipu": "Zhipu GLM",
-        "kimi": "Kimi K2",
+        "kimi": "Kimi",
+        "kimiCoding": "Kimi Coding",
         "deepseek": "DeepSeek",
         "minimax": "MiniMax",
         "xiaomi": "Xiaomi MiMo",
         "xiaomiPlan": "Xiaomi MiMo Plan",
         "qwen": "Alibaba Qwen",
+        "bailian": "Bailian",
+        "bailianCoding": "Bailian Coding",
+        "longcat": "LongCat",
+        "opencodeGo": "OpenCode Go",
         "openrouter": "OpenRouter"
       }
     },
@@ -631,6 +648,9 @@
         "editTitle": "Edit Provider: {{name}}",
         "addDescription": "Configure new Codex provider, will be written to ~/.codex/ directory",
         "editDescription": "Changes will be applied immediately to ~/.codex/ directory",
+        "officialPreset": "OpenAI Official Direct",
+        "officialSectionHint": "Use your manually entered OPENAI_API_KEY with the official endpoint https://api.openai.com/v1.",
+        "presetHint": "These presets include only third-party or proxy endpoints that match the Claude Code provider set.",
         "providerName": "Provider Name",
         "providerNamePlaceholder": "e.g., Codex Official",
         "configJson": "Config",
@@ -1404,6 +1424,14 @@
         "label": "Sonnet 5",
         "description": "Sonnet 5 · Sonnet 4.6 का अपग्रेड मॉडल"
       },
+      "sonnet47": {
+        "label": "Sonnet 4.7",
+        "description": "Sonnet 4.7 · डिफ़ॉल्ट अनुशंसित मॉडल"
+      },
+      "opus5": {
+        "label": "Opus 5",
+        "description": "Opus 5 · नवीनतम Opus अपग्रेड"
+      },
       "opus46_1m": {
         "label": "Opus 4.6",
         "description": "Opus 4.6 · उच्च-प्रदर्शन तर्क मॉडल"
@@ -1414,7 +1442,7 @@
       },
       "opus48": {
         "label": "Opus 4.8",
-        "description": "Opus 4.8 · नवीनतम और सबसे सक्षम"
+        "description": "Opus 4.8 · पिछली Opus पीढ़ी"
       },
       "fable5": {
         "label": "Fable 5",
@@ -1428,9 +1456,17 @@
       "tooltipDisabled": "Haiku के लिए 1M संदर्भ उपलब्ध नहीं है"
     },
     "codex": {
-      "gpt53codex": {
-        "label": "GPT-5.3-Codex",
-        "description": "नवीनतम फ्रंटियर एजेंटिक कोडिंग मॉडल, उन्नत क्षमताओं के साथ।"
+      "gpt56sol": {
+        "label": "GPT-5.6 Sol",
+        "description": "जटिल पेशेवर कार्यों के लिए फ्रंटियर मॉडल।"
+      },
+      "gpt56terra": {
+        "label": "GPT-5.6 Terra",
+        "description": "बुद्धिमत्ता और लागत में संतुलन वाला GPT-5.6 मॉडल।"
+      },
+      "gpt56luna": {
+        "label": "GPT-5.6 Luna",
+        "description": "लागत-संवेदनशील वर्कलोड के लिए अनुकूलित GPT-5.6 मॉडल।"
       },
       "gpt55": {
         "label": "GPT-5.5",
@@ -1439,30 +1475,6 @@
       "gpt54": {
         "label": "GPT-5.4",
         "description": "उन्नत क्षमताओं के साथ नवीनतम फ्रंटियर मॉडल।"
-      },
-      "gpt52codex": {
-        "label": "GPT-5.2-Codex",
-        "description": "फ्रंटियर एजेंटिक कोडिंग मॉडल।"
-      },
-      "gpt51codexMax": {
-        "label": "GPT-5.1-Codex-Max",
-        "description": "Codex के लिए अनुकूलित फ्लैगशिप मॉडल, गहरी और तेज़ रीज़निंग।"
-      },
-      "gpt54mini": {
-        "label": "GPT-5.4-Mini",
-        "description": "हल्का फ्रंटियर एजेंटिक कोडिंग मॉडल।"
-      },
-      "gpt53codexSpark": {
-        "label": "GPT-5.3-Codex-Spark",
-        "description": "अत्यंत तेज़ कोडिंग मॉडल।"
-      },
-      "gpt52": {
-        "label": "GPT-5.2",
-        "description": "पेशेवर काम और लंबे समय तक चलने वाले एजेंटों के लिए अनुकूलित।"
-      },
-      "gpt51codexMini": {
-        "label": "GPT-5.1-Codex-Mini",
-        "description": "Codex के लिए अनुकूलित। सस्ता और तेज़, लेकिन कम सक्षम।"
       }
     }
   },

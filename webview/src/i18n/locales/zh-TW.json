@@ -93,9 +93,13 @@
     "attachmentsUploaded": "[已上傳附件]",
     "streamingConnected": "{{provider}} 已成功連接，正在理解問題",
     "showEarlierMessages": "顯示之前的 {{count}} 則訊息",
+    "showEarlierTurns": "顯示更早的 {{count}} 輪對話（目前已載入尚餘 {{remaining}} 輪）",
+    "loadEarlierTurns": "從磁碟載入更早的 {{count}} 輪（共 {{total}} 輪，尚餘 {{remaining}} 輪）",
+    "loadingEarlierTurns": "正在載入更早的對話...",
     "totalDuration": "本次耗時",
     "tokenUsage": "輸入 {{input}} / 輸出 {{output}}",
     "tokenUsageDetail": "本輪合計 — 輸入 {{input}} · 快取寫入 {{cacheWrite}} · 快取讀取 {{cacheRead}} · 輸出 {{output}}",
+    "cacheHitsWithRatio": "（快取命中 {{tokens}}，{{ratio}}）",
     "search": {
       "ariaLabel": "在對話中搜尋",
       "placeholder": "在對話中搜尋...",
@@ -249,6 +253,12 @@
         "enabled": "已開啟",
         "disabled": "已關閉",
         "hint": "開啟後，當 Claude 向你提問時顯示系統通知提醒，避免錯過。關閉後不顯示通知。"
+      },
+      "detailedOutput": {
+        "label": "詳細輸出資訊",
+        "enabled": "已開啟",
+        "disabled": "已關閉",
+        "hint": "開啟後，訊息底部會在可用時顯示本輪預估費用，並在輸入 Token 中標明快取命中。Token 消耗資訊始終保持顯示。"
       },
       "sendShortcut": {
         "label": "發送快捷鍵",
@@ -586,6 +596,8 @@
         "modelMapping": "模型映射（會注入到 JSON 的 env 裡）",
         "mainModel": "主模型",
         "mainModelPlaceholder": "例如：claude-sonnet-4-6",
+        "fableModel": "Fable 預設模型",
+        "fableModelPlaceholder": "例如：claude-fable-5",
         "haikuModel": "Haiku 預設模型",
         "haikuModelPlaceholder": "例如：claude-haiku-4-5",
         "sonnetModel": "Sonnet 預設模型",
@@ -612,12 +624,17 @@
       "presets": {
         "custom": "Custom",
         "zhipu": "Zhipu GLM",
-        "kimi": "Kimi K2",
+        "kimi": "Kimi",
+        "kimiCoding": "Kimi Coding",
         "deepseek": "DeepSeek",
         "minimax": "MiniMax",
         "xiaomi": "Xiaomi MiMo",
         "xiaomiPlan": "Xiaomi MiMo Plan",
         "qwen": "阿里千問",
+        "bailian": "Bailian",
+        "bailianCoding": "Bailian Coding",
+        "longcat": "LongCat",
+        "opencodeGo": "OpenCode Go",
         "openrouter": "OpenRouter"
       }
     },
@@ -636,6 +653,9 @@
         "editTitle": "Edit Provider: {{name}}",
         "addDescription": "Configure new Codex provider, will be written to ~/.codex/ directory",
         "editDescription": "Changes will be applied immediately to ~/.codex/ directory",
+        "officialPreset": "OpenAI 官方直連",
+        "officialSectionHint": "使用您手動填寫的 OPENAI_API_KEY，並直接連接到官方端點 https://api.openai.com/v1。",
+        "presetHint": "以下預設僅包含與 Claude Code 供應商一致的第三方或代理端點。",
         "providerName": "Provider Name",
         "providerNamePlaceholder": "e.g., Codex Official",
         "configJson": "Config",
@@ -1410,6 +1430,14 @@
         "label": "Sonnet 5",
         "description": "Sonnet 5 · Sonnet 4.6 升級模型"
       },
+      "sonnet47": {
+        "label": "Sonnet 4.7",
+        "description": "Sonnet 4.7 · 預設推薦模型"
+      },
+      "opus5": {
+        "label": "Opus 5",
+        "description": "Opus 5 · Opus 最新升級模型"
+      },
       "opus46_1m": {
         "label": "Opus 4.6",
         "description": "Opus 4.6 · 高效能推理模型"
@@ -1420,7 +1448,7 @@
       },
       "opus48": {
         "label": "Opus 4.8",
-        "description": "Opus 4.8 · 最新最強大的模型"
+        "description": "Opus 4.8 · 保留的前代 Opus 模型"
       },
       "fable5": {
         "label": "Fable 5",
@@ -1434,9 +1462,17 @@
       "tooltipDisabled": "Haiku不支援1M上下文"
     },
     "codex": {
-      "gpt53codex": {
-        "label": "GPT-5.3-Codex",
-        "description": "最新前沿智慧編程模型，能力全面增強"
+      "gpt56sol": {
+        "label": "GPT-5.6 Sol",
+        "description": "面向複雜專業工作的前沿模型"
+      },
+      "gpt56terra": {
+        "label": "GPT-5.6 Terra",
+        "description": "智慧與成本兼顧的 GPT-5.6 模型"
+      },
+      "gpt56luna": {
+        "label": "GPT-5.6 Luna",
+        "description": "針對成本敏感場景優化的 GPT-5.6 模型"
       },
       "gpt55": {
         "label": "GPT-5.5",
@@ -1445,30 +1481,6 @@
       "gpt54": {
         "label": "GPT-5.4",
         "description": "最新前沿模型，能力進一步增強"
-      },
-      "gpt52codex": {
-        "label": "GPT-5.2-Codex",
-        "description": "前沿智慧編程模型"
-      },
-      "gpt51codexMax": {
-        "label": "GPT-5.1-Codex-Max",
-        "description": "針對Codex優化的旗艦模型，深度與快速推理兼備"
-      },
-      "gpt54mini": {
-        "label": "GPT-5.4-Mini",
-        "description": "更輕量的前沿智慧編程模型"
-      },
-      "gpt53codexSpark": {
-        "label": "GPT-5.3-Codex-Spark",
-        "description": "超高速編程模型"
-      },
-      "gpt52": {
-        "label": "GPT-5.2",
-        "description": "針對專業工作與長程代理任務優化"
-      },
-      "gpt51codexMini": {
-        "label": "GPT-5.1-Codex-Mini",
-        "description": "針對Codex優化。更便宜、更快，但性能較差"
       }
     }
   },

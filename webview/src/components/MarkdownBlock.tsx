@@ -1,8 +1,15 @@
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
-import { memo, useMemo, useState, useRef, useEffect, useCallback } from 'react';
+import { memo, useMemo, useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import katex from 'katex';
+import markedKatex from 'marked-katex-extension';
 import { openBrowser, openClass, openFile } from '../utils/bridge';
+import {
+  captureRangeOffsets,
+  restoreRangeOffsets,
+  type TextSelectionOffsets,
+} from '../utils/selectionOffsets';
 import { useMarkdownFileLinkTooltip } from '../hooks/useMarkdownFileLinkTooltip';
 import {
   decorateExistingAnchors,
@@ -34,6 +41,7 @@ import typescript from 'highlight.js/lib/languages/typescript';
 import xml from 'highlight.js/lib/languages/xml';
 import yaml from 'highlight.js/lib/languages/yaml';
 import 'highlight.js/styles/github-dark.css';
+import 'katex/dist/katex.css';
 import { markedHighlight } from 'marked-highlight';
 
 const SAFE_HREF_PROTOCOL_REGEX = /^(?:https?|mailto):/i;
@@ -41,6 +49,7 @@ const FILE_URI_SCHEME_REGEX = /^file:/i;
 const WINDOWS_DRIVE_PATH_REGEX = /^[A-Za-z]:[\\/]/;
 const URI_SCHEME_REGEX = /^[A-Za-z][A-Za-z0-9+.-]*:/;
 let hrefSanitizerHookInstalled = false;
+const LATEX_CODE_LANGUAGES = new Set(['latex', 'tex', 'math']);
 
 function containsControlCharacter(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
@@ -156,6 +165,9 @@ async function getMermaid() {
 
 // Configure marked to use syntax highlighting
 marked.use(
+  markedKatex({
+    throwOnError: false,
+  }),
   markedHighlight({
     highlight(code: string, lang: string) {
       // Skip syntax highlighting for mermaid code blocks
@@ -327,6 +339,74 @@ function escapeXmlTags(text: string): string {
 const CODE_FENCE_RE = /(```[\s\S]*?```)/g;
 const INLINE_CODE_RE = /(`[^`\n]+`)/g;
 const BOLD_SYNTAX_RE = /(\*\*[^*]+\*\*)/g;
+const DISPLAY_MATH_DELIMITER_LINE_RE = /^([ \t]*)\$\$\s*$/;
+const BRACKET_MATH_DELIMITER_RE = /(?<!\\)(\\\[|\\\]|\\\(|\\\))/g;
+const BRACKET_MATH_DELIMITER_MAP: Record<string, string> = {
+  '\\[': '$$',
+  '\\]': '$$',
+  '\\(': '$',
+  '\\)': '$',
+};
+
+/**
+ * Normalize bracket-style math delimiters (\[...\] and \(...\)) — which many
+ * models emit instead of dollar delimiters — into the $$...$$ / $...$ forms
+ * that marked-katex-extension understands. Only prose segments are rewritten;
+ * fenced code blocks and inline code keep their literal backslash delimiters.
+ */
+function normalizeBracketMathDelimiters(content: string): string {
+  return content
+    .split(CODE_FENCE_RE)
+    .map((fencePart, fenceIdx) => {
+      if (fenceIdx % 2 === 1) return fencePart;
+
+      return fencePart
+        .split(INLINE_CODE_RE)
+        .map((inlinePart, inlineIdx) => {
+          if (inlineIdx % 2 === 1) return inlinePart;
+          return inlinePart.replace(
+            BRACKET_MATH_DELIMITER_RE,
+            (match) => BRACKET_MATH_DELIMITER_MAP[match],
+          );
+        })
+        .join('');
+    })
+    .join('');
+}
+
+function normalizeIndentedDisplayMath(content: string): string {
+  return content
+    .split(CODE_FENCE_RE)
+    .map((part, partIndex) => {
+      if (partIndex % 2 === 1) return part;
+
+      const lines = part.split('\n');
+      let mathIndent = '';
+      let inDisplayMath = false;
+
+      return lines
+        .map((line) => {
+          const delimiterMatch = DISPLAY_MATH_DELIMITER_LINE_RE.exec(line);
+          if (delimiterMatch) {
+            if (!inDisplayMath) {
+              mathIndent = delimiterMatch[1];
+              inDisplayMath = true;
+            } else {
+              inDisplayMath = false;
+            }
+            return '$$';
+          }
+
+          if (inDisplayMath && mathIndent && line.startsWith(mathIndent)) {
+            return line.slice(mathIndent.length);
+          }
+
+          return line;
+        })
+        .join('\n');
+    })
+    .join('');
+}
 
 function stripAndEscapeOutsideCodeBlocks(content: string): string {
   // First split by fenced code blocks
@@ -359,6 +439,53 @@ function stripAndEscapeOutsideCodeBlocks(content: string): string {
 /** Sanitize code language identifier — only allow safe characters for HTML class attribute. */
 function safeLang(lang: string): string {
   return lang.replace(/[^a-zA-Z0-9_.-]/g, '');
+}
+
+function isLatexCodeLanguage(language: string | null): boolean {
+  return language !== null && LATEX_CODE_LANGUAGES.has(language.toLowerCase());
+}
+
+function unwrapLatexCodeBlockSource(source: string): string {
+  const trimmed = source.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  const displayBlockMatch = trimmed.match(/^\$\$\s*([\s\S]*?)\s*\$\$$/);
+  if (displayBlockMatch) {
+    return (displayBlockMatch[1] ?? '').trim();
+  }
+
+  const bracketBlockMatch = trimmed.match(/^\\\[\s*([\s\S]*?)\s*\\\]$/);
+  if (bracketBlockMatch) {
+    return (bracketBlockMatch[1] ?? '').trim();
+  }
+
+  const inlineParenMatch = trimmed.match(/^\\\(\s*([\s\S]*?)\s*\\\)$/);
+  if (inlineParenMatch) {
+    return (inlineParenMatch[1] ?? '').trim();
+  }
+
+  return trimmed;
+}
+
+function renderLatexPreviewHtml(source: string): string | null {
+  const latex = unwrapLatexCodeBlockSource(source);
+  if (!latex) {
+    return null;
+  }
+
+  try {
+    const rendered = katex.renderToString(latex, {
+      displayMode: true,
+      throwOnError: false,
+      strict: 'ignore',
+      trust: false,
+    });
+    return rendered.includes('katex-error') ? null : rendered;
+  } catch {
+    return null;
+  }
 }
 
 function renderStreamingInlineText(
@@ -439,8 +566,15 @@ function renderStreamingProseSegment(
         return `<h${level}>${headingMatch[2]}</h${level}>`;
       }
 
-      const lines = block.split('\n').join('<br/>');
-      return `<p>${lines}</p>`;
+      // Match marked's `breaks: false` (MarkdownBlock line ~220): a single
+      // newline inside a paragraph flows as whitespace, NOT a <br>. The full
+      // pipeline collapses single newlines this way, so emitting <br> here
+      // made the streaming HTML taller than the final HTML - and since the
+      // thinking block flips between these renderers on every sub-turn (each
+      // tool call ends and restarts the stream), that height gap surfaced as
+      // a visible collapse-then-reexpand plus a scroll jump. Keeping the two
+      // renderers height-aligned lets the renderer switch happen invisibly.
+      return `<p>${block}</p>`;
     })
     .join('');
 }
@@ -710,7 +844,9 @@ const MarkdownBlock = ({ content = '', isStreaming = false }: MarkdownBlockProps
       // Non-streaming: full markdown pipeline
       // Strip system-internal XML tags and escape remaining XML tags outside code blocks
       // (mirrors CLI's stripPromptXMLTags + html token discard)
-      const cleaned = stripAndEscapeOutsideCodeBlocks(trimmedContent);
+      const cleaned = stripAndEscapeOutsideCodeBlocks(
+        normalizeIndentedDisplayMath(normalizeBracketMathDelimiters(trimmedContent)),
+      );
       const parsed = marked.parse(cleaned);
       const sanitized = DOMPurify.sanitize(
         typeof parsed === 'string' ? parsed : String(parsed),
@@ -726,8 +862,34 @@ const MarkdownBlock = ({ content = '', isStreaming = false }: MarkdownBlockProps
       }
 
       const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
-    decorateExistingAnchors(doc.body);
       const pres = doc.querySelectorAll('pre');
+
+      pres.forEach((pre) => {
+        const code = pre.querySelector('code');
+        const languageTag = code ? (code.className.match(/language-([\w-]+)/i)?.[1] ?? null) : null;
+        if (!isLatexCodeLanguage(languageTag)) {
+          return;
+        }
+
+        const previewHtml = renderLatexPreviewHtml(code?.textContent ?? '');
+        if (!previewHtml) {
+          return;
+        }
+
+        const wrapper = doc.createElement('div');
+        wrapper.className = 'code-block-wrapper latex-code-block-wrapper';
+        pre.parentNode?.insertBefore(wrapper, pre);
+
+        const preview = doc.createElement('div');
+        preview.className = 'latex-code-block-preview';
+        preview.innerHTML = previewHtml;
+
+        wrapper.appendChild(preview);
+        wrapper.appendChild(pre);
+        pre.style.display = 'none';
+      });
+
+    decorateExistingAnchors(doc.body);
       const copySuccessText = t('markdown.copySuccess');
       const copyCodeTitle = t('markdown.copyCode');
 
@@ -786,6 +948,43 @@ const MarkdownBlock = ({ content = '', isStreaming = false }: MarkdownBlockProps
     }
   }, [normalizedContent, isStreaming, i18n.language, linkifyCapabilities, t]);
 
+  // ── Streaming selection preservation ─────────────────────────────────────
+  // Every streaming delta rewrites the container's innerHTML, which destroys
+  // the text nodes underneath an active selection. We don't freeze the DOM
+  // (freezing would also stall the visible content mid-stream); instead we
+  // ferry the selection across the rebuild. Because streaming only appends,
+  // the prefix the user selected keeps its character offsets stable, so we
+  // capture them *before* React commits the new HTML — i.e. during render,
+  // while the old text nodes are still in place — then re-anchor the Range on
+  // the rebuilt text nodes in a layout effect, before paint, so there is no
+  // flicker.
+  //
+  // committedHtmlRef is read here but only mutated inside the layout effect
+  // below, so a discarded concurrent render can't poison the "last committed"
+  // comparison. rescuedSelectionRef is written during render as a deferred
+  // payload for that effect; the value is idempotent across double-invoked
+  // renders and never influences render output.
+  const committedHtmlRef = useRef(html);
+  const rescuedSelectionRef = useRef<TextSelectionOffsets | null>(null);
+
+  if (committedHtmlRef.current !== html) {
+    if (containerRef.current) {
+      rescuedSelectionRef.current = captureRangeOffsets(containerRef.current);
+    }
+  }
+
+  // After React commits the new HTML (rebuilding the text nodes), re-anchor
+  // any captured selection onto the fresh nodes. useLayoutEffect runs
+  // synchronously before paint, so the user never sees the selection drop.
+  useLayoutEffect(() => {
+    committedHtmlRef.current = html;
+    const rescued = rescuedSelectionRef.current;
+    if (rescued && containerRef.current) {
+      restoreRangeOffsets(containerRef.current, rescued);
+    }
+    rescuedSelectionRef.current = null;
+  }, [html]);
+
   // Force DOM refresh when streaming ends to fix potential layout corruption from streaming render
   useEffect(() => {
     if (prevIsStreamingRef.current && !isStreaming && containerRef.current) {
@@ -796,7 +995,14 @@ const MarkdownBlock = ({ content = '', isStreaming = false }: MarkdownBlockProps
       const applyRefresh = () => {
         if (done || !containerRef.current) return;
         done = true;
+        // The forced innerHTML rewrite destroys any active selection's text
+        // nodes just like a streaming delta does. Capture the offsets on the
+        // pre-rewrite DOM, then re-anchor them on the fresh nodes.
+        const rescued = captureRangeOffsets(containerRef.current);
         containerRef.current.innerHTML = html;
+        if (rescued) {
+          restoreRangeOffsets(containerRef.current, rescued);
+        }
         renderMermaidDiagrams();
       };
 
@@ -901,6 +1107,10 @@ const MarkdownBlock = ({ content = '', isStreaming = false }: MarkdownBlockProps
     }
   };
 
+  // `html` is committed directly: streaming selection is preserved by
+  // re-anchoring the Range in the layout effect above, not by freezing the
+  // output, so the visible content keeps flowing while the user holds a
+  // selection.
   return (
     <>
       <div

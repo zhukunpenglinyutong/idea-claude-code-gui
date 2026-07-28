@@ -26,13 +26,17 @@ public class ModelProviderHandler {
     static final Map<String, Integer> MODEL_CONTEXT_LIMITS = new HashMap<>();
     static {
         // Claude models with 1M context (base IDs)
+        MODEL_CONTEXT_LIMITS.put("claude-opus-5", 200_000);
         MODEL_CONTEXT_LIMITS.put("claude-sonnet-5", 200_000);
+        MODEL_CONTEXT_LIMITS.put("claude-sonnet-4-7", 200_000);
         MODEL_CONTEXT_LIMITS.put("claude-sonnet-4-6", 200_000);
         MODEL_CONTEXT_LIMITS.put("claude-fable-5", 200_000);
         MODEL_CONTEXT_LIMITS.put("claude-opus-4-8", 200_000);
         MODEL_CONTEXT_LIMITS.put("claude-opus-4-6", 200_000);
         // Claude models with [1m] suffix - 1M context
+        MODEL_CONTEXT_LIMITS.put("claude-opus-5[1m]", 1_000_000);
         MODEL_CONTEXT_LIMITS.put("claude-sonnet-5[1m]", 1_000_000);
+        MODEL_CONTEXT_LIMITS.put("claude-sonnet-4-7[1m]", 1_000_000);
         MODEL_CONTEXT_LIMITS.put("claude-sonnet-4-6[1m]", 1_000_000);
         MODEL_CONTEXT_LIMITS.put("claude-fable-5[1m]", 1_000_000);
         MODEL_CONTEXT_LIMITS.put("claude-opus-4-8[1m]", 1_000_000);
@@ -40,6 +44,9 @@ public class ModelProviderHandler {
         // Haiku - no 1M context available
         MODEL_CONTEXT_LIMITS.put("claude-haiku-4-5", 200_000);
         // Codex/GPT models
+        MODEL_CONTEXT_LIMITS.put("gpt-5.6-sol", 1_050_000);
+        MODEL_CONTEXT_LIMITS.put("gpt-5.6-terra", 1_050_000);
+        MODEL_CONTEXT_LIMITS.put("gpt-5.6-luna", 1_050_000);
         MODEL_CONTEXT_LIMITS.put("gpt-5.4", 1_000_000);
         MODEL_CONTEXT_LIMITS.put("gpt-5.4-mini", 400_000);
         MODEL_CONTEXT_LIMITS.put("gpt-5.3-codex", 258_000);
@@ -313,28 +320,28 @@ public class ModelProviderHandler {
             return baseModel;
         }
 
-        String mainModel = readConfiguredEnvValue(env, "ANTHROPIC_MODEL");
-        if (mainModel != null) {
-            return mainModel;
-        }
-
         String lowerBaseModel = baseModel.toLowerCase();
         boolean isClaudeModel = lowerBaseModel.startsWith("claude-") || lowerBaseModel.startsWith("claude_");
         if (!isClaudeModel) {
             return baseModel;
         }
 
+        String mainModel = readConfiguredEnvValue(env, "ANTHROPIC_MODEL");
+        if (lowerBaseModel.contains("fable")) {
+            String mappedFable = readConfiguredEnvValue(env, "ANTHROPIC_DEFAULT_FABLE_MODEL");
+            return mappedFable != null ? mappedFable : mainModel != null ? mainModel : baseModel;
+        }
         if (lowerBaseModel.contains("opus")) {
             String mappedOpus = readConfiguredEnvValue(env, "ANTHROPIC_DEFAULT_OPUS_MODEL");
-            return mappedOpus != null ? mappedOpus : baseModel;
+            return mappedOpus != null ? mappedOpus : mainModel != null ? mainModel : baseModel;
         }
         if (lowerBaseModel.contains("haiku")) {
             String mappedHaiku = readConfiguredEnvValue(env, "ANTHROPIC_DEFAULT_HAIKU_MODEL");
-            return mappedHaiku != null ? mappedHaiku : baseModel;
+            return mappedHaiku != null ? mappedHaiku : mainModel != null ? mainModel : baseModel;
         }
         if (lowerBaseModel.contains("sonnet")) {
             String mappedSonnet = readConfiguredEnvValue(env, "ANTHROPIC_DEFAULT_SONNET_MODEL");
-            return mappedSonnet != null ? mappedSonnet : baseModel;
+            return mappedSonnet != null ? mappedSonnet : mainModel != null ? mainModel : baseModel;
         }
 
         return baseModel;

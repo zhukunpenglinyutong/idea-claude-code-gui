@@ -42,7 +42,7 @@ tasks.named('checkstyleTest') {
 }
 
 group = 'com.github.idea-claude-code-gui'
-version = '0.4.7'
+version = '0.4.9'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -141,10 +141,10 @@ intellijPlatform {
         externalPrefixes = ['com.jetbrains.python']
 
         ides {
-            // 2026.2 EAP build 262.6228.19 – the exact build that surfaced
+            // 2026.2.1 EAP build 262.9437.22 – the exact build that surfaced
             // the CefResourceHandler / PluginManagerCore issues during
             // marketplace verification.
-            ide('IU', '262.6228.19')
+            ide('IU', '262.9437.22')
         }
     }
 }

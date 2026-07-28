@@ -7,7 +7,7 @@ package com.github.claudecodegui.util;
  */
 public final class UserMessageSanitizer {
 
-    private static final String[] SYSTEM_TAG_NAMES = {"agents-instructions", "system-reminder", "system-prompt"};
+    private static final String[] SYSTEM_TAG_NAMES = {"agents-instructions", "system-reminder", "system-prompt", "skill"};
 
     private static final String[] APPENDED_CONTEXT_MARKERS = {
         "\n\n## Agent Role and Instructions\n\n",
@@ -35,7 +35,8 @@ public final class UserMessageSanitizer {
 
         String normalized = text.replace("\r\n", "\n").replace("\r", "\n");
         String strippedTags = stripSystemTags(normalized);
-        String strippedContext = stripAppendedContext(strippedTags);
+        String strippedImages = stripCodexImagePlaceholders(strippedTags);
+        String strippedContext = stripAppendedContext(strippedImages);
         return strippedContext.trim();
     }
 
@@ -82,5 +83,19 @@ public final class UserMessageSanitizer {
             return text;
         }
         return text.substring(0, cutIndex);
+    }
+
+    private static String stripCodexImagePlaceholders(String text) {
+        String result = text;
+        int start = result.indexOf("<image ");
+        while (start >= 0) {
+            int end = result.indexOf("</image>", start);
+            if (end < 0) {
+                break;
+            }
+            result = result.substring(0, start) + result.substring(end + "</image>".length());
+            start = result.indexOf("<image ");
+        }
+        return result;
     }
 }

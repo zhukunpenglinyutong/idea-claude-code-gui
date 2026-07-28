@@ -33,6 +33,7 @@ import {
   emitUsageTag,
   buildConfigErrorPayload
 } from './message-utils.js';
+import { isSidechainMessage } from './stream-event-processor.js';
 import { createPreToolUseHook } from './permission-mode.js';
 import { loadMcpServersConfigAsRecord } from './mcp-status/config-loader.js';
 import { setActiveQueryResult } from './message-session-registry.js';
@@ -156,6 +157,22 @@ function processStreamMessage(msg, state, logPrefix) {
   if (state.streamingEnabled && !state.streamStarted) {
     process.stdout.write('[STREAM_START]\n');
     state.streamStarted = true;
+  }
+
+  // Subagent (sidechain) messages carry a non-null parent_tool_use_id pointing
+  // at the main turn's Agent/Task tool_use. Their detailed thinking and tool
+  // calls belong to the sidechain transcript, which the frontend loads
+  // separately via onSubagentHistoryLoaded - so never emit them into the main
+  // session stream, otherwise the subagent's internals pollute the main chat.
+  // Mirrors the isSidechainMessage gate in persistent-query-service.js, which is
+  // the active path in daemon mode; this branch covers the non-daemon CLI path
+  // (channel-manager.js) and tests, keeping both stream routes consistent.
+  // Use the shared guard rather than a bare parent_tool_use_id check: a
+  // partial-message stream_event nests the field under event.parent_tool_use_id,
+  // and stream_event is handled just below — so a bare check let a subagent's
+  // [CONTENT_DELTA]/[THINKING_DELTA] leak into the main chat on this path.
+  if (isSidechainMessage(msg)) {
+    return;
   }
 
   // Handle stream_event type (streaming deltas from SDK)

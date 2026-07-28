@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ClaudeContentBlock, ClaudeMessage, ToolResultBlock } from '../types';
-import { extractSubagentsFromMessages } from './useSubagents';
+import { applySubagentHistoryCompletion, extractSubagentsFromMessages } from './useSubagents';
 
 const assistantWithAgent = (toolUseId: string): ClaudeMessage => ({
   type: 'assistant',
@@ -187,7 +187,7 @@ describe('extractSubagentsFromMessages', () => {
 
       const subagents = extractSubagentsFromMessages(
         messages, getContentBlocks, findToolResult(messages), getToolResultRaw(messages),
-        new Map([['tooluse_bg', 'completed']]),
+        {}, new Map([['tooluse_bg', 'completed']]),
       );
 
       expect(subagents[0].status).toBe('completed');
@@ -198,7 +198,7 @@ describe('extractSubagentsFromMessages', () => {
 
       const subagents = extractSubagentsFromMessages(
         messages, getContentBlocks, findToolResult(messages), getToolResultRaw(messages),
-        new Map([['a0deadbeef1234567', 'failed']]),
+        {}, new Map([['a0deadbeef1234567', 'failed']]),
       );
 
       expect(subagents[0].status).toBe('error');
@@ -209,7 +209,7 @@ describe('extractSubagentsFromMessages', () => {
 
       const subagents = extractSubagentsFromMessages(
         messages, getContentBlocks, findToolResult(messages), getToolResultRaw(messages),
-        new Map([['tooluse_bg', 'stopped']]),
+        {}, new Map([['tooluse_bg', 'stopped']]),
       );
 
       expect(subagents[0].status).toBe('stopped');
@@ -220,10 +220,162 @@ describe('extractSubagentsFromMessages', () => {
 
       const subagents = extractSubagentsFromMessages(
         messages, getContentBlocks, findToolResult(messages), getToolResultRaw(messages),
-        new Map([['tooluse_bg', 'killed']]),
+        {}, new Map([['tooluse_bg', 'killed']]),
       );
 
       expect(subagents[0].status).toBe('error');
     });
+  });
+
+  const assistantWithAsyncAgent = (toolUseId: string): ClaudeMessage => ({
+    type: 'assistant',
+    content: '',
+    raw: {
+      message: {
+        content: [
+          {
+            type: 'tool_use',
+            id: toolUseId,
+            name: 'Agent',
+            input: {
+              subagent_type: 'research',
+              description: '后台调研 subagent',
+              prompt: '调研索引服务设计模式',
+              run_in_background: true,
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  // Async agent (Agent tool with run_in_background:true) only gets a launch
+  // acknowledgment tool_result; the terminal status arrives later via a
+  // task_notification event.
+  const launchAckResult = (toolUseId: string): ClaudeMessage => ({
+    type: 'user',
+    content: '',
+    raw: {
+      content: [
+        {
+          type: 'tool_result',
+          tool_use_id: toolUseId,
+          content: 'Async agent launched successfully.',
+        },
+      ],
+    } as any,
+  });
+
+  it('keeps async agent running while only the launch ack has landed', () => {
+    const messages = [assistantWithAsyncAgent('tu_spawn'), launchAckResult('tu_spawn')];
+
+    const subagents = extractSubagentsFromMessages(
+      messages, getContentBlocks, findToolResult(messages), getToolResultRaw(messages), {},
+    );
+
+    expect(subagents).toHaveLength(1);
+    expect(subagents[0].status).toBe('running');
+  });
+
+  it('completes async agent from its task_notification with event-derived metadata', () => {
+    const messages = [assistantWithAsyncAgent('tu_spawn'), launchAckResult('tu_spawn')];
+    const taskEvents = {
+      tu_spawn: {
+        toolUseId: 'tu_spawn',
+        status: 'completed' as const,
+        summary: '后台调研完成,发现 3 处索引模式',
+        totalTokens: 4200,
+        totalToolUseCount: 7,
+        totalDurationMs: 18000,
+      },
+    };
+
+    const subagents = extractSubagentsFromMessages(
+      messages, getContentBlocks, findToolResult(messages), getToolResultRaw(messages), taskEvents,
+    );
+
+    expect(subagents).toHaveLength(1);
+    expect(subagents[0]).toMatchObject({
+      id: 'tu_spawn',
+      status: 'completed',
+      resultText: '后台调研完成,发现 3 处索引模式',
+      totalTokens: 4200,
+      totalToolUseCount: 7,
+      totalDurationMs: 18000,
+    });
+  });
+
+  it('marks async agent as error when task_notification reports failure', () => {
+    const messages = [assistantWithAsyncAgent('tu_spawn')];
+    const taskEvents = {
+      tu_spawn: { toolUseId: 'tu_spawn', status: 'failed' as const },
+    };
+
+    const subagents = extractSubagentsFromMessages(
+      messages, getContentBlocks, findToolResult(messages), getToolResultRaw(messages), taskEvents,
+    );
+
+    expect(subagents).toHaveLength(1);
+    expect(subagents[0].status).toBe('error');
+  });
+
+  it('marks a failed async launch as error when the ack tool_result is is_error', () => {
+    // A validation failure (e.g. "In-process teammates cannot spawn background
+    // agents") returns an is_error tool_result before the background task is
+    // registered, so no task_notification ever follows - the agent must surface
+    // as error, not stay stuck on "running".
+    const messages: ClaudeMessage[] = [
+      assistantWithAsyncAgent('tu_launch_fail'),
+      {
+        type: 'user',
+        content: '',
+        raw: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'tu_launch_fail',
+              content: 'In-process teammates cannot spawn background agents',
+              is_error: true,
+            },
+          ],
+        } as any,
+      },
+    ];
+
+    const subagents = extractSubagentsFromMessages(
+      messages, getContentBlocks, findToolResult(messages), getToolResultRaw(messages), {},
+    );
+
+    expect(subagents).toHaveLength(1);
+    expect(subagents[0].status).toBe('error');
+  });
+
+  it('finalizes only async agents whose sidechain history ends in end_turn', () => {
+    const messages = [assistantWithAsyncAgent('tu_spawn'), launchAckResult('tu_spawn')];
+    const extracted = extractSubagentsFromMessages(
+      messages, getContentBlocks, findToolResult(messages), getToolResultRaw(messages), {},
+    );
+
+    expect(applySubagentHistoryCompletion(extracted, {
+      tu_spawn: { success: true, completed: false, messages: [] },
+    })[0].status).toBe('running');
+
+    expect(applySubagentHistoryCompletion(extracted, {
+      tu_spawn: { success: true, completed: true, messages: [] },
+    })[0].status).toBe('completed');
+  });
+
+  it('does not overwrite a task_notification error with sidechain completion', () => {
+    const messages = [assistantWithAsyncAgent('tu_spawn')];
+    const taskEvents = {
+      tu_spawn: { toolUseId: 'tu_spawn', status: 'failed' as const },
+    };
+    const extracted = extractSubagentsFromMessages(
+      messages, getContentBlocks, findToolResult(messages), getToolResultRaw(messages), taskEvents,
+    );
+
+    expect(applySubagentHistoryCompletion(extracted, {
+      tu_spawn: { success: true, completed: true, messages: [] },
+    })[0].status).toBe('error');
   });
 });

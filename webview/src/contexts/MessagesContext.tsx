@@ -26,6 +26,10 @@ const MessagesContext = createContext<MessagesContextValue | null>(null);
  * Provides messages flow state (messages, subagent histories, loading, streaming).
  * Stage 1 of TASK-P1-01 (App.tsx God Component decomposition).
  *
+ * task_events live in SubagentContext's TaskEventProvider, NOT here, so that
+ * task_event updates do not invalidate this context's value and re-render
+ * every consumer of it.
+ *
  * Currently only App.tsx consumes this context. As subsequent stages migrate
  * downstream hooks (useWindowCallbacks, useMessageSender, useSessionManagement)
  * to read setters via useMessages() directly, prop drilling will collapse.

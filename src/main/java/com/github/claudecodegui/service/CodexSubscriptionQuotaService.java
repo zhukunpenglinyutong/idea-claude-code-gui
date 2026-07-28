@@ -44,6 +44,8 @@ public final class CodexSubscriptionQuotaService {
     private static final Gson GSON = new Gson();
     private static final String WHAM_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
     private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(12);
+    private static final int FIVE_HOUR_WINDOW_MINUTES = 5 * 60;
+    private static final int WEEKLY_WINDOW_MINUTES = 7 * 24 * 60;
     static final Duration SESSION_UPDATE_TIMEOUT = Duration.ofSeconds(5);
     static final Duration SESSION_FALLBACK_TIMEOUT = Duration.ofSeconds(60);
     static final Duration API_UPDATE_TIMEOUT = Duration.ofSeconds(60);
@@ -127,21 +129,55 @@ public final class CodexSubscriptionQuotaService {
         payload.addProperty("fetchedAt", now);
         payload.addProperty("source", source);
 
+        JsonObject primaryWindow = pickFirstObject(rateLimit, "primary_window", "primary");
+        JsonObject secondaryWindow = pickFirstObject(rateLimit, "secondary_window", "secondary");
+        JsonObject fiveHourWindow = findWindowByDuration(primaryWindow, secondaryWindow, FIVE_HOUR_WINDOW_MINUTES);
+        JsonObject weeklyWindow = findWindowByDuration(primaryWindow, secondaryWindow, WEEKLY_WINDOW_MINUTES);
+
+        // Older payloads may omit duration metadata. Preserve the original positional
+        // mapping for those responses, without misclassifying a duration-identified
+        // weekly primary window as the five-hour window.
+        if (fiveHourWindow == null && primaryWindow != weeklyWindow) {
+            fiveHourWindow = primaryWindow;
+        }
+        if (weeklyWindow == null && secondaryWindow != fiveHourWindow) {
+            weeklyWindow = secondaryWindow;
+        }
+
         JsonObject windows = new JsonObject();
-        windows.add("fiveHour", toWindow("5h", 5, pickFirstObject(rateLimit, "primary_window", "primary"), source, now));
-        windows.add("weekly", toWindow("weekly", 7 * 24, pickFirstObject(rateLimit, "secondary_window", "secondary"), source, now));
+        windows.add("fiveHour", toWindow("5h", 5, fiveHourWindow, source, now));
+        windows.add("weekly", toWindow("weekly", 7 * 24, weeklyWindow, source, now));
         payload.add("windows", windows);
         return payload;
+    }
+
+    private static JsonObject findWindowByDuration(
+            JsonObject first,
+            JsonObject second,
+            int expectedMinutes
+    ) {
+        if (readWindowDurationMinutes(first) == expectedMinutes) {
+            return first;
+        }
+        if (readWindowDurationMinutes(second) == expectedMinutes) {
+            return second;
+        }
+        return null;
+    }
+
+    private static int readWindowDurationMinutes(JsonObject source) {
+        int durationMinutes = readInt(source, "window_duration_mins", "window_minutes");
+        if (durationMinutes > 0) {
+            return durationMinutes;
+        }
+        int durationSeconds = readInt(source, "limit_window_seconds");
+        return durationSeconds > 0 ? Math.max(1, durationSeconds / 60) : 0;
     }
 
     private static JsonObject toWindow(String label, int defaultHours, JsonObject source, String payloadSource, long now) {
         JsonObject window = new JsonObject();
         window.addProperty("windowLabel", label);
-        int durationMinutes = readInt(source, "window_duration_mins", "window_minutes");
-        if (durationMinutes <= 0) {
-            int durationSeconds = readInt(source, "limit_window_seconds");
-            durationMinutes = durationSeconds > 0 ? Math.max(1, durationSeconds / 60) : 0;
-        }
+        int durationMinutes = readWindowDurationMinutes(source);
         window.addProperty("windowHours", durationMinutes > 0 ? Math.max(1, durationMinutes / 60) : defaultHours);
 
         Double usedPercent = readDoubleNullable(source, "used_percent");

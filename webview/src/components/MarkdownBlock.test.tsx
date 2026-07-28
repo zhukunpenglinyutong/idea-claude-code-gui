@@ -109,6 +109,126 @@ describe('MarkdownBlock linkify integration', () => {
     expect(markdownLink.classList.contains('url-link')).toBe(true);
   });
 
+  it('renders LaTeX math while preserving dollar signs in code blocks', () => {
+    render(
+      <MarkdownBlock
+        content={[
+          'Inline math $S_0 + PV(D)$ works.',
+          '',
+          '$$',
+          'F(T) \\approx S_0 \\exp\\left((r(T)-q(T))T\\right)',
+          '$$',
+          '',
+          '```text',
+          '$S_0 should stay literal inside code$',
+          '```',
+        ].join('\n')}
+      />,
+    );
+
+    const mathNodes = document.querySelectorAll('.katex');
+    expect(mathNodes.length).toBeGreaterThan(0);
+    expect(document.querySelector('.katex-display')).toBeTruthy();
+    expect(document.querySelector('.markdown-content')?.textContent).toContain('F(T)');
+
+    const codeBlock = document.querySelector('pre code');
+    expect(codeBlock?.textContent).toContain('$S_0 should stay literal inside code$');
+    expect(codeBlock?.querySelector('.katex')).toBeNull();
+  });
+
+  it('renders latex code fences as math previews', () => {
+    render(
+      <MarkdownBlock
+        content={[
+          '```latex',
+          'E = mc^2',
+          '```',
+        ].join('\n')}
+      />,
+    );
+
+    expect(document.querySelector('.katex-display')).toBeTruthy();
+    expect(document.querySelector('pre code')?.textContent?.trim()).toBe('E = mc^2');
+  });
+
+  it('renders indented LaTeX blocks from assistant history as math', () => {
+    render(
+      <MarkdownBlock
+        content={[
+          '可以直接用这个 LaTeX 自测:',
+          '',
+          '    $$',
+          '    F(T) \\approx S_0 \\exp\\left((r(T)-q(T))T\\right)',
+          '    $$',
+        ].join('\n')}
+      />,
+    );
+
+    expect(document.querySelector('.katex-display')).toBeTruthy();
+    expect(document.querySelector('pre code')).toBeNull();
+  });
+
+  it('renders bracket-style LaTeX delimiters (\\[...\\] and \\(...\\)) as math', () => {
+    render(
+      <MarkdownBlock
+        content={[
+          '行内公式 \\(E = mc^2\\) 结束。',
+          '',
+          '\\[',
+          'x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}',
+          '\\]',
+        ].join('\n')}
+      />,
+    );
+
+    expect(document.querySelector('.katex-display')).toBeTruthy();
+    const mathNodes = document.querySelectorAll('.katex');
+    expect(mathNodes.length).toBeGreaterThan(1);
+  });
+
+  it('keeps bracket-style math delimiters literal inside code', () => {
+    render(
+      <MarkdownBlock
+        content={[
+          'Inline code `\\(x+1\\)` stays literal.',
+          '',
+          '```text',
+          '\\[ x = 1 \\]',
+          '```',
+        ].join('\n')}
+      />,
+    );
+
+    expect(document.querySelector('.katex')).toBeNull();
+    const inlineCode = document.querySelector('.markdown-content > p > code');
+    expect(inlineCode?.textContent).toBe('\\(x+1\\)');
+    expect(document.querySelector('pre code')?.textContent).toContain('\\[ x = 1 \\]');
+  });
+
+  it('renders indented bracket-style LaTeX blocks as math', () => {
+    render(
+      <MarkdownBlock
+        content={[
+          '公式如下:',
+          '',
+          '    \\[',
+          '    x = \\frac{1}{2}',
+          '    \\]',
+        ].join('\n')}
+      />,
+    );
+
+    expect(document.querySelector('.katex-display')).toBeTruthy();
+    expect(document.querySelector('pre code')).toBeNull();
+  });
+
+  it('does not linkify file-looking text inside rendered math', () => {
+    render(<MarkdownBlock content={'$\\text{src/App.tsx}$'} />);
+
+    expect(document.querySelector('.katex')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'src/App.tsx' })).toBeNull();
+  });
+
   it('strips unsafe markdown link protocols during sanitization', () => {
     render(<MarkdownBlock content={'[bad](javascript:alert(1)) and [good](https://example.com/docs)'} />);
 

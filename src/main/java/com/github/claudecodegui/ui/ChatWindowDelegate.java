@@ -100,6 +100,16 @@ public class ChatWindowDelegate {
         void setSlashCommandsFetched(boolean fetched);
         void setFetchedSlashCommandsCount(int count);
         void persistTabSessionState();
+
+        /**
+         * Soft-reload the currently active session's transcript without interrupting
+         * any in-flight turn.
+         * <p>Invoked when the user re-opens the session that is already active —
+         * refreshes the transcript from the server instead of tearing the session
+         * down (interrupt + recreate). Safe to call while a turn is streaming: the
+         * reload is deferred to stream end.</p>
+         */
+        void reloadActiveSessionMessages();
     }
 
     private final DelegateHost host;
@@ -305,8 +315,22 @@ public class ChatWindowDelegate {
         messageDispatcher.registerHandler(permissionHandler);
 
         HistoryHandler historyHandler = new HistoryHandler(handlerContext);
-        historyHandler.setSessionLoadCallback((sessionId, projectPath, provider) ->
-            host.getSessionLifecycleManager().loadHistorySession(sessionId, projectPath, provider));
+        historyHandler.setSessionLoadCallback((sessionId, projectPath, provider) -> {
+            ClaudeSession current = host.getSession();
+            boolean sameSession = current != null
+                    && sessionId != null
+                    && sessionId.equals(current.getSessionId())
+                    && (provider == null || provider.trim().isEmpty()
+                                || provider.equals(current.getProvider()));
+            if (sameSession) {
+                // Re-opening the very session already active: soft-reload its transcript
+                // instead of interrupting the in-flight turn.
+                LOG.info("[HistoryHandler] Same-session resume, soft-reloading transcript: " + sessionId);
+                host.reloadActiveSessionMessages();
+            } else {
+                host.getSessionLifecycleManager().loadHistorySession(sessionId, projectPath, provider);
+            }
+        });
         host.setHistoryHandler(historyHandler);
         messageDispatcher.registerHandler(historyHandler);
 

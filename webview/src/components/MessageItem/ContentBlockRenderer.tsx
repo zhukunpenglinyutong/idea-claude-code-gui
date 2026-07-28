@@ -10,12 +10,28 @@ import {
   GenericToolBlock,
   TaskExecutionBlock,
 } from '../toolBlocks';
+import type { EditToolItem } from '../toolBlocks/EditToolBlock';
 import { EDIT_TOOL_NAMES, BASH_TOOL_NAMES, TASK_MANAGE_TOOL_NAMES, AGENT_TOOL_NAMES, isToolName, isTransientInternalToolName, normalizeToolName } from '../../utils/toolConstants';
 import { TASK_STATUS_COLORS } from '../../utils/messageUtils';
 
 const IMAGE_BLOCK_STYLE: React.CSSProperties = { cursor: 'pointer' };
-const THINKING_VISIBLE_STYLE: React.CSSProperties = { display: 'block' };
-const THINKING_HIDDEN_STYLE: React.CSSProperties = { display: 'none' };
+
+/**
+ * Stable adapter for a single edit call. Building the one-item array inline in
+ * render would hand EditToolBlock a fresh array (and wrapper object) on every
+ * parent render and defeat its memo. Routing through this memoized wrapper
+ * means EditToolBlock only re-renders when the underlying call's primitives
+ * actually change, so it stays quiet while sibling blocks drive the streaming
+ * message's frequent re-renders.
+ */
+const SingleEditToolBlock = memo(function SingleEditToolBlock({
+  name,
+  input,
+  result,
+  toolId,
+}: EditToolItem) {
+  return <EditToolBlock items={[{ name, input, result, toolId }]} />;
+});
 
 function getImageStyle(isUser: boolean): React.CSSProperties {
   return {
@@ -47,6 +63,30 @@ function getExtension(fileName?: string): string {
   return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : '';
 }
 
+/** Format a token count for compact display (e.g., 524835 → "524.8K"). */
+function formatCompactTokens(count: number): string {
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`;
+  return String(count);
+}
+
+/**
+ * Build the compaction-stats subtitle from compact_boundary metadata:
+ * "manual · 524.8K → 14.6K · 110s". Returns null when no stats are present.
+ */
+function formatCompactionStats(meta: CompactSummaryMetadata): string | null {
+  const parts: string[] = [];
+  if (meta.trigger) parts.push(meta.trigger);
+  if (typeof meta.preTokens === 'number') {
+    const tokens = typeof meta.postTokens === 'number'
+      ? `${formatCompactTokens(meta.preTokens)} → ${formatCompactTokens(meta.postTokens)}`
+      : formatCompactTokens(meta.preTokens);
+    parts.push(tokens);
+  }
+  if (typeof meta.durationMs === 'number') parts.push(`${Math.round(meta.durationMs / 1000)}s`);
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
 interface CompactSummaryBlockProps {
   block: {
     type: 'compact_summary';
@@ -72,7 +112,9 @@ const CompactSummaryBlock = memo(function CompactSummaryBlock({ block, t }: Comp
     }
   }, []);
   const meta = block.metadata;
-  const hasMeta = meta && typeof meta.messagesSummarized === 'number';
+  const hasCountMeta = meta && typeof meta.messagesSummarized === 'number';
+  const compactionStats = meta ? formatCompactionStats(meta) : null;
+  const hasMeta = hasCountMeta || compactionStats;
   const titleText = t(block.title);
   const toggleLabel = expanded ? t('chat.compactSummary.collapse') : t('chat.compactSummary.expand');
 
@@ -93,15 +135,20 @@ const CompactSummaryBlock = memo(function CompactSummaryBlock({ block, t }: Comp
       </div>
       {hasMeta && (
         <div className="compact-summary-metadata">
-          <span className="compact-summary-meta-count">
-            {t(
-              meta.direction === 'from'
-                ? 'chat.compactSummary.messagesFrom'
-                : 'chat.compactSummary.messagesUpTo',
-              { count: meta.messagesSummarized },
-            )}
-          </span>
-          {meta.userContext && (
+          {hasCountMeta && (
+            <span className="compact-summary-meta-count">
+              {t(
+                meta.direction === 'from'
+                  ? 'chat.compactSummary.messagesFrom'
+                  : 'chat.compactSummary.messagesUpTo',
+                { count: meta.messagesSummarized },
+              )}
+            </span>
+          )}
+          {compactionStats && (
+            <span className="compact-summary-meta-count">{compactionStats}</span>
+          )}
+          {meta?.userContext && (
             <span className="compact-summary-meta-context">
               {t('chat.compactSummary.userContext', { context: meta.userContext })}
             </span>
@@ -144,13 +191,24 @@ export function ContentBlockRenderer({
   onToggleThinking,
   findToolResult,
 }: ContentBlockRendererProps): React.ReactElement | null {
+  // `isStreaming` arriving here is message-level: it stays true for the whole
+  // assistant turn, including tool round-trips and the wait for tool results.
+  // But only the LAST block of a streaming message is still receiving tokens —
+  // every earlier text/thinking block is already closed. Feeding those closed
+  // blocks the full marked pipeline (instead of the lightweight streaming
+  // renderer, which knows no tables/lists) lets block-level syntax render the
+  // moment a later block such as a tool call arrives, instead of waiting for
+  // the entire turn to end. The two renderers are height-aligned (breaks:
+  // false), so switching between them stays invisible.
+  const isActivelyStreaming = isStreaming && isLastBlock;
+
   if (block.type === 'text') {
     return messageType === 'user' ? (
       <CollapsibleTextBlock content={block.text ?? ''} />
     ) : (
       <MarkdownBlock
         content={block.text ?? ''}
-        isStreaming={isStreaming}
+        isStreaming={isActivelyStreaming}
       />
     );
   }
@@ -241,14 +299,13 @@ export function ContentBlockRenderer({
             {isThinkingExpanded ? '▼' : '▶'}
           </span>
         </div>
-        <div
-          className="thinking-content"
-          style={isThinkingExpanded ? THINKING_VISIBLE_STYLE : THINKING_HIDDEN_STYLE}
-        >
-          <MarkdownBlock
-            content={block.thinking ?? block.text ?? t('chat.noThinkingContent')}
-            isStreaming={isStreaming}
-          />
+        <div className={`thinking-content ${isThinkingExpanded ? 'expanded' : ''}`}>
+          <div className="thinking-content-inner">
+            <MarkdownBlock
+              content={block.thinking ?? block.text ?? t('chat.noThinkingContent')}
+              isStreaming={isActivelyStreaming}
+            />
+          </div>
         </div>
       </div>
     );
@@ -279,7 +336,7 @@ export function ContentBlockRenderer({
 
     if (isToolName(block.name, EDIT_TOOL_NAMES)) {
       return (
-        <EditToolBlock
+        <SingleEditToolBlock
           name={block.name}
           input={block.input}
           result={findToolResult(block.id, messageIndex)}
@@ -337,12 +394,19 @@ export function ContentBlockRenderer({
 
   // Task notification block - renders as "● summary" with status color
   if (block.type === 'task_notification') {
-    // TypeScript narrows block to { type: 'task_notification'; icon: string; summary: string; status: string }
+    // TypeScript narrows block to { type: 'task_notification'; icon; summary; status; detail? }
     const statusColor = TASK_STATUS_COLORS[block.status] || 'text';
+    const detail = block.detail;
+    const truncatedDetail = detail && detail.length > 300 ? `${detail.slice(0, 300)}…` : detail;
     return (
       <div className={`task-notification-block task-notification-${statusColor}`}>
         <span className="task-notification-icon">{block.icon}</span>
-        <span className="task-notification-summary">{block.summary}</span>
+        <span className="task-notification-summary">
+          {block.summary}
+          {truncatedDetail && (
+            <span className="task-notification-detail" title={detail}>{truncatedDetail}</span>
+          )}
+        </span>
       </div>
     );
   }

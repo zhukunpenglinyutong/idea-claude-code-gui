@@ -656,6 +656,24 @@
     }
 }
 
+.code-block-wrapper.latex-code-block-wrapper {
+    background-color: var(--color-code-block-bg);
+    border: 1px solid var(--color-code-block-border);
+    border-radius: 6px;
+    padding: 12px;
+    box-sizing: border-box;
+
+    pre {
+        display: none;
+    }
+}
+
+.latex-code-block-preview {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
 .copy-code-btn {
     position: absolute;
     top: 6px;
@@ -769,6 +787,29 @@
  * override, highlight.js <span> tokens would render in the proportional font. */
 .markdown-content pre code span {
     font-family: inherit;
+}
+
+/* KaTeX renders with its own font stack (KaTeX_Main / KaTeX_Math / KaTeX_Size*
+ * / KaTeX_AMS / ...) chosen per element — do NOT override font-family here,
+ * or math italics, large delimiters and AMS symbols break. Only adjust size
+ * and color. */
+.markdown-content .katex {
+    font-size: 1.04em;
+    color: var(--text-primary);
+}
+
+.markdown-content .katex-display {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px 0;
+    margin: 12px 0;
+}
+
+.markdown-content .katex-display > .katex {
+    display: inline-block;
+    max-width: 100%;
+    white-space: nowrap;
 }
 
 /* User message code blocks - ensure they fit within bubble */
@@ -931,6 +972,28 @@
     word-wrap: break-word;
     overflow-wrap: break-word;
     max-width: 100%;
+    /* Accordion: animate the collapse so auto-folding the previous thinking
+       block (when a newer one arrives mid-stream) eases shut instead of
+       snapping. grid-template-rows tracks the streaming content height, so
+       the open state stays fluid while only the collapse is animated. */
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.2s ease;
+}
+
+.thinking-content.expanded {
+    grid-template-rows: 1fr;
+}
+
+.thinking-content-inner {
+    overflow: hidden;
+    min-height: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .thinking-content {
+        transition: none;
+    }
 }
 
 .thinking-content .markdown-content {
@@ -1325,6 +1388,16 @@
 .task-notification-summary {
     color: var(--text-primary);
     line-height: 1.5;
+}
+
+/* Optional <event> payload of a monitor notification - muted second line */
+.task-notification-detail {
+    display: block;
+    color: var(--text-tertiary, rgba(128, 128, 128, 0.9));
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
 }
 
 /* Status-based colors - matching CLI behavior */

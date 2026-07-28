@@ -5,6 +5,7 @@ import { STORAGE_KEYS } from '../types/provider';
  */
 export interface ClaudeModelMapping {
   main?: string;
+  fable?: string;
   haiku?: string;
   sonnet?: string;
   opus?: string;

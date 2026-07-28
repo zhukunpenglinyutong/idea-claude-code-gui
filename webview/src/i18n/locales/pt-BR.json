@@ -93,9 +93,13 @@
     "attachmentsUploaded": "[Anexos Enviados]",
     "streamingConnected": "{{provider}} conectado, entendendo sua pergunta",
     "showEarlierMessages": "Mostrar {{count}} mensagens anteriores",
+    "showEarlierTurns": "Mostrar {{count}} turnos anteriores (restam {{remaining}} carregados)",
+    "loadEarlierTurns": "Carregar {{count}} turnos anteriores do disco (restam {{remaining}} de {{total}})",
+    "loadingEarlierTurns": "Carregando turnos anteriores...",
     "totalDuration": "Esta resposta levou",
     "tokenUsage": "{{input}} entrada / {{output}} saída",
     "tokenUsageDetail": "Total do turno — entrada {{input}} · gravação de cache {{cacheWrite}} · leitura de cache {{cacheRead}} · saída {{output}}",
+    "cacheHitsWithRatio": " ({{tokens}} acertos de cache, {{ratio}})",
     "search": {
       "ariaLabel": "Pesquisar na conversa",
       "placeholder": "Pesquisar na conversa…",
@@ -261,6 +265,12 @@
         "enabled": "Ativado",
         "disabled": "Desativado",
         "hint": "Quando ativado, exibe uma notificação do sistema quando o Claude faz uma pergunta, para que você não a perca. Quando desativado, nenhuma notificação aparece."
+      },
+      "detailedOutput": {
+        "label": "Informações detalhadas de saída",
+        "enabled": "Ativado",
+        "disabled": "Desativado",
+        "hint": "Quando ativado, o rodapé das mensagens mostra o custo estimado do turno quando disponível e inclui os acertos de cache no resumo de tokens de entrada. O uso de tokens permanece sempre visível."
       },
       "sendShortcut": {
         "label": "Atalho de Envio",
@@ -665,6 +675,8 @@
         "modelMapping": "Mapeamento de Modelos (será injetado no env do JSON)",
         "mainModel": "Modelo Principal",
         "mainModelPlaceholder": "ex: claude-sonnet-4-6",
+        "fableModel": "Modelo Padrão Fable",
+        "fableModelPlaceholder": "ex: claude-fable-5",
         "haikuModel": "Modelo Padrão Haiku",
         "haikuModelPlaceholder": "ex: claude-haiku-4-5",
         "sonnetModel": "Modelo Padrão Sonnet",
@@ -691,12 +703,17 @@
       "presets": {
         "custom": "Personalizado",
         "zhipu": "Zhipu GLM",
-        "kimi": "Kimi K2",
+        "kimi": "Kimi",
+        "kimiCoding": "Kimi Coding",
         "deepseek": "DeepSeek",
         "minimax": "MiniMax",
         "xiaomi": "Xiaomi MiMo",
         "xiaomiPlan": "Xiaomi MiMo Plan",
         "qwen": "Alibaba Qwen",
+        "bailian": "Bailian",
+        "bailianCoding": "Bailian Coding",
+        "longcat": "LongCat",
+        "opencodeGo": "OpenCode Go",
         "openrouter": "OpenRouter"
       }
     },
@@ -715,6 +732,9 @@
         "editTitle": "Editar Provedor: {{name}}",
         "addDescription": "Configurar novo provedor Codex, será gravado no diretório ~/.codex/",
         "editDescription": "As alterações serão aplicadas imediatamente ao diretório ~/.codex/",
+        "officialPreset": "OpenAI Oficial Direto",
+        "officialSectionHint": "Use sua OPENAI_API_KEY inserida manualmente com o endpoint oficial https://api.openai.com/v1.",
+        "presetHint": "Esses presets incluem apenas endpoints de terceiros ou proxy alinhados ao conjunto de provedores do Claude Code.",
         "providerName": "Nome do Provedor",
         "providerNamePlaceholder": "ex: Codex Oficial",
         "configJson": "Configuração",
@@ -1577,6 +1597,14 @@
         "label": "Sonnet 5",
         "description": "Sonnet 5 · Modelo aprimorado do Sonnet 4.6"
       },
+      "sonnet47": {
+        "label": "Sonnet 4.7",
+        "description": "Sonnet 4.7 · Usar o modelo padrão"
+      },
+      "opus5": {
+        "label": "Opus 5",
+        "description": "Opus 5 · Upgrade mais recente do Opus"
+      },
       "opus46_1m": {
         "label": "Opus 4.6",
         "description": "Opus 4.6 · Modelo de raciocínio de alta performance"
@@ -1587,7 +1615,7 @@
       },
       "opus48": {
         "label": "Opus 4.8",
-        "description": "Opus 4.8 · O mais recente e capaz"
+        "description": "Opus 4.8 · Geração anterior do Opus"
       },
       "fable5": {
         "label": "Fable 5",
@@ -1601,9 +1629,17 @@
       "tooltipDisabled": "1M contexto não disponível para Haiku"
     },
     "codex": {
-      "gpt53codex": {
-        "label": "GPT-5.3-Codex",
-        "description": "Modelo de codificação agêntico de fronteira mais recente com capacidades aprimoradas."
+      "gpt56sol": {
+        "label": "GPT-5.6 Sol",
+        "description": "Modelo de fronteira para trabalho profissional complexo."
+      },
+      "gpt56terra": {
+        "label": "GPT-5.6 Terra",
+        "description": "Modelo GPT-5.6 que equilibra inteligência e custo."
+      },
+      "gpt56luna": {
+        "label": "GPT-5.6 Luna",
+        "description": "Modelo GPT-5.6 otimizado para cargas de trabalho sensíveis a custo."
       },
       "gpt55": {
         "label": "GPT-5.5",
@@ -1612,30 +1648,6 @@
       "gpt54": {
         "label": "GPT-5.4",
         "description": "Modelo de fronteira mais recente com capacidades aprimoradas."
-      },
-      "gpt52codex": {
-        "label": "GPT-5.2-Codex",
-        "description": "Modelo de codificação agêntico de fronteira."
-      },
-      "gpt51codexMax": {
-        "label": "GPT-5.1-Codex-Max",
-        "description": "Carro-chefe otimizado para Codex com raciocínio profundo e rápido."
-      },
-      "gpt54mini": {
-        "label": "GPT-5.4-Mini",
-        "description": "Modelo de codificação agêntico de fronteira mais leve."
-      },
-      "gpt53codexSpark": {
-        "label": "GPT-5.3-Codex-Spark",
-        "description": "Modelo de codificação ultrarrápido."
-      },
-      "gpt52": {
-        "label": "GPT-5.2",
-        "description": "Otimizado para trabalho profissional e agentes de longa duração."
-      },
-      "gpt51codexMini": {
-        "label": "GPT-5.1-Codex-Mini",
-        "description": "Otimizado para Codex. Mais barato, mais rápido, porém menos capaz."
       }
     }
   },

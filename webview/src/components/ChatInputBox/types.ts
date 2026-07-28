@@ -301,7 +301,7 @@ const LEGACY_CLAUDE_MODEL_ID_ALIASES: Record<string, string> = {
 
 export function normalizeClaudeModelId(modelId: string | undefined | null): string {
   if (!modelId) {
-    return 'claude-sonnet-4-6';
+    return 'claude-sonnet-4-7';
   }
   // First strip any [1m] suffix
   const stripped = strip1MContextSuffix(modelId);
@@ -314,9 +314,19 @@ export function normalizeClaudeModelId(modelId: string | undefined | null): stri
  */
 export const CLAUDE_MODELS: ModelInfo[] = [
   {
+    id: 'claude-fable-5',
+    label: 'Fable 5',
+    description: 'Fable 5 · Most powerful · Mythos-class',
+  },
+  {
+    id: 'claude-opus-5',
+    label: 'Opus 5',
+    description: 'Opus 5 · Latest Opus upgrade',
+  },
+  {
     id: 'claude-opus-4-8',
     label: 'Opus 4.8',
-    description: 'Opus 4.8 · Latest and most capable',
+    description: 'Opus 4.8 · Previous Opus generation',
   },
   {
     id: 'claude-sonnet-5',
@@ -324,14 +334,9 @@ export const CLAUDE_MODELS: ModelInfo[] = [
     description: 'Sonnet 5 · Upgraded Sonnet model',
   },
   {
-    id: 'claude-fable-5',
-    label: 'Fable 5',
-    description: 'Fable 5 · Most powerful · Mythos-class',
-  },
-  {
-    id: 'claude-sonnet-4-6',
-    label: 'Sonnet 4.6',
-    description: 'Sonnet 4.6 · Use the default model',
+    id: 'claude-sonnet-4-7',
+    label: 'Sonnet 4.7',
+    description: 'Sonnet 4.7 · Use the default model',
   },
   {
     id: 'claude-haiku-4-5',
@@ -345,6 +350,21 @@ export const CLAUDE_MODELS: ModelInfo[] = [
  */
 export const CODEX_MODELS: ModelInfo[] = [
   {
+    id: 'gpt-5.6-sol',
+    label: 'GPT-5.6 Sol',
+    description: 'Frontier model for complex professional work.',
+  },
+  {
+    id: 'gpt-5.6-terra',
+    label: 'GPT-5.6 Terra',
+    description: 'GPT-5.6 model that balances intelligence and cost.',
+  },
+  {
+    id: 'gpt-5.6-luna',
+    label: 'GPT-5.6 Luna',
+    description: 'GPT-5.6 model optimized for cost-sensitive workloads.',
+  },
+  {
     id: 'gpt-5.5',
     label: 'GPT-5.5',
     description: 'Latest frontier model with stronger capabilities.',
@@ -353,41 +373,6 @@ export const CODEX_MODELS: ModelInfo[] = [
     id: 'gpt-5.4',
     label: 'GPT-5.4',
     description: 'Latest frontier model with enhanced capabilities.',
-  },
-  {
-    id: 'gpt-5.2-codex',
-    label: 'GPT-5.2-Codex',
-    description: 'Frontier agentic coding model.',
-  },
-  {
-    id: 'gpt-5.1-codex-max',
-    label: 'GPT-5.1-Codex-Max',
-    description: 'Codex-optimized flagship for deep and fast reasoning.',
-  },
-  {
-    id: 'gpt-5.4-mini',
-    label: 'GPT-5.4-Mini',
-    description: 'Smaller frontier agentic coding model.',
-  },
-  {
-    id: 'gpt-5.3-codex',
-    label: 'GPT-5.3-Codex',
-    description: 'Latest frontier agentic coding model with enhanced capabilities.',
-  },
-  {
-    id: 'gpt-5.3-codex-spark',
-    label: 'GPT-5.3-Codex-Spark',
-    description: 'Ultra-fast coding model.',
-  },
-  {
-    id: 'gpt-5.2',
-    label: 'GPT-5.2',
-    description: 'Optimized for professional work and long-running agents.',
-  },
-  {
-    id: 'gpt-5.1-codex-mini',
-    label: 'GPT-5.1-Codex-Mini',
-    description: 'Optimized for Codex. Cheaper, faster, but less capable.',
   },
 ];
 
@@ -422,10 +407,12 @@ export const AVAILABLE_PROVIDERS: ProviderInfo[] = [
  */
 export const EFFORT_SUPPORTED_CLAUDE_MODELS = new Set([
   'claude-fable-5',
+  'claude-opus-5',
   'claude-opus-4-8',
   'claude-opus-4-6',
   'claude-opus-4-6[1m]',
   'claude-sonnet-5',
+  'claude-sonnet-4-7',
   'claude-sonnet-4-6',
 ]);
 
@@ -434,6 +421,7 @@ export const EFFORT_SUPPORTED_CLAUDE_MODELS = new Set([
  */
 export const XHIGH_EFFORT_CLAUDE_MODELS = new Set([
   'claude-fable-5',
+  'claude-opus-5',
   'claude-opus-4-8',
 ]);
 
@@ -442,18 +430,24 @@ export const XHIGH_EFFORT_CLAUDE_MODELS = new Set([
  */
 export const MAX_EFFORT_CLAUDE_MODELS = new Set([
   'claude-fable-5',
+  'claude-opus-5',
   'claude-opus-4-8',
   'claude-opus-4-6',
   'claude-opus-4-6[1m]',
   'claude-sonnet-5',
+  'claude-sonnet-4-7',
   'claude-sonnet-4-6',
 ]);
+
+export function codexModelSupportsMaxEffort(modelId: string): boolean {
+  return modelId.trim().toLowerCase().includes('gpt-5.6');
+}
 
 /**
  * Reasoning Effort (thinking depth)
  * Controls the depth of reasoning for AI models
  * Claude API values: low, medium, high, xhigh, max
- * Codex API values: low, medium, high, xhigh
+ * Codex API values: low, medium, high, xhigh; GPT-5.6 also supports max
  */
 export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 

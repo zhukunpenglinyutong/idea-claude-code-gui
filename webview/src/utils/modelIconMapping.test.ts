@@ -16,5 +16,14 @@ describe('modelIconMapping', () => {
     expect(resolveModelVendor('mimo-v2.5-pro')).toBe('xiaomi');
     expect(resolveIconVendor('claude', 'mimo-v2.5-pro')).toBe('xiaomi');
     expect(resolveIconVendor('xiaomi')).toBe('xiaomi');
+    expect(resolveIconVendor('xiaomi-plan')).toBe('xiaomi');
+  });
+
+  it('resolves expanded third-party provider preset icons', () => {
+    expect(resolveIconVendor('kimi-coding')).toBe('kimi');
+    expect(resolveIconVendor('bailian')).toBe('bailian');
+    expect(resolveIconVendor('bailian-coding')).toBe('bailian');
+    expect(resolveIconVendor('longcat')).toBe('longcat');
+    expect(resolveIconVendor('opencode-go')).toBe('opencode');
   });
 });

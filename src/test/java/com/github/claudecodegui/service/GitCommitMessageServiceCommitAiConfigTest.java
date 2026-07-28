@@ -3,9 +3,15 @@ package com.github.claudecodegui.service;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.vcs.FilePath;
+import com.intellij.openapi.vcs.LocalFilePath;
+import com.intellij.openapi.vcs.VcsException;
 import com.intellij.openapi.vcs.changes.Change;
+import com.intellij.openapi.vcs.changes.ContentRevision;
+import com.intellij.openapi.vcs.history.VcsRevisionNumber;
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
@@ -49,6 +55,64 @@ public class GitCommitMessageServiceCommitAiConfigTest {
         assertEquals("gpt-5.4", service.lastCodexModel);
         assertNull(service.lastClaudeModel);
         assertEquals("fix: use codex routing", callback.success);
+    }
+
+    @Test
+    public void shouldIgnoreLineEndingOnlyDiffs() {
+        TestableGitCommitMessageService service = new TestableGitCommitMessageService(buildConfig("claude", "claude-sonnet-4-6", "gpt-5.5"));
+
+        String diff = service.exposeGeneratedDiff(Collections.singletonList(
+                modification("README.md", "line 1\r\nline 2\r\n", "line 1\nline 2\n")
+        ));
+
+        assertEquals("", diff);
+    }
+
+    @Test
+    public void shouldKeepContentChangesWhenLineEndingsAlsoChange() {
+        TestableGitCommitMessageService service = new TestableGitCommitMessageService(buildConfig("claude", "claude-sonnet-4-6", "gpt-5.5"));
+
+        String diff = service.exposeGeneratedDiff(Collections.singletonList(
+                modification("README.md", "line 1\r\nold text\r\n", "line 1\nnew text\n")
+        ));
+
+        assertEquals("\n=== MODIFICATION: README.md ===\n- old text\n+ new text\n", diff);
+    }
+
+    @Test
+    public void shouldKeepEarlierContentChangesWhenIgnoringLaterLineEndingOnlyDiff() {
+        TestableGitCommitMessageService service = new TestableGitCommitMessageService(buildConfig("claude", "claude-sonnet-4-6", "gpt-5.5"));
+
+        String diff = service.exposeGeneratedDiff(Arrays.asList(
+                modification("content.md", "old text\n", "new text\n"),
+                modification("line-endings.md", "line 1\r\nline 2\r\n", "line 1\nline 2\n")
+        ));
+
+        assertEquals("\n=== MODIFICATION: content.md ===\n- old text\n+ new text\n", diff);
+    }
+
+    private static Change modification(String path, String before, String after) {
+        FilePath filePath = new LocalFilePath(path, false);
+        return new Change(revision(filePath, before), revision(filePath, after));
+    }
+
+    private static ContentRevision revision(FilePath filePath, String content) {
+        return new ContentRevision() {
+            @Override
+            public String getContent() throws VcsException {
+                return content;
+            }
+
+            @Override
+            public FilePath getFile() {
+                return filePath;
+            }
+
+            @Override
+            public VcsRevisionNumber getRevisionNumber() {
+                return VcsRevisionNumber.NULL;
+            }
+        };
     }
 
     private JsonObject buildConfig(String effectiveProvider, String claudeModel, String codexModel) {
@@ -118,6 +182,10 @@ public class GitCommitMessageServiceCommitAiConfigTest {
         protected void callCodexAPI(String prompt, String model, CommitMessageCallback callback) {
             this.lastCodexModel = model;
             callback.onSuccess("fix: use codex routing");
+        }
+
+        private String exposeGeneratedDiff(java.util.Collection<Change> changes) {
+            return super.generateGitDiff(changes);
         }
     }
 }

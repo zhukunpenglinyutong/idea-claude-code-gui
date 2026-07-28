@@ -15,7 +15,8 @@ import {
   useBackgroundTaskUsageMap,
   useFinishedBackgroundTasks,
 } from '../../utils/backgroundTasks';
-import { useSubagentHistoryGetter, useSessionId, useGetToolResultRaw, type GetToolResultRawFn } from '../../contexts/SubagentContext';
+import { extractResultText, isAsyncAgentInput, parseAgentToolMeta } from '../../utils/subagentResult';
+import { useSubagentHistories, useSessionId, useGetToolResultRaw, useTaskEvent } from '../../contexts/SubagentContext';
 import SubagentProcessDetails from '../StatusPanel/SubagentProcessDetails';
 
 const MONO_FONT_STYLE: React.CSSProperties = {
@@ -37,21 +38,6 @@ type SpawnAgentMeta = {
   model?: string;
   reasoningEffort?: string;
 };
-
-function extractResultText(result?: ToolResultBlock | null): string | undefined {
-  if (!result) return undefined;
-  if (typeof result.content === 'string') {
-    return result.content;
-  }
-  if (Array.isArray(result.content)) {
-    const text = result.content
-      .map((item) => (item && typeof item.text === 'string' ? item.text : ''))
-      .filter(Boolean)
-      .join('\n');
-    return text || undefined;
-  }
-  return undefined;
-}
 
 function parseSpawnAgentMeta(input: ToolInput, result?: ToolResultBlock | null): SpawnAgentMeta {
   const text = extractResultText(result)?.trim();
@@ -77,12 +63,15 @@ function parseSpawnAgentMeta(input: ToolInput, result?: ToolResultBlock | null):
     return undefined;
   };
 
+  // Reuse a single regex match for both model and reasoningEffort instead of
+  // running the same pattern twice over the text.
+  const modelMatch = text?.match(/\(([A-Za-z0-9._:-]+)(?:\s+(low|medium|high|xhigh))?\)/i);
   const agentId = getString(
     parsed?.agent_id,
     parsed?.agentId,
     parsed?.agent_path,
     parsed?.agentPath,
-  ) ?? (text?.match(/\b([0-9a-f]{8}-[0-9a-f-]{27})\b/i)?.[1]);
+  ) ?? text?.match(/\b([0-9a-f]{8}-[0-9a-f-]{27})\b/i)?.[1];
 
   const nickname = getString(
     parsed?.nickname,
@@ -92,40 +81,16 @@ function parseSpawnAgentMeta(input: ToolInput, result?: ToolResultBlock | null):
   const model = getString(
     parsed?.model,
     input.model,
-  ) ?? (text?.match(/\(([A-Za-z0-9._:-]+)(?:\s+(low|medium|high|xhigh))?\)/i)?.[1]);
+  ) ?? modelMatch?.[1];
 
   const reasoningEffort = getString(
     parsed?.reasoning_effort,
     parsed?.reasoningEffort,
     input.reasoning_effort,
     input.reasoningEffort,
-  ) ?? (text?.match(/\(([A-Za-z0-9._:-]+)(?:\s+(low|medium|high|xhigh))?\)/i)?.[2]);
+  ) ?? modelMatch?.[2];
 
   return { agentId, nickname, model, reasoningEffort };
-}
-
-function parseAgentToolMeta(
-  getToolResultRaw: GetToolResultRawFn,
-  toolUseId?: string,
-): {
-  agentId?: string;
-  totalDurationMs?: number;
-  totalTokens?: number;
-  totalToolUseCount?: number;
-} {
-  if (!toolUseId) return {};
-  const rawMessage = getToolResultRaw(toolUseId);
-  const metadata = rawMessage?.toolUseResult;
-  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return {};
-  const record = metadata as Record<string, unknown>;
-  const getString = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : undefined);
-  const getNumber = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
-  return {
-    agentId: getString(record.agentId),
-    totalDurationMs: getNumber(record.totalDurationMs),
-    totalTokens: getNumber(record.totalTokens),
-    totalToolUseCount: getNumber(record.totalToolUseCount),
-  };
 }
 
 function shortenAgentId(agentId?: string): string | undefined {
@@ -159,17 +124,17 @@ function summarizeLiveProgress(history?: SubagentHistoryResponse): { toolCount: 
 const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, result, toolId, isStreaming = false }: TaskExecutionBlockProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
-  const getSubagentHistory = useSubagentHistoryGetter();
+  const histories = useSubagentHistories();
   const currentSessionId = useSessionId();
   const getToolResultRaw = useGetToolResultRaw();
   const finishedBackgroundTasks = useFinishedBackgroundTasks();
   const backgroundUsageMap = useBackgroundTaskUsageMap();
+  const taskEvent = useTaskEvent(toolId);
 
-  if (!input) {
-    return null;
-  }
-
-  const normalizedName = normalizeToolName(name ?? '');
+  // Compute derived values up front, guarding input, so both useEffects below
+  // run before the !input early return (React rules-of-hooks). input is always
+  // defined for tool_use blocks in practice; the guard keeps hook order stable.
+  const normalizedName = input ? normalizeToolName(name ?? '') : '';
   const isSpawnAgent = normalizedName === 'spawn_agent';
   const isWorkflow = normalizedName === 'workflow';
   const isAgentTool = AGENT_TOOL_NAMES.has(normalizedName);
@@ -188,20 +153,18 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
     agent_path: _agentPath,
     agentPath: _agentPathCamel,
     ...rest
-  } = input;
-  const spawnMeta = isSpawnAgent ? parseSpawnAgentMeta(input, result) : {};
-  const agentToolMeta = !isSpawnAgent ? parseAgentToolMeta(getToolResultRaw, toolId) : {};
+  } = input ?? ({} as ToolInput);
+  const spawnMeta = isSpawnAgent && input ? parseSpawnAgentMeta(input, result) : {};
+  const agentToolMeta = !isSpawnAgent && input ? parseAgentToolMeta(getToolResultRaw, toolId) : {};
   const resultText = extractResultText(result);
-  // A background launch (run_in_background) returns its tool_result
-  // immediately while the agent keeps running — completion arrives later as
-  // a task-notification. Until then the card must stay in "running" state.
   const backgroundLaunch = parseBackgroundLaunch(resultText);
+  // Reload / history fallback: task events exist only for the session that
+  // produced them, so a reloaded webview relies on the persisted notification.
   const backgroundTerminalStatus = getFinishedBackgroundTaskStatus(finishedBackgroundTasks, backgroundLaunch, toolId);
-  const backgroundRunning = backgroundLaunch.isBackground && !backgroundTerminalStatus;
   // A background launch's toolUseResult has no stats — fall back to the
   // completion notification's <usage> block (tokens/tools/duration).
   const backgroundUsage = getBackgroundTaskUsage(backgroundUsageMap, backgroundLaunch, toolId);
-  const workflowMeta = isWorkflow ? extractWorkflowMeta(input as Record<string, unknown>) : {};
+  const workflowMeta = isWorkflow ? extractWorkflowMeta((input ?? {}) as Record<string, unknown>) : {};
   const description = typeof inputDescription === 'string' && inputDescription
     ? inputDescription
     : (workflowMeta.description ?? workflowMeta.name);
@@ -215,26 +178,62 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
   const modelSummary = [spawnMeta.model, spawnMeta.reasoningEffort].filter(Boolean).join(' ');
   const shortAgentId = shortenAgentId(agentId);
 
-  // Determine status based on result — a still-running background launch
-  // does not count as completed even though it already has a tool_result.
+  // A background (run_in_background) Agent only gets a launch acknowledgment
+  // tool_result; its real terminal status arrives later via a task_notification
+  // event, so the card must stay "running" until that lands and must not flip to
+  // completed on the launch ack alone. Sync agents run inline, so a tool_result
+  // means done. A failed launch (validation error before the task was
+  // registered) returns an is_error tool_result and never emits a notification,
+  // so treat that as an error instead of staying stuck. isAsyncAgentInput
+  // centralizes the strict === true check shared with useSubagents and
+  // AgentGroupBlock; the launch-text fallback catches launches whose input
+  // carries no flag (notably a SendMessage reviving a background agent).
+  const isAsync = (input ? isAsyncAgentInput(input) : false) || backgroundLaunch.isBackground;
   const hasResult = result !== undefined && result !== null;
-  const isCompleted = hasResult && !backgroundRunning;
-  const isError = (isCompleted && result?.is_error === true) || isTerminalFailure(backgroundTerminalStatus);
-  const history = (toolId ? getSubagentHistory(toolId) : undefined) ?? (agentId ? getSubagentHistory(agentId) : undefined);
+  const taskFailed = taskEvent?.status === 'failed' || taskEvent?.status === 'stopped';
+  const backgroundRunning = isAsync && !taskEvent && !backgroundTerminalStatus;
+  // Async completion sources, in order: the live task_notification, the
+  // persisted notification, then a sidechain transcript ending in
+  // assistant/end_turn. A settled main turn alone proves only that the launch
+  // turn ended; the background sidechain may still be running.
+  const history = (toolId ? histories[toolId] : undefined) ?? (agentId ? histories[agentId] : undefined);
+  const isCompleted = isAsync
+    ? (taskEvent
+      ? !taskFailed
+      : backgroundTerminalStatus
+        ? !isTerminalFailure(backgroundTerminalStatus)
+        : history?.completed === true)
+    : hasResult;
+  const isError = isAsync
+    ? (taskEvent
+      ? taskFailed
+      : isTerminalFailure(backgroundTerminalStatus) || result?.is_error === true)
+    : hasResult && result?.is_error === true;
+
+  // Metadata precedence: live task event, then toolUseResult, then the
+  // persisted <usage> block (the only source left after a reload).
+  const detailAgentId = (isAsync ? taskEvent?.agentId : undefined) ?? agentId;
+  const detailDurationMs = (isAsync ? taskEvent?.totalDurationMs : undefined)
+    ?? agentToolMeta.totalDurationMs ?? backgroundUsage?.totalDurationMs;
+  const detailTokens = (isAsync ? taskEvent?.totalTokens : undefined)
+    ?? agentToolMeta.totalTokens ?? backgroundUsage?.totalTokens;
+  const detailToolUseCount = (isAsync ? taskEvent?.totalToolUseCount : undefined)
+    ?? agentToolMeta.totalToolUseCount ?? backgroundUsage?.totalToolUseCount;
+  const detailResultText = (isAsync ? taskEvent?.summary : undefined) ?? resultText;
 
   // Full (untruncated) fetch when the user opens a card that has no history
   // yet, or when the subagent completed and we only hold a tail snapshot from
   // live polling. minIntervalMs 0 bypasses the poll throttle for this refresh.
   const needsFullHistory = !history || (isCompleted && history.truncated === true);
   useEffect(() => {
-    if (!expanded || !isAgentTool || isWorkflow || !currentSessionId || !toolId || !needsFullHistory) return;
+    if (!input || !expanded || !isAgentTool || isWorkflow || !currentSessionId || !toolId || !needsFullHistory) return;
     requestSubagentHistory({
       sessionId: currentSessionId,
       agentId,
       description: typeof description === 'string' ? description : undefined,
       toolUseId: toolId,
     }, 0);
-  }, [agentId, currentSessionId, description, expanded, needsFullHistory, isAgentTool, toolId]);
+  }, [input, agentId, currentSessionId, description, expanded, needsFullHistory, isAgentTool, isWorkflow, toolId]);
 
   // Poll continuously while the subagent is running — even when collapsed —
   // so the header shows live progress and expanding the card is instant.
@@ -251,10 +250,13 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
     && Boolean(currentSessionId)
     && Boolean(toolId)
     && (isStreaming || backgroundRunning)
-    && !isCompleted;
+    // Stop once the agent reaches a terminal state (completed OR error) so a
+    // failed background agent cannot leak an interval forever.
+    && !isCompleted
+    && !isError;
 
   useEffect(() => {
-    if (!shouldPollHistory || !currentSessionId || !toolId) return;
+    if (!input || !shouldPollHistory || !currentSessionId || !toolId) return;
     const timer = window.setInterval(() => {
       requestSubagentHistory({
         sessionId: currentSessionId,
@@ -265,7 +267,11 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
       });
     }, SUBAGENT_POLL_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [agentId, currentSessionId, description, shouldPollHistory, toolId]);
+  }, [input, agentId, currentSessionId, description, shouldPollHistory, toolId]);
+
+  if (!input) {
+    return null;
+  }
 
   const liveProgress = useMemo(
     () => (!isCompleted ? summarizeLiveProgress(history) : null),
@@ -375,11 +381,11 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
 
             {isAgentTool && !isWorkflow && (
               <SubagentProcessDetails
-                agentId={agentId}
-                totalDurationMs={agentToolMeta.totalDurationMs ?? backgroundUsage?.totalDurationMs}
-                totalTokens={agentToolMeta.totalTokens ?? backgroundUsage?.totalTokens}
-                totalToolUseCount={agentToolMeta.totalToolUseCount ?? backgroundUsage?.totalToolUseCount}
-                resultText={resultText}
+                agentId={detailAgentId}
+                totalDurationMs={detailDurationMs}
+                totalTokens={detailTokens}
+                totalToolUseCount={detailToolUseCount}
+                resultText={detailResultText}
                 history={history}
                 canLoad={Boolean(currentSessionId)}
               />

@@ -52,6 +52,7 @@ export const STORAGE_KEYS = {
  */
 export const CLAUDE_MODEL_MAPPING_ENV_KEYS = [
   'ANTHROPIC_MODEL',
+  'ANTHROPIC_DEFAULT_FABLE_MODEL',
   'ANTHROPIC_DEFAULT_HAIKU_MODEL',
   'ANTHROPIC_DEFAULT_SONNET_MODEL',
   'ANTHROPIC_DEFAULT_OPUS_MODEL',
@@ -165,6 +166,7 @@ export interface ProviderConfig {
       ANTHROPIC_AUTH_TOKEN?: string;
       ANTHROPIC_BASE_URL?: string;
       ANTHROPIC_MODEL?: string;
+      ANTHROPIC_DEFAULT_FABLE_MODEL?: string;
       ANTHROPIC_DEFAULT_SONNET_MODEL?: string;
       ANTHROPIC_DEFAULT_OPUS_MODEL?: string;
       ANTHROPIC_DEFAULT_HAIKU_MODEL?: string;
@@ -351,6 +353,151 @@ export interface CodexProviderConfig {
   mcpEnvVars?: EnvVarEntry[];
 }
 
+export interface CodexProviderPreset {
+  id: string;
+  name: string;
+  nameKey: string;
+  configToml: string;
+  authJson: string;
+}
+
+const tomlString = (value: string): string => JSON.stringify(value);
+
+export function buildCodexProviderConfigToml(
+  providerName: string,
+  baseUrl: string,
+  model: string,
+  wireApi: 'responses' | 'chat' = 'responses',
+  providerId = 'custom',
+): string {
+  return `disable_response_storage = true
+model = ${tomlString(model)}
+model_reasoning_effort = "high"
+model_provider = ${tomlString(providerId)}
+
+[model_providers.${providerId}]
+base_url = ${tomlString(baseUrl)}
+name = ${tomlString(providerName)}
+requires_openai_auth = true
+wire_api = ${tomlString(wireApi)}`;
+}
+
+export const DEFAULT_CODEX_AUTH_JSON = `{
+  "OPENAI_API_KEY": ""
+}`;
+
+export const DEFAULT_CODEX_CONFIG_TOML = buildCodexProviderConfigToml(
+  'crs',
+  'https://api.example.com/v1',
+  'gpt-5.1-codex',
+  'responses',
+  'crs',
+);
+
+export const OFFICIAL_CODEX_PROVIDER_NAME = 'OpenAI Official Direct';
+export const OFFICIAL_CODEX_BASE_URL = 'https://api.openai.com/v1';
+export const OFFICIAL_CODEX_CONFIG_TOML = buildCodexProviderConfigToml(
+  'openai',
+  OFFICIAL_CODEX_BASE_URL,
+  'gpt-5.1-codex',
+  'responses',
+  'openai',
+);
+
+export const CODEX_PROVIDER_PRESETS: CodexProviderPreset[] = [
+  {
+    id: 'custom',
+    name: '',
+    nameKey: 'settings.provider.presets.custom',
+    configToml: DEFAULT_CODEX_CONFIG_TOML,
+    authJson: DEFAULT_CODEX_AUTH_JSON,
+  },
+  {
+    id: 'zhipu',
+    name: 'Zhipu GLM',
+    nameKey: 'settings.provider.presets.zhipu',
+    configToml: buildCodexProviderConfigToml('zhipu_glm', 'https://open.bigmodel.cn/api/coding/paas/v4', 'glm-5.2', 'chat'),
+    authJson: DEFAULT_CODEX_AUTH_JSON,
+  },
+  {
+    id: 'kimi',
+    name: 'Kimi',
+    nameKey: 'settings.provider.presets.kimi',
+    configToml: buildCodexProviderConfigToml('kimi', 'https://api.moonshot.cn/v1', 'kimi-k3', 'chat'),
+    authJson: DEFAULT_CODEX_AUTH_JSON,
+  },
+  {
+    id: 'kimi-coding',
+    name: 'Kimi Coding',
+    nameKey: 'settings.provider.presets.kimiCoding',
+    configToml: buildCodexProviderConfigToml('kimi_coding', 'https://api.kimi.com/coding/v1', 'kimi-k3', 'chat'),
+    authJson: DEFAULT_CODEX_AUTH_JSON,
+  },
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    nameKey: 'settings.provider.presets.deepseek',
+    configToml: buildCodexProviderConfigToml('deepseek', 'https://api.deepseek.com', 'deepseek-v4-flash', 'chat'),
+    authJson: DEFAULT_CODEX_AUTH_JSON,
+  },
+  {
+    id: 'minimax',
+    name: 'MiniMax',
+    nameKey: 'settings.provider.presets.minimax',
+    configToml: buildCodexProviderConfigToml('minimax', 'https://api.minimaxi.com/v1', 'MiniMax-M3'),
+    authJson: DEFAULT_CODEX_AUTH_JSON,
+  },
+  {
+    id: 'xiaomi',
+    name: 'Xiaomi MiMo',
+    nameKey: 'settings.provider.presets.xiaomi',
+    configToml: buildCodexProviderConfigToml('xiaomi_mimo', 'https://api.xiaomimimo.com/v1', 'mimo-v2.5-pro'),
+    authJson: DEFAULT_CODEX_AUTH_JSON,
+  },
+  {
+    id: 'xiaomi-plan',
+    name: 'Xiaomi MiMo Plan',
+    nameKey: 'settings.provider.presets.xiaomiPlan',
+    configToml: buildCodexProviderConfigToml('xiaomi_mimo_token_plan', 'https://token-plan-cn.xiaomimimo.com/v1', 'mimo-v2.5-pro'),
+    authJson: DEFAULT_CODEX_AUTH_JSON,
+  },
+  {
+    id: 'bailian',
+    name: 'Bailian',
+    nameKey: 'settings.provider.presets.bailian',
+    configToml: buildCodexProviderConfigToml('bailian', 'https://dashscope.aliyuncs.com/compatible-mode/v1', 'qwen3-coder-plus'),
+    authJson: DEFAULT_CODEX_AUTH_JSON,
+  },
+  {
+    id: 'bailian-coding',
+    name: 'Bailian Coding',
+    nameKey: 'settings.provider.presets.bailianCoding',
+    configToml: buildCodexProviderConfigToml('bailian_coding', 'https://coding.dashscope.aliyuncs.com/v1', 'qwen3-coder-plus'),
+    authJson: DEFAULT_CODEX_AUTH_JSON,
+  },
+  {
+    id: 'longcat',
+    name: 'LongCat',
+    nameKey: 'settings.provider.presets.longcat',
+    configToml: buildCodexProviderConfigToml('longcat', 'https://api.longcat.chat/openai/v1', 'LongCat-2.0'),
+    authJson: DEFAULT_CODEX_AUTH_JSON,
+  },
+  {
+    id: 'opencode-go',
+    name: 'OpenCode Go',
+    nameKey: 'settings.provider.presets.opencodeGo',
+    configToml: buildCodexProviderConfigToml('opencode_go', 'https://opencode.ai/zen/go/v1', 'glm-5.2', 'chat'),
+    authJson: DEFAULT_CODEX_AUTH_JSON,
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    nameKey: 'settings.provider.presets.openrouter',
+    configToml: buildCodexProviderConfigToml('openrouter', 'https://openrouter.ai/api/v1', 'gpt-5.6-sol'),
+    authJson: DEFAULT_CODEX_AUTH_JSON,
+  },
+];
+
 // ============ Provider Presets ============
 
 /**
@@ -383,6 +530,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     env: {
       ANTHROPIC_BASE_URL: 'https://open.bigmodel.cn/api/anthropic',
       ANTHROPIC_AUTH_TOKEN: '',
+      ANTHROPIC_DEFAULT_FABLE_MODEL: 'glm-4.7',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'glm-4.7',
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-4.7',
       ANTHROPIC_DEFAULT_OPUS_MODEL: 'glm-4.7',
@@ -394,9 +542,24 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     env: {
       ANTHROPIC_BASE_URL: 'https://api.moonshot.cn/anthropic',
       ANTHROPIC_AUTH_TOKEN: '',
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'kimi-k2.5',
-      ANTHROPIC_DEFAULT_SONNET_MODEL: 'kimi-k2.5',
-      ANTHROPIC_DEFAULT_OPUS_MODEL: 'kimi-k2.5',
+      ANTHROPIC_DEFAULT_FABLE_MODEL: 'kimi-k3',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'kimi-k3',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'kimi-k3',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'kimi-k3',
+    },
+  },
+  {
+    id: 'kimi-coding',
+    nameKey: 'settings.provider.presets.kimiCoding',
+    env: {
+      ANTHROPIC_BASE_URL: 'https://api.kimi.com/coding/',
+      ANTHROPIC_AUTH_TOKEN: '',
+      ANTHROPIC_DEFAULT_FABLE_MODEL: 'kimi-k3',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'kimi-k3',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'kimi-k3',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'kimi-k3',
+      CLAUDE_CODE_MAX_CONTEXT_TOKENS: '262144',
+      CLAUDE_CODE_AUTO_COMPACT_WINDOW: '262144',
     },
   },
   {
@@ -405,6 +568,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     env: {
       ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
       ANTHROPIC_AUTH_TOKEN: '',
+      ANTHROPIC_DEFAULT_FABLE_MODEL: 'deepseek-v4-pro[1m]',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'deepseek-v4-flash',
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'deepseek-v4-pro[1m]',
       ANTHROPIC_DEFAULT_OPUS_MODEL: 'deepseek-v4-pro[1m]',
@@ -420,6 +584,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
       // MiniMax models respond slowly; requires 50-minute timeout (3,000,000ms) to avoid truncating long reasoning requests
       API_TIMEOUT_MS: '3000000',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+      ANTHROPIC_DEFAULT_FABLE_MODEL: 'MiniMax-M2.1',
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'MiniMax-M2.1',
       ANTHROPIC_DEFAULT_OPUS_MODEL: 'MiniMax-M2.1',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'MiniMax-M2.1',
@@ -431,6 +596,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     env: {
       ANTHROPIC_BASE_URL: 'https://api.xiaomimimo.com/anthropic',
       ANTHROPIC_AUTH_TOKEN: '',
+      ANTHROPIC_DEFAULT_FABLE_MODEL: 'mimo-v2.5-pro',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'mimo-v2.5-pro',
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'mimo-v2.5-pro',
       ANTHROPIC_DEFAULT_OPUS_MODEL: 'mimo-v2.5-pro',
@@ -442,20 +608,52 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     env: {
       ANTHROPIC_BASE_URL: 'https://token-plan-cn.xiaomimimo.com/anthropic',
       ANTHROPIC_AUTH_TOKEN: '',
+      ANTHROPIC_DEFAULT_FABLE_MODEL: 'mimo-v2.5-pro',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'mimo-v2.5-pro',
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'mimo-v2.5-pro',
       ANTHROPIC_DEFAULT_OPUS_MODEL: 'mimo-v2.5-pro',
     },
   },
   {
-    id: 'qwen',
-    nameKey: 'settings.provider.presets.qwen',
+    id: 'bailian',
+    nameKey: 'settings.provider.presets.bailian',
     env: {
       ANTHROPIC_BASE_URL: 'https://dashscope.aliyuncs.com/apps/anthropic',
       ANTHROPIC_AUTH_TOKEN: '',
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'qwen3-max',
-      ANTHROPIC_DEFAULT_SONNET_MODEL: 'qwen3-max',
-      ANTHROPIC_DEFAULT_OPUS_MODEL: 'qwen3-max',
+    },
+  },
+  {
+    id: 'bailian-coding',
+    nameKey: 'settings.provider.presets.bailianCoding',
+    env: {
+      ANTHROPIC_BASE_URL: 'https://coding.dashscope.aliyuncs.com/apps/anthropic',
+      ANTHROPIC_AUTH_TOKEN: '',
+    },
+  },
+  {
+    id: 'longcat',
+    nameKey: 'settings.provider.presets.longcat',
+    env: {
+      ANTHROPIC_BASE_URL: 'https://api.longcat.chat/anthropic',
+      ANTHROPIC_AUTH_TOKEN: '',
+      ANTHROPIC_DEFAULT_FABLE_MODEL: 'LongCat-2.0',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'LongCat-2.0',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'LongCat-2.0',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'LongCat-2.0',
+      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '131072',
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+    },
+  },
+  {
+    id: 'opencode-go',
+    nameKey: 'settings.provider.presets.opencodeGo',
+    env: {
+      ANTHROPIC_BASE_URL: 'https://opencode.ai/zen/go',
+      ANTHROPIC_AUTH_TOKEN: '',
+      ANTHROPIC_DEFAULT_FABLE_MODEL: 'deepseek-v4-flash',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'deepseek-v4-flash',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'deepseek-v4-flash',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'deepseek-v4-flash',
     },
   },
   {
@@ -464,6 +662,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     env: {
       ANTHROPIC_BASE_URL: 'https://openrouter.ai/api',
       ANTHROPIC_AUTH_TOKEN: '',
+      ANTHROPIC_DEFAULT_FABLE_MODEL: 'anthropic/claude-fable-5',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'anthropic/claude-haiku-4.5',
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'anthropic/claude-sonnet-4.5',
       ANTHROPIC_DEFAULT_OPUS_MODEL: 'anthropic/claude-opus-4.5',

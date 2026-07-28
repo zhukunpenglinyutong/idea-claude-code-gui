@@ -121,6 +121,47 @@
     to { transform: rotate(360deg); }
 }
 
+/* Streaming list-item entrance — each freshly appended tool item fades and
+   settles into place so the batch tool list grows smoothly instead of
+   snapping in. The keyframe fires once on element mount; because group items
+   keep stable keys across streaming appends, only the genuinely new item
+   animates while earlier items sit still. Scoped to items inside the group
+   list containers so unrelated file-list-items are untouched. */
+@keyframes toolItemEnter {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Let the list container breathe as it grows: the per-item maxHeight is
+   computed from the item count, so animating max-height turns a hard height
+   jump (which shoves everything below) into a gentle expand. */
+.task-details.file-list-container,
+.bash-group-timeline {
+    transition: max-height 0.2s ease;
+}
+
+.task-details.file-list-container .file-list-item,
+.bash-group-timeline .bash-timeline-item {
+    animation: toolItemEnter 0.18s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .task-details.file-list-container,
+    .bash-group-timeline {
+        transition: none;
+    }
+    .task-details.file-list-container .file-list-item,
+    .bash-group-timeline .bash-timeline-item {
+        animation: none;
+    }
+}
+
 /* Legacy keyframe retained — referenced by .waiting-indicator and other
    subtle-pulse callers; do not remove. */
 @keyframes breathing {

@@ -53,6 +53,37 @@ export function getClaudeDir() {
   return join(getRealHomeDir(), '.claude');
 }
 
+const CLAUDE_SESSION_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
+
+/**
+ * Convert a project path into the directory key used under ~/.claude/projects.
+ * Claude Code replaces every non-alphanumeric character with a hyphen and does
+ * not truncate long keys.
+ * @param {string} projectPath
+ * @returns {string}
+ */
+export function getClaudeProjectKey(projectPath) {
+  if (!projectPath || typeof projectPath !== 'string') {
+    return '';
+  }
+  return projectPath.replace(/[^a-zA-Z0-9]/g, '-');
+}
+
+/**
+ * Resolve a validated Claude Code JSONL session file path.
+ * @param {string} sessionId
+ * @param {string|null} cwd
+ * @returns {string}
+ */
+export function getClaudeProjectSessionFilePath(sessionId, cwd = null) {
+  if (typeof sessionId !== 'string' || !CLAUDE_SESSION_ID_PATTERN.test(sessionId)) {
+    throw new Error('Invalid session ID');
+  }
+  const projectsDir = join(getClaudeDir(), 'projects');
+  const projectKey = getClaudeProjectKey(cwd || process.cwd());
+  return join(projectsDir, projectKey, `${sessionId}.jsonl`);
+}
+
 /**
  * Get the platform-specific path for Claude Code managed settings.
  * Managed settings are typically configured by enterprise IT administrators.

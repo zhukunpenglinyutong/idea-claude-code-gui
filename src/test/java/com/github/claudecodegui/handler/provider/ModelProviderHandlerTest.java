@@ -13,14 +13,30 @@ import static org.junit.Assert.assertTrue;
 public class ModelProviderHandlerTest {
 
     @Test
-    public void shouldPreferMainModelOverrideForAllClaudeModelFamilies() {
+    public void shouldUseMainModelAsFallbackWhenFamilyMappingIsMissing() {
         JsonObject env = new JsonObject();
         env.addProperty("ANTHROPIC_MODEL", "glm-4.7");
-        env.addProperty("ANTHROPIC_DEFAULT_SONNET_MODEL", "ignored-sonnet");
 
         String resolved = ModelProviderHandler.resolveConfiguredClaudeModel("claude-opus-4-6", env);
 
         assertEquals("glm-4.7", resolved);
+    }
+
+    @Test
+    public void shouldPreferFamilySpecificMappingOverMainModel() {
+        JsonObject env = new JsonObject();
+        env.addProperty("ANTHROPIC_MODEL", "deepseek-v4-pro");
+        env.addProperty("ANTHROPIC_DEFAULT_FABLE_MODEL", "glm-5.2");
+        env.addProperty("ANTHROPIC_DEFAULT_HAIKU_MODEL", "deepseek-v4-flash");
+        env.addProperty("ANTHROPIC_DEFAULT_SONNET_MODEL", "deepseek-v4-flash");
+
+        String fable = ModelProviderHandler.resolveConfiguredClaudeModel("claude-fable-5", env);
+        String haiku = ModelProviderHandler.resolveConfiguredClaudeModel("claude-haiku-4-5", env);
+        String sonnet = ModelProviderHandler.resolveConfiguredClaudeModel("claude-sonnet-4-6", env);
+
+        assertEquals("glm-5.2", fable);
+        assertEquals("deepseek-v4-flash", haiku);
+        assertEquals("deepseek-v4-flash", sonnet);
     }
 
     @Test
@@ -74,14 +90,22 @@ public class ModelProviderHandlerTest {
     @Test
     public void shouldReturnCorrectContextLimitsForClaudeModels() {
         // Base IDs without [1m] suffix - 200k context by default
+        assertTrue(ModelProviderHandler.MODEL_CONTEXT_LIMITS.containsKey("claude-opus-5"));
+        assertTrue(ModelProviderHandler.MODEL_CONTEXT_LIMITS.containsKey("claude-opus-5[1m]"));
         assertTrue(ModelProviderHandler.MODEL_CONTEXT_LIMITS.containsKey("claude-sonnet-5"));
         assertTrue(ModelProviderHandler.MODEL_CONTEXT_LIMITS.containsKey("claude-sonnet-5[1m]"));
+        assertEquals(200_000, ModelProviderHandler.getModelContextLimit("claude-opus-5"));
+        assertEquals(200_000, ModelProviderHandler.getModelContextLimit("claude-fable-5"));
         assertEquals(200_000, ModelProviderHandler.getModelContextLimit("claude-sonnet-5"));
+        assertEquals(200_000, ModelProviderHandler.getModelContextLimit("claude-sonnet-4-7"));
         assertEquals(200_000, ModelProviderHandler.getModelContextLimit("claude-sonnet-4-6"));
         assertEquals(200_000, ModelProviderHandler.getModelContextLimit("claude-opus-4-8"));
         assertEquals(200_000, ModelProviderHandler.getModelContextLimit("claude-opus-4-6"));
         // IDs with [1m] suffix - 1M context
+        assertEquals(1_000_000, ModelProviderHandler.getModelContextLimit("claude-opus-5[1m]"));
+        assertEquals(1_000_000, ModelProviderHandler.getModelContextLimit("claude-fable-5[1m]"));
         assertEquals(1_000_000, ModelProviderHandler.getModelContextLimit("claude-sonnet-5[1m]"));
+        assertEquals(1_000_000, ModelProviderHandler.getModelContextLimit("claude-sonnet-4-7[1m]"));
         assertEquals(1_000_000, ModelProviderHandler.getModelContextLimit("claude-sonnet-4-6[1m]"));
         assertEquals(1_000_000, ModelProviderHandler.getModelContextLimit("claude-opus-4-8[1m]"));
         assertEquals(1_000_000, ModelProviderHandler.getModelContextLimit("claude-opus-4-6[1m]"));

@@ -106,7 +106,16 @@ export function buildRuntimeSignature(options, systemPromptAppend, streamingEnab
     // launch flag. The other modes (default/plan/acceptEdits) need no launch
     // flag and keep applying live via setPermissionMode, so they intentionally
     // do NOT change the signature.
-    bypassPermissions: options.permissionMode === 'bypassPermissions'
+    bypassPermissions: options.permissionMode === 'bypassPermissions',
+    // The thinking config (see resolveThinkingConfig) is an SDK query option
+    // frozen when the runtime is created. `model` above holds the SDK SHORT
+    // name, so two model ids that resolve to the same one — e.g.
+    // claude-sonnet-4-6 (legacy maxThinkingTokens) and claude-sonnet-5
+    // (adaptive/summarized) both map to "sonnet" — otherwise produce an
+    // identical signature and reuse a runtime carrying the OTHER model's
+    // thinking config, which silently hides or shows thinking for the wrong
+    // model. Include it so switching between them rebuilds the runtime.
+    thinking: JSON.stringify(options.thinking || null)
   };
   return JSON.stringify(material);
 }
@@ -264,7 +273,7 @@ async function createRuntime(requestContext, callbacks) {
  */
 export function startPerpetualReader(runtime, callbacks) {
   /**
-   * Emit an inter-turn event using daemon.js's writeRawLine mechanism.
+   * Emit an inter-turn daemon event using daemon.js's writeRawLine mechanism.
    *
    * IMPORTANT: Must bypass activeRequestId interception to avoid misrouting.
    *
@@ -272,35 +281,28 @@ export function startPerpetualReader(runtime, callbacks) {
    * - daemon.js intercepts process.stdout.write and wraps output with activeRequestId
    * - If we used console.log() here, the event would be tagged with whatever request
    *   is currently active (possibly from a different session)
-   * - This would cause the session_updated event to be delivered to the wrong session
+   * - This would cause the event to be delivered to the wrong session
    * - writeRawLine (_originalStdoutWrite) bypasses the interception layer and outputs
    *   directly to stdout, ensuring the event is process-level and not request-scoped
    *
-   * The event format {type: 'daemon', event: 'session_updated', sessionId} is recognized
+   * The event format {type: 'daemon', event, sessionId, ...payload} is recognized
    * by Java's DaemonBridge.handleDaemonEvent() which routes it to registered listeners.
    */
-  const emitDaemonEvent = (event, sessionId, extra) => {
+  const emitDaemonEvent = (event, sessionId, payload = {}) => {
     try {
-      // Access the global writeRawLine from daemon.js
-      // daemon.js stores the original stdout.write as _originalStdoutWrite
-      // We must use _originalStdoutWrite to bypass activeRequestId wrapping
+      // daemon.js stores the original stdout.write as _originalStdoutWrite.
+      // We must use _originalStdoutWrite to bypass activeRequestId wrapping.
       const originalWrite = process.stdout._originalStdoutWrite;
       if (!originalWrite) {
-        console.error('[PERPETUAL_READER] _originalStdoutWrite not available (daemon.js not initialized?), cannot emit ' + event + ' event');
+        console.error(`[PERPETUAL_READER] _originalStdoutWrite not available (daemon.js not initialized?), cannot emit ${event} event`);
         return;
       }
-      const eventPayload = {
-        type: 'daemon',
-        event,
-        sessionId,
-        ...(extra || {})
-      };
+      const eventPayload = { type: 'daemon', event, sessionId, ...payload };
       originalWrite.call(process.stdout, JSON.stringify(eventPayload) + '\n', 'utf8');
     } catch (err) {
-      console.error('[PERPETUAL_READER] Failed to emit ' + event + ' event:', err);
+      console.error(`[PERPETUAL_READER] Failed to emit ${event} event:`, err);
     }
   };
-  const emitInterTurnEvent = (sessionId) => emitDaemonEvent('session_updated', sessionId);
 
   // background_turn events tell the GUI when the CLI itself is generating a
   // response between GUI turns (e.g. answering a task-notification) — there is
@@ -338,6 +340,27 @@ export function startPerpetualReader(runtime, callbacks) {
     runtime.interTurnActive = false;
     emitBackgroundTurnState(sessionId, 'idle');
   };
+
+  const emitInterTurnEvent = (sessionId) => emitDaemonEvent('session_updated', sessionId);
+
+  // Forward a task_* SDK system event (async subagent lifecycle) to Java as a
+  // daemon event. This is the inter-turn delivery path for a task_notification
+  // that settles AFTER the turn's result: executeTurn breaks on the result and
+  // clears turnSink (in its finally) before the perpetual reader's next
+  // query.next() resolves, so the late event arrives with turnSink already
+  // null and the in-turn [MESSAGE] stream cannot carry it. Without this
+  // forward, that late event is silently dropped and the frontend subagent
+  // list stays stuck on "running" until a manual reload.
+  //
+  // A task_notification that settles BEFORE the turn's result is still pushed
+  // to turnSink while it is live, so executeTurn processes it via the in-turn
+  // [MESSAGE] stream (ClaudeMessageHandler.handleSystemMessage ->
+  // notifyTaskEvent). Both paths converge on window.onTaskEvent, which dedups
+  // by tool_use_id + observable fields - see DaemonBridge.handleDaemonEvent
+  // for the defense-in-depth rationale. Do NOT delete either path without
+  // confirming at runtime which one a given task_notification takes.
+  const emitTaskEvent = (sessionId, taskMsg) =>
+    emitDaemonEvent('task_event', sessionId, { taskEvent: taskMsg });
 
   // Start the perpetual reader loop; return the promise so callers (and tests)
   // can await its completion.
@@ -428,6 +451,31 @@ export function startPerpetualReader(runtime, callbacks) {
               emitInterTurnEvent(interTurnSessionId);
             }
           }
+          // task_* SDK system events (async subagent lifecycle) that reach
+          // this inter-turn branch are the late ones - they settle AFTER the
+          // turn's result, by which point executeTurn has already exited and
+          // cleared turnSink, so they could not ride the in-turn [MESSAGE]
+          // stream. A task_notification that settles BEFORE the result is
+          // pushed to turnSink while it is still live, so executeTurn emits
+          // it in-turn and it never reaches this branch. Forward the late
+          // ones to Java so the frontend subagent list can mark the agent
+          // done instead of staying stuck on "running" until a manual reload.
+          // Other inter-turn message types are still silently consumed
+          // (already persisted to JSONL by the CLI).
+          if (msg?.type === 'system' && typeof msg.subtype === 'string' && msg.subtype.startsWith('task_')) {
+            // Mirror emitInterTurnEvent's sessionId guard: anonymous runtimes
+            // (no session_id yet) have no Java listener to claim the event, so
+            // emitting {sessionId: null} only wastes a cross-process hop and
+            // risks JsonNull handling on the Java side. Silently consume instead.
+            if (runtime.sessionId) {
+              console.log('[PERPETUAL_READER] Inter-turn task_* event for sessionId=' + runtime.sessionId + ', subtype=' + msg.subtype);
+              emitTaskEvent(runtime.sessionId, msg);
+            } else {
+              console.log('[PERPETUAL_READER] Inter-turn task_* event for anonymous runtime, consuming silently (subtype=' + msg.subtype + ')');
+            }
+          }
+          // For other message types during inter-turn, we silently consume
+          // (they've already been persisted to JSONL by the CLI)
         }
       }
     } catch (error) {

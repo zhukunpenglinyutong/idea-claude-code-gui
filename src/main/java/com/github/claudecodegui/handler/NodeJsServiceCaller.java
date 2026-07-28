@@ -8,6 +8,7 @@ import com.github.claudecodegui.util.PlatformUtils;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -43,18 +44,17 @@ public class NodeJsServiceCaller {
 
         String bridgePath = context.getClaudeSDKBridge().getSdkTestDir().getAbsolutePath();
         String nodePath = context.getClaudeSDKBridge().getNodeExecutable();
-        String scriptBridgePath = NodeDetector.resolveScriptPath(nodePath, bridgePath);
+        String servicePath = resolveServicePath(nodePath, bridgePath, "favorites-service.cjs");
 
         String nodeScript = String.format(
-            "const { %s } = require('%s/services/favorites-service.cjs'); " +
+            "const { %s } = require(process.argv[1]); " +
             "const result = %s(process.env.SESSION_ID); " +
             "console.log(JSON.stringify(result));",
             functionName,
-            scriptBridgePath,
             functionName
         );
 
-        ProcessBuilder pb = buildNodeProcessBuilder(nodePath, nodeScript);
+        ProcessBuilder pb = buildNodeProcessBuilder(nodePath, nodeScript, servicePath);
         pb.redirectErrorStream(true);
         pb.environment().put("SESSION_ID", sessionId);
 
@@ -69,18 +69,17 @@ public class NodeJsServiceCaller {
 
         String bridgePath = context.getClaudeSDKBridge().getSdkTestDir().getAbsolutePath();
         String nodePath = context.getClaudeSDKBridge().getNodeExecutable();
-        String scriptBridgePath = NodeDetector.resolveScriptPath(nodePath, bridgePath);
+        String servicePath = resolveServicePath(nodePath, bridgePath, "session-titles-service.cjs");
 
         String nodeScript = String.format(
-            "const { %s } = require('%s/services/session-titles-service.cjs'); " +
+            "const { %s } = require(process.argv[1]); " +
             "const result = %s(); " +
             "console.log(JSON.stringify(result));",
             functionName,
-            scriptBridgePath,
             functionName
         );
 
-        ProcessBuilder pb = buildNodeProcessBuilder(nodePath, nodeScript);
+        ProcessBuilder pb = buildNodeProcessBuilder(nodePath, nodeScript, servicePath);
         pb.redirectErrorStream(true);
 
         return executeNodeScript(pb);
@@ -94,18 +93,17 @@ public class NodeJsServiceCaller {
 
         String bridgePath = context.getClaudeSDKBridge().getSdkTestDir().getAbsolutePath();
         String nodePath = context.getClaudeSDKBridge().getNodeExecutable();
-        String scriptBridgePath = NodeDetector.resolveScriptPath(nodePath, bridgePath);
+        String servicePath = resolveServicePath(nodePath, bridgePath, "session-titles-service.cjs");
 
         String nodeScript = String.format(
-            "const { %s } = require('%s/services/session-titles-service.cjs'); " +
+            "const { %s } = require(process.argv[1]); " +
             "const result = %s(process.env.SESSION_ID, process.env.CUSTOM_TITLE); " +
             "console.log(JSON.stringify(result));",
             functionName,
-            scriptBridgePath,
             functionName
         );
 
-        ProcessBuilder pb = buildNodeProcessBuilder(nodePath, nodeScript);
+        ProcessBuilder pb = buildNodeProcessBuilder(nodePath, nodeScript, servicePath);
         pb.redirectErrorStream(true);
         pb.environment().put("SESSION_ID", sessionId);
         pb.environment().put("CUSTOM_TITLE", customTitle);
@@ -119,16 +117,14 @@ public class NodeJsServiceCaller {
     public String callNodeJsDeleteTitle(String sessionId) throws Exception {
         String bridgePath = context.getClaudeSDKBridge().getSdkTestDir().getAbsolutePath();
         String nodePath = context.getClaudeSDKBridge().getNodeExecutable();
-        String scriptBridgePath = NodeDetector.resolveScriptPath(nodePath, bridgePath);
+        String servicePath = resolveServicePath(nodePath, bridgePath, "session-titles-service.cjs");
 
-        String nodeScript = String.format(
-            "const { deleteTitle } = require('%s/services/session-titles-service.cjs'); " +
+        String nodeScript =
+            "const { deleteTitle } = require(process.argv[1]); " +
             "const result = deleteTitle(process.env.SESSION_ID); " +
-            "console.log(JSON.stringify({ success: result }));",
-            scriptBridgePath
-        );
+            "console.log(JSON.stringify({ success: result }));";
 
-        ProcessBuilder pb = buildNodeProcessBuilder(nodePath, nodeScript);
+        ProcessBuilder pb = buildNodeProcessBuilder(nodePath, nodeScript, servicePath);
         pb.redirectErrorStream(true);
         pb.environment().put("SESSION_ID", sessionId);
 
@@ -139,8 +135,15 @@ public class NodeJsServiceCaller {
      * Build a ProcessBuilder for running a Node.js inline script.
      * Delegates to {@link NodeDetector#buildNodeInlineCommand} so WSL prefixing is centralised.
      */
-    private ProcessBuilder buildNodeProcessBuilder(String nodePath, String nodeScript) {
-        return new ProcessBuilder(NodeDetector.buildNodeInlineCommand(nodePath, nodeScript));
+    private ProcessBuilder buildNodeProcessBuilder(String nodePath, String nodeScript, String servicePath) {
+        List<String> command = NodeDetector.buildNodeInlineCommand(nodePath, nodeScript);
+        command.add(servicePath);
+        return new ProcessBuilder(command);
+    }
+
+    static String resolveServicePath(String nodePath, String bridgePath, String serviceFileName) {
+        String servicePath = bridgePath + "/services/" + serviceFileName;
+        return NodeDetector.isWslPath(nodePath) ? NodeDetector.convertToWslPath(servicePath) : servicePath;
     }
 
     /**

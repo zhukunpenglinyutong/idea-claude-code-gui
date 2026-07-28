@@ -50,6 +50,13 @@ export function useChatInputSelectionController({
   onAutoOpenFileEnabledChange,
 }: UseChatInputSelectionControllerOptions) {
   const focusInput = useCallback(() => {
+    // Don't steal focus while the user holds a selection elsewhere (e.g.
+    // selecting a queued-message item to copy): moving focus to the editable
+    // region collapses the active selection and discards it. isCollapsed is
+    // O(1) and covers every selection shape (text, image, element), so prefer
+    // it over serializing the selection to a string on every focus call.
+    const selection = typeof window !== 'undefined' ? window.getSelection() : null;
+    if (selection && !selection.isCollapsed) return;
     editableRef.current?.focus();
   }, [editableRef]);
 

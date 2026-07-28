@@ -190,7 +190,10 @@ public class CodexMcpServerHandler extends BaseMessageHandler {
                 return;
             }
 
-            JsonObject serverConfig = targetServer.getAsJsonObject("server");
+            String sessionCwd = context.getSession() != null ? context.getSession().getCwd() : null;
+            String projectBasePath = context.getProject() != null ? context.getProject().getBasePath() : null;
+            JsonObject serverConfig = prepareServerConfig(
+                    targetServer.getAsJsonObject("server"), sessionCwd, projectBasePath);
             LOG.info("[CodexMcpServerHandler] Getting tools for Codex MCP server: " + serverId);
 
             context.getCodexSDKBridge().getMcpServerTools(serverId, serverConfig)
@@ -221,6 +224,20 @@ public class CodexMcpServerHandler extends BaseMessageHandler {
         ApplicationManager.getApplication().invokeLater(() ->
             callJavaScript("window.updateMcpServerTools", escapeJs(json))
         );
+    }
+
+    static JsonObject prepareServerConfig(
+            JsonObject originalConfig, String sessionCwd, String projectBasePath) {
+        JsonObject serverConfig = originalConfig.deepCopy();
+        if (!serverConfig.has("cwd")) {
+            String cwd = sessionCwd != null && !sessionCwd.trim().isEmpty()
+                    ? sessionCwd
+                    : projectBasePath;
+            if (cwd != null && !cwd.trim().isEmpty()) {
+                serverConfig.addProperty("cwd", cwd);
+            }
+        }
+        return serverConfig;
     }
 
     private boolean isCodexLocalConfigAuthorized() {

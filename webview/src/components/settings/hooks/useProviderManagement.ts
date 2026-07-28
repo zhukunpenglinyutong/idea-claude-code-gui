@@ -55,6 +55,7 @@ export function useProviderManagement(options: UseProviderManagementOptions = {}
     const env = provider.settingsConfig.env as Record<string, any>;
     const mapping = {
       main: env.ANTHROPIC_MODEL ?? '',
+      fable: env.ANTHROPIC_DEFAULT_FABLE_MODEL ?? '',
       haiku: env.ANTHROPIC_DEFAULT_HAIKU_MODEL ?? '',
       sonnet: env.ANTHROPIC_DEFAULT_SONNET_MODEL ?? '',
       opus: env.ANTHROPIC_DEFAULT_OPUS_MODEL ?? '',

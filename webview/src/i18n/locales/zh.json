@@ -93,9 +93,13 @@
     "attachmentsUploaded": "[已上传附件]",
     "streamingConnected": "{{provider}} 已成功连接，正在理解问题",
     "showEarlierMessages": "显示之前的 {{count}} 条消息",
+    "showEarlierTurns": "显示更早的 {{count}} 轮对话（当前已加载还剩 {{remaining}} 轮）",
+    "loadEarlierTurns": "从磁盘加载更早的 {{count}} 轮（共 {{total}} 轮，尚有 {{remaining}} 轮）",
+    "loadingEarlierTurns": "正在加载更早的对话...",
     "totalDuration": "本次耗时",
     "tokenUsage": "输入 {{input}} / 输出 {{output}}",
     "tokenUsageDetail": "本轮合计 — 输入 {{input}} · 缓存写入 {{cacheWrite}} · 缓存读取 {{cacheRead}} · 输出 {{output}}",
+    "cacheHitsWithRatio": "（缓存命中 {{tokens}}，{{ratio}}）",
     "search": {
       "ariaLabel": "在对话中搜索",
       "placeholder": "在对话中搜索…",
@@ -265,6 +269,12 @@
         "enabled": "已开启",
         "disabled": "已关闭",
         "hint": "开启后，当 Claude 向你提问时显示系统通知提醒，避免错过。关闭后不显示通知。"
+      },
+      "detailedOutput": {
+        "label": "详细输出信息",
+        "enabled": "已开启",
+        "disabled": "已关闭",
+        "hint": "开启后，消息底部会在可用时显示本轮预估费用，并在输入 Token 中标明缓存命中。Token 消耗信息始终保持显示。"
       },
       "sendShortcut": {
         "label": "发送快捷键",
@@ -679,6 +689,8 @@
         "modelMapping": "模型映射（会注入到 JSON 的 env 里）",
         "mainModel": "主模型",
         "mainModelPlaceholder": "例如：claude-sonnet-4-6",
+        "fableModel": "Fable 默认模型",
+        "fableModelPlaceholder": "例如：claude-fable-5",
         "haikuModel": "Haiku 默认模型",
         "haikuModelPlaceholder": "例如：claude-haiku-4-5",
         "sonnetModel": "Sonnet 默认模型",
@@ -705,12 +717,17 @@
       "presets": {
         "custom": "自定义配置",
         "zhipu": "智谱GLM",
-        "kimi": "Kimi K2",
+        "kimi": "Kimi",
+        "kimiCoding": "Kimi Coding",
         "deepseek": "DeepSeek",
         "minimax": "MiniMax",
         "xiaomi": "Xiaomi MiMo",
         "xiaomiPlan": "Xiaomi MiMo Plan",
         "qwen": "阿里千问",
+        "bailian": "Bailian",
+        "bailianCoding": "Bailian Coding",
+        "longcat": "LongCat",
+        "opencodeGo": "OpenCode Go",
         "openrouter": "OpenRouter"
       }
     },
@@ -729,6 +746,9 @@
         "editTitle": "编辑供应商: {{name}}",
         "addDescription": "配置新的 Codex 供应商信息，将写入 ~/.codex/ 目录",
         "editDescription": "更新配置后将立即应用到 ~/.codex/ 目录",
+        "officialPreset": "OpenAI 官方直连",
+        "officialSectionHint": "使用您手动填写的 OPENAI_API_KEY，并直接连接到官方端点 https://api.openai.com/v1。",
+        "presetHint": "以下预设仅包含与 Claude Code 供应商一致的第三方或代理端点。",
         "providerName": "供应商名称",
         "providerNamePlaceholder": "例如：Codex 官方",
         "configJson": "配置",
@@ -1654,6 +1674,14 @@
         "label": "Sonnet 5",
         "description": "Sonnet 5 · Sonnet 4.6 升级模型"
       },
+      "sonnet47": {
+        "label": "Sonnet 4.7",
+        "description": "Sonnet 4.7 · 默认推荐模型"
+      },
+      "opus5": {
+        "label": "Opus 5",
+        "description": "Opus 5 · Opus 最新升级模型"
+      },
       "opus46_1m": {
         "label": "Opus 4.6",
         "description": "Opus 4.6 · 高性能推理模型"
@@ -1664,7 +1692,7 @@
       },
       "opus48": {
         "label": "Opus 4.8",
-        "description": "Opus 4.8 · 最新最强大的模型"
+        "description": "Opus 4.8 · 保留的前代 Opus 模型"
       },
       "fable5": {
         "label": "Fable 5",
@@ -1672,9 +1700,17 @@
       }
     },
     "codex": {
-      "gpt53codex": {
-        "label": "GPT-5.3-Codex",
-        "description": "最新前沿智能编程模型，能力全面增强"
+      "gpt56sol": {
+        "label": "GPT-5.6 Sol",
+        "description": "面向复杂专业工作的前沿模型"
+      },
+      "gpt56terra": {
+        "label": "GPT-5.6 Terra",
+        "description": "智能与成本兼顾的 GPT-5.6 模型"
+      },
+      "gpt56luna": {
+        "label": "GPT-5.6 Luna",
+        "description": "针对成本敏感场景优化的 GPT-5.6 模型"
       },
       "gpt55": {
         "label": "GPT-5.5",
@@ -1683,30 +1719,6 @@
       "gpt54": {
         "label": "GPT-5.4",
         "description": "最新前沿模型，能力进一步增强"
-      },
-      "gpt52codex": {
-        "label": "GPT-5.2-Codex",
-        "description": "前沿智能编程模型"
-      },
-      "gpt51codexMax": {
-        "label": "GPT-5.1-Codex-Max",
-        "description": "针对Codex优化的旗舰模型，深度与快速推理兼备"
-      },
-      "gpt54mini": {
-        "label": "GPT-5.4-Mini",
-        "description": "更轻量的前沿智能编程模型"
-      },
-      "gpt53codexSpark": {
-        "label": "GPT-5.3-Codex-Spark",
-        "description": "超高速编程模型"
-      },
-      "gpt52": {
-        "label": "GPT-5.2",
-        "description": "针对专业工作与长程代理任务优化"
-      },
-      "gpt51codexMini": {
-        "label": "GPT-5.1-Codex-Mini",
-        "description": "针对Codex优化。更便宜、更快，但性能较差"
       }
     }
   },

@@ -20,6 +20,9 @@ export type ModelVendor =
   | 'zhipu'
   | 'minimax'
   | 'xiaomi'
+  | 'bailian'
+  | 'longcat'
+  | 'opencode'
   | 'doubao'
   | 'spark'
   | 'hunyuan'
@@ -45,6 +48,8 @@ const MODEL_VENDOR_PATTERNS: ReadonlyArray<readonly [RegExp, ModelVendor]> = [
   [/zhipu/i, 'zhipu'],
   [/minimax/i, 'minimax'],
   [/xiaomi|mimo/i, 'xiaomi'],
+  [/longcat/i, 'longcat'],
+  [/opencode/i, 'opencode'],
   [/doubao/i, 'doubao'],
   [/^spark(?:[-\s]|$)/i, 'spark'],
   [/hunyuan/i, 'hunyuan'],
@@ -72,9 +77,15 @@ const PROVIDER_TO_VENDOR: Record<string, ModelVendor> = {
   qwen: 'qwen',
   deepseek: 'deepseek',
   kimi: 'kimi',
+  'kimi-coding': 'kimi',
   zhipu: 'zhipu',
   minimax: 'minimax',
   xiaomi: 'xiaomi',
+  'xiaomi-plan': 'xiaomi',
+  bailian: 'bailian',
+  'bailian-coding': 'bailian',
+  longcat: 'longcat',
+  'opencode-go': 'opencode',
   openrouter: 'openrouter',
 };
 

@@ -51,8 +51,18 @@ public class CreateNewTabAction extends AnAction {
             return;
         }
 
+        ContentManager contentManager = toolWindow.getContentManager();
+        Content selectedContent = contentManager.getSelectedContent();
+        ClaudeChatWindow sourceWindow = selectedContent == null
+                ? null
+                : ClaudeSDKToolWindow.getChatWindowForContent(selectedContent);
+        if (sourceWindow == null) {
+            sourceWindow = ClaudeSDKToolWindow.getChatWindow(project);
+        }
+
         // Create a new chat window instance with skipRegister=true (don't replace the main instance)
         ClaudeChatWindow newChatWindow = new ClaudeChatWindow(project, true);
+        newChatWindow.inheritSessionPreferencesFrom(sourceWindow);
 
         // Create a tab name in the format "AIN"
         String tabName = ClaudeSDKToolWindow.getNextTabName(toolWindow);
@@ -61,11 +71,10 @@ public class CreateNewTabAction extends AnAction {
         ContentFactory contentFactory = ContentFactory.getInstance();
         Content content = contentFactory.createContent(newChatWindow.getContent(), tabName, false);
         content.setCloseable(true);
-        newChatWindow.setParentContent(content);
         content.setDisposer(newChatWindow::dispose);
 
-        ContentManager contentManager = toolWindow.getContentManager();
         contentManager.addContent(content);
+        newChatWindow.setParentContent(content);
         contentManager.setSelectedContent(content);
 
         // Ensure the tool window is visible

@@ -42,6 +42,7 @@ public class MessageJsonConverterTest {
         turnUsage.addProperty("cache_read_input_tokens", 36310);
         turnUsage.addProperty("output_tokens", 456);
         raw.add("turnUsage", turnUsage);
+        raw.addProperty("turnCostUsd", 0.0123);
 
         ClaudeSession.Message sessionMessage = new ClaudeSession.Message(
                 ClaudeSession.Message.Type.ASSISTANT,
@@ -62,6 +63,8 @@ public class MessageJsonConverterTest {
         // turnUsage (whole-turn aggregate) is transported for the per-turn token display
         assertTrue(transportRaw.has("turnUsage"));
         assertEquals(1200, transportRaw.getAsJsonObject("turnUsage").get("input_tokens").getAsInt());
+        assertTrue(transportRaw.has("turnCostUsd"));
+        assertEquals(0.0123, transportRaw.get("turnCostUsd").getAsDouble(), 0.000001);
 
         JsonObject transportMessage = transportRaw.getAsJsonObject("message");
         assertTrue(transportMessage.has("content"));

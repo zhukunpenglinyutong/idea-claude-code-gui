@@ -100,6 +100,12 @@ export function extractMarkdownContent(message: ClaudeMessage, includeThinking =
         if (thinkingText) {
           parts.push(`<thinking>\n${thinkingText}\n</thinking>`);
         }
+      } else if (block.type === 'image') {
+        // Emit a placeholder so copied content acknowledges the image instead of
+        // silently dropping it (raster data cannot embed in a text clipboard).
+        const imageBlock = block as { mediaType?: string; source?: { media_type?: string } };
+        const mediaType = imageBlock.mediaType ?? imageBlock.source?.media_type;
+        parts.push(mediaType ? `[image: ${mediaType}]` : '[image]');
       }
       // tool_use blocks are not included in copy - they contain internal tool calls
     }
