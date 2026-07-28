@@ -195,7 +195,13 @@ export function modelSupportsVision(modelId) {
  */
 export function resolveVisibleThinkingConfig(modelId, disableThinking = false) {
   if (!modelId || typeof modelId !== 'string') return null;
-  if (!/fable|mythos|opus-4-8|sonnet-5/i.test(modelId)) return null;
+  // Require the family token AND its version, optionally followed by a date
+  // suffix (claude-sonnet-5-20260101). Matching a bare family name let custom or
+  // proxied ids such as "mythos-proxy" claim a config that was only verified for
+  // the real models; anything unrecognized falls back to the legacy
+  // maxThinkingTokens path, which is the safe default.
+  const withoutContextMarker = modelId.replace(/\[1m\]$/i, '');
+  if (!/(?:^|[^a-z0-9])(?:fable-5|mythos-5|opus-4-8|sonnet-5)(?:-\d+)?$/i.test(withoutContextMarker)) return null;
   if (disableThinking) return { type: 'disabled' };
   return { type: 'adaptive', display: 'summarized' };
 }

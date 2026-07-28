@@ -12,6 +12,29 @@ test('resolveVisibleThinkingConfig returns adaptive+summarized for verified hidd
   }
 });
 
+test('resolveVisibleThinkingConfig accepts the [1m] marker and dated model ids', () => {
+  for (const model of [
+    'claude-fable-5[1m]',
+    'claude-opus-4-8[1m]',
+    'claude-sonnet-5-20260101',
+    'claude-opus-4-8-20260514',
+  ]) {
+    assert.deepEqual(
+      resolveVisibleThinkingConfig(model),
+      { type: 'adaptive', display: 'summarized' },
+      model,
+    );
+  }
+});
+
+test('resolveVisibleThinkingConfig does not match custom or proxied variants', () => {
+  // A bare family match let unverified ids claim the adaptive config; these must
+  // fall back to the legacy maxThinkingTokens path instead.
+  for (const model of ['mythos-proxy', 'fable-gateway', 'sonnet-5-lite', 'my-mythos-router', 'opus-4-8-custom']) {
+    assert.equal(resolveVisibleThinkingConfig(model), null, model);
+  }
+});
+
 test('resolveVisibleThinkingConfig returns disabled when thinking is opted out', () => {
   assert.deepEqual(
     resolveVisibleThinkingConfig('claude-fable-5', true),

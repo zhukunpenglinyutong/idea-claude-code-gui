@@ -87,7 +87,11 @@ export function toolStatusIndicatorClass(
 // namespaces don't collide), values are the terminal <status>.
 
 let finishedTasks: ReadonlyMap<string, string> = new Map();
-const listeners = new Set<() => void>();
+// Each store keeps its OWN listener set. Sharing one set was harmless (both
+// snapshots are stable references, so a cross-notified subscriber re-read an
+// unchanged value and React bailed out) but it woke every usage-map subscriber
+// on a finished-task change and vice versa.
+const finishedTaskListeners = new Set<() => void>();
 
 export function setFinishedBackgroundTasks(tasks: ReadonlyMap<string, string>): void {
   if (
@@ -97,14 +101,14 @@ export function setFinishedBackgroundTasks(tasks: ReadonlyMap<string, string>): 
     return;
   }
   finishedTasks = tasks;
-  listeners.forEach((listener) => listener());
+  finishedTaskListeners.forEach((listener) => listener());
 }
 
 export function useFinishedBackgroundTasks(): ReadonlyMap<string, string> {
   return useSyncExternalStore(
     (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
+      finishedTaskListeners.add(listener);
+      return () => finishedTaskListeners.delete(listener);
     },
     () => finishedTasks,
   );
@@ -168,6 +172,8 @@ export interface BackgroundTaskUsage {
 }
 
 let taskUsage: ReadonlyMap<string, BackgroundTaskUsage> = new Map();
+/** Own listener set, separate from finishedTaskListeners (see there). */
+const taskUsageListeners = new Set<() => void>();
 
 export function setBackgroundTaskUsage(usage: ReadonlyMap<string, BackgroundTaskUsage>): void {
   if (
@@ -183,14 +189,14 @@ export function setBackgroundTaskUsage(usage: ReadonlyMap<string, BackgroundTask
     return;
   }
   taskUsage = usage;
-  listeners.forEach((listener) => listener());
+  taskUsageListeners.forEach((listener) => listener());
 }
 
 export function useBackgroundTaskUsageMap(): ReadonlyMap<string, BackgroundTaskUsage> {
   return useSyncExternalStore(
     (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
+      taskUsageListeners.add(listener);
+      return () => taskUsageListeners.delete(listener);
     },
     () => taskUsage,
   );
