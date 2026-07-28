@@ -1,8 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { appendFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   createInitialEventState,
   isWindowsTaskkillParseNoise,
+  prepareSessionReplayBoundary,
   processCodexEventStream,
 } from './codex-event-handler.js';
 
@@ -81,6 +85,266 @@ test('Codex item.updated agent_message emits incremental content deltas before c
       content: [{ type: 'text', text: 'Hello' }],
     },
   });
+});
+
+test('Codex session replay does not emit historical function calls before turn.started', async () => {
+  const tempDirectory = await mkdtemp(join(tmpdir(), 'codex-history-replay-'));
+  const tempSessionPath = join(tempDirectory, 'fixture-session.jsonl');
+  const historicalEntries = [
+    {
+      type: 'response_item',
+      payload: {
+        type: 'function_call',
+        name: 'shell_command',
+        call_id: 'old-call-1',
+        arguments: JSON.stringify({ command: 'echo OLD_COMMAND' }),
+      },
+    },
+    {
+      type: 'response_item',
+      payload: {
+        type: 'function_call_output',
+        call_id: 'old-call-1',
+        output: 'OLD_OUTPUT',
+      },
+    },
+  ];
+
+  await writeFile(
+    tempSessionPath,
+    `${historicalEntries.map((entry) => JSON.stringify(entry)).join('\n')}\n`,
+    'utf8',
+  );
+
+  try {
+    const emittedMessages = [];
+    const state = createInitialEventState((message) => emittedMessages.push(message));
+    state.sessionFilePath = tempSessionPath;
+    await prepareSessionReplayBoundary(state, 'fixture-thread');
+
+    await captureStdout(async () => {
+      await processCodexEventStream(
+        eventsFrom([
+          { type: 'event_msg', payload: { type: 'status' } },
+          { type: 'turn.started' },
+          { type: 'turn.completed' },
+        ]),
+        state,
+        { ...makeConfig(), threadId: 'fixture-thread' },
+      );
+    });
+
+    const historicalToolUses = emittedMessages.filter((message) =>
+      message?.message?.content?.some((block) =>
+        block.type === 'tool_use' && block.input?.command === 'echo OLD_COMMAND'
+      )
+    );
+
+    assert.equal(
+      historicalToolUses.length,
+      0,
+      'event_msg before turn.started replayed the historical OLD_COMMAND tool call',
+    );
+  } finally {
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+});
+
+test('Codex session replay emits only current-turn function calls after a delayed turn_context', async () => {
+  const tempDirectory = await mkdtemp(join(tmpdir(), 'codex-current-turn-replay-'));
+  const tempSessionPath = join(tempDirectory, 'fixture-session.jsonl');
+  const historicalEntry = {
+    type: 'response_item',
+    payload: {
+      type: 'function_call',
+      name: 'shell_command',
+      call_id: 'old-call-1',
+      arguments: JSON.stringify({ command: 'echo OLD_COMMAND' }),
+    },
+  };
+  await writeFile(tempSessionPath, `${JSON.stringify(historicalEntry)}\n`, 'utf8');
+
+  try {
+    const emittedMessages = [];
+    const state = createInitialEventState((message) => emittedMessages.push(message));
+    state.sessionFilePath = tempSessionPath;
+    await prepareSessionReplayBoundary(state, 'fixture-thread');
+
+    async function* delayedCurrentTurnEvents() {
+      yield { type: 'turn.started' };
+      await appendFile(
+        tempSessionPath,
+        [
+          { type: 'turn_context', payload: { cwd: 'C:/fixture' } },
+          {
+            type: 'response_item',
+            payload: {
+              type: 'function_call',
+              name: 'shell_command',
+              call_id: 'current-call-1',
+              arguments: JSON.stringify({ command: 'echo CURRENT_COMMAND' }),
+            },
+          },
+          {
+            type: 'response_item',
+            payload: {
+              type: 'function_call_output',
+              call_id: 'current-call-1',
+              output: 'CURRENT_OUTPUT',
+            },
+          },
+        ].map((entry) => JSON.stringify(entry)).join('\n') + '\n',
+        'utf8',
+      );
+      yield { type: 'event_msg', payload: { type: 'status' } };
+      yield { type: 'event_msg', payload: { type: 'status' } };
+      yield { type: 'turn.completed' };
+    }
+
+    await captureStdout(async () => {
+      await processCodexEventStream(
+        delayedCurrentTurnEvents(),
+        state,
+        { ...makeConfig(), threadId: 'fixture-thread' },
+      );
+    });
+
+    const toolUseCommands = emittedMessages.flatMap((message) =>
+      message?.message?.content
+        ?.filter((block) => block.type === 'tool_use')
+        .map((block) => block.input?.command) ?? []
+    );
+    const currentResults = emittedMessages.flatMap((message) =>
+      message?.message?.content
+        ?.filter((block) => block.type === 'tool_result' && block.tool_use_id === 'current-call-1') ?? []
+    );
+
+    assert.deepEqual(toolUseCommands, ['echo CURRENT_COMMAND']);
+    assert.equal(currentResults.length, 1);
+    assert.equal(currentResults[0].content, 'CURRENT_OUTPUT');
+  } finally {
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+});
+
+test('Codex session replay accepts a verified current turn before turn.started is observed', async () => {
+  const tempDirectory = await mkdtemp(join(tmpdir(), 'codex-early-current-turn-'));
+  const tempSessionPath = join(tempDirectory, 'fixture-session.jsonl');
+  await writeFile(
+    tempSessionPath,
+    `${JSON.stringify({
+      type: 'response_item',
+      payload: {
+        type: 'function_call',
+        name: 'shell_command',
+        call_id: 'old-call-1',
+        arguments: JSON.stringify({ command: 'echo OLD_COMMAND' }),
+      },
+    })}\n`,
+    'utf8',
+  );
+
+  try {
+    const emittedMessages = [];
+    const state = createInitialEventState((message) => emittedMessages.push(message));
+    state.sessionFilePath = tempSessionPath;
+    await prepareSessionReplayBoundary(state, 'fixture-thread');
+
+    await appendFile(
+      tempSessionPath,
+      [
+        { type: 'turn_context', payload: { cwd: 'C:/fixture' } },
+        {
+          type: 'response_item',
+          payload: {
+            type: 'function_call',
+            name: 'shell_command',
+            call_id: 'current-call-early',
+            arguments: JSON.stringify({ command: 'echo EARLY_CURRENT_COMMAND' }),
+          },
+        },
+      ].map((entry) => JSON.stringify(entry)).join('\n') + '\n',
+      'utf8',
+    );
+
+    await captureStdout(async () => {
+      await processCodexEventStream(
+        eventsFrom([
+          { type: 'event_msg', payload: { type: 'status' } },
+          { type: 'turn.started' },
+          { type: 'turn.completed' },
+        ]),
+        state,
+        { ...makeConfig(), threadId: 'fixture-thread' },
+      );
+    });
+
+    const commands = emittedMessages.flatMap((message) =>
+      message?.message?.content
+        ?.filter((block) => block.type === 'tool_use')
+        .map((block) => block.input?.command) ?? []
+    );
+    assert.deepEqual(commands, ['echo EARLY_CURRENT_COMMAND']);
+  } finally {
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+});
+
+test('Codex direct response items and JSONL replay emit the same call_id only once', async () => {
+  const tempDirectory = await mkdtemp(join(tmpdir(), 'codex-replay-dedup-'));
+  const tempSessionPath = join(tempDirectory, 'fixture-session.jsonl');
+  await writeFile(tempSessionPath, '', 'utf8');
+
+  try {
+    const emittedMessages = [];
+    const state = createInitialEventState((message) => emittedMessages.push(message));
+    state.sessionFilePath = tempSessionPath;
+    await prepareSessionReplayBoundary(state, 'fixture-thread');
+
+    const functionCall = {
+      type: 'function_call',
+      name: 'shell_command',
+      call_id: 'dedup-call-1',
+      arguments: JSON.stringify({ command: 'echo DEDUP_COMMAND' }),
+    };
+    const functionOutput = {
+      type: 'function_call_output',
+      call_id: 'dedup-call-1',
+      output: 'DEDUP_OUTPUT',
+    };
+    await appendFile(
+      tempSessionPath,
+      [
+        { type: 'turn_context', payload: { cwd: 'C:/fixture' } },
+        { type: 'response_item', payload: functionCall },
+        { type: 'response_item', payload: functionOutput },
+      ].map((entry) => JSON.stringify(entry)).join('\n') + '\n',
+      'utf8',
+    );
+
+    await captureStdout(async () => {
+      await processCodexEventStream(
+        eventsFrom([
+          { type: 'response_item', payload: functionCall },
+          { type: 'response_item', payload: functionOutput },
+          { type: 'event_msg', payload: { type: 'status' } },
+          { type: 'turn.completed' },
+        ]),
+        state,
+        { ...makeConfig(), threadId: 'fixture-thread' },
+      );
+    });
+
+    const matchingBlocks = emittedMessages.flatMap((message) =>
+      message?.message?.content?.filter((block) =>
+        block.id === 'dedup-call-1' || block.tool_use_id === 'dedup-call-1'
+      ) ?? []
+    );
+    assert.equal(matchingBlocks.filter((block) => block.type === 'tool_use').length, 1);
+    assert.equal(matchingBlocks.filter((block) => block.type === 'tool_result').length, 1);
+  } finally {
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
 });
 
 test('isWindowsTaskkillParseNoise: matches English SUCCESS taskkill output', () => {

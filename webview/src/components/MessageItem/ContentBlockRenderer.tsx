@@ -47,6 +47,30 @@ function getExtension(fileName?: string): string {
   return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : '';
 }
 
+/** Format a token count for compact display (e.g., 524835 → "524.8K"). */
+function formatCompactTokens(count: number): string {
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`;
+  return String(count);
+}
+
+/**
+ * Build the compaction-stats subtitle from compact_boundary metadata:
+ * "manual · 524.8K → 14.6K · 110s". Returns null when no stats are present.
+ */
+function formatCompactionStats(meta: CompactSummaryMetadata): string | null {
+  const parts: string[] = [];
+  if (meta.trigger) parts.push(meta.trigger);
+  if (typeof meta.preTokens === 'number') {
+    const tokens = typeof meta.postTokens === 'number'
+      ? `${formatCompactTokens(meta.preTokens)} → ${formatCompactTokens(meta.postTokens)}`
+      : formatCompactTokens(meta.preTokens);
+    parts.push(tokens);
+  }
+  if (typeof meta.durationMs === 'number') parts.push(`${Math.round(meta.durationMs / 1000)}s`);
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
 interface CompactSummaryBlockProps {
   block: {
     type: 'compact_summary';
@@ -72,7 +96,9 @@ const CompactSummaryBlock = memo(function CompactSummaryBlock({ block, t }: Comp
     }
   }, []);
   const meta = block.metadata;
-  const hasMeta = meta && typeof meta.messagesSummarized === 'number';
+  const hasCountMeta = meta && typeof meta.messagesSummarized === 'number';
+  const compactionStats = meta ? formatCompactionStats(meta) : null;
+  const hasMeta = hasCountMeta || compactionStats;
   const titleText = t(block.title);
   const toggleLabel = expanded ? t('chat.compactSummary.collapse') : t('chat.compactSummary.expand');
 
@@ -93,15 +119,20 @@ const CompactSummaryBlock = memo(function CompactSummaryBlock({ block, t }: Comp
       </div>
       {hasMeta && (
         <div className="compact-summary-metadata">
-          <span className="compact-summary-meta-count">
-            {t(
-              meta.direction === 'from'
-                ? 'chat.compactSummary.messagesFrom'
-                : 'chat.compactSummary.messagesUpTo',
-              { count: meta.messagesSummarized },
-            )}
-          </span>
-          {meta.userContext && (
+          {hasCountMeta && (
+            <span className="compact-summary-meta-count">
+              {t(
+                meta.direction === 'from'
+                  ? 'chat.compactSummary.messagesFrom'
+                  : 'chat.compactSummary.messagesUpTo',
+                { count: meta.messagesSummarized },
+              )}
+            </span>
+          )}
+          {compactionStats && (
+            <span className="compact-summary-meta-count">{compactionStats}</span>
+          )}
+          {meta?.userContext && (
             <span className="compact-summary-meta-context">
               {t('chat.compactSummary.userContext', { context: meta.userContext })}
             </span>
@@ -329,12 +360,19 @@ export function ContentBlockRenderer({
 
   // Task notification block - renders as "● summary" with status color
   if (block.type === 'task_notification') {
-    // TypeScript narrows block to { type: 'task_notification'; icon: string; summary: string; status: string }
+    // TypeScript narrows block to { type: 'task_notification'; icon; summary; status; detail? }
     const statusColor = TASK_STATUS_COLORS[block.status] || 'text';
+    const detail = block.detail;
+    const truncatedDetail = detail && detail.length > 300 ? `${detail.slice(0, 300)}…` : detail;
     return (
       <div className={`task-notification-block task-notification-${statusColor}`}>
         <span className="task-notification-icon">{block.icon}</span>
-        <span className="task-notification-summary">{block.summary}</span>
+        <span className="task-notification-summary">
+          {block.summary}
+          {truncatedDetail && (
+            <span className="task-notification-detail" title={detail}>{truncatedDetail}</span>
+          )}
+        </span>
       </div>
     );
   }

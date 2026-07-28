@@ -23,6 +23,7 @@ import {
 } from '../messageSync';
 import { releaseSessionTransition } from '../sessionTransition';
 import { parseSequence } from '../parseSequence';
+import { reconstructTurnMetadata } from '../../../utils/turnMetadataReconstruction';
 import { collectUnresolvedToolUseIds } from './streamingCallbacks';
 
 const isTruthy = (v: unknown) => v === true || v === 'true';
@@ -164,7 +165,14 @@ export function registerMessageCallbacks(
     }
 
     try {
-      const parsed = JSON.parse(json) as ClaudeMessage[];
+      // Reconstruct per-turn footer metadata (durationMs / turnUsage) for
+      // settled turns in the snapshot — the persisted transcript carries
+      // neither field, so reloaded sessions lost the duration/token footer.
+      // The trailing turn is skipped while streaming: live stamping owns it.
+      const parsed = reconstructTurnMetadata(
+        JSON.parse(json) as ClaudeMessage[],
+        { skipTrailingTurn: isStreamingRef.current },
+      );
       if (sequence != null) {
         window.__minAcceptedUpdateSequence = Math.max(minAcceptedSequence, sequence);
       }

@@ -7,6 +7,11 @@ import WaitingIndicator from './WaitingIndicator';
 import { ContextMenu } from './ContextMenu';
 import { useContextMenu, copySelection } from '../hooks/useContextMenu.js';
 import type { MessageListRevealHandle } from './ConversationSearch/types';
+import {
+  DETAILED_OUTPUT_ENABLED_EVENT,
+  getDetailedOutputEnabled,
+  type DetailedOutputEnabledChangedDetail,
+} from '../utils/detailedOutputPreference';
 
 /** Always render at least this many recent messages. Earlier messages are collapsed. */
 const VISIBLE_MESSAGE_WINDOW = 15;
@@ -89,6 +94,9 @@ export const MessageList = memo(forwardRef<MessageListRevealHandle, MessageListP
   // page-size chunks as the user clicks "show earlier", avoiding a single huge
   // mount when sessions exceed hundreds of messages.
   const [revealedCount, setRevealedCount] = useState(0);
+  const [detailedOutputEnabled, setDetailedOutputEnabled] = useState(() =>
+    getDetailedOutputEnabled()
+  );
 
   // Context menu for message list (copy only, when text selected)
   const ctxMenu = useContextMenu();
@@ -137,6 +145,18 @@ export const MessageList = memo(forwardRef<MessageListRevealHandle, MessageListP
   useEffect(() => {
     onCollapsedCountChange?.(collapsedCount);
   }, [collapsedCount, onCollapsedCountChange]);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent<DetailedOutputEnabledChangedDetail>;
+      if (custom.detail && typeof custom.detail.enabled === 'boolean') {
+        setDetailedOutputEnabled(custom.detail.enabled);
+      }
+    };
+    window.addEventListener(DETAILED_OUTPUT_ENABLED_EVENT, handler);
+    return () => window.removeEventListener(DETAILED_OUTPUT_ENABLED_EVENT, handler);
+  }, []);
+
   const visibleMessages = useMemo(
     () => (shouldCollapse ? messages.slice(collapsedCount) : messages),
     [messages, shouldCollapse, collapsedCount]
@@ -188,6 +208,7 @@ export const MessageList = memo(forwardRef<MessageListRevealHandle, MessageListP
             onNavigateToDependencySettings={onNavigateToDependencySettings}
             toolResultSignature={toolResultSignature}
             currentProvider={currentProvider}
+            detailedOutputEnabled={detailedOutputEnabled}
           />
         );
       })}

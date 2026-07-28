@@ -15,6 +15,12 @@ import {
   SKIP_NEW_SESSION_CONFIRM_EVENT,
   type SkipNewSessionConfirmChangedDetail,
 } from '../../../utils/skipNewSessionConfirm';
+import {
+  DETAILED_OUTPUT_ENABLED_EVENT,
+  getDetailedOutputEnabled,
+  setDetailedOutputEnabled,
+  type DetailedOutputEnabledChangedDetail,
+} from '../../../utils/detailedOutputPreference';
 
 const sendToJava = (message: string) => {
   if (window.sendToJava) {
@@ -81,6 +87,7 @@ export interface UseSettingsBasicActionsReturn {
   statusBarWidgetEnabled: boolean;
   taskCompletionNotificationEnabled: boolean;
   askUserQuestionNotificationEnabled: boolean;
+  detailedOutputEnabled: boolean;
   commitAiConfig: CommitAiConfig;
   promptEnhancerConfig: PromptEnhancerConfig;
 
@@ -114,6 +121,7 @@ export interface UseSettingsBasicActionsReturn {
   handleStatusBarWidgetEnabledChange: (enabled: boolean) => void;
   handleTaskCompletionNotificationEnabledChange: (enabled: boolean) => void;
   handleAskUserQuestionNotificationEnabledChange: (enabled: boolean) => void;
+  handleDetailedOutputEnabledChange: (enabled: boolean) => void;
   permissionDialogTimeoutSeconds: number;
   handlePermissionDialogTimeoutChange: (seconds: number) => void;
   handleCommitAiProviderChange: (provider: CommitAiProvider) => void;
@@ -282,6 +290,22 @@ export function useSettingsBasicActions({
 
   // AskUserQuestion reminder notification toggle (default: false, opt-in feature)
   const [askUserQuestionNotificationEnabled, setAskUserQuestionNotificationEnabled] = useState<boolean>(false);
+
+  // Detailed message footer output (localStorage-only, default: false to preserve original footer style)
+  const [detailedOutputEnabled, setDetailedOutputEnabledState] = useState<boolean>(() =>
+    getDetailedOutputEnabled()
+  );
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent<DetailedOutputEnabledChangedDetail>;
+      if (custom.detail && typeof custom.detail.enabled === 'boolean') {
+        setDetailedOutputEnabledState(custom.detail.enabled);
+      }
+    };
+    window.addEventListener(DETAILED_OUTPUT_ENABLED_EVENT, handler);
+    return () => window.removeEventListener(DETAILED_OUTPUT_ENABLED_EVENT, handler);
+  }, []);
 
   // Permission dialog timeout — owned by App.tsx; we treat the prop as authoritative.
   // We intentionally do NOT keep a local copy: it would be dead state because the
@@ -499,6 +523,11 @@ export function useSettingsBasicActions({
     sendToJava(`set_ask_user_question_notification_enabled:${JSON.stringify(payload)}`);
   }, []);
 
+  const handleDetailedOutputEnabledChange = useCallback((enabled: boolean) => {
+    setDetailedOutputEnabledState(enabled);
+    setDetailedOutputEnabled(enabled);
+  }, []);
+
   // Permission dialog timeout change handler
   const handlePermissionDialogTimeoutChange = useCallback((seconds: number) => {
     const clamped = clampPermissionDialogTimeoutSeconds(seconds);
@@ -713,6 +742,8 @@ export function useSettingsBasicActions({
     askUserQuestionNotificationEnabled,
     setAskUserQuestionNotificationEnabled,
     handleAskUserQuestionNotificationEnabledChange,
+    detailedOutputEnabled,
+    handleDetailedOutputEnabledChange,
     permissionDialogTimeoutSeconds,
     handlePermissionDialogTimeoutChange,
     commitAiConfig,

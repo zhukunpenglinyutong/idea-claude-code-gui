@@ -7,6 +7,8 @@ import {
   formatCommandForDisplay,
   formatCommandForResubmit,
   formatTaskNotificationForDisplay,
+  createTaskNotificationBlock,
+  attachCompactBoundaryMetadata,
   hasCommandMessageTag,
   hasTaskNotificationTag,
   isTaskNotificationOnlyMessage,
@@ -1054,3 +1056,202 @@ describe('buildCompactNotification', () => {
   });
 });
 
+
+// ---------------------------------------------------------------------------
+// formatCommandForResubmit — real CLI tag order (command-name → command-message
+// → command-args). A combined regex used to require args to IMMEDIATELY follow
+// the name, silently dropping them from copy/export.
+// ---------------------------------------------------------------------------
+
+describe('formatCommandForResubmit — name → message → args tag order', () => {
+  it('extracts args when <command-message> sits between name and args', () => {
+    const text = '<command-name>/effort</command-name>\n<command-message>effort</command-message>\n<command-args>ultracode</command-args>';
+    expect(formatCommandForResubmit(text)).toBe('/effort ultracode');
+  });
+
+  it('extracts multi-word args in the real order', () => {
+    const text = '<command-name>/plugin</command-name>\n<command-message>plugin</command-message>\n<command-args>marketplace list</command-args>';
+    expect(formatCommandForResubmit(text)).toBe('/plugin marketplace list');
+  });
+
+  it('extracts multiline args bodies (e.g. /compact instructions)', () => {
+    const text = '<command-name>/compact</command-name>\n<command-message>compact</command-message>\n<command-args>keep the source paths\nand the test counts</command-args>';
+    expect(formatCommandForResubmit(text)).toBe('/compact keep the source paths\nand the test counts');
+  });
+
+  it('still supports the message-first order', () => {
+    const text = '<command-message>effort</command-message>\n<command-name>/effort</command-name>\n<command-args>ultracode</command-args>';
+    expect(formatCommandForResubmit(text)).toBe('/effort ultracode');
+  });
+});
+
+describe('formatCommandForDisplay — tag order tolerance', () => {
+  it('renders args when command-name precedes command-message (real CLI order)', () => {
+    const text = '<command-name>/effort</command-name>\n<command-message>effort</command-message>\n<command-args>ultracode</command-args>';
+    expect(formatCommandForDisplay(text)).toBe('/effort ultracode');
+  });
+
+  it('renders skill format regardless of tag position', () => {
+    const text = '<skill-format>true</skill-format>\n<command-message>opsx:ff</command-message>';
+    expect(formatCommandForDisplay(text)).toBe('Skill(opsx:ff)');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatTaskNotificationForDisplay — <event> payload (monitor notifications)
+// ---------------------------------------------------------------------------
+
+describe('formatTaskNotificationForDisplay — <event> payload', () => {
+  it('returns the event body as detail for status-less monitor events', () => {
+    const text = '<task-notification>\n<task-id>bkvs4037z</task-id>\n<summary>Monitor event: "verify gate exit + result"</summary>\n<event>2026-07-13 14:14:23.887 [main] ERROR c.k.p.s.StatusClient - Failed to check branch status 123456\nEXIT=</event>\n</task-notification>';
+    const result = formatTaskNotificationForDisplay(text);
+    expect(result?.summary).toBe('Monitor event: "verify gate exit + result"');
+    expect(result?.status).toBe('completed');
+    expect(result?.detail).toBe('2026-07-13 14:14:23.887 [main] ERROR c.k.p.s.StatusClient - Failed to check branch status 123456\nEXIT=');
+  });
+
+  it('returns detail together with an explicit status', () => {
+    const text = '<task-notification><status>failed</status><summary>Build watch</summary><event>[ERROR] compilation failed</event></task-notification>';
+    const result = formatTaskNotificationForDisplay(text);
+    expect(result?.status).toBe('failed');
+    expect(result?.detail).toBe('[ERROR] compilation failed');
+  });
+
+  it('omits detail when there is no event tag', () => {
+    const text = '<task-notification><status>completed</status><summary>Review finished</summary></task-notification>';
+    const result = formatTaskNotificationForDisplay(text);
+    expect(result?.detail).toBeUndefined();
+  });
+
+  it('propagates detail into the task_notification content block', () => {
+    const text = '<task-notification><summary>Monitor event</summary><event>[INFO] BUILD SUCCESS</event></task-notification>';
+    const block = createTaskNotificationBlock(text);
+    expect(block).toMatchObject({ type: 'task_notification', summary: 'Monitor event', detail: '[INFO] BUILD SUCCESS' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// attachCompactBoundaryMetadata — pairing the compact_boundary system line with
+// the compact-summary user line (real two-line transcript shape)
+// ---------------------------------------------------------------------------
+
+describe('attachCompactBoundaryMetadata', () => {
+  // Mirrors the real JSONL pair: a type:'system', subtype:'compact_boundary'
+  // line carrying compactMetadata, immediately followed by the summary line.
+  const boundaryMessage = (): ClaudeMessage => ({
+    type: 'system',
+    content: 'Conversation compacted',
+    raw: {
+      type: 'system',
+      subtype: 'compact_boundary',
+      content: 'Conversation compacted',
+      isMeta: false,
+      compactMetadata: {
+        trigger: 'manual',
+        preTokens: 524835,
+        durationMs: 109542,
+        postTokens: 14582,
+        preCompactDiscoveredTools: ['TaskCreate', 'TaskUpdate'],
+      },
+    } as ClaudeMessage['raw'],
+  });
+
+  const summaryMessage = (): ClaudeMessage => ({
+    type: 'user',
+    content: '',
+    raw: {
+      type: 'user',
+      isCompactSummary: true,
+      message: { role: 'user', content: 'This session is being continued from a previous conversation…' },
+    } as ClaudeMessage['raw'],
+  });
+
+  it('attaches compactMetadata to the following compact-summary message and drops the boundary line', () => {
+    const other = makeMsg('user', 'hello');
+    const result = attachCompactBoundaryMetadata([other, boundaryMessage(), summaryMessage()]);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toBe(other);
+    const raw = result[1].raw as Record<string, unknown>;
+    expect(raw.isCompactSummary).toBe(true);
+    expect(raw.compactMetadata).toMatchObject({
+      trigger: 'manual',
+      preTokens: 524835,
+      postTokens: 14582,
+      durationMs: 109542,
+    });
+  });
+
+  it('returns the same array reference when no boundary line is present', () => {
+    const messages = [makeMsg('user', 'hello'), makeMsg('assistant', 'hi')];
+    expect(attachCompactBoundaryMetadata(messages)).toBe(messages);
+  });
+
+  it('does not overwrite metadata the summary already carries', () => {
+    const summary = summaryMessage();
+    (summary.raw as Record<string, unknown>).compactMetadata = { trigger: 'auto', preTokens: 1 };
+    const result = attachCompactBoundaryMetadata([boundaryMessage(), summary]);
+
+    expect(result).toHaveLength(1);
+    expect((result[0].raw as Record<string, unknown>).compactMetadata).toMatchObject({ trigger: 'auto', preTokens: 1 });
+  });
+
+  it('pairs across intermediate messages between boundary and summary', () => {
+    const between = makeMsg('assistant', 'unrelated');
+    const result = attachCompactBoundaryMetadata([boundaryMessage(), between, summaryMessage()]);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toBe(between);
+    expect((result[1].raw as Record<string, unknown>).compactMetadata).toMatchObject({ trigger: 'manual' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getContentBlocks — compact summary metadata subtitle wiring
+// ---------------------------------------------------------------------------
+
+describe('getContentBlocks — compact summary compactMetadata', () => {
+  const normalizeBlocksFn = () => null;
+  const localizeMessage = (text: string) => text;
+
+  it('exposes compactMetadata as the compact_summary block metadata', () => {
+    const message: ClaudeMessage = {
+      type: 'notification',
+      content: '',
+      raw: {
+        type: 'user',
+        isCompactSummary: true,
+        compactMetadata: { trigger: 'manual', preTokens: 524835, postTokens: 14582, durationMs: 109542 },
+        message: { role: 'user', content: 'This session is being continued…' },
+      } as ClaudeMessage['raw'],
+    };
+
+    const blocks = getContentBlocks(message, normalizeBlocksFn, localizeMessage);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toMatchObject({
+      type: 'compact_summary',
+      content: 'This session is being continued…',
+      metadata: { trigger: 'manual', preTokens: 524835, postTokens: 14582, durationMs: 109542 },
+    });
+  });
+
+  it('still honors the legacy summarizeMetadata shape', () => {
+    const message: ClaudeMessage = {
+      type: 'notification',
+      content: '',
+      raw: {
+        type: 'user',
+        isCompactSummary: true,
+        summarizeMetadata: { messagesSummarized: 12, direction: 'up_to' },
+        message: { role: 'user', content: 'summary' },
+      } as ClaudeMessage['raw'],
+    };
+
+    const blocks = getContentBlocks(message, normalizeBlocksFn, localizeMessage);
+    expect(blocks[0]).toMatchObject({
+      type: 'compact_summary',
+      title: 'chat.compactSummary.summarizedConversation',
+      metadata: { messagesSummarized: 12 },
+    });
+  });
+});

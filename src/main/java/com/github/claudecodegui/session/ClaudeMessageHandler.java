@@ -6,6 +6,7 @@ import com.github.claudecodegui.notifications.ClaudeNotifier;
 import com.github.claudecodegui.provider.common.MessageCallback;
 import com.github.claudecodegui.provider.common.SDKResult;
 import com.github.claudecodegui.util.TokenUsageUtils;
+import com.github.claudecodegui.util.UsageCostCalculator;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -610,7 +611,12 @@ public class ClaudeMessageHandler implements MessageCallback {
                 // top-level turnUsage field for the per-turn token display in the webview.
                 // Distinct from message.usage below, which tracks per-call context occupancy
                 // for the status bar and must keep its semantics.
-                currentAssistantMessage.raw.add("turnUsage", resultJson.getAsJsonObject("usage").deepCopy());
+                JsonObject turnUsage = resultJson.getAsJsonObject("usage");
+                currentAssistantMessage.raw.add("turnUsage", turnUsage.deepCopy());
+                Double turnCostUsd = UsageCostCalculator.calculateTurnCostUsd(state.getProvider(), turnUsage, state.getModel());
+                if (turnCostUsd != null) {
+                    currentAssistantMessage.raw.addProperty("turnCostUsd", turnCostUsd);
+                }
 
                 // Fallback: only update usage from result if no usage was received via [USAGE] tag or assistant message
                 JsonObject msg = currentAssistantMessage.raw.has("message")
@@ -628,6 +634,7 @@ public class ClaudeMessageHandler implements MessageCallback {
                     callbackHandler.notifyUsageUpdate(usedTokens, maxTokens);
                     LOG.debug("Fallback: updated token usage from result message: " + usedTokens);
                 }
+                callbackHandler.notifyMessageUpdate(state.getMessages());
             }
         } catch (Exception e) {
             LOG.warn("Failed to parse result message: " + e.getMessage());

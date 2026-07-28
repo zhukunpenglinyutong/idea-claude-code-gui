@@ -112,6 +112,8 @@ export interface BehaviorTabProps {
   onTaskCompletionNotificationEnabledChange?: (enabled: boolean) => void;
   askUserQuestionNotificationEnabled?: boolean;
   onAskUserQuestionNotificationEnabledChange?: (enabled: boolean) => void;
+  detailedOutputEnabled?: boolean;
+  onDetailedOutputEnabledChange?: (enabled: boolean) => void;
   permissionDialogTimeoutSeconds?: number;
   onPermissionDialogTimeoutChange?: (seconds: number) => void;
 }
@@ -148,6 +150,8 @@ const BehaviorTab = ({
   onTaskCompletionNotificationEnabledChange = () => {},
   askUserQuestionNotificationEnabled = false,
   onAskUserQuestionNotificationEnabledChange = () => {},
+  detailedOutputEnabled = false,
+  onDetailedOutputEnabledChange = () => {},
   permissionDialogTimeoutSeconds = DEFAULT_PERMISSION_DIALOG_TIMEOUT_SECONDS,
   onPermissionDialogTimeoutChange = () => {},
 }: BehaviorTabProps) => {
@@ -385,6 +389,32 @@ const BehaviorTab = ({
         <small className={styles.formHint}>
           <span className="codicon codicon-info" />
           <span>{t('settings.basic.newSessionConfirm.hint')}</span>
+        </small>
+      </div>
+
+      {/* Detailed output information toggle */}
+      <div className={styles.streamingSection}>
+        <div className={styles.fieldHeader}>
+          <span className="codicon codicon-output" />
+          <span className={styles.fieldLabel}>{t('settings.basic.detailedOutput.label')}</span>
+        </div>
+        <label className={styles.toggleWrapper}>
+          <input
+            type="checkbox"
+            className={styles.toggleInput}
+            checked={detailedOutputEnabled}
+            onChange={(e) => onDetailedOutputEnabledChange(e.target.checked)}
+          />
+          <span className={styles.toggleSlider} />
+          <span className={styles.toggleLabel}>
+            {detailedOutputEnabled
+              ? t('settings.basic.detailedOutput.enabled')
+              : t('settings.basic.detailedOutput.disabled')}
+          </span>
+        </label>
+        <small className={styles.formHint}>
+          <span className="codicon codicon-info" />
+          <span>{t('settings.basic.detailedOutput.hint')}</span>
         </small>
       </div>
 

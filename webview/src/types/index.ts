@@ -10,11 +10,22 @@ export interface CompactNotificationItem {
 /**
  * Metadata for compact summary messages.
  * Contains information about the compaction operation.
+ * The real transcript shape lives on a separate `type: 'system',
+ * subtype: 'compact_boundary'` line under `compactMetadata`
+ * ({ trigger, preTokens, postTokens, durationMs, … }).
  */
 export interface CompactSummaryMetadata {
   messagesSummarized?: number;
   direction?: 'up_to' | 'from';
   userContext?: string;
+  /** What initiated the compaction ('manual' | 'auto'). */
+  trigger?: string;
+  /** Context tokens before compaction. */
+  preTokens?: number;
+  /** Context tokens after compaction. */
+  postTokens?: number;
+  /** How long the compaction took, in milliseconds. */
+  durationMs?: number;
 }
 
 /**
@@ -26,6 +37,10 @@ export function isCompactSummaryMetadata(obj: unknown): obj is CompactSummaryMet
   if (m.messagesSummarized !== undefined && typeof m.messagesSummarized !== 'number') return false;
   if (m.direction !== undefined && m.direction !== 'up_to' && m.direction !== 'from') return false;
   if (m.userContext !== undefined && typeof m.userContext !== 'string') return false;
+  if (m.trigger !== undefined && typeof m.trigger !== 'string') return false;
+  if (m.preTokens !== undefined && typeof m.preTokens !== 'number') return false;
+  if (m.postTokens !== undefined && typeof m.postTokens !== 'number') return false;
+  if (m.durationMs !== undefined && typeof m.durationMs !== 'number') return false;
   return true;
 }
 
@@ -35,7 +50,7 @@ export type ClaudeContentBlock =
   | { type: 'tool_use'; id?: string; name?: string; input?: ToolInput }
   | { type: 'image'; src?: string; mediaType?: string; alt?: string }
   | { type: 'attachment'; fileName?: string; mediaType?: string }
-  | { type: 'task_notification'; icon: string; summary: string; status: string }
+  | { type: 'task_notification'; icon: string; summary: string; status: string; detail?: string }
   | { type: 'compact_notification'; headerText: string; items: CompactNotificationItem[] }
   | { type: 'compact_summary'; title: string; content: string; metadata?: CompactSummaryMetadata };
 

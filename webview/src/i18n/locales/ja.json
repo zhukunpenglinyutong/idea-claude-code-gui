@@ -96,6 +96,7 @@
     "totalDuration": "今回の応答時間",
     "tokenUsage": "入力 {{input}} / 出力 {{output}}",
     "tokenUsageDetail": "ターン合計 — 入力 {{input}} · キャッシュ書き込み {{cacheWrite}} · キャッシュ読み取り {{cacheRead}} · 出力 {{output}}",
+    "cacheHitsWithRatio": "（キャッシュヒット {{tokens}}、{{ratio}}）",
     "search": {
       "ariaLabel": "会話内を検索",
       "placeholder": "会話内を検索...",
@@ -255,6 +256,12 @@
         "enabled": "有効",
         "disabled": "無効",
         "hint": "有効にすると、Claude が質問した時にシステム通知を表示し、見逃しを防ぎます。無効の場合、通知は表示されません。"
+      },
+      "detailedOutput": {
+        "label": "詳細な出力情報",
+        "enabled": "有効",
+        "disabled": "無効",
+        "hint": "有効にすると、利用可能な場合にメッセージ下部へターンの推定コストを表示し、入力 Token の概要内にキャッシュヒットを含めます。Token 消費量は常に表示されます。"
       },
       "sendShortcut": {
         "label": "送信ショートカット",
@@ -1440,9 +1447,17 @@
       }
     },
     "codex": {
-      "gpt53codex": {
-        "label": "GPT-5.3-Codex",
-        "description": "最新の最先端エージェントコーディングモデル（機能強化版）"
+      "gpt56sol": {
+        "label": "GPT-5.6 Sol",
+        "description": "複雑なプロフェッショナル業務向けのフロンティアモデル"
+      },
+      "gpt56terra": {
+        "label": "GPT-5.6 Terra",
+        "description": "知能とコストのバランスに優れた GPT-5.6 モデル"
+      },
+      "gpt56luna": {
+        "label": "GPT-5.6 Luna",
+        "description": "コスト重視のワークロードに最適化された GPT-5.6 モデル"
       },
       "gpt55": {
         "label": "GPT-5.5",
@@ -1451,30 +1466,6 @@
       "gpt54": {
         "label": "GPT-5.4",
         "description": "拡張された能力を備えた最新の最先端モデル"
-      },
-      "gpt52codex": {
-        "label": "GPT-5.2-Codex",
-        "description": "最先端のエージェントコーディングモデル"
-      },
-      "gpt51codexMax": {
-        "label": "GPT-5.1-Codex-Max",
-        "description": "Codex最適化のフラッグシップ、深い推論と高速処理を両立"
-      },
-      "gpt54mini": {
-        "label": "GPT-5.4-Mini",
-        "description": "より軽量な最先端エージェントコーディングモデル"
-      },
-      "gpt53codexSpark": {
-        "label": "GPT-5.3-Codex-Spark",
-        "description": "超高速コーディングモデル"
-      },
-      "gpt52": {
-        "label": "GPT-5.2",
-        "description": "プロ向け作業と長時間エージェント向けに最適化"
-      },
-      "gpt51codexMini": {
-        "label": "GPT-5.1-Codex-Mini",
-        "description": "Codex用に最適化。より安価で高速ですが、性能は低下"
       }
     }
   },

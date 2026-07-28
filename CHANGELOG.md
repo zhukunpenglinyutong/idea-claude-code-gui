@@ -1,3 +1,55 @@
+##### **2026年7月19日（v0.4.7-fix2）**
+
+English:
+
+✨ Features
+- Add a **Detailed output in message footer** setting: users can choose whether per-message footers show expanded metadata such as model, duration and working directory, while token/cost essentials stay easy to scan (by @EzioX1459)
+
+🐛 Fixes
+- Restore **IntelliJ 2026.2 plugin loading** by registering tool-window/editor actions with the platform-compatible extension points (by @zkpaiminmin)
+- Fix **Codex resumed-session replay leaking historical tool calls**: JSONL replay now captures a pre-turn baseline and waits for the current turn's `turn_context`, so old commands/results are not re-emitted as if they belonged to the new turn (by @MrHuapen)
+- Fix **multi-tab and streaming transcript merge edge cases**: empty assistant placeholders are filled in place, final snapshots are pushed to the right tab/session, and current-turn metadata is reconstructed more reliably after reloads (by @gadfly3173, @vitas13)
+- Fix **message rendering regressions** across collapsed text, normalized content blocks, Read/Bash/generic tool output, ANSI stripping, copied text, and image-bearing tool results (by @vitas13)
+- Fix **usage and cost display drift**: Claude/Codex costs now come from shared pricing tables, Codex cached-token aliases are accepted, cache hits and per-turn USD cost are preserved in frontend transport, and custom/unpriced models avoid bogus costs (by @EzioX1459, @zkpaiminmin)
+- Fix the **Codex quota popup being clipped** by the provider dropdown container (by @elexiang)
+- Fix **Keep All** using stale file-change state and resurrecting old changes after the user accepted the current set (by @hebulin)
+
+中文：
+
+✨ 新功能
+- 新增**消息底部详细输出**设置：用户可选择是否在每条消息底部显示模型、耗时、工作目录等扩展元数据，同时保留 token / 费用等核心信息的可读性（by @EzioX1459）
+
+🐛 修复
+- 恢复 **IntelliJ 2026.2 插件加载**：将工具窗口 / 编辑器 action 注册到兼容新版平台的扩展点（by @zkpaiminmin）
+- 修复 **Codex 恢复会话时历史工具调用被重新回放**：JSONL replay 现在会记录当前轮次开始前的基线，并等待本轮 `turn_context` 后才回放，避免旧命令 / 旧结果被当成本轮内容再次下发（by @MrHuapen）
+- 修复**多标签页与流式转录合并边界问题**：空的助手占位块会原地填充，最终快照会推送到正确 tab / session，reload 后也能更可靠地重建当前轮次元数据（by @gadfly3173、@vitas13）
+- 修复**消息渲染回归**，覆盖折叠文本、标准化 content block、Read / Bash / 通用工具输出、ANSI 清理、复制文本以及带图片的工具结果（by @vitas13）
+- 修复**用量与费用显示不一致**：Claude / Codex 费用统一走共享定价表，Codex 兼容 cached-token 别名，cache hit 与单轮美元费用会保留到前端传输，自定义 / 未定价模型不会显示虚假费用（by @EzioX1459、@zkpaiminmin）
+- 修复 **Codex 配额弹窗被 provider 下拉容器裁剪**（by @elexiang）
+- 修复 **Keep All** 使用过期文件变更状态，导致接受当前变更后旧变更又被带回来的问题（by @hebulin）
+
+---
+
+##### **2026年7月9日（v0.4.7-fix1）**
+
+English:
+
+✨ Features
+- Add the **GPT-5.6 model family** (Sol / Terra / Luna) as built-in Codex models: 1.05M context windows, usage pricing for cost estimation, `gpt-5.6` prefix/alias matching resolving to Sol, and localized labels and descriptions across all 10 languages (by @zkpaiminmin)
+
+🔧 Improvements
+- Trim the built-in Codex model dropdown to the current lineup — GPT-5.6 Sol / Terra / Luna, GPT-5.5 and GPT-5.4 — removing the retired `gpt-5.2-codex`, `gpt-5.1-codex-max`, `gpt-5.4-mini`, `gpt-5.3-codex`, `gpt-5.3-codex-spark`, `gpt-5.2` and `gpt-5.1-codex-mini` entries (by @zkpaiminmin)
+
+中文：
+
+✨ 新功能
+- 新增 **GPT-5.6 系列模型**（Sol / Terra / Luna）为 Codex 内置模型：1.05M 上下文窗口、用于费用估算的用量计价、`gpt-5.6` 前缀/别名匹配解析到 Sol，以及覆盖全部 10 种语言的本地化标签与描述（by @zkpaiminmin）
+
+🔧 优化
+- Codex 内置模型下拉列表精简为当前阵容——GPT-5.6 Sol / Terra / Luna、GPT-5.5 与 GPT-5.4，移除已下线的 `gpt-5.2-codex`、`gpt-5.1-codex-max`、`gpt-5.4-mini`、`gpt-5.3-codex`、`gpt-5.3-codex-spark`、`gpt-5.2` 和 `gpt-5.1-codex-mini`（by @zkpaiminmin）
+
+---
+
 ##### **2026年7月9日（v0.4.7）**
 
 English:

@@ -401,6 +401,17 @@ public class StreamMessageCoalescer {
                         }
                         return;
                     }
+                    // Merge note (upstream c1f8c131): upstream fixed the same
+                    // "turn's final snapshot is lost" bug by force-pushing a stale
+                    // snapshot with a fresh sequence, restricted to the flush path
+                    // (afterSendOnEdt != null) because an outdated ALARM frame
+                    // force-pushed that way could overwrite the final one. The
+                    // content-version gate below supersedes that: it compares how new
+                    // a frame's CONTENT is instead of inferring it from which path
+                    // produced it, so an outdated frame is skipped on either path —
+                    // and, unlike the sequence-only check, it also refuses a flush
+                    // whose content is older than what was already delivered (the
+                    // case that dropped the turn's final ERROR message).
                     PushDecision decision = decidePush(
                             snapshotVersion, pushedContentVersion, streamActive, sequence, updateSequence);
                     if (decision == PushDecision.SKIP) {

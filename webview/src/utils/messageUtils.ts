@@ -38,6 +38,7 @@ export {
   formatCommandForResubmit,
   hasTaskNotificationTag,
   formatTaskNotificationForDisplay,
+  createTaskNotificationBlock,
   extractCommandMessageContent,
   isSyntheticToolMessageContent,
   normalizeBlocks,
@@ -165,6 +166,60 @@ export function isCompactRelatedMessage(message: ClaudeMessage): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * Check if a message is a compact-boundary system line. The CLI writes the real
+ * compaction metadata ({ trigger, preTokens, postTokens, durationMs, … }) on a
+ * separate `type: 'system', subtype: 'compact_boundary'` JSONL line, NOT on the
+ * compact-summary user line itself.
+ */
+export function isCompactBoundaryMessage(message: ClaudeMessage): boolean {
+  const raw = message.raw;
+  if (!raw || typeof raw !== 'object') return false;
+  const rawObj = raw as Record<string, unknown>;
+  const type = message.type === 'system' || rawObj.type === 'system';
+  return type && rawObj.subtype === 'compact_boundary';
+}
+
+/**
+ * Pair each compact-boundary system line with the compact-summary user line that
+ * follows it: attach its `compactMetadata` to the summary message's raw (so the
+ * CompactSummaryBlock can render the stats subtitle) and drop the boundary line
+ * itself (it is a metadata carrier, not user-visible content).
+ * Returns the input array unchanged when no boundary lines are present.
+ */
+export function attachCompactBoundaryMetadata(messages: ClaudeMessage[]): ClaudeMessage[] {
+  if (!messages.some(isCompactBoundaryMessage)) return messages;
+
+  const result: ClaudeMessage[] = [];
+  let pendingMetadata: unknown = null;
+
+  for (const message of messages) {
+    if (isCompactBoundaryMessage(message)) {
+      const rawObj = message.raw as Record<string, unknown>;
+      const meta = rawObj.compactMetadata;
+      if (meta && typeof meta === 'object') {
+        pendingMetadata = meta;
+      }
+      continue; // boundary line carries no user-visible content
+    }
+
+    if (pendingMetadata && message.raw && typeof message.raw === 'object' && message.raw.isCompactSummary) {
+      const rawObj = message.raw as Record<string, unknown>;
+      result.push(
+        rawObj.compactMetadata
+          ? message
+          : { ...message, raw: { ...(message.raw as ClaudeRawMessage), compactMetadata: pendingMetadata } },
+      );
+      pendingMetadata = null;
+      continue;
+    }
+
+    result.push(message);
+  }
+
+  return result;
 }
 
 const COMPACT_STDOUT_REGEX = /<local-command-stdout>([\s\S]*?)<\/local-command-stdout>/;
@@ -427,10 +482,14 @@ export function getContentBlocks(
   if (message.type === MESSAGE_TYPES.NOTIFICATION) {
     const rawObj = typeof message.raw === 'object' ? (message.raw as Record<string, unknown> | null) : null;
     if (rawObj && 'isCompactSummary' in rawObj && rawObj.isCompactSummary) {
-      // Use type guard for safe metadata extraction
-      const meta: CompactSummaryMetadata | undefined = isCompactSummaryMetadata(rawObj.summarizeMetadata)
-        ? rawObj.summarizeMetadata
-        : undefined;
+      // Use type guard for safe metadata extraction. Real transcripts carry the
+      // metadata as `compactMetadata` (attached from the compact_boundary system
+      // line by attachCompactBoundaryMetadata); `summarizeMetadata` is a legacy shape.
+      const meta: CompactSummaryMetadata | undefined = isCompactSummaryMetadata(rawObj.compactMetadata)
+        ? rawObj.compactMetadata
+        : isCompactSummaryMetadata(rawObj.summarizeMetadata)
+          ? rawObj.summarizeMetadata
+          : undefined;
       // Extract full summary text from raw.message.content
       const messageObj = rawObj.message as { content?: string | unknown[] } | undefined;
       let summaryText = '';

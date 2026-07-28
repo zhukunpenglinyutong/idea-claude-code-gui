@@ -201,10 +201,13 @@ public class MessageJsonConverter {
         copyFieldIfPresent(raw, transport, "origin");
         // Whole-turn aggregated usage stamped by ClaudeMessageHandler.handleResult /
         // CodexMessageHandler.handleResultMessage, for the per-turn token display.
+        // Whole-turn estimated cost is calculated by the backend from the same pricing
+        // configuration used by Usage Statistics; the frontend only formats it.
         // Deliberately NOT copying the top-level usage or message.usage fields:
         // those carry per-call / session-cumulative values for the status bar and
         // would be misleading if rendered per message.
         copyFieldIfPresent(raw, transport, "turnUsage");
+        copyFieldIfPresent(raw, transport, "turnCostUsd");
 
         if (raw.has("content")) {
             transport.add("content", raw.get("content").deepCopy());

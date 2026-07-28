@@ -8,6 +8,7 @@
  *
  * Exports:
  *   - createInitialEventState(emitMessage) — factory for the mutable state bag
+ *   - prepareSessionReplayBoundary(state, threadId) — captures the pre-turn JSONL baseline
  *   - processCodexEventStream(events, state, config) — the main event loop
  */
 
@@ -118,8 +119,12 @@ export function createInitialEventState(emitMessage) {
     emittedDeniedCommandToolResultIds: new Set(),
     sessionFilePath: null,
     sessionLineCursor: 0,
-    sessionFunctionCursor: 0,
-    sessionTurnStartCursor: 0,
+    sessionReplayBaselineCursor: null,
+    sessionReplayBaselinePrepared: false,
+    sessionFunctionCursor: null,
+    sessionTurnStartCursor: null,
+    sessionTurnBoundaryReady: false,
+    sessionTurnBoundaryWarningLogged: false,
     processedPatchCallIds: new Set(),
     processedSessionFunctionCallIds: new Set(),
     processedSessionFunctionOutputIds: new Set(),
@@ -181,6 +186,85 @@ function countSessionJsonlLines(content) {
   return splitSessionJsonlEntries(content).length;
 }
 
+/**
+ * Captures the end of the existing session before the current Codex turn starts.
+ * A later replay boundary is only accepted when a new turn_context appears at or
+ * after this cursor, so historical function calls can never become replay candidates.
+ */
+export async function prepareSessionReplayBoundary(state, threadId) {
+  state.sessionReplayBaselinePrepared = true;
+  state.sessionReplayBaselineCursor = threadId ? null : 0;
+  state.sessionFunctionCursor = null;
+  state.sessionTurnStartCursor = null;
+  state.sessionTurnBoundaryReady = false;
+  state.sessionTurnBoundaryWarningLogged = false;
+
+  if (!threadId) {
+    state.sessionLineCursor = 0;
+    return;
+  }
+
+  const sessionPath = ensureSessionFilePath(state, threadId);
+  if (!sessionPath) {
+    logWarn('SESSION_REPLAY', `Unable to locate resumed session ${threadId}; JSONL function replay is disabled for this turn.`);
+    return;
+  }
+
+  try {
+    const content = await readFile(sessionPath, 'utf8');
+    const baseline = countSessionJsonlLines(content);
+    state.sessionReplayBaselineCursor = baseline;
+    state.sessionLineCursor = baseline;
+  } catch (error) {
+    logWarn('SESSION_REPLAY', 'Unable to capture the pre-turn session boundary; JSONL function replay is disabled for this turn:', error?.message || error);
+  }
+}
+
+function getSessionThreadId(state, config) {
+  return config.threadId || state.currentThreadId || null;
+}
+
+async function ensureSessionTurnBoundary(state, config) {
+  if (state.sessionTurnBoundaryReady) return true;
+  if (!state.sessionReplayBaselinePrepared || !Number.isInteger(state.sessionReplayBaselineCursor)) {
+    return false;
+  }
+
+  const sessionPath = ensureSessionFilePath(state, getSessionThreadId(state, config));
+  if (!sessionPath) return false;
+
+  let content = '';
+  try {
+    content = await readFile(sessionPath, 'utf8');
+  } catch (error) {
+    logDebug('SESSION_REPLAY', 'Failed to read session file while locating the current turn boundary:', error?.message || error);
+    return false;
+  }
+
+  const lines = splitSessionJsonlEntries(content);
+  const baseline = state.sessionReplayBaselineCursor;
+  for (let i = baseline; i < lines.length; i++) {
+    let parsed;
+    try { parsed = JSON.parse(lines[i]); } catch { continue; }
+    if (parsed?.type !== 'turn_context') continue;
+
+    const boundaryCursor = i + 1;
+    state.sessionTurnStartCursor = boundaryCursor;
+    state.sessionFunctionCursor = boundaryCursor;
+    state.sessionTurnBoundaryReady = true;
+    logDebug('SESSION_REPLAY', `Established current turn boundary at session line ${boundaryCursor}.`);
+    return true;
+  }
+
+  return false;
+}
+
+function warnSessionTurnBoundaryNotReady(state) {
+  if (state.sessionTurnBoundaryWarningLogged) return;
+  state.sessionTurnBoundaryWarningLogged = true;
+  logWarn('SESSION_REPLAY', 'Skipping JSONL function replay until a verified current-turn turn_context is available.');
+}
+
 async function readLatestTurnContextFromSession(state, threadId) {
   const sessionPath = ensureSessionFilePath(state, threadId);
   if (!sessionPath) return null;
@@ -205,7 +289,7 @@ async function readLatestTurnContextFromSession(state, threadId) {
 }
 
 async function collectPatchOperationsFromSession(state, config) {
-  const sessionPath = ensureSessionFilePath(state, config.threadId);
+  const sessionPath = ensureSessionFilePath(state, getSessionThreadId(state, config));
   if (!sessionPath) return [];
   let content = '';
   try { content = await readFile(sessionPath, 'utf8'); } catch (error) {
@@ -246,7 +330,11 @@ async function collectPatchOperationsFromSession(state, config) {
 }
 
 async function replayMissingFunctionCallsFromSession(state, config) {
-  const sessionPath = ensureSessionFilePath(state, config.threadId);
+  if (!state.sessionTurnBoundaryReady || !Number.isInteger(state.sessionTurnStartCursor)) {
+    return { toolUses: 0, toolResults: 0 };
+  }
+
+  const sessionPath = ensureSessionFilePath(state, getSessionThreadId(state, config));
   if (!sessionPath) return { toolUses: 0, toolResults: 0 };
 
   let content = '';
@@ -257,14 +345,10 @@ async function replayMissingFunctionCallsFromSession(state, config) {
   if (!content.trim()) return { toolUses: 0, toolResults: 0 };
 
   const lines = splitSessionJsonlEntries(content);
-  const candidateStartIndexes = [
-    state.sessionFunctionCursor > 0 ? state.sessionFunctionCursor : null,
-    state.sessionTurnStartCursor > 0 ? state.sessionTurnStartCursor : null,
-    Math.max(0, lines.length - SESSION_PATCH_SCAN_MAX_LINES),
-  ].filter((value) => Number.isInteger(value) && value >= 0);
-  const startIndex = candidateStartIndexes.length > 0
-    ? Math.max(...candidateStartIndexes)
-    : Math.max(0, lines.length - SESSION_PATCH_SCAN_MAX_LINES);
+  const startIndex = Math.max(
+    state.sessionTurnStartCursor,
+    Number.isInteger(state.sessionFunctionCursor) ? state.sessionFunctionCursor : state.sessionTurnStartCursor,
+  );
 
   let toolUses = 0;
   let toolResults = 0;
@@ -304,7 +388,11 @@ async function replayMissingFunctionCallsFromSession(state, config) {
 }
 
 async function replayMissingFunctionCallsDuringStream(state, config) {
-  await replayMissingFunctionCallsFromSession(state, config);
+  if (!await ensureSessionTurnBoundary(state, config)) {
+    warnSessionTurnBoundaryNotReady(state);
+    return { toolUses: 0, toolResults: 0 };
+  }
+  return replayMissingFunctionCallsFromSession(state, config);
 }
 
 function buildPermissionInputForPatchOperation(operation) {
@@ -660,30 +748,13 @@ export async function processCodexEventStream(events, state, config) {
       switch (event.type) {
       case 'thread.started': {
         state.currentThreadId = event.thread_id;
-        state.sessionFilePath = null;
-        state.sessionLineCursor = 0;
-        state.sessionFunctionCursor = 0;
-        state.sessionTurnStartCursor = 0;
-        state.processedPatchCallIds.clear();
-        state.processedSessionFunctionCallIds.clear();
-        state.processedSessionFunctionOutputIds.clear();
         console.log('[THREAD_ID]', state.currentThreadId);
         break;
       }
 
       case 'turn.started': {
         state.turnCompleted = false;
-        const sessionPath = ensureSessionFilePath(state, config.threadId);
-        if (sessionPath && existsSync(sessionPath)) {
-          try {
-            const content = await readFile(sessionPath, 'utf8');
-            state.sessionTurnStartCursor = countSessionJsonlLines(content);
-          } catch {
-            state.sessionTurnStartCursor = state.sessionFunctionCursor;
-          }
-        } else {
-          state.sessionTurnStartCursor = state.sessionFunctionCursor;
-        }
+        await ensureSessionTurnBoundary(state, config);
         console.log('[DEBUG] Turn started');
         break;
       }
@@ -744,7 +815,7 @@ export async function processCodexEventStream(events, state, config) {
       case 'turn.completed': {
         state.turnCompleted = true;
         console.log('[DEBUG] Turn completed');
-        const replayed = await replayMissingFunctionCallsFromSession(state, config);
+        const replayed = await replayMissingFunctionCallsDuringStream(state, config);
         if (replayed.toolUses > 0 || replayed.toolResults > 0) {
           console.log('[DEBUG] Replayed session function calls:', JSON.stringify(replayed));
         }

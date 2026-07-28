@@ -377,9 +377,26 @@ export const mergeRawBlocksDuringStreaming = (
     const nextLen = getTextLikeLength(nextBlock);
     if (prevLen <= nextLen) return nextBlock; // next is at least as long — keep it
 
-    // prev is longer: use prev content, keep next block type and other fields
-    changed = true;
+    // prev is longer. Only let prev win when it is a prefix-extension of next
+    // (prev starts with next: the same segment, grown further on the frontend).
+    // When prev and next are unrelated content they belong to DIFFERENT segments —
+    // e.g. a new post-tool_use assistant turn whose last block is shorter than the
+    // previous turn's. Taking prev there would overwrite the new turn's text with
+    // the old turn's, the "dedup merged into the wrong part" symptom seen when
+    // several tabs stream concurrently and EDT coalescing delays the __turnId
+    // commit that normally guards this path. Keep next instead. MarkdownBlock
+    // renders from these raw blocks, so this guard directly protects the UI.
     const prevContent = getTextLikeContent(prevBlock);
+    const nextContent = getTextLikeContent(nextBlock);
+    // An empty next is a backend snapshot lagging to an empty block while the
+    // frontend already accumulated content - the same segment, just behind - so
+    // let prev fill it ("" is a prefix of every string, which the startsWith
+    // check below already honours). Only NON-empty, non-prefix next belongs to a
+    // different segment and must be kept as-is.
+    if (nextContent && !prevContent.startsWith(nextContent)) {
+      return nextBlock; // unrelated non-empty content - do not cross-merge segments
+    }
+    changed = true;
     if (nextBlock.type === 'thinking') {
       return { ...nextBlock, thinking: prevContent, text: prevContent };
     }

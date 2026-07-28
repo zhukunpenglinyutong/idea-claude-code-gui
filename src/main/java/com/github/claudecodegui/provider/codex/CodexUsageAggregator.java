@@ -1,6 +1,6 @@
 package com.github.claudecodegui.provider.codex;
 
-import com.github.claudecodegui.provider.CustomPricingProvider;
+import com.github.claudecodegui.provider.pricing.CodexPricingTable;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.intellij.openapi.diagnostic.Logger;
@@ -18,7 +18,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -32,33 +31,6 @@ class CodexUsageAggregator {
     private static final String ALL_PROJECTS = "all";
     private static final String JSONL_SUFFIX = ".jsonl";
     private static final String DEFAULT_MODEL = "gpt-5.1";
-    private static final double ONE_MILLION = 1_000_000.0;
-    private static final Pattern SNAPSHOT_SUFFIX = Pattern.compile("-\\d{4}-\\d{2}-\\d{2}$");
-
-    private static final Pricing DEFAULT_PRICING = new Pricing(1.25, 10.0, 0.125);
-    private static final Map<String, Pricing> MODEL_PRICING = Map.ofEntries(
-            Map.entry("gpt-5", DEFAULT_PRICING),
-            Map.entry("gpt-5.1", DEFAULT_PRICING),
-            Map.entry("gpt-5-codex", DEFAULT_PRICING),
-            Map.entry("gpt-5.1-codex", DEFAULT_PRICING),
-            Map.entry("gpt-5.2-codex", new Pricing(1.75, 14.0, 0.175)),
-            Map.entry("gpt-5.4", new Pricing(2.5, 15.0, 0.25)),
-            Map.entry("gpt-5.4-mini", new Pricing(0.75, 4.5, 0.075))
-    );
-    private static final Map<String, String> MODEL_ALIASES = Map.of(
-            "gpt-5-codex", "gpt-5",
-            "gpt-5.3-codex", "gpt-5.2-codex"
-    );
-    private static final List<String> MODEL_PREFIXES = List.of(
-            "gpt-5.4-mini",
-            "gpt-5.4",
-            "gpt-5.3-codex",
-            "gpt-5.2-codex",
-            "gpt-5.1-codex",
-            "gpt-5-codex",
-            "gpt-5.1",
-            "gpt-5"
-    );
 
     private static final DateTimeFormatter DATE_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneId.systemDefault());
@@ -269,58 +241,11 @@ class CodexUsageAggregator {
     }
 
     private double calculateCost(CodexHistoryReader.UsageData usage, String model) {
-        Pricing pricing = resolvePricing(model);
+        // Codex folds cached input into input_tokens, so split it out before billing.
         long cachedInputTokens = Math.min(usage.cacheReadTokens, usage.inputTokens);
         long nonCachedInputTokens = Math.max(usage.inputTokens - cachedInputTokens, 0);
-
-        double inputCost = (nonCachedInputTokens / ONE_MILLION) * pricing.inputCostPer1M;
-        double outputCost = (usage.outputTokens / ONE_MILLION) * pricing.outputCostPer1M;
-        double cacheReadCost = (cachedInputTokens / ONE_MILLION) * pricing.cacheReadCostPer1M;
-        return inputCost + outputCost + cacheReadCost;
-    }
-
-    private Pricing resolvePricing(String model) {
-        // User-configured pricing takes precedence over the hardcoded table. It is used for
-        // plugin-level custom models and for pricing-only Claude mapped model entries. Cache
-        // is mtime-invalidated automatically.
-        Pricing builtin = MODEL_PRICING.getOrDefault(normalizeModel(model), null);
-        Pricing customPricing = resolveCustomPricing(model, builtin);
-        if (customPricing != null) {
-            return customPricing;
-        }
-        return builtin != null ? builtin : DEFAULT_PRICING;
-    }
-
-    /**
-     * Build a {@link Pricing} from user-configured pricing, or {@code null} if the model has no
-     * configured pricing. Unspecified dimensions fall back to the overridden model's OWN built-in
-     * rate when it is a known model, otherwise 0 — never the generic default model's rate, which
-     * previously turned a partial custom price (e.g. only input set) into a large over-estimate
-     * for the unspecified dimensions.
-     */
-    private static Pricing resolveCustomPricing(String model, Pricing builtin) {
-        if (model == null || model.isBlank()) {
-            return null;
-        }
-        return CustomPricingProvider.getInstance().getPricing("codex", model)
-                .map(p -> new Pricing(
-                        p.inputCostPer1M() != null ? p.inputCostPer1M() : (builtin != null ? builtin.inputCostPer1M : 0.0),
-                        p.outputCostPer1M() != null ? p.outputCostPer1M() : (builtin != null ? builtin.outputCostPer1M : 0.0),
-                        p.cacheReadCostPer1M() != null ? p.cacheReadCostPer1M() : (builtin != null ? builtin.cacheReadCostPer1M : 0.0)))
-                .orElse(null);
-    }
-
-    private String normalizeModel(String model) {
-        if (model == null || model.isBlank()) {
-            return DEFAULT_MODEL;
-        }
-
-        String normalized = MODEL_ALIASES.getOrDefault(SNAPSHOT_SUFFIX.matcher(model).replaceFirst(""), model);
-        return MODEL_PREFIXES.stream()
-                .filter(normalized::startsWith)
-                .findFirst()
-                .map(prefix -> MODEL_ALIASES.getOrDefault(prefix, prefix))
-                .orElse(normalized);
+        return CodexPricingTable.resolveOrDefault(model)
+                .costUsd(nonCachedInputTokens, usage.outputTokens, cachedInputTokens);
     }
 
     private void processSessions(
@@ -439,8 +364,5 @@ class CodexUsageAggregator {
         target.cacheWriteTokens += source.cacheWriteTokens;
         target.cacheReadTokens += source.cacheReadTokens;
         target.totalTokens += source.totalTokens;
-    }
-
-    private record Pricing(double inputCostPer1M, double outputCostPer1M, double cacheReadCostPer1M) {
     }
 }

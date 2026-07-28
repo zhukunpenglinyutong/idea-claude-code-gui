@@ -225,7 +225,12 @@ public class MessageMerger {
         }
 
         if ("text".equals(type)) {
-            return textLooksRelated(getTextContent(existingBlock), getTextContent(incomingBlock));
+            // Text blocks matched across a segment boundary must be strictly
+            // prefix-related: two segments separated by a tool_use should share no
+            // prefix relation, whereas the lenient suffix-prefix overlap would fire
+            // on incidental shared boundaries (code fences, Markdown markers) and
+            // wrongly merge a new segment into the previous one.
+            return textLooksRelatedStrict(getTextContent(existingBlock), getTextContent(incomingBlock));
         }
 
         if ("thinking".equals(type)) {
@@ -260,7 +265,12 @@ public class MessageMerger {
             if (getContentBlockKey(existingBlock) != null) {
                 break;
             }
-            if (incomingType.equals(getContentBlockType(existingBlock))) {
+            // Honour the same segment boundary as the primary matcher: a same-type
+            // tail block that is NOT prefix-related to the incoming block belongs to
+            // a different segment, so do not merge into it - fall through to adding
+            // the incoming block as a new one instead.
+            if (incomingType.equals(getContentBlockType(existingBlock))
+                    && blocksLikelyRepresentSameSegment(existingBlock, incomingBlock)) {
                 return i;
             }
         }
@@ -286,6 +296,31 @@ public class MessageMerger {
         return getTextContent(block);
     }
 
+    // Whether two non-empty texts are equal or one is a prefix of the other:
+    // the "same segment, possibly grown" relation shared by the strict text
+    // check and the lenient thinking check's prefix stage.
+    private boolean isPrefixRelated(String existing, String incoming) {
+        return existing.equals(incoming)
+                || existing.startsWith(incoming)
+                || incoming.startsWith(existing);
+    }
+
+    // Strict prefix-only relatedness for text blocks across segments. Omits the
+    // suffix-prefix overlap that textLooksRelated keeps for fragmented thinking:
+    // for text, overlap frequently fires on incidental shared boundaries (code
+    // fences, Markdown markers) between two segments separated by a tool_use,
+    // wrongly merging a new segment into the previous one.
+    private boolean textLooksRelatedStrict(String existingText, String incomingText) {
+        String existing = existingText != null ? existingText : "";
+        String incoming = incomingText != null ? incomingText : "";
+        // isPrefixRelated already treats an empty string as a prefix of any string,
+        // so an empty text block and a non-empty one are the same segment (the empty
+        // one is the segment's leading edge before content arrives). This lets a
+        // later, fuller snapshot fill an empty placeholder instead of duplicating
+        // it, mirroring the thinking branch's empty-is-same-segment rule.
+        return isPrefixRelated(existing, incoming);
+    }
+
     private boolean textLooksRelated(String existingText, String incomingText) {
         String existing = existingText != null ? existingText : "";
         String incoming = incomingText != null ? incomingText : "";
@@ -294,9 +329,7 @@ public class MessageMerger {
             return existing.isEmpty() && incoming.isEmpty();
         }
 
-        if (existing.equals(incoming)
-                || existing.startsWith(incoming)
-                || incoming.startsWith(existing)) {
+        if (isPrefixRelated(existing, incoming)) {
             return true;
         }
 

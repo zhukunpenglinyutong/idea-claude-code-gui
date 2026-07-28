@@ -7,6 +7,7 @@ import {
   shouldShowMessage as shouldShowMessageUtil,
   getContentBlocks as getContentBlocksUtil,
   mergeConsecutiveAssistantMessages,
+  attachCompactBoundaryMetadata,
   isTaskNotificationOnlyMessage,
   hasNonHumanOrigin,
   isCompactRelatedMessage,
@@ -112,8 +113,10 @@ export function useMessageProcessing({ messages, currentSessionId, t }: UseMessa
   // instead of 'user' type so they render correctly (left-aligned, no bubble).
   // This includes task_notification, hook, agent, queue, channel, etc.
   const mergedMessages = useMemo(() => {
+    // Pair compact_boundary system lines with their compact-summary user line
+    // (attaches compactMetadata, drops the metadata-only boundary line).
     const merged = mergeConsecutiveAssistantMessages(
-      messages,
+      attachCompactBoundaryMetadata(messages),
       normalizeBlocks,
       mergedAssistantMessageCache.current
     );

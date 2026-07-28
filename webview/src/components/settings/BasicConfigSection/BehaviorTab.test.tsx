@@ -31,6 +31,8 @@ function renderBehaviorTab(overrides: Partial<ComponentProps<typeof BehaviorTab>
     onTaskCompletionNotificationEnabledChange: vi.fn(),
     askUserQuestionNotificationEnabled: false,
     onAskUserQuestionNotificationEnabledChange: vi.fn(),
+    detailedOutputEnabled: false,
+    onDetailedOutputEnabledChange: vi.fn(),
     permissionDialogTimeoutSeconds: 300,
     onPermissionDialogTimeoutChange: vi.fn(),
     ...overrides,
@@ -68,6 +70,37 @@ describe('BehaviorTab ask user question notification toggle', () => {
 
     fireEvent.click(checkbox);
     expect(onAskUserQuestionNotificationEnabledChange).toHaveBeenCalledWith(false);
+  });
+});
+
+describe('BehaviorTab detailed output toggle', () => {
+  it('renders unchecked by default and fires the change callback with true on click', () => {
+    const onDetailedOutputEnabledChange = vi.fn();
+    renderBehaviorTab({ onDetailedOutputEnabledChange });
+
+    const checkbox = screen.getByRole('checkbox', {
+      name: /settings.basic.detailedOutput.disabled/i,
+    }) as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+
+    fireEvent.click(checkbox);
+    expect(onDetailedOutputEnabledChange).toHaveBeenCalledWith(true);
+  });
+
+  it('renders checked when enabled and fires the change callback with false on click', () => {
+    const onDetailedOutputEnabledChange = vi.fn();
+    renderBehaviorTab({
+      detailedOutputEnabled: true,
+      onDetailedOutputEnabledChange,
+    });
+
+    const checkbox = screen.getByRole('checkbox', {
+      name: /settings.basic.detailedOutput.enabled/i,
+    }) as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+
+    fireEvent.click(checkbox);
+    expect(onDetailedOutputEnabledChange).toHaveBeenCalledWith(false);
   });
 });
 

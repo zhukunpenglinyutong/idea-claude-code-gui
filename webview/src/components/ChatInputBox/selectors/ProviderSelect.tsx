@@ -18,7 +18,6 @@ const DROPDOWN_STYLE: React.CSSProperties = {
   marginBottom: '4px',
   zIndex: 10000,
   maxWidth: 'calc(100vw - 16px)',
-  overflowX: 'hidden',
 };
 const TOAST_STYLE: React.CSSProperties = { zIndex: 20000 };
 /** Gap (px) between the floating quota panel and the top of the provider dropdown. */
