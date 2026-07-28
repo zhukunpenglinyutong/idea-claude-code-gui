@@ -341,6 +341,8 @@ export interface CodexProviderConfig {
   createdAt?: number;
   /** Whether this is the currently active provider */
   isActive?: boolean;
+  /** Whether reading ~/.codex/config.toml and auth.json was explicitly authorized */
+  localConfigAuthorized?: boolean;
   /** config.toml content (raw string) */
   configToml?: string;
   /** auth.json content (raw string) */

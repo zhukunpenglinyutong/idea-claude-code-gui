@@ -773,6 +773,7 @@
         "cliLoginAuthorizeTitle": "授权读取本地 Codex 配置",
         "cliLoginAuthorizeMessage": "插件将读取 ~/.codex/config.toml 和 auth.json 中已有的本地配置。",
         "cliLoginAuthorizeDetail": "此操作不会修改或覆盖您的 config.toml 和 auth.json，您可以随时取消授权。",
+        "cliLoginAuthorizeAction": "授权读取",
         "cliLoginDisableTitle": "取消本地 Codex 配置授权",
         "cliLoginDisableMessage": "插件将停止读取 ~/.codex/config.toml 和 auth.json。",
         "modelIdRequired": "请输入模型 ID",

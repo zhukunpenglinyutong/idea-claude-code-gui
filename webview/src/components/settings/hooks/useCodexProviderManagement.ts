@@ -133,6 +133,12 @@ export function useCodexProviderManagement(options: UseCodexProviderManagementOp
     setCodexLoading(true);
   }, []);
 
+  const handleAuthorizeCodexLocalConfig = useCallback(() => {
+    sendToJava('authorize_codex_local_config:');
+    setCodexLoading(true);
+    setCodexConfigLoading(true);
+  }, []);
+
   const handleRevokeCodexLocalConfigAuthorization = useCallback((fallbackProviderId?: string) => {
     const data = {
       fallbackProviderId: fallbackProviderId ?? '',
@@ -180,6 +186,7 @@ export function useCodexProviderManagement(options: UseCodexProviderManagementOp
     handleCloseCodexProviderDialog,
     handleSaveCodexProvider,
     handleSwitchCodexProvider,
+    handleAuthorizeCodexLocalConfig,
     handleRevokeCodexLocalConfigAuthorization,
     handleDeleteCodexProvider,
     confirmDeleteCodexProvider,

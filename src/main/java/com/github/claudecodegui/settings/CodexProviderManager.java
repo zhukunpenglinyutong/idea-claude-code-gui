@@ -62,7 +62,8 @@ public class CodexProviderManager {
 
         // Add CLI Login virtual provider at the top
         result.add(createCodexCliLoginProviderObject(
-                CODEX_CLI_LOGIN_PROVIDER_ID.equals(currentId) && cliLoginAuthorized));
+                CODEX_CLI_LOGIN_PROVIDER_ID.equals(currentId) && cliLoginAuthorized,
+                cliLoginAuthorized));
 
         if (!config.has("codex")) {
             return result;
@@ -140,7 +141,7 @@ public class CodexProviderManager {
             if (!isCodexCliLoginAuthorized(config)) {
                 return null;
             }
-            return createCodexCliLoginProviderObject(true);
+            return createCodexCliLoginProviderObject(true, true);
         }
 
         if (!codex.has("providers")) {
@@ -446,11 +447,12 @@ public class CodexProviderManager {
      * Create virtual CLI Login provider object.
      * Unlike regular providers, this is not stored in config but generated dynamically.
      */
-    private JsonObject createCodexCliLoginProviderObject(boolean isActive) {
+    private JsonObject createCodexCliLoginProviderObject(boolean isActive, boolean localConfigAuthorized) {
         JsonObject provider = new JsonObject();
         provider.addProperty("id", CODEX_CLI_LOGIN_PROVIDER_ID);
         provider.addProperty("name", ClaudeCodeGuiBundle.message("provider.codexCliLogin.name"));
         provider.addProperty("isActive", isActive);
+        provider.addProperty("localConfigAuthorized", localConfigAuthorized);
         provider.addProperty("isCodexCliLoginProvider", true);
         return provider;
     }

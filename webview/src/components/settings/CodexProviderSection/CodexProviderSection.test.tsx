@@ -18,6 +18,7 @@ const translations: Record<string, string> = {
   'settings.codexProvider.dialog.cliLoginAuthorizeTitle': 'Authorize Local Codex Config Access',
   'settings.codexProvider.dialog.cliLoginAuthorizeMessage': 'Read local Codex config files.',
   'settings.codexProvider.dialog.cliLoginAuthorizeDetail': 'Do not overwrite config.toml or auth.json.',
+  'settings.codexProvider.dialog.cliLoginAuthorizeAction': 'Authorize Access',
   'settings.codexProvider.dialog.cliLoginDisableTitle': 'Revoke Local Codex Config Authorization',
   'settings.codexProvider.dialog.cliLoginDisableMessage': 'Stop reading local Codex config files.',
   'settings.provider.loading': 'Loading',
@@ -56,6 +57,7 @@ describe('CodexProviderSection', () => {
   const onEditCodexProvider = vi.fn();
   const onDeleteCodexProvider = vi.fn();
   const onSwitchCodexProvider = vi.fn();
+  const onAuthorizeCodexLocalConfig = vi.fn();
   const onRevokeCodexLocalConfigAuthorization = vi.fn();
 
   beforeEach(() => {
@@ -70,6 +72,7 @@ describe('CodexProviderSection', () => {
             id: SPECIAL_PROVIDER_IDS.CODEX_CLI_LOGIN,
             name: 'Virtual CLI Login',
             isActive: false,
+            localConfigAuthorized: false,
           },
         ]}
         codexLoading={false}
@@ -77,6 +80,7 @@ describe('CodexProviderSection', () => {
         onEditCodexProvider={onEditCodexProvider}
         onDeleteCodexProvider={onDeleteCodexProvider}
         onSwitchCodexProvider={onSwitchCodexProvider}
+        onAuthorizeCodexLocalConfig={onAuthorizeCodexLocalConfig}
         onRevokeCodexLocalConfigAuthorization={onRevokeCodexLocalConfigAuthorization}
       />
     );
@@ -84,7 +88,7 @@ describe('CodexProviderSection', () => {
     expect(screen.getByText('使用本地配置信息')).toBeTruthy();
     expect(screen.getByText('显式授权读取：~/.codex/config.toml 和 auth.json')).toBeTruthy();
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Authorize and Enable' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Authorize Access' })[0]);
 
     expect(screen.getByText('Authorize Local Codex Config Access')).toBeTruthy();
 
@@ -93,7 +97,8 @@ describe('CodexProviderSection', () => {
     expect(confirmButton).toBeTruthy();
     fireEvent.click(confirmButton as HTMLButtonElement);
 
-    expect(onSwitchCodexProvider).toHaveBeenCalledWith(SPECIAL_PROVIDER_IDS.CODEX_CLI_LOGIN);
+    expect(onAuthorizeCodexLocalConfig).toHaveBeenCalledOnce();
+    expect(onSwitchCodexProvider).not.toHaveBeenCalled();
   });
 
   it('does not show account info when CLI login is active', () => {
@@ -104,6 +109,7 @@ describe('CodexProviderSection', () => {
             id: SPECIAL_PROVIDER_IDS.CODEX_CLI_LOGIN,
             name: 'Virtual CLI Login',
             isActive: true,
+            localConfigAuthorized: true,
           },
         ]}
         codexLoading={false}
@@ -111,6 +117,7 @@ describe('CodexProviderSection', () => {
         onEditCodexProvider={onEditCodexProvider}
         onDeleteCodexProvider={onDeleteCodexProvider}
         onSwitchCodexProvider={onSwitchCodexProvider}
+        onAuthorizeCodexLocalConfig={onAuthorizeCodexLocalConfig}
         onRevokeCodexLocalConfigAuthorization={onRevokeCodexLocalConfigAuthorization}
       />
     );
@@ -127,6 +134,7 @@ describe('CodexProviderSection', () => {
             id: SPECIAL_PROVIDER_IDS.CODEX_CLI_LOGIN,
             name: 'Virtual CLI Login',
             isActive: true,
+            localConfigAuthorized: true,
           },
           {
             id: 'provider-1',
@@ -139,6 +147,7 @@ describe('CodexProviderSection', () => {
         onEditCodexProvider={onEditCodexProvider}
         onDeleteCodexProvider={onDeleteCodexProvider}
         onSwitchCodexProvider={onSwitchCodexProvider}
+        onAuthorizeCodexLocalConfig={onAuthorizeCodexLocalConfig}
         onRevokeCodexLocalConfigAuthorization={onRevokeCodexLocalConfigAuthorization}
       />
     );
@@ -152,6 +161,34 @@ describe('CodexProviderSection', () => {
 
     expect(onRevokeCodexLocalConfigAuthorization).toHaveBeenCalledWith('provider-1');
     expect(onSwitchCodexProvider).not.toHaveBeenCalled();
+  });
+
+  it('enables an authorized local config without requesting authorization again', () => {
+    render(
+      <CodexProviderSection
+        codexProviders={[
+          {
+            id: SPECIAL_PROVIDER_IDS.CODEX_CLI_LOGIN,
+            name: 'Virtual CLI Login',
+            isActive: false,
+            localConfigAuthorized: true,
+          },
+        ]}
+        codexLoading={false}
+        onAddCodexProvider={onAddCodexProvider}
+        onEditCodexProvider={onEditCodexProvider}
+        onDeleteCodexProvider={onDeleteCodexProvider}
+        onSwitchCodexProvider={onSwitchCodexProvider}
+        onAuthorizeCodexLocalConfig={onAuthorizeCodexLocalConfig}
+        onRevokeCodexLocalConfigAuthorization={onRevokeCodexLocalConfigAuthorization}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Enable' }));
+
+    expect(onSwitchCodexProvider).toHaveBeenCalledWith(SPECIAL_PROVIDER_IDS.CODEX_CLI_LOGIN);
+    expect(onAuthorizeCodexLocalConfig).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Revoke Authorization' })).toBeTruthy();
   });
 
   it('allows long remarks to truncate instead of squeezing the action area', () => {
@@ -173,6 +210,7 @@ describe('CodexProviderSection', () => {
         onEditCodexProvider={onEditCodexProvider}
         onDeleteCodexProvider={onDeleteCodexProvider}
         onSwitchCodexProvider={onSwitchCodexProvider}
+        onAuthorizeCodexLocalConfig={onAuthorizeCodexLocalConfig}
         onRevokeCodexLocalConfigAuthorization={onRevokeCodexLocalConfigAuthorization}
       />
     );

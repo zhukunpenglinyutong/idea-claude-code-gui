@@ -13,6 +13,20 @@ describe('useCodexProviderManagement', () => {
     window.sendToJava = vi.fn();
   });
 
+  it('authorizes local Codex config without switching providers', () => {
+    const { result } = renderHook(() => useCodexProviderManagement());
+
+    act(() => {
+      result.current.handleAuthorizeCodexLocalConfig();
+    });
+
+    expect(window.sendToJava).toHaveBeenCalledWith('authorize_codex_local_config:');
+    expect(window.sendToJava).not.toHaveBeenCalledWith(
+      expect.stringContaining('switch_codex_provider:')
+    );
+    expect(result.current.codexLoading).toBe(true);
+  });
+
   it('sends a revoke message when local Codex authorization is canceled', () => {
     const { result } = renderHook(() => useCodexProviderManagement());
 

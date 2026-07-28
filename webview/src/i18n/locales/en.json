@@ -768,6 +768,7 @@
         "cliLoginAuthorizeTitle": "Authorize Local Codex Config Access",
         "cliLoginAuthorizeMessage": "The plugin will read the existing local configuration from ~/.codex/config.toml and auth.json.",
         "cliLoginAuthorizeDetail": "This will not modify or overwrite your config.toml or auth.json, and you can revoke the authorization at any time.",
+        "cliLoginAuthorizeAction": "Authorize access",
         "cliLoginDisableTitle": "Revoke Local Codex Config Authorization",
         "cliLoginDisableMessage": "The plugin will stop reading ~/.codex/config.toml and auth.json.",
         "modelIdRequired": "Model ID is required",

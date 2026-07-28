@@ -206,6 +206,29 @@ public class CodexProviderOperations {
     }
 
     /**
+     * Authorize read access to ~/.codex/{config.toml,auth.json} without changing the active provider.
+     */
+    public void handleAuthorizeCodexLocalConfig() {
+        try {
+            context.getSettingsService().setCodexLocalConfigAuthorized(true);
+
+            ApplicationManager.getApplication().invokeLater(() -> {
+                context.callJavaScript("window.showSwitchSuccess", context.escapeJs(
+                        com.github.claudecodegui.i18n.ClaudeCodeGuiBundle.message("toast.codexCliLoginSwitchSuccess")));
+                handleGetCodexProviders();
+                handleGetCurrentCodexConfig();
+            });
+        } catch (Exception e) {
+            LOG.error("[ProviderHandler] Failed to authorize local Codex config: " + e.getMessage(), e);
+            ApplicationManager.getApplication().invokeLater(() -> {
+                context.callJavaScript("window.showError", context.escapeJs(
+                        com.github.claudecodegui.i18n.ClaudeCodeGuiBundle.message("toast.providerSwitchFailed")
+                                + ": " + e.getMessage()));
+            });
+        }
+    }
+
+    /**
      * Revoke local Codex config authorization and stop reading ~/.codex/{config.toml,auth.json}.
      */
     public void handleRevokeCodexLocalConfigAuthorization(String content) {
@@ -256,7 +279,14 @@ public class CodexProviderOperations {
      */
     private void handleSwitchToCodexCliLogin() {
         try {
-            context.getSettingsService().setCodexLocalConfigAuthorized(true);
+            if (!context.getSettingsService().isCodexLocalConfigAuthorized()) {
+                ApplicationManager.getApplication().invokeLater(() -> {
+                    context.callJavaScript("window.showError", context.escapeJs(
+                            com.github.claudecodegui.i18n.ClaudeCodeGuiBundle.message(
+                                    "error.codexLocalAccessNotAuthorized")));
+                });
+                return;
+            }
 
             // Update config.json to set CLI login as current
             context.getSettingsService().switchCodexProvider(
