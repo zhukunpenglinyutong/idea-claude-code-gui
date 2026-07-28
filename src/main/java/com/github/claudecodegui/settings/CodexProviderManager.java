@@ -22,6 +22,8 @@ import java.util.function.Function;
  */
 public class CodexProviderManager {
     private static final Logger LOG = Logger.getInstance(CodexProviderManager.class);
+    private static final String AUTH_STORED_KEY = "authStoredInPasswordSafe";
+    private static final String CREDENTIAL_UNAVAILABLE_KEY = "credentialUnavailable";
     private static final String BACKUP_FILE_NAME = "config.json.bak";
     public static final String CODEX_CLI_LOGIN_PROVIDER_ID = "__codex_cli_login__";
 
@@ -30,6 +32,7 @@ public class CodexProviderManager {
     private final Consumer<JsonObject> configWriter;
     private final ConfigPathManager pathManager;
     private final CodexSettingsManager codexSettingsManager;
+    private final CodexProviderCredentialStore credentialStore;
 
     public CodexProviderManager(
             Gson gson,
@@ -37,11 +40,23 @@ public class CodexProviderManager {
             Consumer<JsonObject> configWriter,
             ConfigPathManager pathManager,
             CodexSettingsManager codexSettingsManager) {
+        this(gson, configReader, configWriter, pathManager, codexSettingsManager,
+                new CodexProviderCredentialStore());
+    }
+
+    CodexProviderManager(
+            Gson gson,
+            Function<Void, JsonObject> configReader,
+            Consumer<JsonObject> configWriter,
+            ConfigPathManager pathManager,
+            CodexSettingsManager codexSettingsManager,
+            CodexProviderCredentialStore credentialStore) {
         this.gson = gson;
         this.configReader = configReader;
         this.configWriter = configWriter;
         this.pathManager = pathManager;
         this.codexSettingsManager = codexSettingsManager;
+        this.credentialStore = credentialStore;
     }
 
     /**
@@ -49,6 +64,7 @@ public class CodexProviderManager {
      */
     public List<JsonObject> getCodexProviders() {
         JsonObject config = configReader.apply(null);
+        migrateLegacyCredentials(config);
         List<JsonObject> result = new ArrayList<>();
 
         String currentId = null;
@@ -86,6 +102,7 @@ public class CodexProviderManager {
                 if (!provider.has("id")) {
                     provider.addProperty("id", id);
                 }
+                hydrateCredential(provider, id);
                 // Add isActive flag
                 provider.addProperty("isActive", id.equals(currentId));
                 result.add(provider);
@@ -150,10 +167,11 @@ public class CodexProviderManager {
         JsonObject providers = codex.getAsJsonObject("providers");
 
         if (providers.has(currentId)) {
-            JsonObject provider = providers.getAsJsonObject(currentId);
+            JsonObject provider = providers.getAsJsonObject(currentId).deepCopy();
             if (!provider.has("id")) {
                 provider.addProperty("id", currentId);
             }
+            hydrateCredential(provider, currentId);
             provider.addProperty("isActive", true);
             return provider;
         }
@@ -169,6 +187,7 @@ public class CodexProviderManager {
             throw new IllegalArgumentException("Provider must have an id");
         }
 
+        JsonObject providerToPersist = provider.deepCopy();
         JsonObject config = configReader.apply(null);
 
         // Ensure codex configuration exists
@@ -182,7 +201,7 @@ public class CodexProviderManager {
         JsonObject codex = config.getAsJsonObject("codex");
         JsonObject providers = codex.getAsJsonObject("providers");
 
-        String id = provider.get("id").getAsString();
+        String id = providerToPersist.get("id").getAsString();
 
         // Check if ID already exists
         if (providers.has(id)) {
@@ -190,14 +209,19 @@ public class CodexProviderManager {
         }
 
         // Add creation timestamp
-        if (!provider.has("createdAt")) {
-            provider.addProperty("createdAt", System.currentTimeMillis());
+        if (!providerToPersist.has("createdAt")) {
+            providerToPersist.addProperty("createdAt", System.currentTimeMillis());
         }
 
-        // Add provider (not auto-activated)
-        providers.add(id, provider);
-
-        configWriter.accept(config);
+        String previousCredential = credentialStore.read(id);
+        try {
+            protectCredential(providerToPersist, id);
+            providers.add(id, providerToPersist);
+            configWriter.accept(config);
+        } catch (RuntimeException e) {
+            restoreCredential(id, previousCredential, false);
+            throw e;
+        }
         LOG.info("[CodexProviderManager] Added provider: " + id);
     }
 
@@ -209,6 +233,7 @@ public class CodexProviderManager {
             throw new IllegalArgumentException("Provider must have an id");
         }
 
+        JsonObject providerToPersist = provider.deepCopy();
         JsonObject config = configReader.apply(null);
 
         // Ensure codex configuration exists
@@ -222,22 +247,35 @@ public class CodexProviderManager {
         JsonObject codex = config.getAsJsonObject("codex");
         JsonObject providers = codex.getAsJsonObject("providers");
 
-        String id = provider.get("id").getAsString();
+        String id = providerToPersist.get("id").getAsString();
 
         // Preserve createdAt if updating existing provider
+        boolean hadStoredCredential = false;
         if (providers.has(id)) {
             JsonObject existing = providers.getAsJsonObject(id);
-            if (existing.has("createdAt") && !provider.has("createdAt")) {
-                provider.addProperty("createdAt", existing.get("createdAt").getAsLong());
+            hadStoredCredential = hasStoredCredential(existing);
+            if (existing.has("createdAt") && !providerToPersist.has("createdAt")) {
+                providerToPersist.addProperty("createdAt", existing.get("createdAt").getAsLong());
+            }
+            if (existing.has(AUTH_STORED_KEY) && !providerToPersist.has("authJson")
+                    && !providerToPersist.has(AUTH_STORED_KEY)) {
+                providerToPersist.add(AUTH_STORED_KEY, existing.get(AUTH_STORED_KEY));
             }
         } else {
-            if (!provider.has("createdAt")) {
-                provider.addProperty("createdAt", System.currentTimeMillis());
+            if (!providerToPersist.has("createdAt")) {
+                providerToPersist.addProperty("createdAt", System.currentTimeMillis());
             }
         }
 
-        providers.add(id, provider);
-        configWriter.accept(config);
+        String previousCredential = credentialStore.read(id);
+        try {
+            protectCredential(providerToPersist, id);
+            providers.add(id, providerToPersist);
+            configWriter.accept(config);
+        } catch (RuntimeException e) {
+            restoreCredential(id, previousCredential, hadStoredCredential);
+            throw e;
+        }
     }
 
     /**
@@ -257,7 +295,10 @@ public class CodexProviderManager {
             throw new IllegalArgumentException("Provider with id '" + id + "' not found");
         }
 
-        JsonObject provider = providers.getAsJsonObject(id);
+        JsonObject existingProvider = providers.getAsJsonObject(id);
+        JsonObject provider = existingProvider.deepCopy();
+        boolean hadStoredCredential = hasStoredCredential(existingProvider);
+        String previousCredential = credentialStore.read(id);
 
         // Merge updates
         for (String key : updates.keySet()) {
@@ -274,7 +315,14 @@ public class CodexProviderManager {
             }
         }
 
-        configWriter.accept(config);
+        try {
+            protectCredential(provider, id);
+            providers.add(id, provider);
+            configWriter.accept(config);
+        } catch (RuntimeException e) {
+            restoreCredential(id, previousCredential, hadStoredCredential);
+            throw e;
+        }
         LOG.info("[CodexProviderManager] Updated provider: " + id);
     }
 
@@ -286,6 +334,8 @@ public class CodexProviderManager {
     public DeleteResult deleteCodexProvider(String id) {
         Path configFilePath = null;
         Path backupFilePath = null;
+        String deletedCredential = null;
+        boolean credentialDeleted = false;
 
         try {
             JsonObject config = configReader.apply(null);
@@ -311,6 +361,15 @@ public class CodexProviderManager {
                     null,
                     "Please check if the provider ID is correct"
                 );
+            }
+
+            JsonObject providerToDelete = providers.getAsJsonObject(id);
+            if (hasStoredCredential(providerToDelete)) {
+                deletedCredential = credentialStore.read(id);
+                if (deletedCredential == null || !credentialStore.deleteVerified(id)) {
+                    throw new IllegalStateException("Unable to remove Codex credential from PasswordSafe");
+                }
+                credentialDeleted = true;
             }
 
             // Create backup before deletion
@@ -354,6 +413,10 @@ public class CodexProviderManager {
             return DeleteResult.success(id);
 
         } catch (Exception e) {
+            if (credentialDeleted && deletedCredential != null
+                    && !credentialStore.writeVerified(id, deletedCredential)) {
+                LOG.warn("[CodexProviderManager] Failed to restore credential after provider deletion failure");
+            }
             // Try to restore from backup
             if (backupFilePath != null && configFilePath != null) {
                 try {
@@ -432,6 +495,11 @@ public class CodexProviderManager {
             LOG.info("[CodexProviderManager] No active provider to sync to ~/.codex/");
             return;
         }
+        if (activeProvider.has(CREDENTIAL_UNAVAILABLE_KEY)
+                && activeProvider.get(CREDENTIAL_UNAVAILABLE_KEY).isJsonPrimitive()
+                && activeProvider.get(CREDENTIAL_UNAVAILABLE_KEY).getAsBoolean()) {
+            throw new IOException("Codex provider credential is unavailable in PasswordSafe");
+        }
         codexSettingsManager.applyProviderToCodexSettings(activeProvider);
     }
 
@@ -453,6 +521,103 @@ public class CodexProviderManager {
         provider.addProperty("isActive", isActive);
         provider.addProperty("isCodexCliLoginProvider", true);
         return provider;
+    }
+
+    private void migrateLegacyCredentials(JsonObject config) {
+        if (config == null || !credentialStore.isPersistentStorageAvailable()
+                || !config.has("codex") || !config.get("codex").isJsonObject()) {
+            return;
+        }
+        JsonObject codex = config.getAsJsonObject("codex");
+        if (!codex.has("providers") || !codex.get("providers").isJsonObject()) {
+            return;
+        }
+        boolean changed = false;
+        JsonObject providers = codex.getAsJsonObject("providers");
+        for (String id : providers.keySet()) {
+            if (!providers.get(id).isJsonObject()) {
+                continue;
+            }
+            JsonObject provider = providers.getAsJsonObject(id);
+            if (provider.has(AUTH_STORED_KEY) || !provider.has("authJson")
+                    || !provider.get("authJson").isJsonPrimitive()) {
+                continue;
+            }
+            String authJson = provider.get("authJson").getAsString();
+            if (!authJson.isBlank() && credentialStore.writeVerified(id, authJson)) {
+                provider.remove("authJson");
+                provider.addProperty(AUTH_STORED_KEY, true);
+                changed = true;
+            }
+        }
+        if (changed) {
+            try {
+                configWriter.accept(config);
+                LOG.info("[CodexProviderManager] Migrated legacy provider credentials to PasswordSafe");
+            } catch (RuntimeException e) {
+                LOG.warn("[CodexProviderManager] PasswordSafe migration config update failed; errorClass="
+                        + e.getClass().getSimpleName());
+            }
+        }
+    }
+
+    private void protectCredential(JsonObject provider, String id) {
+        boolean unavailable = provider.has(CREDENTIAL_UNAVAILABLE_KEY)
+                && provider.get(CREDENTIAL_UNAVAILABLE_KEY).isJsonPrimitive()
+                && provider.get(CREDENTIAL_UNAVAILABLE_KEY).getAsBoolean();
+        if (!provider.has("authJson") || !provider.get("authJson").isJsonPrimitive()) {
+            provider.remove(CREDENTIAL_UNAVAILABLE_KEY);
+            return;
+        }
+        String authJson = provider.get("authJson").getAsString();
+        if (unavailable && authJson.isBlank() && hasStoredCredential(provider)) {
+            provider.remove("authJson");
+            provider.remove(CREDENTIAL_UNAVAILABLE_KEY);
+            return;
+        }
+        provider.remove(CREDENTIAL_UNAVAILABLE_KEY);
+        if (authJson.isBlank()) {
+            if (hasStoredCredential(provider) && !credentialStore.deleteVerified(id)) {
+                throw new IllegalStateException("Unable to remove Codex credential from PasswordSafe");
+            }
+            provider.remove("authJson");
+            provider.remove(AUTH_STORED_KEY);
+            return;
+        }
+        if (credentialStore.writeVerified(id, authJson)) {
+            provider.remove("authJson");
+            provider.addProperty(AUTH_STORED_KEY, true);
+        } else {
+            provider.remove("authJson");
+            throw new IllegalStateException("Unable to store Codex credential in PasswordSafe");
+        }
+    }
+
+    private void hydrateCredential(JsonObject provider, String id) {
+        if (!hasStoredCredential(provider)) {
+            return;
+        }
+        String authJson = credentialStore.read(id);
+        if (authJson == null) {
+            provider.addProperty(CREDENTIAL_UNAVAILABLE_KEY, true);
+        } else {
+            provider.addProperty("authJson", authJson);
+            provider.remove(CREDENTIAL_UNAVAILABLE_KEY);
+        }
+    }
+
+    private void restoreCredential(String id, String previousCredential, boolean hadStoredCredential) {
+        if (previousCredential != null) {
+            credentialStore.writeVerified(id, previousCredential);
+        } else if (!hadStoredCredential) {
+            credentialStore.delete(id);
+        }
+    }
+
+    private static boolean hasStoredCredential(JsonObject provider) {
+        return provider.has(AUTH_STORED_KEY)
+                && provider.get(AUTH_STORED_KEY).isJsonPrimitive()
+                && provider.get(AUTH_STORED_KEY).getAsBoolean();
     }
 
     /**
