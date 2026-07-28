@@ -139,6 +139,67 @@ public class CodexProviderManagerCredentialTest {
         assertThrows(IOException.class, manager::applyActiveProviderToCodexSettings);
     }
 
+    @Test
+    public void unavailableCredentialIsNotDeletedWhenUpdatingOtherFields() throws Exception {
+        AtomicReference<JsonObject> config = new AtomicReference<>(configWithProvider());
+        JsonObject stored = config.get().getAsJsonObject("codex").getAsJsonObject("providers")
+                .getAsJsonObject("provider-a");
+        stored.addProperty("authStoredInPasswordSafe", true);
+        FakeCredentialStore credentials = new FakeCredentialStore();
+        CodexProviderManager manager = manager(config, credentials);
+        JsonObject updates = new JsonObject();
+        updates.addProperty("name", "Renamed Provider");
+        updates.addProperty("authJson", "");
+
+        manager.updateCodexProvider("provider-a", updates);
+
+        JsonObject persisted = config.get().getAsJsonObject("codex").getAsJsonObject("providers")
+                .getAsJsonObject("provider-a");
+        assertEquals("Renamed Provider", persisted.get("name").getAsString());
+        assertTrue(persisted.get("authStoredInPasswordSafe").getAsBoolean());
+        assertFalse(persisted.has("authJson"));
+        assertEquals(0, credentials.deleteAttempts);
+    }
+
+    @Test
+    public void unavailableCredentialIsNotDeletedWhenSavingProvider() throws Exception {
+        AtomicReference<JsonObject> config = new AtomicReference<>(configWithProvider());
+        JsonObject stored = config.get().getAsJsonObject("codex").getAsJsonObject("providers")
+                .getAsJsonObject("provider-a");
+        stored.addProperty("authStoredInPasswordSafe", true);
+        FakeCredentialStore credentials = new FakeCredentialStore();
+        JsonObject provider = provider("provider-a");
+        provider.addProperty("authJson", "");
+
+        manager(config, credentials).saveCodexProvider(provider);
+
+        JsonObject persisted = config.get().getAsJsonObject("codex").getAsJsonObject("providers")
+                .getAsJsonObject("provider-a");
+        assertTrue(persisted.get("authStoredInPasswordSafe").getAsBoolean());
+        assertFalse(persisted.has("authJson"));
+        assertEquals(0, credentials.deleteAttempts);
+    }
+
+    @Test
+    public void availableCredentialCanStillBeExplicitlyCleared() throws Exception {
+        AtomicReference<JsonObject> config = new AtomicReference<>(configWithProvider());
+        JsonObject stored = config.get().getAsJsonObject("codex").getAsJsonObject("providers")
+                .getAsJsonObject("provider-a");
+        stored.addProperty("authStoredInPasswordSafe", true);
+        FakeCredentialStore credentials = new FakeCredentialStore();
+        credentials.values.put("provider-a", "{\"OPENAI_API_KEY\":\"old\"}");
+        JsonObject updates = new JsonObject();
+        updates.addProperty("authJson", "");
+
+        manager(config, credentials).updateCodexProvider("provider-a", updates);
+
+        JsonObject persisted = config.get().getAsJsonObject("codex").getAsJsonObject("providers")
+                .getAsJsonObject("provider-a");
+        assertFalse(persisted.has("authStoredInPasswordSafe"));
+        assertFalse(persisted.has("authJson"));
+        assertEquals(1, credentials.deleteAttempts);
+    }
+
     private CodexProviderManager manager(AtomicReference<JsonObject> config,
                                          CodexProviderCredentialStore credentials) {
         return manager(config, config::set, credentials);
@@ -176,6 +237,7 @@ public class CodexProviderManagerCredentialTest {
         private final Map<String, String> values = new HashMap<>();
         private boolean failWrites;
         private boolean failDeletes;
+        private int deleteAttempts;
 
         @Override
         public boolean isPersistentStorageAvailable() {
@@ -205,6 +267,7 @@ public class CodexProviderManagerCredentialTest {
 
         @Override
         public boolean deleteVerified(String providerId) {
+            deleteAttempts++;
             if (failDeletes) {
                 return false;
             }

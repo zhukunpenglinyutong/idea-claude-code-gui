@@ -257,8 +257,7 @@ public class CodexProviderManager {
             if (existing.has("createdAt") && !providerToPersist.has("createdAt")) {
                 providerToPersist.addProperty("createdAt", existing.get("createdAt").getAsLong());
             }
-            if (existing.has(AUTH_STORED_KEY) && !providerToPersist.has("authJson")
-                    && !providerToPersist.has(AUTH_STORED_KEY)) {
+            if (existing.has(AUTH_STORED_KEY) && !providerToPersist.has(AUTH_STORED_KEY)) {
                 providerToPersist.add(AUTH_STORED_KEY, existing.get(AUTH_STORED_KEY));
             }
         } else {
@@ -268,6 +267,9 @@ public class CodexProviderManager {
         }
 
         String previousCredential = credentialStore.read(id);
+        if (hadStoredCredential && previousCredential == null) {
+            providerToPersist.addProperty(CREDENTIAL_UNAVAILABLE_KEY, true);
+        }
         try {
             protectCredential(providerToPersist, id);
             providers.add(id, providerToPersist);
@@ -315,6 +317,9 @@ public class CodexProviderManager {
             }
         }
 
+        if (hadStoredCredential && previousCredential == null) {
+            provider.addProperty(CREDENTIAL_UNAVAILABLE_KEY, true);
+        }
         try {
             protectCredential(provider, id);
             providers.add(id, provider);
