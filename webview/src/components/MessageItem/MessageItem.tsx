@@ -741,7 +741,7 @@ export const MessageItem = memo(function MessageItem({
               copySuccessText={t('markdown.copySuccess')}
             />
           )}
-          {onRollback && !streamingActive && !isRollingBack && !isLast && (
+          {onRollback && !streamingActive && !isRollingBack && (
             <button
               type="button"
               className="message-rollback-btn"
