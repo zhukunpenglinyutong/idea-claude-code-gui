@@ -221,7 +221,9 @@ public class RollbackHandler extends BaseMessageHandler {
             List<String> lines = Files.readAllLines(jsonlPath, StandardCharsets.UTF_8);
             int targetLine = -1;
             for (int i = 0; i < lines.size(); i++) {
-                if (lines.get(i).contains(messageUuid)) {
+                JsonObject obj = gson.fromJson(lines.get(i), JsonObject.class);
+                String candidate = obj.has("uuid") ? obj.get("uuid").getAsString() : null;
+                if (messageUuid.equals(candidate)) {
                     targetLine = i;
                     break;
                 }
