@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -202,7 +203,7 @@ public class RollbackHandler extends BaseMessageHandler {
                 Files.delete(jsonlPath);
                 LOG.info("[RollbackHandler] Deleted JSONL: " + jsonlPath);
             }
-        } catch (IOException e) {
+        } catch (IOException | IllegalArgumentException e) {
             LOG.warn("[RollbackHandler] Failed to delete JSONL: " + e.getMessage());
         }
     }
@@ -232,22 +233,41 @@ public class RollbackHandler extends BaseMessageHandler {
                 return;
             }
             // Exclude the target message itself (text is restored to input box)
-            Files.write(jsonlPath, lines.subList(0, targetLine), StandardCharsets.UTF_8);
+            // Atomic write: write to a temp file first, then move to replace
+            // the original. This prevents corruption if the process crashes or
+            // loses power mid-write — only the temp file is lost, not the JSONL.
+            List<String> truncated = lines.subList(0, targetLine);
+            Path tmpPath = jsonlPath.resolveSibling(jsonlPath.getFileName() + ".tmp");
+            Files.write(tmpPath, truncated, StandardCharsets.UTF_8);
+            Files.move(tmpPath, jsonlPath, StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING);
             LOG.info("[RollbackHandler] JSONL truncated: "
                 + lines.size() + " → " + targetLine + " lines");
-        } catch (IOException e) {
+        } catch (IOException | IllegalArgumentException e) {
             LOG.warn("[RollbackHandler] JSONL truncation failed: " + e.getMessage());
         }
     }
 
-    private static Path buildJsonlPath(String cwd, String sessionId) {
+    /** Package-private for testability. */
+    static Path buildJsonlPath(String cwd, String sessionId) {
+        // Validate sessionId to prevent path traversal.
+        // Session IDs are UUID-like: alphanumeric + hyphens only.
+        if (sessionId == null || !sessionId.matches("[a-zA-Z0-9_-]+")) {
+            throw new IllegalArgumentException("Invalid sessionId: " + sessionId);
+        }
         String home = PlatformUtils.getHomeDirectory();
         String dir = sanitizeCwd(cwd);
-        return Paths.get(home, ".claude", "projects", dir, sessionId + ".jsonl");
+        Path projectsDir = Paths.get(home, ".claude", "projects", dir).normalize();
+        Path jsonlPath = projectsDir.resolve(sessionId + ".jsonl").normalize();
+        // Defense in depth: ensure the resolved path stays within the projects directory.
+        if (!jsonlPath.startsWith(projectsDir + java.io.File.separator)) {
+            throw new IllegalArgumentException("Resolved path escapes projects directory");
+        }
+        return jsonlPath;
     }
 
-    /** Match the SDK's CWD sanitisation. */
-    private static String sanitizeCwd(String cwd) {
+    /** Match the SDK's CWD sanitisation. Package-private for testability. */
+    static String sanitizeCwd(String cwd) {
         if (cwd == null || cwd.isEmpty()) {
             return "";
         }
