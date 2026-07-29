@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createTurnState,
+  isSidechainMessage,
   processMessageContent,
   processStreamEvent,
   shouldOutputMessage,
@@ -1161,4 +1162,38 @@ test('REGRESSION (#1371) companion: snapshot path absorbs incoming === previous 
   // Exactly two stream deltas emitted; snapshot replay added nothing.
   assert.equal(deltaLines.length, 2, `snapshot replay must not emit; got ${JSON.stringify(deltaLines)}`);
   assert.equal(emitted, 'Hello world', `accumulated content must remain "Hello world"; got "${emitted}"`);
+});
+
+// ── isSidechainMessage ──────────────────────────────────────────────────────
+// Subagent (sidechain) events carry parent_tool_use_id; the turn loop must
+// drop them so subagent tool calls never merge into the parent conversation.
+
+test('isSidechainMessage: assistant message with parent_tool_use_id is sidechain', () => {
+  assert.equal(isSidechainMessage({
+    type: 'assistant',
+    parent_tool_use_id: 'toolu_parent01',
+    message: { content: [{ type: 'tool_use', id: 'toolu_sub01', name: 'Bash', input: {} }] },
+  }), true);
+});
+
+test('isSidechainMessage: user tool_result with parent_tool_use_id is sidechain', () => {
+  assert.equal(isSidechainMessage({
+    type: 'user',
+    parent_tool_use_id: 'toolu_parent01',
+    message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_sub01', content: 'ok' }] },
+  }), true);
+});
+
+test('isSidechainMessage: partial-message stream event nested under event is sidechain', () => {
+  assert.equal(isSidechainMessage({
+    type: 'stream_event',
+    event: { type: 'content_block_delta', parent_tool_use_id: 'toolu_parent01', delta: { type: 'text_delta', text: 'x' } },
+  }), true);
+});
+
+test('isSidechainMessage: explicit null parent_tool_use_id is the parent conversation', () => {
+  assert.equal(isSidechainMessage({ type: 'assistant', parent_tool_use_id: null, message: { content: [] } }), false);
+  assert.equal(isSidechainMessage({ type: 'user', message: { content: [] } }), false);
+  assert.equal(isSidechainMessage({ type: 'result', is_error: false }), false);
+  assert.equal(isSidechainMessage(null), false);
 });

@@ -1,0 +1,276 @@
+import { describe, expect, it } from 'vitest';
+import type { ClaudeMessage } from '../types';
+import {
+  collectBackgroundTaskRecords,
+  collectFinishedBackgroundTasks,
+  getBackgroundTaskUsage,
+  getFinishedBackgroundTaskStatus,
+  isTerminalFailure,
+  parseBackgroundLaunch,
+  toolStatusIndicatorClass,
+} from './backgroundTasks';
+
+// Real launch-confirmation texts as emitted by the CLI.
+const AGENT_LAUNCH_TEXT = 'Async agent launched successfully.\n'
+  + "agentId: a01c596b617a75624 (internal ID - do not mention to user. Use SendMessage with to: 'a01c596b617a75624', summary: '<5-10 word recap>' to continue this agent.)\n"
+  + 'The agent is working in the background.';
+
+const WORKFLOW_LAUNCH_TEXT = 'Workflow launched in background. Task ID: w057006cy\n'
+  + 'Summary: Multi-agent architecture review\n'
+  + 'Transcript dir: /Users/me/.claude/projects/-proj/140f4cf2/subagents/workflows/wf_b0810326-40da';
+
+// Real task-notification appended to the transcript when the task ends.
+const NOTIFICATION_TEXT = '<task-notification>\n'
+  + '<task-id>a01c596b617a75624</task-id>\n'
+  + '<tool-use-id>toolu_01KfcSbbqTc2EARfgXUmn1ck</tool-use-id>\n'
+  + '<output-file>/tmp/tasks/a01c596b617a75624.output</output-file>\n'
+  + '<status>completed</status>\n'
+  + '<summary>Agent "FE portalStatus filters" finished</summary>\n'
+  + '</task-notification>';
+
+describe('parseBackgroundLaunch', () => {
+  it('detects an async Agent launch and extracts the agent id', () => {
+    const launch = parseBackgroundLaunch(AGENT_LAUNCH_TEXT);
+    expect(launch.isBackground).toBe(true);
+    expect(launch.agentId).toBe('a01c596b617a75624');
+  });
+
+  it('detects a background Workflow launch and extracts the task id', () => {
+    const launch = parseBackgroundLaunch(WORKFLOW_LAUNCH_TEXT);
+    expect(launch.isBackground).toBe(true);
+    expect(launch.taskId).toBe('w057006cy');
+  });
+
+  it('treats a normal final report as foreground', () => {
+    expect(parseBackgroundLaunch('Refactoring done, all 12 tests pass.').isBackground).toBe(false);
+    expect(parseBackgroundLaunch(undefined).isBackground).toBe(false);
+  });
+
+  it('detects a background Bash command and extracts its task id', () => {
+    const launch = parseBackgroundLaunch(
+      'Command running in background with ID: b06hiiaoj. Output is being written to: '
+      + '/private/tmp/claude-501/-proj/d62beab6/tasks/b06hiiaoj.output. You will be notified when it completes.',
+    );
+    expect(launch.isBackground).toBe(true);
+    expect(launch.taskId).toBe('b06hiiaoj');
+  });
+
+  it('ignores launch text merely quoted inside other output (grep, file reads)', () => {
+    const grepOutput = 'transcript.jsonl:"Command running in background with ID: b06hiiaoj. Output is being written to: /tmp/tasks/b06hiiaoj.output"';
+    expect(parseBackgroundLaunch(grepOutput).isBackground).toBe(false);
+    const fileRead = '1\timport …\n2\t// "Async agent launched successfully." is the Agent launch text';
+    expect(parseBackgroundLaunch(fileRead).isBackground).toBe(false);
+  });
+
+  it('detects a Monitor start and extracts its task id', () => {
+    const launch = parseBackgroundLaunch(
+      'Monitor started (task bkvs4037z, timeout 600000ms). You will be notified on each event. '
+      + 'Keep working — do not poll or sleep.',
+    );
+    expect(launch.isBackground).toBe(true);
+    expect(launch.taskId).toBe('bkvs4037z');
+  });
+
+  it('detects a SendMessage background resume and extracts the agent id', () => {
+    const launch = parseBackgroundLaunch(
+      '{"success":true,"message":"Agent \\"a2d72de8cb107fa0d\\" had no active task; resumed from transcript '
+      + 'in the background with your message. You\'ll be notified when it finishes. '
+      + 'Output: /tmp/claude-501/-proj/b7a0e4f9/tasks/a2d72de8cb107fa0d.output"}',
+    );
+    expect(launch.isBackground).toBe(true);
+    expect(launch.agentId).toBe('a2d72de8cb107fa0d');
+    expect(launch.taskId).toBe('a2d72de8cb107fa0d');
+  });
+});
+
+describe('isTerminalFailure', () => {
+  it('treats failed and killed as errors, stopped and completed as not', () => {
+    expect(isTerminalFailure('failed')).toBe(true);
+    expect(isTerminalFailure('killed')).toBe(true);
+    expect(isTerminalFailure('stopped')).toBe(false);
+    expect(isTerminalFailure('completed')).toBe(false);
+    expect(isTerminalFailure(undefined)).toBe(false);
+  });
+});
+
+describe('toolStatusIndicatorClass', () => {
+  it('renders TaskStop-ended tasks as stopped, not green completed', () => {
+    expect(toolStatusIndicatorClass(false, true, 'stopped')).toBe('stopped');
+  });
+
+  it('keeps error > stopped > completed > pending precedence', () => {
+    expect(toolStatusIndicatorClass(true, true, 'stopped')).toBe('error');
+    expect(toolStatusIndicatorClass(false, true, 'completed')).toBe('completed');
+    expect(toolStatusIndicatorClass(false, true, undefined)).toBe('completed');
+    expect(toolStatusIndicatorClass(false, false, undefined)).toBe('pending');
+  });
+});
+
+describe('collectFinishedBackgroundTasks', () => {
+  it('collects task-id and tool-use-id with status from a content string', () => {
+    const messages: ClaudeMessage[] = [
+      { type: 'user', content: NOTIFICATION_TEXT } as ClaudeMessage,
+    ];
+    const finished = collectFinishedBackgroundTasks(messages);
+    expect(finished.get('a01c596b617a75624')).toBe('completed');
+    expect(finished.get('toolu_01KfcSbbqTc2EARfgXUmn1ck')).toBe('completed');
+  });
+
+  it('collects notifications from raw content text blocks and keeps terminal status', () => {
+    const failed = NOTIFICATION_TEXT
+      .replace('completed', 'failed')
+      .replace(/a01c596b617a75624/g, 'w057006cy')
+      .replace('toolu_01KfcSbbqTc2EARfgXUmn1ck', 'toolu_013Y92hsEwJxUBXX27WVctMH');
+    const messages: ClaudeMessage[] = [
+      {
+        type: 'user',
+        content: '',
+        raw: { content: [{ type: 'text', text: failed }] },
+      } as unknown as ClaudeMessage,
+    ];
+    const finished = collectFinishedBackgroundTasks(messages);
+    expect(finished.get('w057006cy')).toBe('failed');
+    expect(finished.get('toolu_013Y92hsEwJxUBXX27WVctMH')).toBe('failed');
+  });
+
+  it('ignores messages without notifications', () => {
+    const messages: ClaudeMessage[] = [
+      { type: 'assistant', content: 'plain answer' } as ClaudeMessage,
+    ];
+    expect(collectFinishedBackgroundTasks(messages).size).toBe(0);
+  });
+
+  it('collects TaskStop confirmations as stopped (no task-notification is ever emitted)', () => {
+    const stopResult = '{"message":"Successfully stopped task: wy0d80iqp (Implement Batch C)",'
+      + '"task_id":"wy0d80iqp","task_type":"local_workflow"}';
+    const messages: ClaudeMessage[] = [
+      {
+        type: 'user',
+        content: '',
+        raw: { content: [{ type: 'tool_result', tool_use_id: 'toolu_stop', content: stopResult }] },
+      } as unknown as ClaudeMessage,
+    ];
+    const finished = collectFinishedBackgroundTasks(messages);
+    expect(finished.get('wy0d80iqp')).toBe('stopped');
+  });
+
+  it('ignores status-less notifications (monitor events, agent messages)', () => {
+    const monitorEvent = '<task-notification>\n'
+      + '<task-id>bkvs4037z</task-id>\n'
+      + '<summary>Monitor event: ERROR in deploy.log</summary>\n'
+      + '</task-notification>';
+    const messages: ClaudeMessage[] = [
+      { type: 'user', content: monitorEvent } as ClaudeMessage,
+    ];
+    expect(collectFinishedBackgroundTasks(messages).size).toBe(0);
+  });
+
+  // A notification delivered while a turn is running never becomes a plain
+  // user message — it exists only as queue-operation / attachment JSONL lines
+  // (real formats from a live transcript, forwarded by the Java side with the
+  // notification text as content).
+  it('collects notifications forwarded from queue-operation records', () => {
+    const messages: ClaudeMessage[] = [
+      {
+        type: 'user',
+        content: NOTIFICATION_TEXT,
+        raw: { type: 'queue-operation', operation: 'enqueue', content: NOTIFICATION_TEXT },
+      } as unknown as ClaudeMessage,
+    ];
+    const finished = collectFinishedBackgroundTasks(messages);
+    expect(finished.get('a01c596b617a75624')).toBe('completed');
+  });
+
+  it('collects notifications from attachment records via attachment.prompt', () => {
+    const messages: ClaudeMessage[] = [
+      {
+        type: 'user',
+        content: '',
+        raw: {
+          type: 'attachment',
+          attachment: { type: 'queued_command', prompt: NOTIFICATION_TEXT, commandMode: 'task-notification' },
+        },
+      } as unknown as ClaudeMessage,
+    ];
+    const finished = collectFinishedBackgroundTasks(messages);
+    expect(finished.get('a01c596b617a75624')).toBe('completed');
+    expect(finished.get('toolu_01KfcSbbqTc2EARfgXUmn1ck')).toBe('completed');
+  });
+});
+
+describe('collectBackgroundTaskRecords usage stats', () => {
+  const NOTIFICATION_WITH_USAGE = '<task-notification>\n'
+    + '<task-id>aafe498495e3aab0a</task-id>\n'
+    + '<tool-use-id>toolu_01E5cB57FADyoa8HfM2P4LH9</tool-use-id>\n'
+    + '<status>completed</status>\n'
+    + '<summary>Agent "TEST: background agent card" finished</summary>\n'
+    + '<result>Background agent test finished OK.</result>\n'
+    + '<usage><subagent_tokens>26312</subagent_tokens><tool_uses>5</tool_uses><duration_ms>73018</duration_ms></usage>\n'
+    + '</task-notification>';
+
+  it('parses <usage> stats keyed by task-id and tool-use-id', () => {
+    const messages: ClaudeMessage[] = [
+      { type: 'user', content: NOTIFICATION_WITH_USAGE } as ClaudeMessage,
+    ];
+    const { finished, usage } = collectBackgroundTaskRecords(messages);
+    expect(finished.get('aafe498495e3aab0a')).toBe('completed');
+    expect(usage.get('aafe498495e3aab0a')).toEqual({
+      totalTokens: 26312,
+      totalToolUseCount: 5,
+      totalDurationMs: 73018,
+    });
+    expect(usage.get('toolu_01E5cB57FADyoa8HfM2P4LH9')).toEqual({
+      totalTokens: 26312,
+      totalToolUseCount: 5,
+      totalDurationMs: 73018,
+    });
+  });
+
+  it('leaves usage empty when the notification carries no <usage> block', () => {
+    const messages: ClaudeMessage[] = [
+      { type: 'user', content: NOTIFICATION_TEXT } as ClaudeMessage,
+    ];
+    const { usage } = collectBackgroundTaskRecords(messages);
+    expect(usage.size).toBe(0);
+  });
+});
+
+describe('getBackgroundTaskUsage', () => {
+  const launch = parseBackgroundLaunch(AGENT_LAUNCH_TEXT);
+
+  it('matches usage stats by agent id from the launch text', () => {
+    const usage = new Map([['a01c596b617a75624', { totalTokens: 100, totalToolUseCount: 2, totalDurationMs: 5000 }]]);
+    expect(getBackgroundTaskUsage(usage, launch, 'toolu_other')).toEqual({
+      totalTokens: 100,
+      totalToolUseCount: 2,
+      totalDurationMs: 5000,
+    });
+  });
+
+  it('returns undefined for a non-background result', () => {
+    expect(getBackgroundTaskUsage(new Map(), parseBackgroundLaunch('regular output'), 'toolu_x')).toBeUndefined();
+  });
+});
+
+describe('getFinishedBackgroundTaskStatus', () => {
+  const launch = parseBackgroundLaunch(AGENT_LAUNCH_TEXT);
+
+  it('returns undefined while the task still runs', () => {
+    expect(getFinishedBackgroundTaskStatus(new Map(), launch, 'toolu_x')).toBeUndefined();
+  });
+
+  it('matches by the launching tool_use id', () => {
+    const finished = new Map([['toolu_01KfcSbbqTc2EARfgXUmn1ck', 'completed']]);
+    expect(getFinishedBackgroundTaskStatus(finished, launch, 'toolu_01KfcSbbqTc2EARfgXUmn1ck')).toBe('completed');
+  });
+
+  it('matches by the agent id parsed from the launch text', () => {
+    const finished = new Map([['a01c596b617a75624', 'killed']]);
+    expect(getFinishedBackgroundTaskStatus(finished, launch, 'toolu_other')).toBe('killed');
+  });
+
+  it('never matches a foreground result', () => {
+    const finished = new Map([['toolu_x', 'completed']]);
+    expect(getFinishedBackgroundTaskStatus(finished, { isBackground: false }, 'toolu_x')).toBeUndefined();
+  });
+});

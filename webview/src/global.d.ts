@@ -127,6 +127,11 @@ interface Window {
   onSubagentHistoryLoaded?: (json: string) => void;
 
   /**
+   * Workflow (ultracode) run status callback — response to load_workflow_status.
+   */
+  onWorkflowStatusLoaded?: (json: string) => void;
+
+  /**
    * task_* SDK system event callback (async subagent lifecycle).
    * Payload: { subtype: 'task_started'|'task_progress'|'task_notification',
    *   task_id, tool_use_id, status?, summary?, usage?, output_file? }.
@@ -585,6 +590,15 @@ interface Window {
    * @param title - The generated title text
    */
   updateSessionTitle?: (sessionId: string, title: string) => void;
+
+  /**
+   * Background-turn state from the daemon: the CLI is generating ('active',
+   * re-sent as a heartbeat) or finished ('idle') an inter-turn response —
+   * e.g. answering a task-notification after a background agent completed.
+   * @param sessionId - The session the CLI-owned turn belongs to
+   * @param state - 'active' | 'idle'
+   */
+  updateBackgroundTurnState?: (sessionId: string, state: string) => void;
 
   /**
    * Editor font config received callback - receives IDEA editor font configuration

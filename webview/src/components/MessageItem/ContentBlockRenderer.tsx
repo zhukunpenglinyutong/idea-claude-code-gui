@@ -276,6 +276,14 @@ export function ContentBlockRenderer({
   }
 
   if (block.type === 'thinking') {
+    // Interleaved thinking (e.g. Fable 5) persists signature-only blocks with
+    // no text — rendering those yields empty collapsed "Thinking" rows. Keep
+    // only blocks with content, plus the live indicator while it streams.
+    const thinkingText = (block.thinking ?? block.text ?? '').trim();
+    const isActiveThinking = isThinking && isLastMessage && isLastBlock;
+    if (!thinkingText && !isActiveThinking) {
+      return null;
+    }
     return (
       <div className="thinking-block">
         <div

@@ -188,6 +188,10 @@ public class MessageJsonConverter {
         JsonObject transport = new JsonObject();
         copyFieldIfPresent(raw, transport, "uuid");
         copyFieldIfPresent(raw, transport, "type");
+        // Original transcript timestamp (ISO). The outer message timestamp is
+        // stamped at parse time, so this is the only source of the real one —
+        // used e.g. to freshness-gate the background-turn waiting indicator.
+        copyFieldIfPresent(raw, transport, "timestamp");
         copyFieldIfPresent(raw, transport, "isMeta");
         copyFieldIfPresent(raw, transport, "text");
         // Compact-related fields for filtering compact summary messages

@@ -2,6 +2,7 @@ import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
 import { useIsToolDenied } from '../../hooks/useIsToolDenied';
+import { isTerminalFailure, toolStatusIndicatorClass, useBackgroundTaskState } from '../../utils/backgroundTasks';
 import { stripAnsi } from '../../utils/stripAnsi';
 
 const TASK_DETAILS_STYLE: React.CSSProperties = { padding: 0, border: 'none' };
@@ -21,6 +22,30 @@ const BashToolBlock = memo(function BashToolBlock({ input, result, toolId }: Bas
   const [expanded, setExpanded] = useState(false);
   const isDenied = useIsToolDenied(toolId);
 
+  // Everything below the early returns must stay hook-free, so derive the
+  // background state FIRST, defensively: this component bails out for missing
+  // input and for a placeholder with no command/description yet, and a later
+  // render carrying the details would otherwise run one more hook than the
+  // previous render (React: "Rendered more hooks than during the previous
+  // render").
+  let output = '';
+  if (result) {
+    const content = result.content;
+    if (typeof content === 'string') {
+      output = content;
+    } else if (Array.isArray(content)) {
+      output = content.map((block) => block.text ?? '').join('\n');
+    }
+    output = stripAnsi(output);
+  }
+  // A run_in_background command returns its tool_result immediately
+  // ("Command running in background with ID: …") while the command keeps
+  // running — stay pending until its task-notification lands. Gated on the
+  // input flag so a foreground command whose *output* quotes such text
+  // (grep over transcripts) can never stick in the running state.
+  const wantsBackground = input?.run_in_background === true || input?.runInBackground === true;
+  const background = useBackgroundTaskState(wantsBackground ? (output || undefined) : undefined, toolId);
+
   if (!input) {
     return null;
   }
@@ -31,21 +56,11 @@ const BashToolBlock = memo(function BashToolBlock({ input, result, toolId }: Bas
 
   // Determine tool call status based on result
   // If denied, treat as completed (show error state)
-  const isCompleted = (result !== undefined && result !== null) || isDenied;
+  const isCompleted = ((result !== undefined && result !== null) && !background.running) || isDenied;
   // If denied, show as error state
-  const isError = isDenied || (isCompleted && result?.is_error === true);
-
-  let output = '';
-
-  if (result) {
-    const content = result.content;
-    if (typeof content === 'string') {
-      output = content;
-    } else if (Array.isArray(content)) {
-      output = content.map((block) => block.text ?? '').join('\n');
-    }
-    output = stripAnsi(output);
-  }
+  const isError = isDenied
+    || (isCompleted && result?.is_error === true)
+    || isTerminalFailure(background.terminalStatus);
 
   return (
     <div className="task-container">
@@ -57,9 +72,14 @@ const BashToolBlock = memo(function BashToolBlock({ input, result, toolId }: Bas
           <span className="codicon codicon-terminal bash-tool-icon" />
           <span className="bash-tool-title">{t('tools.runCommand')}</span>
           <span className="bash-tool-description">{description}</span>
+          {background.running && (
+            <span className="bash-tool-description">
+              · {t('tools.runningInBackground', 'running in background…')}
+            </span>
+          )}
         </div>
 
-        <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />
+        <div className={`tool-status-indicator ${toolStatusIndicatorClass(isError, isCompleted, background.terminalStatus)}`} />
       </div>
 
       {expanded && (

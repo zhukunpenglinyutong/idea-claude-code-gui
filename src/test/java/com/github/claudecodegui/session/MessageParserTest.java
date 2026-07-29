@@ -7,6 +7,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class MessageParserTest {
 
@@ -96,5 +97,70 @@ public class MessageParserTest {
         assertEquals(ClaudeSession.Message.Type.USER, parsed.type);
         assertEquals("", parsed.content);
         assertEquals(normalizedRaw, parsed.raw);
+    }
+
+    @Test
+    public void parseServerMessageStampsTranscriptTimestampDeterministically() {
+        MessageParser parser = new MessageParser();
+
+        JsonObject message = new JsonObject();
+        message.addProperty("role", "assistant");
+        message.addProperty("content", "hello");
+
+        JsonObject envelope = new JsonObject();
+        envelope.addProperty("type", "assistant");
+        envelope.addProperty("timestamp", "2026-07-15T12:00:00.123Z");
+        envelope.add("message", message);
+
+        ClaudeSession.Message first = parser.parseServerMessage(envelope);
+        ClaudeSession.Message second = parser.parseServerMessage(envelope.deepCopy());
+
+        assertNotNull(first);
+        assertNotNull(second);
+        // Deterministic across reloads (the webview's smart merge keys on it)
+        // and equal to the transcript's own time, not the parse time.
+        assertEquals(1784116800123L, first.timestamp);
+        assertEquals(first.timestamp, second.timestamp);
+    }
+
+    @Test
+    public void parseServerMessageKeepsParseTimeStampWithoutTranscriptTimestamp() {
+        MessageParser parser = new MessageParser();
+
+        JsonObject message = new JsonObject();
+        message.addProperty("role", "assistant");
+        message.addProperty("content", "hello");
+
+        JsonObject envelope = new JsonObject();
+        envelope.addProperty("type", "assistant");
+        envelope.add("message", message);
+
+        long before = System.currentTimeMillis();
+        ClaudeSession.Message parsed = parser.parseServerMessage(envelope);
+        long after = System.currentTimeMillis();
+
+        assertNotNull(parsed);
+        assertTrue(parsed.timestamp >= before && parsed.timestamp <= after);
+    }
+
+    @Test
+    public void parseServerMessageIgnoresUnparseableTranscriptTimestamp() {
+        MessageParser parser = new MessageParser();
+
+        JsonObject message = new JsonObject();
+        message.addProperty("role", "assistant");
+        message.addProperty("content", "hello");
+
+        JsonObject envelope = new JsonObject();
+        envelope.addProperty("type", "assistant");
+        envelope.addProperty("timestamp", "not-a-timestamp");
+        envelope.add("message", message);
+
+        long before = System.currentTimeMillis();
+        ClaudeSession.Message parsed = parser.parseServerMessage(envelope);
+        long after = System.currentTimeMillis();
+
+        assertNotNull(parsed);
+        assertTrue(parsed.timestamp >= before && parsed.timestamp <= after);
     }
 }

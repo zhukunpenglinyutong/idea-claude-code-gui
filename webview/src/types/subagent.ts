@@ -1,7 +1,7 @@
 /**
  * Subagent status
  */
-export type SubagentStatus = 'running' | 'completed' | 'error';
+export type SubagentStatus = 'running' | 'completed' | 'error' | 'stopped';
 
 /**
  * Terminal status carried by a Claude Code task_notification SDK event.
@@ -47,6 +47,8 @@ export interface SubagentHistoryResponse {
   sessionId?: string;
   error?: string;
   messages?: unknown[];
+  /** True when the backend returned only the transcript tail (live-progress poll). */
+  truncated?: boolean;
 }
 
 /**
@@ -83,4 +85,6 @@ export interface SubagentInfo {
   toolStats?: Record<string, number>;
   /** Final Agent output, when available from the tool result */
   resultText?: string;
+  /** Launched with run_in_background — may keep running after the turn settles */
+  isBackground?: boolean;
 }

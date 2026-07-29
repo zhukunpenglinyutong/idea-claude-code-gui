@@ -574,6 +574,15 @@ public class ClaudeSession {
     }
 
     /**
+     * Load message history from the server without toggling the loading flag.
+     * Used by background session_updated refreshes so the frontend's waiting
+     * indicator does not flash on every refresh.
+     */
+    public CompletableFuture<Void> loadFromServerSilently() {
+        return messageOrchestrator.loadFromServer(false);
+    }
+
+    /**
      * Represents a file attachment (e.g., image).
      */
     public static class Attachment {

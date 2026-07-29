@@ -2,6 +2,24 @@ import { emitAccumulatedUsage, mergeUsage } from '../../utils/usage-utils.js';
 import { truncateErrorContent, truncateToolResultBlock } from './message-output-filter.js';
 import { normalizeStreamDelta, resolveSnapshotDelta, resetTurnBlockState } from './stream-delta-normalizer.js';
 
+/**
+ * True for SDK messages that belong to a SUBAGENT's sidechain rather than the
+ * parent conversation: assistant/user messages (and partial-message stream
+ * events) carrying a non-null `parent_tool_use_id`.
+ *
+ * With the SDK default `forwardSubagentText: false`, a foreground Agent run
+ * streams the subagent's tool_use/tool_result blocks into the parent query as
+ * such messages (a progress heartbeat). Forwarding them to the GUI merged the
+ * subagent's tool calls into the parent's assistant message — they rendered as
+ * ordinary conversation tool cards, buried the Agent card among them, and the
+ * subagent's usage overwrote the parent's token counter. The GUI renders live
+ * subagent progress by polling `<session>/subagents/agent-*.jsonl` instead, so
+ * the turn loop drops sidechain events entirely.
+ */
+export function isSidechainMessage(msg) {
+  return Boolean(msg?.parent_tool_use_id ?? msg?.event?.parent_tool_use_id);
+}
+
 export function emitUsageTag(msg) {
   if (msg.type === 'assistant' && msg.message?.usage) {
     const {

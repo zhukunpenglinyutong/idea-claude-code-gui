@@ -142,6 +142,9 @@ export const TASK_STATUS_COLORS: Record<string, string> = {
   failed: 'error',
   killed: 'warning',
   stopped: 'text',
+  // Mid-run notifications (monitor events, agent messages) carry no terminal
+  // <status> — render them neutral, not as a green success.
+  event: 'text',
 };
 
 /**
@@ -169,14 +172,18 @@ export function formatTaskNotificationForDisplay(
     return detail ? { icon: '●', summary, status, detail } : { icon: '●', summary, status };
   }
 
-  // Fallback: minimal format (only summary)
+  // Fallback: minimal format (only summary). No <status> means a mid-run
+  // event (monitor firing, agent message) — not a completion.
   const matchNoStatus = TASK_NOTIFICATION_REGEX_NO_STATUS.exec(text);
   if (matchNoStatus?.[1]) {
     const summary = matchNoStatus[1].trim();
     if (!summary) return null;
+    // status stays 'event', not 'completed': a notification without <status> is
+    // a mid-run event, and rendering it as completed put a green success dot on
+    // a monitor firing. The detail passthrough from the base is kept.
     return detail
-      ? { icon: '●', summary, status: 'completed', detail }
-      : { icon: '●', summary, status: 'completed' };
+      ? { icon: '●', summary, status: 'event', detail }
+      : { icon: '●', summary, status: 'event' };
   }
 
   return null;

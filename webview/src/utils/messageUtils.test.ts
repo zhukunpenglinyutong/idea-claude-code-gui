@@ -455,13 +455,13 @@ describe('formatTaskNotificationForDisplay', () => {
     });
   });
 
-  it('defaults to completed status when status tag missing', () => {
-    const text = '<task-notification><summary>Task done</summary></task-notification>';
+  it('marks status-less notifications as mid-run events, not completions', () => {
+    const text = '<task-notification><summary>Monitor event: ERROR in log</summary></task-notification>';
     const result = formatTaskNotificationForDisplay(text);
     expect(result).toEqual({
       icon: '●',
-      summary: 'Task done',
-      status: 'completed',
+      summary: 'Monitor event: ERROR in log',
+      status: 'event',
     });
   });
 
@@ -1106,7 +1106,10 @@ describe('formatTaskNotificationForDisplay — <event> payload', () => {
     const text = '<task-notification>\n<task-id>bkvs4037z</task-id>\n<summary>Monitor event: "verify gate exit + result"</summary>\n<event>2026-07-13 14:14:23.887 [main] ERROR c.k.p.s.StatusClient - Failed to check branch status 123456\nEXIT=</event>\n</task-notification>';
     const result = formatTaskNotificationForDisplay(text);
     expect(result?.summary).toBe('Monitor event: "verify gate exit + result"');
-    expect(result?.status).toBe('completed');
+    // A notification without <status> is a mid-run event, not a completion:
+    // rendering it as 'completed' put a green success dot on a monitor firing.
+    // The detail passthrough this suite covers is unaffected.
+    expect(result?.status).toBe('event');
     expect(result?.detail).toBe('2026-07-13 14:14:23.887 [main] ERROR c.k.p.s.StatusClient - Failed to check branch status 123456\nEXIT=');
   });
 

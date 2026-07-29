@@ -1,4 +1,4 @@
-import { type RefObject, useCallback, useMemo, useRef } from 'react';
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 import type {
   ClaudeContentBlock,
@@ -18,11 +18,15 @@ import {
 } from '../utils/messageUtils';
 import { extractTodosFromToolUse, extractAccumulatedTasks } from '../utils/todoToolNormalization';
 import {
+  type BackgroundTurnActivity,
   finalizeSubagentsForSettledTurn,
   finalizeTodosForSettledTurn,
+  getBackgroundTurnActivity,
   sliceLatestConversationTurn,
 } from '../utils/turnScope';
 import { FILE_MODIFY_TOOL_NAMES, isToolName } from '../utils/toolConstants';
+import { collectBackgroundTaskRecords, setBackgroundTaskUsage, setFinishedBackgroundTasks } from '../utils/backgroundTasks';
+import { useBackgroundTurnSignal } from '../utils/backgroundTurnSignal';
 import { useSubagents } from './useSubagents';
 import { useFileChanges } from './useFileChanges';
 import { useFileChangesManagement } from './useFileChangesManagement';
@@ -168,6 +172,56 @@ export function useChatComputations({
 
   const latestTurnMessages = useMemo(() => sliceLatestConversationTurn(messages), [messages]);
 
+  // Track which background tasks (agents/workflows launched with
+  // run_in_background) have finished — their completion arrives as a
+  // task-notification message carrying the launch's ids. Tool cards read
+  // this store to keep background agents in "running" state after their
+  // immediate launch-confirmation tool_result.
+  useEffect(() => {
+    const records = collectBackgroundTaskRecords(messages);
+    setFinishedBackgroundTasks(records.finished);
+    setBackgroundTaskUsage(records.usage);
+  }, [messages]);
+
+  // The CLI generating an inter-turn background response has no GUI-owned
+  // streaming state — surface it as a waiting indicator. Two sources, ORed:
+  // the live daemon signal (background_turn events relayed by Java; primary,
+  // TTL-expired in its store) and the transcript-tail heuristic (a trailing
+  // task-notification; covers reloads of sessions the daemon isn't signalling
+  // about). The heuristic is re-evaluated on a timer so its freshness window
+  // can expire without a new message arriving.
+  const backgroundTurnSignal = useBackgroundTurnSignal();
+  const [backgroundTurnActivity, setBackgroundTurnActivity] = useState<BackgroundTurnActivity>({ active: false });
+  // The evaluator reads its inputs through a ref so the 30s timer below is
+  // created ONCE. Depending on `messages` directly tore the interval down and
+  // rebuilt it on every streamed message, which both churned timers and kept
+  // pushing the freshness deadline further out.
+  const backgroundTurnInputsRef = useRef({ messages, backgroundTurnSignal, currentSessionId });
+  backgroundTurnInputsRef.current = { messages, backgroundTurnSignal, currentSessionId };
+  const evaluateBackgroundTurn = useCallback(() => {
+    const { messages: msgs, backgroundTurnSignal: signal, currentSessionId: sessionId } = backgroundTurnInputsRef.current;
+    const heuristic = getBackgroundTurnActivity(msgs, Date.now());
+    const signalActive = signal !== null && signal.sessionId === sessionId;
+    const next: BackgroundTurnActivity = heuristic.active
+      ? heuristic
+      : signalActive
+        ? { active: true, startTimeMs: signal.startedAtMs }
+        : { active: false };
+    setBackgroundTurnActivity((prev) => (
+      prev.active === next.active && prev.startTimeMs === next.startTimeMs ? prev : next
+    ));
+  }, []);
+  // Re-evaluate when the inputs change (cheap; no timer involved).
+  useEffect(() => {
+    evaluateBackgroundTurn();
+  }, [messages, backgroundTurnSignal, currentSessionId, evaluateBackgroundTurn]);
+  // One long-lived timer so the heuristic's freshness window can expire even
+  // when no new message arrives.
+  useEffect(() => {
+    const timer = window.setInterval(evaluateBackgroundTurn, 30_000);
+    return () => window.clearInterval(timer);
+  }, [evaluateBackgroundTurn]);
+
   // While streaming, focus on the current turn's task progress; once settled
   // (history replay or idle), widen the scope to the whole conversation -
   // otherwise a multi-turn history session whose last turn has no task tool
@@ -195,10 +249,24 @@ export function useChatComputations({
     subagentHistories,
   });
 
-  const subagents = useMemo(
-    () => finalizeSubagentsForSettledTurn(latestTurnSubagents, streamingActive),
-    [latestTurnSubagents, streamingActive],
-  );
+  // Background subagents (agents/workflows) launched in earlier turns keep
+  // running while the conversation moves on — scan the full history so they
+  // stay visible in the status panel until their task-notification arrives.
+  const allSubagents = useSubagents({
+    messages,
+    getContentBlocks,
+    findToolResult,
+    getToolResultRaw,
+  });
+
+  const subagents = useMemo(() => {
+    const latest = finalizeSubagentsForSettledTurn(latestTurnSubagents, streamingActive);
+    const inLatestTurn = new Set(latest.map((subagent) => subagent.id));
+    const runningBackground = allSubagents.filter(
+      (subagent) => subagent.isBackground && subagent.status === 'running' && !inLatestTurn.has(subagent.id),
+    );
+    return [...runningBackground, ...latest];
+  }, [allSubagents, latestTurnSubagents, streamingActive]);
 
   const globalTodos = useMemo(() => {
     return deriveTodosForTurn(statusScopeMessages, getContentBlocks, streamingActive);
@@ -276,5 +344,6 @@ export function useChatComputations({
     globalTodos,
     rewindableMessages,
     sessionTitle,
+    backgroundTurnActivity,
   };
 }

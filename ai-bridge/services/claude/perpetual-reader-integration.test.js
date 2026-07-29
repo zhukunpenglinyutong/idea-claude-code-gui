@@ -115,7 +115,7 @@ test('Integration: perpetual reader routes in-turn messages to turnSink', async 
 // Inter-Turn Event Emission (regression guard for the daemon writer wiring)
 // ============================================================================
 
-test('Integration: inter-turn result emits a session_updated event for a registered runtime', async () => {
+test('Integration: inter-turn background turn emits throttled progress nudges plus the result event', async () => {
   const ctl = createControlledQuery();
   const runtime = { closed: false, sessionId: 'sess-bg', turnSink: null, query: ctl.query };
   const events = captureInterTurnEvents();
@@ -123,6 +123,9 @@ test('Integration: inter-turn result emits a session_updated event for a registe
   const reader = startPerpetualReader(runtime);
   try {
     // No active turn (turnSink == null): a completed turn from the CLI.
+    // The first content message emits a throttled progress nudge; the
+    // assistant message lands inside the throttle window and is coalesced;
+    // the result always emits.
     ctl.deliver({ type: 'user', content: '<task-notification>' });
     ctl.deliver({ type: 'assistant', content: 'Task completed' });
     ctl.deliver({ type: 'result', is_error: false });
@@ -135,9 +138,104 @@ test('Integration: inter-turn result emits a session_updated event for a registe
   }
 
   const updates = events.list.filter((e) => e.event === 'session_updated');
-  assert.equal(updates.length, 1);
-  assert.equal(updates[0].type, 'daemon');
-  assert.equal(updates[0].sessionId, 'sess-bg');
+  assert.equal(updates.length, 2);
+  updates.forEach((u) => {
+    assert.equal(u.type, 'daemon');
+    assert.equal(u.sessionId, 'sess-bg');
+  });
+});
+
+test('Integration: inter-turn background turn emits background_turn active then idle', async () => {
+  const ctl = createControlledQuery();
+  const runtime = { closed: false, sessionId: 'sess-bg2', turnSink: null, query: ctl.query };
+  const events = captureInterTurnEvents();
+
+  const reader = startPerpetualReader(runtime);
+  try {
+    ctl.deliver({ type: 'user', content: '<task-notification>' });
+    ctl.deliver({ type: 'assistant', content: 'chunk 1' });
+    ctl.deliver({ type: 'assistant', content: 'chunk 2' });
+    ctl.deliver({ type: 'result', is_error: false });
+    await settle();
+  } finally {
+    runtime.closed = true;
+    ctl.end();
+    await reader;
+    events.restore();
+  }
+
+  const turnEvents = events.list.filter((e) => e.event === 'background_turn');
+  // First message of the burst emits 'active' immediately; the result emits
+  // 'idle'. The heartbeat is timer-driven (5s default) so none fire inside
+  // this fast test.
+  assert.deepEqual(turnEvents.map((e) => e.state), ['active', 'idle']);
+  turnEvents.forEach((e) => {
+    assert.equal(e.type, 'daemon');
+    assert.equal(e.sessionId, 'sess-bg2');
+  });
+  // The idle event must arrive with (or before) the result's session_updated,
+  // never linger past it.
+  const lastIdleIdx = events.list.findIndex((e) => e.event === 'background_turn' && e.state === 'idle');
+  const resultUpdateIdx = events.list.map((e) => e.event).lastIndexOf('session_updated');
+  assert.ok(lastIdleIdx <= resultUpdateIdx, 'idle should not trail the final session_updated');
+});
+
+test('Integration: background_turn heartbeat keeps firing through silent gaps and stops on idle', async () => {
+  const ctl = createControlledQuery();
+  // Background turns routinely go silent for minutes (long tool call, deep
+  // thinking); the heartbeat must be timer-driven so the webview TTL cannot
+  // expire mid-turn. Shrunk interval so the test observes several ticks.
+  const runtime = { closed: false, sessionId: 'sess-hb', turnSink: null, query: ctl.query, interTurnHeartbeatMs: 15 };
+  const events = captureInterTurnEvents();
+
+  const reader = startPerpetualReader(runtime);
+  try {
+    ctl.deliver({ type: 'assistant', content: 'starting long silent work' });
+    // Silence: no further messages while the heartbeat interval ticks.
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    const activeDuringSilence = events.list.filter(
+      (e) => e.event === 'background_turn' && e.state === 'active',
+    ).length;
+    assert.ok(activeDuringSilence >= 3,
+      `expected timer heartbeats during silence, got ${activeDuringSilence}`);
+
+    ctl.deliver({ type: 'result', is_error: false });
+    await settle();
+    const afterIdleCount = events.list.filter((e) => e.event === 'background_turn').length;
+    assert.equal(events.list[events.list.length - 1].event === 'background_turn'
+      ? events.list[events.list.length - 1].state : 'idle', 'idle');
+    // No further heartbeats after idle — the timer must be cleared.
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(events.list.filter((e) => e.event === 'background_turn').length, afterIdleCount);
+    const states = events.list.filter((e) => e.event === 'background_turn').map((e) => e.state);
+    assert.equal(states[states.length - 1], 'idle');
+  } finally {
+    runtime.closed = true;
+    ctl.end();
+    await reader;
+    events.restore();
+  }
+});
+
+test('Integration: reader exit mid-background-turn emits background_turn idle', async () => {
+  const ctl = createControlledQuery();
+  const runtime = { closed: false, sessionId: 'sess-dead', turnSink: null, query: ctl.query, inputStream: { done() {} }, query_close: null };
+  const events = captureInterTurnEvents();
+
+  const reader = startPerpetualReader(runtime);
+  try {
+    ctl.deliver({ type: 'assistant', content: 'chunk' });
+    await settle();
+    // Stream dies without a result message.
+    ctl.deliverError(new Error('subprocess died'));
+    await reader;
+  } finally {
+    events.restore();
+  }
+
+  const turnEvents = events.list.filter((e) => e.event === 'background_turn');
+  assert.equal(turnEvents[turnEvents.length - 1].state, 'idle');
+  assert.equal(turnEvents[turnEvents.length - 1].sessionId, 'sess-dead');
 });
 
 test('Integration: inter-turn result on anonymous runtime emits no event', async () => {
@@ -159,13 +257,14 @@ test('Integration: inter-turn result on anonymous runtime emits no event', async
   assert.equal(events.list.filter((e) => e.event === 'session_updated').length, 0);
 });
 
-test('Integration: non-result inter-turn messages do not emit events', async () => {
+test('Integration: non-result inter-turn messages emit a single throttled nudge', async () => {
   const ctl = createControlledQuery();
   const runtime = { closed: false, sessionId: 'sess-x', turnSink: null, query: ctl.query };
   const events = captureInterTurnEvents();
 
   const reader = startPerpetualReader(runtime);
   try {
+    // Both messages arrive within the 2s throttle window: exactly one nudge.
     ctl.deliver({ type: 'assistant', content: 'partial' });
     ctl.deliver({ type: 'user', content: 'noise' });
     await settle();
@@ -176,7 +275,30 @@ test('Integration: non-result inter-turn messages do not emit events', async () 
     events.restore();
   }
 
-  assert.equal(events.list.filter((e) => e.event === 'session_updated').length, 0);
+  const updates = events.list.filter((e) => e.event === 'session_updated');
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].sessionId, 'sess-x');
+});
+
+test('Integration: inter-turn result falls back to the session id carried on the message', async () => {
+  const ctl = createControlledQuery();
+  const runtime = { closed: false, sessionId: null, turnSink: null, query: ctl.query };
+  const events = captureInterTurnEvents();
+
+  const reader = startPerpetualReader(runtime);
+  try {
+    ctl.deliver({ type: 'result', is_error: false, session_id: 'sess-from-msg' });
+    await settle();
+  } finally {
+    runtime.closed = true;
+    ctl.end();
+    await reader;
+    events.restore();
+  }
+
+  const updates = events.list.filter((e) => e.event === 'session_updated');
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].sessionId, 'sess-from-msg');
 });
 
 // ============================================================================
@@ -340,6 +462,49 @@ test('Integration: reader disposes a still-live runtime when the stream ends int
   assert.equal(runtime.closed, true, 'runtime should be disposed (closed) on inter-turn stream end');
   assert.equal(inputDone, true, 'inputStream.done() should be called');
   assert.equal(queryClosed, true, 'query.close() should be called');
+});
+
+test('Regression: disposeRuntime stops the background_turn heartbeat even when the reader is wedged', async () => {
+  // A background workflow keeps the perpetual reader parked in query.next().
+  // If the subprocess goes silent instead of emitting EOF, query.close() never
+  // settles the pending next(), so the reader's finally (which clears the
+  // heartbeat) never runs. disposeRuntime must therefore clear the interval
+  // itself; otherwise the heartbeat leaks — the 5s cadence observed firing
+  // past workflow completion.
+  const { disposeRuntime } = await import('./runtime-lifecycle.js');
+  const ctl = createControlledQuery();
+  const runtime = {
+    closed: false,
+    sessionId: 'sess-dispose',
+    turnSink: null, // inter-turn
+    query: ctl.query,
+    inputStream: { done() {} },
+    interTurnHeartbeatMs: 15,
+  };
+  const events = captureInterTurnEvents();
+  const reader = startPerpetualReader(runtime, {});
+  try {
+    ctl.deliver({ type: 'assistant', content: 'background work begins' });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const started = events.list.filter((e) => e.event === 'background_turn' && e.state === 'active').length;
+    assert.ok(started >= 1, `heartbeat should have started, got ${started}`);
+
+    // close() sets ended=true but does NOT settle the parked next() — the
+    // reader stays wedged, exactly the leak scenario.
+    await disposeRuntime(runtime, {});
+    assert.equal(runtime.interTurnHeartbeatTimer ?? null, null, 'disposeRuntime must clear the heartbeat timer');
+
+    const afterDispose = events.list.length;
+    await new Promise((resolve) => setTimeout(resolve, 60)); // > interval: no new ticks allowed
+    const leaked = events.list.slice(afterDispose)
+      .filter((e) => e.event === 'background_turn' && e.state === 'active');
+    assert.equal(leaked.length, 0, `heartbeat leaked ${leaked.length} ticks after dispose`);
+  } finally {
+    runtime.closed = true;
+    ctl.end();
+    await reader;
+    events.restore();
+  }
 });
 
 console.log('\n✅ Perpetual reader integration tests exercise the real startPerpetualReader');

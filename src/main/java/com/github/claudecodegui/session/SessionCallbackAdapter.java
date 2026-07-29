@@ -34,6 +34,14 @@ public class SessionCallbackAdapter implements ClaudeSession.SessionCallback {
     private final PermissionHandler permissionHandler;
     private final BooleanSupplier slashCommandsFetchedSupplier;
     private final Runnable streamEndCallback;
+    /**
+     * Fired (on the EDT) when a state change reports the session idle
+     * ({@code !busy && !loading}). This is the turn boundary for NON-streaming
+     * turns — they never arm the coalescer, so its onStreamEnded hook cannot
+     * drain work deferred during the turn (e.g. a parked session_updated
+     * reload). Nullable; invoked best-effort.
+     */
+    private final Runnable turnIdleCallback;
     private final StreamDeltaThrottler contentDeltaThrottler;
     private final StreamDeltaThrottler thinkingDeltaThrottler;
     private final Alarm streamEndFallbackAlarm;
@@ -50,11 +58,24 @@ public class SessionCallbackAdapter implements ClaudeSession.SessionCallback {
             BooleanSupplier slashCommandsFetchedSupplier,
             Runnable streamEndCallback
     ) {
+        this(streamCoalescer, jsTarget, permissionHandler, slashCommandsFetchedSupplier,
+                streamEndCallback, null);
+    }
+
+    public SessionCallbackAdapter(
+            StreamMessageCoalescer streamCoalescer,
+            JsTarget jsTarget,
+            PermissionHandler permissionHandler,
+            BooleanSupplier slashCommandsFetchedSupplier,
+            Runnable streamEndCallback,
+            Runnable turnIdleCallback
+    ) {
         this.streamCoalescer = streamCoalescer;
         this.jsTarget = jsTarget;
         this.permissionHandler = permissionHandler;
         this.slashCommandsFetchedSupplier = slashCommandsFetchedSupplier;
         this.streamEndCallback = streamEndCallback;
+        this.turnIdleCallback = turnIdleCallback;
         this.contentDeltaThrottler = new StreamDeltaThrottler(
                 DELTA_THROTTLE_MS,
                 delta -> {
@@ -123,6 +144,13 @@ public class SessionCallbackAdapter implements ClaudeSession.SessionCallback {
             }
             if (!busy && !loading) {
                 VirtualFileManager.getInstance().asyncRefresh(null);
+                // Turn boundary for non-streaming turns: drain work deferred
+                // mid-turn (streaming turns drain via the coalescer's
+                // onStreamEnded hook, which never fires when streaming is
+                // disabled). Idempotent — a no-op when nothing was deferred.
+                if (turnIdleCallback != null) {
+                    safeRun("turnIdleCallback", turnIdleCallback);
+                }
             }
         });
     }

@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
+import { getBackgroundTaskState, isTerminalFailure, isTerminalStop, useFinishedBackgroundTasks } from '../../utils/backgroundTasks';
 import { stripAnsi } from '../../utils/stripAnsi';
 
 interface BashItem {
@@ -9,6 +10,7 @@ interface BashItem {
   output: string;
   isCompleted: boolean;
   isError: boolean;
+  isStopped: boolean;
   toolId?: string;
 }
 
@@ -43,7 +45,8 @@ function parseBashItem(
     result?: ToolResultBlock | null;
     toolId?: string;
   },
-  deniedToolIds?: Set<string>
+  deniedToolIds: Set<string> | undefined,
+  finishedBackgroundTasks: ReadonlyMap<string, string>,
 ): BashItem | null {
   const { input, result, toolId } = item;
   if (!input) return null;
@@ -63,9 +66,18 @@ function parseBashItem(
     output = stripAnsi(output);
   }
 
+  // A run_in_background command keeps running after its immediate
+  // tool_result — stay pending until its task-notification lands. Gated on
+  // the input flag so foreground output quoting launch text never matches.
+  const wantsBackground = input.run_in_background === true || input.runInBackground === true;
+  const background = getBackgroundTaskState(finishedBackgroundTasks, wantsBackground ? (output || undefined) : undefined, toolId);
+
   const isDenied = toolId ? (deniedToolIds?.has(toolId) ?? false) : false;
-  const isCompleted = (result !== undefined && result !== null) || isDenied;
-  const isError = isDenied || (isCompleted && result?.is_error === true);
+  const isCompleted = ((result !== undefined && result !== null) && !background.running) || isDenied;
+  const isError = isDenied
+    || (isCompleted && result?.is_error === true)
+    || isTerminalFailure(background.terminalStatus);
+  const isStopped = !isError && isTerminalStop(background.terminalStatus);
 
   return {
     command,
@@ -73,6 +85,7 @@ function parseBashItem(
     output,
     isCompleted,
     isError,
+    isStopped,
     toolId,
   };
 }
@@ -95,11 +108,12 @@ const BashToolGroupBlock = ({ items, deniedToolIds }: BashToolGroupBlockProps) =
   const prevItemCountRef = useRef(0);
 
   // Parse all items
+  const finishedBackgroundTasks = useFinishedBackgroundTasks();
   const bashItems = useMemo(() => {
     return items
-      .map((item) => parseBashItem(item, deniedToolIds))
+      .map((item) => parseBashItem(item, deniedToolIds, finishedBackgroundTasks))
       .filter((item): item is BashItem => item !== null);
-  }, [items, deniedToolIds]);
+  }, [items, deniedToolIds, finishedBackgroundTasks]);
 
   // Auto-scroll to bottom when new items are added
   useEffect(() => {
@@ -221,7 +235,7 @@ const BashToolGroupBlock = ({ items, deniedToolIds }: BashToolGroupBlockProps) =
                     </span>
                     <div
                       className={`tool-status-indicator ${
-                        item.isError ? 'error' : item.isCompleted ? 'completed' : 'pending'
+                        item.isError ? 'error' : item.isStopped ? 'stopped' : item.isCompleted ? 'completed' : 'pending'
                       }`}
                     />
                   </div>

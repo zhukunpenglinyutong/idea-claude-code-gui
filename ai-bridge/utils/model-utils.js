@@ -174,6 +174,38 @@ export function modelSupportsVision(modelId) {
   return lower.startsWith('claude-');
 }
 
+/**
+ * Newer adaptive-thinking models return thinking blocks with the content
+ * encrypted into the signature unless the request opts into a visible
+ * thinking display — via the SDK the effective default is `display: 'omitted'`,
+ * so every thinking block arrives with empty text and the GUI has nothing to
+ * render. These models need an explicit `thinking` config with
+ * `display: 'summarized'` (it composes with `effort`; `thinking` takes
+ * precedence over the deprecated `maxThinkingTokens`).
+ *
+ * The gate lists only models empirically verified to behave this way over the
+ * SDK (legacy path → empty thinking; adaptive+summarized → visible text):
+ * Fable 5 / Mythos 5, Opus 4.8, Sonnet 5. The 4.6-generation models and Haiku
+ * keep the legacy `maxThinkingTokens` path — Haiku demonstrably shows raw
+ * thinking there, and forcing `summarized` could degrade it.
+ *
+ * @param {string|null} modelId - Resolved or requested model ID
+ * @param {boolean} disableThinking - Request-level thinking opt-out
+ * @returns {object|null} SDK `thinking` option, or null to use the legacy path
+ */
+export function resolveVisibleThinkingConfig(modelId, disableThinking = false) {
+  if (!modelId || typeof modelId !== 'string') return null;
+  // Require the family token AND its version, optionally followed by a date
+  // suffix (claude-sonnet-5-20260101). Matching a bare family name let custom or
+  // proxied ids such as "mythos-proxy" claim a config that was only verified for
+  // the real models; anything unrecognized falls back to the legacy
+  // maxThinkingTokens path, which is the safe default.
+  const withoutContextMarker = modelId.replace(/\[1m\]$/i, '');
+  if (!/(?:^|[^a-z0-9])(?:fable-5|mythos-5|opus-4-8|sonnet-5)(?:-\d+)?$/i.test(withoutContextMarker)) return null;
+  if (disableThinking) return { type: 'disabled' };
+  return { type: 'adaptive', display: 'summarized' };
+}
+
 // Note: getClaudeCliPath() has been removed.
 // Now using the SDK's built-in cli.js (at node_modules/@anthropic-ai/claude-agent-sdk/cli.js).
 // This avoids system CLI path issues on Windows (ENOENT errors) and keeps the version aligned with the SDK.

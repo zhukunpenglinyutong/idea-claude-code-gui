@@ -2,7 +2,9 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { SubagentHistoryResponse, SubagentInfo } from '../../types';
-import { sendBridgeEvent } from '../../utils/bridge';
+import { requestSubagentHistory, SUBAGENT_POLL_INTERVAL_MS, SUBAGENT_POLL_TAIL } from '../../utils/subagentHistoryRequests';
+import { extractWorkflowRunId } from '../../utils/workflowStatusStore';
+import WorkflowAgentsSection, { getWorkflowCounts, useWorkflowLiveStatus } from '../toolBlocks/WorkflowAgentsSection';
 import { subagentStatusIconMap } from './types';
 import SubagentProcessDetails from './SubagentProcessDetails';
 
@@ -18,13 +20,23 @@ interface SubagentRowProps {
   isExpanded: boolean;
   history: SubagentHistoryResponse | undefined;
   canLoad: boolean;
+  sessionId?: string | null;
   onToggle: (id: string) => void;
   t: TFunction;
 }
 
-const SubagentRow = memo(({ subagent, isExpanded, history, canLoad, onToggle, t }: SubagentRowProps) => {
+const SubagentRow = memo(({ subagent, isExpanded, history, canLoad, sessionId, onToggle, t }: SubagentRowProps) => {
   const statusIcon = subagentStatusIconMap[subagent.status] ?? 'codicon-circle-outline';
   const statusClass = `status-${subagent.status}`;
+
+  // Workflow rows have no per-agent sidechain log — their children live in
+  // the run's journal, polled via the shared workflow status store.
+  const isWorkflow = subagent.type === 'Workflow';
+  const workflowRunId = isWorkflow
+    ? (extractWorkflowRunId(subagent.resultText) ?? (subagent.status === 'running' ? 'latest' : undefined))
+    : undefined;
+  const workflowStatus = useWorkflowLiveStatus(sessionId, workflowRunId, subagent.id, subagent.status === 'running');
+  const workflowCounts = getWorkflowCounts(workflowStatus);
 
   const handleClick = useCallback(() => {
     onToggle(subagent.id);
@@ -41,6 +53,14 @@ const SubagentRow = memo(({ subagent, isExpanded, history, canLoad, onToggle, t 
           <span className={`codicon ${statusIcon}`} />
         </span>
         <span className="subagent-type">{subagent.type || t('statusPanel.subagentTab')}</span>
+        {workflowCounts && (
+          <span className="subagent-type">
+            {t('tools.workflowAgentProgress', '{{done}}/{{started}} agents', {
+              done: workflowCounts.done,
+              started: workflowCounts.started,
+            })}
+          </span>
+        )}
         <span className="subagent-description" title={subagent.prompt}>
           {subagent.description || subagent.prompt?.slice(0, 50)}
         </span>
@@ -48,15 +68,23 @@ const SubagentRow = memo(({ subagent, isExpanded, history, canLoad, onToggle, t 
       </button>
 
       {isExpanded && (
-        <SubagentProcessDetails
-          agentId={subagent.agentId}
-          totalDurationMs={subagent.totalDurationMs}
-          totalTokens={subagent.totalTokens}
-          totalToolUseCount={subagent.totalToolUseCount}
-          resultText={subagent.resultText}
-          history={history}
-          canLoad={canLoad}
-        />
+        isWorkflow ? (
+          <WorkflowAgentsSection
+            workflowStatus={workflowStatus}
+            workflowRunId={workflowRunId}
+            runEnded={subagent.status !== 'running'}
+          />
+        ) : (
+          <SubagentProcessDetails
+            agentId={subagent.agentId}
+            totalDurationMs={subagent.totalDurationMs}
+            totalTokens={subagent.totalTokens}
+            totalToolUseCount={subagent.totalToolUseCount}
+            resultText={subagent.resultText}
+            history={history}
+            canLoad={canLoad}
+          />
+        )
       )}
     </div>
   );
@@ -64,7 +92,7 @@ const SubagentRow = memo(({ subagent, isExpanded, history, canLoad, onToggle, t 
 
 SubagentRow.displayName = 'SubagentRow';
 
-const SubagentList = memo(({ subagents, histories = {}, currentSessionId }: SubagentListProps) => {
+const SubagentList = memo(({ subagents, histories = {}, currentSessionId, isStreaming }: SubagentListProps) => {
   const { t } = useTranslation();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -75,36 +103,56 @@ const SubagentList = memo(({ subagents, histories = {}, currentSessionId }: Suba
   useEffect(() => { subagentsRef.current = subagents; }, [subagents]);
   useEffect(() => { historiesRef.current = histories; }, [histories]);
 
-  const requestHistory = useCallback((subagent: SubagentInfo) => {
+  const requestHistory = useCallback((subagent: SubagentInfo, tail?: number, minIntervalMs?: number) => {
     if (!currentSessionId) return;
-    sendBridgeEvent('load_subagent_session', JSON.stringify({
+    requestSubagentHistory({
       sessionId: currentSessionId,
       agentId: subagent.agentId,
       description: subagent.description,
       toolUseId: subagent.id,
-    }));
+      tail,
+    }, minIntervalMs);
   }, [currentSessionId]);
 
-  // Track the expanded row's status so the polling effect re-runs (and clears
-  // its interval) when it transitions out of "running", instead of leaving a
-  // no-op interval firing every 2 s until the row is collapsed.
+  // Track the expanded row's status so the fetch effect below re-runs when it
+  // transitions out of "running": at that point the row may hold only a
+  // tail-limited live-poll snapshot, and the full fetch has to replace it.
   const expandedStatus = subagents.find((item) => item.id === expandedId)?.status;
 
   useEffect(() => {
     if (!expandedId) return;
     const subagent = subagentsRef.current.find((item) => item.id === expandedId);
-    if (!subagent || !currentSessionId) return;
-    if (!historiesRef.current[expandedId]) {
-      requestHistory(subagent);
+    // Workflow rows read the run journal instead of a sidechain log.
+    if (!subagent || subagent.type === 'Workflow' || !currentSessionId) return;
+    const existing = historiesRef.current[expandedId];
+    // Full fetch when the row is opened without history, or when only a
+    // tail-limited live-poll snapshot is held for a finished subagent.
+    if (!existing || (subagent.status !== 'running' && existing.truncated === true)) {
+      requestHistory(subagent, undefined, 0);
     }
-    if (!currentSessionId || subagent.status !== 'running') return;
-    const timer = window.setInterval(() => {
-      const current = subagentsRef.current.find((item) => item.id === expandedId);
-      if (!current || current.status !== 'running') return;
-      requestHistory(current);
-    }, 2_000);
-    return () => window.clearInterval(timer);
   }, [currentSessionId, expandedId, requestHistory, expandedStatus]);
+
+  // Poll every running subagent while the turn streams — not just the expanded
+  // row — so the panel reflects live progress. Background launches keep
+  // running after the turn settles, so they keep the poll alive until their
+  // task-notification flips them out of "running". Tail-limited, and
+  // requestSubagentHistory throttles per subagent, deduplicating against the
+  // transcript blocks' own polling.
+  const hasRunningBackground = useMemo(
+    () => subagents.some((subagent) => subagent.status === 'running' && subagent.isBackground),
+    [subagents],
+  );
+  useEffect(() => {
+    if (!currentSessionId || !(isStreaming || hasRunningBackground)) return;
+    const poll = () => {
+      subagentsRef.current
+        .filter((subagent) => subagent.status === 'running' && subagent.type !== 'Workflow')
+        .forEach((subagent) => requestHistory(subagent, SUBAGENT_POLL_TAIL));
+    };
+    poll();
+    const timer = window.setInterval(poll, SUBAGENT_POLL_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [currentSessionId, hasRunningBackground, isStreaming, requestHistory]);
 
   const historyById = useMemo(() => histories, [histories]);
 
@@ -132,6 +180,7 @@ const SubagentList = memo(({ subagents, histories = {}, currentSessionId }: Suba
             isExpanded={expandedId === subagent.id}
             history={history}
             canLoad={canLoad}
+            sessionId={currentSessionId}
             onToggle={handleToggleRow}
             t={t}
           />

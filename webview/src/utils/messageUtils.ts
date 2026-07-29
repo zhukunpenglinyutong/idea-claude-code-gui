@@ -363,6 +363,15 @@ export function shouldShowMessage(
     if ('isCompactSummary' in message.raw && message.raw.isCompactSummary) {
       return false;
     }
+    // Task-notification bookkeeping records (queue-operation enqueue/remove
+    // and attachment delivery lines) are forwarded only so the finished-task
+    // store learns background terminal states — never render them (a
+    // notification delivered while idle also exists as a plain user message,
+    // which does render).
+    const rawType = (message.raw as { type?: unknown }).type;
+    if (rawType === 'queue-operation' || rawType === 'attachment') {
+      return false;
+    }
   }
 
   // Filter command messages (containing <command-name> or <local-command-stdout> tags)

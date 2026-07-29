@@ -11,7 +11,7 @@ import {
   buildWebviewControlledSettingsOverride,
 } from '../../config/api-config.js';
 import { selectWorkingDirectory } from '../../utils/path-utils.js';
-import { mapModelIdToSdkName, resolveModelFromSettings, setModelEnvironmentVariables } from '../../utils/model-utils.js';
+import { mapModelIdToSdkName, resolveModelFromSettings, resolveVisibleThinkingConfig, setModelEnvironmentVariables } from '../../utils/model-utils.js';
 import { AsyncStream } from '../../utils/async-stream.js';
 import { canUseTool } from '../../permission-handler.js';
 import { buildContentBlocks, loadAttachments } from './attachment-service.js';
@@ -33,6 +33,7 @@ import {
   emitUsageTag,
   buildConfigErrorPayload
 } from './message-utils.js';
+import { isSidechainMessage } from './stream-event-processor.js';
 import { createPreToolUseHook } from './permission-mode.js';
 import { loadMcpServersConfigAsRecord } from './mcp-status/config-loader.js';
 import { setActiveQueryResult } from './message-session-registry.js';
@@ -68,7 +69,7 @@ function resolveThinkingConfig(settings) {
 /**
  * Build query options object shared by both send functions.
  */
-function buildQueryOptions({ workingDirectory, permissionMode, sdkModelName, maxThinkingTokens, streamingEnabled, systemPromptAppend, preToolUseHook, sdkStderrLines, mcpServers, modelId }) {
+function buildQueryOptions({ workingDirectory, permissionMode, sdkModelName, maxThinkingTokens, thinkingConfig, streamingEnabled, systemPromptAppend, preToolUseHook, sdkStderrLines, mcpServers, modelId }) {
   const claudeCliOverride = getClaudeCliPathOverride();
   return {
     cwd: workingDirectory,
@@ -78,6 +79,7 @@ function buildQueryOptions({ workingDirectory, permissionMode, sdkModelName, max
     enableFileCheckpointing: true,
     env: buildCliEnv(),
     settings: buildWebviewControlledSettingsOverride(modelId),
+    ...(thinkingConfig && { thinking: thinkingConfig }),
     ...(maxThinkingTokens !== undefined && { maxThinkingTokens }),
     ...(streamingEnabled && { includePartialMessages: true }),
     additionalDirectories: Array.from(
@@ -162,10 +164,14 @@ function processStreamMessage(msg, state, logPrefix) {
   // calls belong to the sidechain transcript, which the frontend loads
   // separately via onSubagentHistoryLoaded - so never emit them into the main
   // session stream, otherwise the subagent's internals pollute the main chat.
-  // Mirrors the parent_tool_use_id gate in persistent-query-service.js, which is
+  // Mirrors the isSidechainMessage gate in persistent-query-service.js, which is
   // the active path in daemon mode; this branch covers the non-daemon CLI path
   // (channel-manager.js) and tests, keeping both stream routes consistent.
-  if (msg?.parent_tool_use_id) {
+  // Use the shared guard rather than a bare parent_tool_use_id check: a
+  // partial-message stream_event nests the field under event.parent_tool_use_id,
+  // and stream_event is handled just below — so a bare check let a subagent's
+  // [CONTENT_DELTA]/[THINKING_DELTA] leak into the main chat on this path.
+  if (isSidechainMessage(msg)) {
     return;
   }
 
@@ -484,14 +490,17 @@ export async function sendMessage(message, resumeSessionId = null, cwd = null, p
     const effectivePermissionMode = (!permissionMode || permissionMode === '') ? 'default' : permissionMode;
     const normalizedReasoningEffort = normalizeReasoningEffort(reasoningEffort);
     const { alwaysThinkingEnabled, maxThinkingTokens: configuredMaxThinkingTokens } = resolveThinkingConfig(settings);
+    // Mythos-class models need an explicit thinking config or their thinking
+    // text arrives empty (signature-only); it supersedes maxThinkingTokens.
+    const thinkingConfig = resolveVisibleThinkingConfig(resolvedModel || model, disableThinking === true);
     // maxThinkingTokens and reasoningEffort are mutually exclusive
-    const maxThinkingTokens = (alwaysThinkingEnabled && !normalizedReasoningEffort) ? configuredMaxThinkingTokens : undefined;
+    const maxThinkingTokens = (!thinkingConfig && alwaysThinkingEnabled && !normalizedReasoningEffort) ? configuredMaxThinkingTokens : undefined;
     streamingEnabled = streaming != null ? streaming : (settings?.streamingEnabled ?? false);
-    console.log('[DEBUG] Config:', { effectivePermissionMode, alwaysThinkingEnabled, maxThinkingTokens, streamingEnabled, reasoningEffort: normalizedReasoningEffort });
+    console.log('[DEBUG] Config:', { effectivePermissionMode, alwaysThinkingEnabled, maxThinkingTokens, thinkingConfig, streamingEnabled, reasoningEffort: normalizedReasoningEffort });
 
     const preToolUseHook = createPreToolUseHook(effectivePermissionMode, workingDirectory);
     const mcpServers = await loadMcpServersConfigAsRecord(workingDirectory);
-    const options = buildQueryOptions({ workingDirectory, permissionMode: effectivePermissionMode, sdkModelName, maxThinkingTokens, streamingEnabled, systemPromptAppend, preToolUseHook, sdkStderrLines, mcpServers, modelId: model });
+    const options = buildQueryOptions({ workingDirectory, permissionMode: effectivePermissionMode, sdkModelName, maxThinkingTokens, thinkingConfig, streamingEnabled, systemPromptAppend, preToolUseHook, sdkStderrLines, mcpServers, modelId: model });
 
     if (normalizedReasoningEffort) {
       options.effort = normalizedReasoningEffort;
@@ -560,14 +569,17 @@ export async function sendMessageWithAttachments(message, resumeSessionId = null
 
     const { alwaysThinkingEnabled, maxThinkingTokens: configuredMaxThinkingTokens } = resolveThinkingConfig(settings);
     const reasoningEffort = normalizeReasoningEffort(stdinData?.reasoningEffort || null);
+    // Mythos-class models need an explicit thinking config or their thinking
+    // text arrives empty (signature-only); it supersedes maxThinkingTokens.
+    const thinkingConfig = resolveVisibleThinkingConfig(resolvedAttachModel || model, stdinData?.disableThinking === true);
     // maxThinkingTokens and reasoningEffort are mutually exclusive
-    const maxThinkingTokens = (alwaysThinkingEnabled && !reasoningEffort) ? configuredMaxThinkingTokens : undefined;
+    const maxThinkingTokens = (!thinkingConfig && alwaysThinkingEnabled && !reasoningEffort) ? configuredMaxThinkingTokens : undefined;
     const streamingParam = stdinData?.streaming;
     streamingEnabled = streamingParam != null ? streamingParam : (settings?.streamingEnabled ?? false);
-    console.log('[DEBUG] (withAttachments) Config:', { normalizedPermissionMode, alwaysThinkingEnabled, maxThinkingTokens, streamingEnabled, reasoningEffort });
+    console.log('[DEBUG] (withAttachments) Config:', { normalizedPermissionMode, alwaysThinkingEnabled, maxThinkingTokens, thinkingConfig, streamingEnabled, reasoningEffort });
 
     const mcpServers = await loadMcpServersConfigAsRecord(workingDirectory);
-    const options = buildQueryOptions({ workingDirectory, permissionMode: normalizedPermissionMode, sdkModelName, maxThinkingTokens, streamingEnabled, systemPromptAppend, preToolUseHook, sdkStderrLines, mcpServers, modelId: model });
+    const options = buildQueryOptions({ workingDirectory, permissionMode: normalizedPermissionMode, sdkModelName, maxThinkingTokens, thinkingConfig, streamingEnabled, systemPromptAppend, preToolUseHook, sdkStderrLines, mcpServers, modelId: model });
 
     if (reasoningEffort) {
       options.effort = reasoningEffort;

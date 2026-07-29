@@ -1,9 +1,29 @@
 import type { SubagentHistoryResponse } from '../../types';
+import { parseBackgroundLaunch } from '../../utils/backgroundTasks';
 
 export interface SubagentProcessModel {
   notes: string[];
   readFiles: string[];
   toolCalls: Array<{ id: string; name: string; detail?: string }>;
+}
+
+/**
+ * Result text as it should be shown to the user. Launch confirmations
+ * ("Async agent launched successfully. agentId: … (internal ID - do not
+ * mention…)") are internal metadata, not a result — hide them entirely.
+ * Final reports get internal plumbing stripped: <usage> blocks and the
+ * SendMessage continuation hint the CLI appends after the report.
+ */
+export function sanitizeAgentResultText(text?: string): string | undefined {
+  if (!text) return undefined;
+  if (parseBackgroundLaunch(text).isBackground) return undefined;
+  const cleaned = text
+    .replace(/<usage>[\s\S]*?<\/usage>/gi, '')
+    .split('\n')
+    .filter((line) => !/internal ID - do not mention|Use SendMessage with to:/i.test(line))
+    .join('\n')
+    .trim();
+  return cleaned || undefined;
 }
 
 export function formatSubagentDuration(

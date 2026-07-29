@@ -393,6 +393,7 @@ const App = () => {
     findToolResult, getToolResultRaw,
     fileChangeMgmt,
     filteredFileChanges, subagents, globalTodos, rewindableMessages, sessionTitle,
+    backgroundTurnActivity,
   } = useChatComputations({
     t, messages, mergedMessages, subagentHistories, customSessionTitle, streamingActive, currentProvider,
     currentSessionId, currentSessionIdRef,
@@ -467,6 +468,7 @@ const App = () => {
         />
       ) : currentView === 'chat' ? (
         <ChatScreen
+          backgroundTurnActivity={backgroundTurnActivity}
           mergedMessages={mergedMessages}
           getMessageText={getMessageText}
           getContentBlocks={getContentBlocks}

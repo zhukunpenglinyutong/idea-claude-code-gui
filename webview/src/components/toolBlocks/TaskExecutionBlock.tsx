@@ -1,8 +1,20 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ToolInput, ToolResultBlock } from '../../types';
-import { normalizeToolName } from '../../utils/toolConstants';
-import { sendBridgeEvent } from '../../utils/bridge';
+import type { SubagentHistoryResponse, ToolInput, ToolResultBlock } from '../../types';
+import { AGENT_TOOL_NAMES, normalizeToolName } from '../../utils/toolConstants';
+import { requestSubagentHistory, SUBAGENT_POLL_INTERVAL_MS, SUBAGENT_POLL_TAIL } from '../../utils/subagentHistoryRequests';
+import { extractWorkflowMeta } from '../../utils/workflowMeta';
+import { extractWorkflowRunId } from '../../utils/workflowStatusStore';
+import WorkflowAgentsSection, { getWorkflowCounts, useWorkflowLiveStatus } from './WorkflowAgentsSection';
+import {
+  getBackgroundTaskUsage,
+  getFinishedBackgroundTaskStatus,
+  isTerminalFailure,
+  parseBackgroundLaunch,
+  toolStatusIndicatorClass,
+  useBackgroundTaskUsageMap,
+  useFinishedBackgroundTasks,
+} from '../../utils/backgroundTasks';
 import { extractResultText, isAsyncAgentInput, parseAgentToolMeta } from '../../utils/subagentResult';
 import { useSubagentHistories, useSessionId, useGetToolResultRaw, useTaskEvent } from '../../contexts/SubagentContext';
 import SubagentProcessDetails from '../StatusPanel/SubagentProcessDetails';
@@ -86,12 +98,37 @@ function shortenAgentId(agentId?: string): string | undefined {
   return agentId.length > 8 ? `${agentId.slice(0, 8)}…` : agentId;
 }
 
-const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, result, toolId }: TaskExecutionBlockProps) {
+/**
+ * Compact live-progress summary of a running subagent, derived from its
+ * polled sidechain transcript: number of tool calls and the last tool name.
+ */
+function summarizeLiveProgress(history?: SubagentHistoryResponse): { toolCount: number; lastTool?: string } | null {
+  if (!history?.success || !Array.isArray(history.messages)) return null;
+  let toolCount = 0;
+  let lastTool: string | undefined;
+  for (const message of history.messages) {
+    const raw = message && typeof message === 'object' ? message as Record<string, any> : {};
+    const content = raw.message?.content ?? raw.content;
+    if (!Array.isArray(content)) continue;
+    for (const block of content) {
+      if (block && typeof block === 'object' && (block as { type?: string }).type === 'tool_use') {
+        toolCount += 1;
+        const name = (block as { name?: string }).name;
+        if (typeof name === 'string' && name) lastTool = name;
+      }
+    }
+  }
+  return { toolCount, lastTool };
+}
+
+const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, result, toolId, isStreaming = false }: TaskExecutionBlockProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const histories = useSubagentHistories();
   const currentSessionId = useSessionId();
   const getToolResultRaw = useGetToolResultRaw();
+  const finishedBackgroundTasks = useFinishedBackgroundTasks();
+  const backgroundUsageMap = useBackgroundTaskUsageMap();
   const taskEvent = useTaskEvent(toolId);
 
   // Compute derived values up front, guarding input, so both useEffects below
@@ -99,10 +136,12 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
   // defined for tool_use blocks in practice; the guard keeps hook order stable.
   const normalizedName = input ? normalizeToolName(name ?? '') : '';
   const isSpawnAgent = normalizedName === 'spawn_agent';
-  const isAgentTool = normalizedName === 'agent' || normalizedName === 'task' || normalizedName === 'spawn_agent';
+  const isWorkflow = normalizedName === 'workflow';
+  const isAgentTool = AGENT_TOOL_NAMES.has(normalizedName);
   const {
-    description,
-    prompt,
+    description: inputDescription,
+    prompt: inputPrompt,
+    script: _script,
     subagent_type: subagentType,
     model: _model,
     reasoning_effort: _reasoningEffort,
@@ -117,82 +156,141 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
   } = input ?? ({} as ToolInput);
   const spawnMeta = isSpawnAgent && input ? parseSpawnAgentMeta(input, result) : {};
   const agentToolMeta = !isSpawnAgent && input ? parseAgentToolMeta(getToolResultRaw, toolId) : {};
-  const agentId = spawnMeta.agentId ?? agentToolMeta.agentId;
-  const identityLabel = spawnMeta.nickname || (typeof subagentType === 'string' && subagentType ? subagentType : undefined);
+  const resultText = extractResultText(result);
+  const backgroundLaunch = parseBackgroundLaunch(resultText);
+  // Reload / history fallback: task events exist only for the session that
+  // produced them, so a reloaded webview relies on the persisted notification.
+  const backgroundTerminalStatus = getFinishedBackgroundTaskStatus(finishedBackgroundTasks, backgroundLaunch, toolId);
+  // A background launch's toolUseResult has no stats — fall back to the
+  // completion notification's <usage> block (tokens/tools/duration).
+  const backgroundUsage = getBackgroundTaskUsage(backgroundUsageMap, backgroundLaunch, toolId);
+  const workflowMeta = isWorkflow ? extractWorkflowMeta((input ?? {}) as Record<string, unknown>) : {};
+  const description = typeof inputDescription === 'string' && inputDescription
+    ? inputDescription
+    : (workflowMeta.description ?? workflowMeta.name);
+  const prompt = typeof inputPrompt === 'string' && inputPrompt
+    ? inputPrompt
+    : (isWorkflow && typeof _script === 'string' ? _script : undefined);
+  const agentId = spawnMeta.agentId ?? agentToolMeta.agentId ?? backgroundLaunch.agentId;
+  const identityLabel = spawnMeta.nickname
+    || (isWorkflow ? (workflowMeta.name ?? 'Workflow') : undefined)
+    || (typeof subagentType === 'string' && subagentType ? subagentType : undefined);
   const modelSummary = [spawnMeta.model, spawnMeta.reasoningEffort].filter(Boolean).join(' ');
   const shortAgentId = shortenAgentId(agentId);
 
   // A background (run_in_background) Agent only gets a launch acknowledgment
   // tool_result; its real terminal status arrives later via a task_notification
-  // event, so the card must stay "running" until that event lands and must not
-  // flip to completed on the launch ack alone. Sync agents run inline, so a
-  // tool_result means done. A failed launch (validation error before the task
-  // was registered) returns an is_error tool_result and never emits a
-  // task_notification, so treat that as an error instead of staying stuck.
-  // isAsyncAgentInput centralizes the strict === true check shared with
-  // useSubagents and AgentGroupBlock.
-  const isAsync = input ? isAsyncAgentInput(input) : false;
-  const hasTerminalResult = result !== undefined && result !== null;
+  // event, so the card must stay "running" until that lands and must not flip to
+  // completed on the launch ack alone. Sync agents run inline, so a tool_result
+  // means done. A failed launch (validation error before the task was
+  // registered) returns an is_error tool_result and never emits a notification,
+  // so treat that as an error instead of staying stuck. isAsyncAgentInput
+  // centralizes the strict === true check shared with useSubagents and
+  // AgentGroupBlock; the launch-text fallback catches launches whose input
+  // carries no flag (notably a SendMessage reviving a background agent).
+  const isAsync = (input ? isAsyncAgentInput(input) : false) || backgroundLaunch.isBackground;
+  const hasResult = result !== undefined && result !== null;
   const taskFailed = taskEvent?.status === 'failed' || taskEvent?.status === 'stopped';
-  // Async completion has two authoritative sources: the live task_notification,
-  // and (after reload/polling) a sidechain transcript that ends in
+  const backgroundRunning = isAsync && !taskEvent && !backgroundTerminalStatus;
+  // Async completion sources, in order: the live task_notification, the
+  // persisted notification, then a sidechain transcript ending in
   // assistant/end_turn. A settled main turn alone proves only that the launch
   // turn ended; the background sidechain may still be running.
   const history = (toolId ? histories[toolId] : undefined) ?? (agentId ? histories[agentId] : undefined);
   const isCompleted = isAsync
-    ? (taskEvent ? !taskFailed : history?.completed === true)
-    : hasTerminalResult;
+    ? (taskEvent
+      ? !taskFailed
+      : backgroundTerminalStatus
+        ? !isTerminalFailure(backgroundTerminalStatus)
+        : history?.completed === true)
+    : hasResult;
   const isError = isAsync
-    ? (taskEvent ? taskFailed : result?.is_error === true)
-    : hasTerminalResult && result?.is_error === true;
+    ? (taskEvent
+      ? taskFailed
+      : isTerminalFailure(backgroundTerminalStatus) || result?.is_error === true)
+    : hasResult && result?.is_error === true;
 
-  // For background agents the task_notification carries the authoritative usage
-  // and summary (the launch ack has none); prefer it over toolUseResult. Sync
-  // agents keep reading toolUseResult as before.
+  // Metadata precedence: live task event, then toolUseResult, then the
+  // persisted <usage> block (the only source left after a reload).
   const detailAgentId = (isAsync ? taskEvent?.agentId : undefined) ?? agentId;
-  const detailDurationMs = (isAsync ? taskEvent?.totalDurationMs : undefined) ?? agentToolMeta.totalDurationMs;
-  const detailTokens = (isAsync ? taskEvent?.totalTokens : undefined) ?? agentToolMeta.totalTokens;
-  const detailToolUseCount = (isAsync ? taskEvent?.totalToolUseCount : undefined) ?? agentToolMeta.totalToolUseCount;
-  const detailResultText = (isAsync ? taskEvent?.summary : undefined) ?? extractResultText(result);
+  const detailDurationMs = (isAsync ? taskEvent?.totalDurationMs : undefined)
+    ?? agentToolMeta.totalDurationMs ?? backgroundUsage?.totalDurationMs;
+  const detailTokens = (isAsync ? taskEvent?.totalTokens : undefined)
+    ?? agentToolMeta.totalTokens ?? backgroundUsage?.totalTokens;
+  const detailToolUseCount = (isAsync ? taskEvent?.totalToolUseCount : undefined)
+    ?? agentToolMeta.totalToolUseCount ?? backgroundUsage?.totalToolUseCount;
+  const detailResultText = (isAsync ? taskEvent?.summary : undefined) ?? resultText;
 
+  // Full (untruncated) fetch when the user opens a card that has no history
+  // yet, or when the subagent completed and we only hold a tail snapshot from
+  // live polling. minIntervalMs 0 bypasses the poll throttle for this refresh.
+  const needsFullHistory = !history || (isCompleted && history.truncated === true);
   useEffect(() => {
-    if (!input || !expanded || !isAgentTool || !currentSessionId || !toolId || history) return;
-    sendBridgeEvent('load_subagent_session', JSON.stringify({
+    if (!input || !expanded || !isAgentTool || isWorkflow || !currentSessionId || !toolId || !needsFullHistory) return;
+    requestSubagentHistory({
       sessionId: currentSessionId,
       agentId,
       description: typeof description === 'string' ? description : undefined,
       toolUseId: toolId,
-    }));
-  }, [input, agentId, currentSessionId, description, expanded, history, isAgentTool, toolId]);
+    }, 0);
+  }, [input, agentId, currentSessionId, description, expanded, needsFullHistory, isAgentTool, isWorkflow, toolId]);
 
-  // Poll while an expanded async Agent is unresolved, including after a main
-  // turn settles. This lets a reloaded session observe the sidechain's terminal
-  // end_turn without relying on the live-only task_notification event. Stop once
-  // the agent reaches a terminal state (completed or error) so a failed
-  // background agent does not leak an interval forever.
-  const shouldPollHistory = expanded
-    && isAgentTool
+  // Poll continuously while the subagent is running — even when collapsed —
+  // so the header shows live progress and expanding the card is instant.
+  // Tail-limited: repeatedly shipping full multi-MB agent logs into JCEF
+  // stalls the UI thread. requestSubagentHistory throttles per subagent, so
+  // overlapping pollers (transcript block + status panel) don't duplicate
+  // bridge requests.
+  // Workflow cards use the journal-based status poll below instead — their
+  // children have no per-toolUseId sidechain log to fetch.
+  // Background agents keep running after the GUI turn settles, so their
+  // polling is gated on the task-notification instead of isStreaming.
+  const shouldPollHistory = isAgentTool
+    && !isWorkflow
     && Boolean(currentSessionId)
     && Boolean(toolId)
+    && (isStreaming || backgroundRunning)
+    // Stop once the agent reaches a terminal state (completed OR error) so a
+    // failed background agent cannot leak an interval forever.
     && !isCompleted
     && !isError;
 
   useEffect(() => {
     if (!input || !shouldPollHistory || !currentSessionId || !toolId) return;
     const timer = window.setInterval(() => {
-      sendBridgeEvent('load_subagent_session', JSON.stringify({
+      requestSubagentHistory({
         sessionId: currentSessionId,
         agentId,
         description: typeof description === 'string' ? description : undefined,
         toolUseId: toolId,
-      }));
-    }, 2_000);
+        tail: SUBAGENT_POLL_TAIL,
+      });
+    }, SUBAGENT_POLL_INTERVAL_MS);
     return () => window.clearInterval(timer);
   }, [input, agentId, currentSessionId, description, shouldPollHistory, toolId]);
 
   if (!input) {
     return null;
   }
+
+  const liveProgress = useMemo(
+    () => (!isCompleted ? summarizeLiveProgress(history) : null),
+    [history, isCompleted],
+  );
+
+  // Workflow (ultracode) runs: child agents live under
+  // <session>/subagents/workflows/<runId>/ and are invisible to the regular
+  // subagent lookup. Poll the run's journal instead — also after the tool
+  // result arrives, because a background-launched Workflow returns
+  // immediately while its agents keep running.
+  // Foreground runs have no result (and thus no run id) until they finish —
+  // "latest" makes the backend resolve the most recently active run so live
+  // progress works mid-run too.
+  const workflowRunId = isWorkflow
+    ? (extractWorkflowRunId(resultText) ?? ((!hasResult && isStreaming) || backgroundRunning ? 'latest' : undefined))
+    : undefined;
+  const workflowStatus = useWorkflowLiveStatus(currentSessionId, workflowRunId, toolId, !hasResult || backgroundRunning);
+  const workflowCounts = getWorkflowCounts(workflowStatus);
 
   return (
     <div className="task-container">
@@ -223,10 +321,26 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
               {description}
             </span>
           )}
+
+          {liveProgress && liveProgress.toolCount > 0 && (
+            <span className="tool-title-summary" style={NORMAL_WEIGHT_STYLE}>
+              · {t('tools.subagentLiveProgress', '{{count}} tool calls', { count: liveProgress.toolCount })}
+              {liveProgress.lastTool ? ` · ${liveProgress.lastTool}` : ''}
+            </span>
+          )}
+
+          {workflowCounts && (
+            <span className="tool-title-summary" style={NORMAL_WEIGHT_STYLE}>
+              · {t('tools.workflowAgentProgress', '{{done}}/{{started}} agents', {
+                done: workflowCounts.done,
+                started: workflowCounts.started,
+              })}
+            </span>
+          )}
         </div>
 
         <div className="task-header-right">
-          <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />
+          <div className={`tool-status-indicator ${toolStatusIndicatorClass(isError, isCompleted, backgroundTerminalStatus)}`} />
         </div>
       </div>
 
@@ -261,7 +375,11 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
               </div>
             )}
 
-            {isAgentTool && (
+            {isWorkflow && (
+              <WorkflowAgentsSection workflowStatus={workflowStatus} workflowRunId={workflowRunId} runEnded={isCompleted} />
+            )}
+
+            {isAgentTool && !isWorkflow && (
               <SubagentProcessDetails
                 agentId={detailAgentId}
                 totalDurationMs={detailDurationMs}

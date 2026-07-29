@@ -51,20 +51,86 @@ public class MessageParser {
             // Check if it contains a tool_result
             if (content == null || content.trim().isEmpty()) {
                 if (hasToolResult(rawMessage)) {
-                    return new ClaudeSession.Message(ClaudeSession.Message.Type.USER, "[tool_result]", rawMessage);
+                    return applyTranscriptTimestamp(
+                        new ClaudeSession.Message(ClaudeSession.Message.Type.USER, "[tool_result]", rawMessage), msg);
                 }
                 if (hasImageContent(rawMessage)) {
-                    return new ClaudeSession.Message(ClaudeSession.Message.Type.USER, "", rawMessage);
+                    return applyTranscriptTimestamp(
+                        new ClaudeSession.Message(ClaudeSession.Message.Type.USER, "", rawMessage), msg);
                 }
                 return null;
             }
-            return new ClaudeSession.Message(ClaudeSession.Message.Type.USER, content, rawMessage);
+            return applyTranscriptTimestamp(
+                new ClaudeSession.Message(ClaudeSession.Message.Type.USER, content, rawMessage), msg);
         } else if ("assistant".equals(type)) {
             String content = extractMessageContent(msg);
-            return new ClaudeSession.Message(ClaudeSession.Message.Type.ASSISTANT, content, rawMessage);
+            return applyTranscriptTimestamp(
+                new ClaudeSession.Message(ClaudeSession.Message.Type.ASSISTANT, content, rawMessage), msg);
+        } else if ("queue-operation".equals(type) || "attachment".equals(type)) {
+            // A task-notification delivered while a turn is running is recorded only
+            // as queue-operation enqueue/remove lines plus an attachment line — it
+            // never becomes a plain user message (and compaction can drop even a
+            // queued one). Forward these records so the frontend's finished-task
+            // store learns the terminal status (and usage stats) of background
+            // agents/workflows; the frontend recognizes raw.type and never renders
+            // them, and duplicate records for the same task are idempotent there.
+            String notification = extractTaskNotificationRecord(msg);
+            if (notification != null) {
+                return applyTranscriptTimestamp(
+                    new ClaudeSession.Message(ClaudeSession.Message.Type.USER, notification, msg), msg);
+            }
+            return null;
         }
 
         return null;
+    }
+
+    /**
+     * Stamp the message with the transcript record's own timestamp when present.
+     *
+     * The Message constructor stamps {@code System.currentTimeMillis()}, so every
+     * session reload used to produce a fresh timestamp for every message. The
+     * webview's smart merge reuses a previous message object only when its
+     * timestamp matches — with parse-time stamps nothing ever matched, every
+     * reload replaced every row, and the throttled background-turn refreshes
+     * (~5s) read as a visible full-transcript blink. A transcript-derived stamp
+     * is deterministic across reloads (and shows the real message time instead
+     * of the reload time). Live SDK messages carry no timestamp field and keep
+     * the parse-time stamp.
+     */
+    private ClaudeSession.Message applyTranscriptTimestamp(ClaudeSession.Message message, JsonObject msg) {
+        if (message == null || msg == null || !msg.has("timestamp") || msg.get("timestamp").isJsonNull()) {
+            return message;
+        }
+        try {
+            JsonElement ts = msg.get("timestamp");
+            if (ts.isJsonPrimitive() && ts.getAsJsonPrimitive().isNumber()) {
+                message.timestamp = ts.getAsLong();
+            } else if (ts.isJsonPrimitive() && ts.getAsJsonPrimitive().isString()) {
+                message.timestamp = java.time.Instant.parse(ts.getAsString()).toEpochMilli();
+            }
+        } catch (Exception e) {
+            LOG.debug("Unparseable transcript timestamp, keeping parse-time stamp: " + e.getMessage());
+        }
+        return message;
+    }
+
+    /**
+     * Extract the task-notification text carried by a queue-operation line
+     * (top-level string {@code content}) or an attachment line
+     * ({@code attachment.prompt}). Returns null for unrelated records.
+     */
+    private String extractTaskNotificationRecord(JsonObject msg) {
+        String text = null;
+        if (msg.has("content") && msg.get("content").isJsonPrimitive()) {
+            text = msg.get("content").getAsString();
+        } else if (msg.has("attachment") && msg.get("attachment").isJsonObject()) {
+            JsonObject attachment = msg.getAsJsonObject("attachment");
+            if (attachment.has("prompt") && attachment.get("prompt").isJsonPrimitive()) {
+                text = attachment.get("prompt").getAsString();
+            }
+        }
+        return text != null && text.contains("<task-notification>") ? text : null;
     }
 
     /**

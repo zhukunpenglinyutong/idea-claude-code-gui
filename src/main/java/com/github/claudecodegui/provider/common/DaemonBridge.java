@@ -569,7 +569,9 @@ public class DaemonBridge {
         }
     }
 
-    private void handleDaemonEvent(JsonObject obj) {
+    // Package-private (not private) so DaemonBridgeTest can drive event dispatch
+    // directly without spawning the daemon subprocess.
+    void handleDaemonEvent(JsonObject obj) {
         String event = obj.has("event") ? obj.get("event").getAsString() : "unknown";
         LOG.info("[DaemonBridge] Daemon event: " + event);
 
@@ -634,6 +636,30 @@ public class DaemonBridge {
                 LOG.info("[DaemonBridge] Session updated: sessionId=" + sessionId);
 
                 // Iterate through registered eventListeners and dispatch
+                for (DaemonEventListener listener : eventListeners) {
+                    try {
+                        listener.onDaemonEvent(event, obj);
+                    } catch (Exception ex) {
+                        LOG.warn("[DaemonBridge] Listener threw while handling " + event, ex);
+                    }
+                }
+                break;
+            }
+
+            case "background_turn": {
+                // Inter-turn "generating" heartbeat: the CLI is producing a
+                // response between GUI turns — e.g. a background workflow/agent
+                // still running after its launching turn ended. Forward it to
+                // listeners so ClaudeChatWindow can drive the waiting indicator
+                // (via updateBackgroundTurnState). Without this case the event
+                // fell through to default and was dropped, so the "generating
+                // response" indicator never appeared for background turns.
+                String bgSessionId = obj.has("sessionId") && !obj.get("sessionId").isJsonNull()
+                        ? obj.get("sessionId").getAsString() : null;
+                if (bgSessionId == null || bgSessionId.isEmpty()) {
+                    LOG.warn("[DaemonBridge] background_turn event missing sessionId, skipping");
+                    break;
+                }
                 for (DaemonEventListener listener : eventListeners) {
                     try {
                         listener.onDaemonEvent(event, obj);

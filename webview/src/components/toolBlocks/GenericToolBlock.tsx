@@ -2,6 +2,7 @@ import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
 import { useIsToolDenied } from '../../hooks/useIsToolDenied';
+import { isTerminalFailure, toolStatusIndicatorClass, useBackgroundTaskState } from '../../utils/backgroundTasks';
 import { useResolvedFileLinkTooltip } from '../../hooks/useResolvedFileLinkTooltip';
 import { openFile } from '../../utils/bridge';
 import { formatParamValue, truncate } from '../../utils/helpers';
@@ -247,14 +248,31 @@ const GenericToolBlock = memo(function GenericToolBlock({ name, input, result, t
   const target = input ? resolveToolTarget(input, name) : undefined;
   const filePath = target?.rawPath;
 
+  // A background launch ("Monitor started (task …)", SendMessage's "resumed
+  // from transcript in the background") returns its tool_result immediately
+  // while the task keeps running — stay pending until its task-notification
+  // lands. Only Monitor and SendMessage legitimately launch background work
+  // through this generic card; other tools' outputs (WebFetch, custom MCP
+  // tools) may quote launch-like text and must not match.
+  const resultText = (lowerName === 'monitor' || lowerName === 'sendmessage')
+    ? (typeof result?.content === 'string'
+      ? result.content
+      : Array.isArray(result?.content)
+        ? result.content.map((block) => block.text ?? '').join('\n')
+        : undefined)
+    : undefined;
+  const background = useBackgroundTaskState(resultText, toolId);
+
   // Determine tool call status based on result
   // If denied, treat as completed (show error state)
-  const isCompleted = (result !== undefined && result !== null) || isDenied;
+  const isCompleted = ((result !== undefined && result !== null) && !background.running) || isDenied;
   // AskUserQuestion tool should never show as error - it's a user interaction tool
   // The is_error field may be set by SDK but it doesn't indicate a real error
   const isAskUserQuestion = lowerName === 'askuserquestion';
   // If denied, show as error state
-  const isError = isDenied || (isCompleted && result?.is_error === true && !isAskUserQuestion);
+  const isError = isDenied
+    || (isCompleted && result?.is_error === true && !isAskUserQuestion)
+    || isTerminalFailure(background.terminalStatus);
 
   if (!input) {
     return null;
@@ -380,6 +398,11 @@ const GenericToolBlock = memo(function GenericToolBlock({ name, input, result, t
                 : t('tools.lineSingle', { line: lineInfo.start })}
             </span>
           )}
+          {background.running && (
+            <span className="tool-title-summary">
+              · {t('tools.runningInBackground', 'running in background…')}
+            </span>
+          )}
           {resultImages.length > 0 && (
             <span className="tool-title-summary" style={IMAGE_HINT_STYLE}>
               <span className="codicon codicon-file-media" />
@@ -388,7 +411,7 @@ const GenericToolBlock = memo(function GenericToolBlock({ name, input, result, t
           )}
         </div>
 
-        <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />
+        <div className={`tool-status-indicator ${toolStatusIndicatorClass(isError, isCompleted, background.terminalStatus)}`} />
       </div>
       {hasExpandableContent && (
         <div className={`task-details-accordion ${expanded ? 'expanded' : ''}`}>
