@@ -60,8 +60,8 @@ function getContentBlocks(msg: ClaudeMessage): ClaudeContentBlock[] {
 
 // findToolResult searches raw.content for the matching tool_result
 function findToolResult(
-  toolUseId: string | undefined,
-  _messageIndex: number,
+  toolUseId?: string,
+  _messageIndex?: number,
 ): ToolResultBlock | null {
   if (!toolUseId) return null;
   // This test helper doesn't search by index — it returns based on the id.
