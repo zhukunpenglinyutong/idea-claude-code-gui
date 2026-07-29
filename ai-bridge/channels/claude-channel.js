@@ -16,10 +16,6 @@ import {
   getSessionMessages as claudeGetSessionMessages,
   getLatestUserMessage as claudeGetLatestUserMessage
 } from '../services/claude/session-service.js';
-import {
-  truncateSessionJsonl as claudeTruncateSession
-} from '../services/claude/session-truncate.js';
-
 /**
  * Execute a Claude specific command.
  * @param {string} command
@@ -104,23 +100,6 @@ export async function handleClaudeCommand(command, args, stdinData) {
       break;
     }
 
-    case 'truncateSession': {
-      const tSessionId = stdinData?.sessionId || args[0];
-      const tKeepCount = stdinData?.keepCount !== undefined
-        ? stdinData.keepCount
-        : parseInt(args[1], 10);
-      const tCwd = stdinData?.cwd || args[2] || null;
-      if (!tSessionId || isNaN(tKeepCount)) {
-        console.log(JSON.stringify({
-          success: false,
-          error: 'Missing required parameters: sessionId and keepCount'
-        }));
-        return;
-      }
-      const result = await claudeTruncateSession(tSessionId, tKeepCount, tCwd);
-      console.log(JSON.stringify(result));
-      break;
-    }
 
     case 'resetRuntime': {
       await claudeResetRuntimePersistent(stdinData || {});
@@ -143,5 +122,5 @@ export async function handleClaudeCommand(command, args, stdinData) {
 }
 
 export function getClaudeCommandList() {
-  return ['send', 'sendWithAttachments', 'getSession', 'getLatestUserMessage', 'rewindFiles', 'getMcpServerStatus', 'getMcpServerTools', 'truncateSession', 'resetRuntime', 'getContextUsage'];
+  return ['send', 'sendWithAttachments', 'getSession', 'getLatestUserMessage', 'rewindFiles', 'getMcpServerStatus', 'getMcpServerTools', 'resetRuntime', 'getContextUsage'];
 }
