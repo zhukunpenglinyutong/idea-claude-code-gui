@@ -1,9 +1,12 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 import type { ClaudeMessage, ClaudeContentBlock, ToolResultBlock } from '../types';
 import { sendToJava } from '../utils/bridge';
 import { collectFileChangesAfterIndex } from '../utils/collectFileChangesAfterIndex';
 import { formatTime } from '../utils/helpers';
+
+/** Max time (ms) to wait for Java backend to respond before resetting. */
+const ROLLBACK_TIMEOUT_MS = 30_000;
 
 export interface RollbackRequest {
   messageIndex: number;
@@ -81,6 +84,46 @@ export function useRollbackHandlers(
   // Store the original callbacks to restore after interception
   const originalRollbackResultRef = useRef<((json: string) => void) | undefined>(undefined);
   const originalUndoAllResultRef = useRef<((json: string) => void) | undefined>(undefined);
+  const rollbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** Clear the rollback timeout, if active. */
+  const clearRollbackTimeout = useCallback(() => {
+    if (rollbackTimeoutRef.current !== null) {
+      clearTimeout(rollbackTimeoutRef.current);
+      rollbackTimeoutRef.current = null;
+    }
+  }, []);
+
+  /** Start a timeout that resets rollback state if Java never responds. */
+  const startRollbackTimeout = useCallback(() => {
+    clearRollbackTimeout();
+    rollbackTimeoutRef.current = setTimeout(() => {
+      rollbackTimeoutRef.current = null;
+      // Restore original callbacks
+      if (originalRollbackResultRef.current !== undefined) {
+        window.onRollbackResult = originalRollbackResultRef.current;
+        originalRollbackResultRef.current = undefined;
+      }
+      if (originalUndoAllResultRef.current !== undefined) {
+        window.onUndoAllFileResult = originalUndoAllResultRef.current;
+        originalUndoAllResultRef.current = undefined;
+      }
+      setIsRollingBack(false);
+      setRollbackDialogOpen(false);
+      setCurrentRollbackRequest(null);
+      addToast(t('rollback.timeout', 'Rollback timed out — no response from backend'), 'error');
+    }, ROLLBACK_TIMEOUT_MS);
+  }, [clearRollbackTimeout, addToast, t]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (rollbackTimeoutRef.current !== null) {
+        clearTimeout(rollbackTimeoutRef.current);
+        rollbackTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   const showRollbackDialog = useCallback(
     (messageIndex: number, message: ClaudeMessage) => {
@@ -145,6 +188,7 @@ export function useRollbackHandlers(
   /** Common cleanup after both message truncation and file revert succeed. */
   const finishRollback = useCallback(
     (messageContent: string) => {
+      clearRollbackTimeout();
       setDraftInput(messageContent);
       resetProcessedFiles();
       setRollbackDialogOpen(false);
@@ -152,7 +196,7 @@ export function useRollbackHandlers(
       setIsRollingBack(false);
       addToast(t('rollback.success'), 'success');
     },
-    [setDraftInput, resetProcessedFiles, addToast, t],
+    [clearRollbackTimeout, setDraftInput, resetProcessedFiles, addToast, t],
   );
 
   /** Send rollback_to_message to Java and wait for onRollbackResult. */
@@ -162,6 +206,7 @@ export function useRollbackHandlers(
 
       window.onRollbackResult = (json: string) => {
         window.onRollbackResult = originalRollbackResultRef.current;
+        clearRollbackTimeout();
         try {
           const r = JSON.parse(json);
           if (!r.success) {
@@ -180,7 +225,7 @@ export function useRollbackHandlers(
         messageUuid: currentRollbackRequest?.messageUuid,
       });
     },
-    [currentRollbackRequest, finishRollback, addToast, t],
+    [currentRollbackRequest, clearRollbackTimeout, finishRollback, addToast, t],
   );
 
   const handleRollbackConfirm = useCallback(() => {
@@ -197,6 +242,7 @@ export function useRollbackHandlers(
     );
 
     setIsRollingBack(true);
+    startRollbackTimeout();
 
     if (fileChanges.length > 0) {
       // ── Path A: revert files first, then truncate messages ──
@@ -204,6 +250,7 @@ export function useRollbackHandlers(
 
       window.onUndoAllFileResult = (undoJson: string) => {
         window.onUndoAllFileResult = originalUndoAllResultRef.current;
+        clearRollbackTimeout();
         try {
           const r = JSON.parse(undoJson);
           if (!r.success) {
@@ -211,7 +258,7 @@ export function useRollbackHandlers(
             addToast(r.error || t('rollback.failed'), 'error');
             return;
           }
-          // Files reverted — now truncate messages
+          // Files reverted — now truncate messages (starts a new timeout)
           sendRollback(messageContent);
         } catch {
           setIsRollingBack(false);
@@ -235,11 +282,13 @@ export function useRollbackHandlers(
     getContentBlocks,
     findToolResult,
     sendRollback,
+    startRollbackTimeout,
     addToast,
     t,
   ]);
 
   const handleRollbackCancel = useCallback(() => {
+    clearRollbackTimeout();
     if (isRollingBack) {
       // Restore any intercepted callbacks
       if (originalRollbackResultRef.current !== undefined) {
@@ -254,7 +303,7 @@ export function useRollbackHandlers(
     }
     setRollbackDialogOpen(false);
     setCurrentRollbackRequest(null);
-  }, [isRollingBack]);
+  }, [clearRollbackTimeout, isRollingBack]);
 
   return {
     rollbackDialogOpen,

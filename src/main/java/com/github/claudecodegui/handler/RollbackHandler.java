@@ -118,10 +118,6 @@ public class RollbackHandler extends BaseMessageHandler {
             }
 
             keepCount = targetIndex;
-            if (keepCount >= messages.size()) {
-                sendResult(true, "No messages to discard");
-                return;
-            }
         } catch (Exception e) {
             LOG.error("[RollbackHandler] Parse failed: " + e.getMessage(), e);
             showError("Rollback failed: " + e.getMessage());

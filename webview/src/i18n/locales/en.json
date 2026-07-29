@@ -1850,7 +1850,8 @@
     "restoring": "Reverting changes...",
     "success": "Successfully rolled back",
     "failed": "Rollback failed",
-    "notAvailable": "Rollback not available for this message"
+    "notAvailable": "Rollback not available for this message",
+    "timeout": "Rollback timed out — no response from backend"
   },
   "reasoning": {
     "title": "Select reasoning depth",
