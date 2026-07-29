@@ -16,7 +16,6 @@ import {
   getSessionMessages as claudeGetSessionMessages,
   getLatestUserMessage as claudeGetLatestUserMessage
 } from '../services/claude/session-service.js';
-
 /**
  * Execute a Claude specific command.
  * @param {string} command
@@ -100,6 +99,7 @@ export async function handleClaudeCommand(command, args, stdinData) {
       await claudeGetMcpServerTools(serverId, cwd);
       break;
     }
+
 
     case 'resetRuntime': {
       await claudeResetRuntimePersistent(stdinData || {});

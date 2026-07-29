@@ -858,6 +858,11 @@ interface Window {
   onRewindResult?: (json: string) => void;
 
   /**
+   * Rollback result callback - returns the result of a rollback_to_message operation
+   */
+  onRollbackResult?: (json: string) => void;
+
+  /**
    * Undo file result callback - returns the result of a single-file undo operation
    */
   onUndoFileResult?: (json: string) => void;

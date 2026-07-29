@@ -10,6 +10,7 @@ import {
   useStreamingMessages,
   useWindowCallbacks,
   useRewindHandlers,
+  useRollbackHandlers,
   useHistoryLoader,
   useMessageQueue,
   useThemeInit,
@@ -91,6 +92,7 @@ const App = () => {
     toasts, addToast, dismissToast, clearToasts,
     setContextInfo,
     searchOpen, setSearchOpen,
+    setDraftInput,
   } = useUIState();
 
   // ── Permission dialog timeout (synced with backend config) ──
@@ -399,7 +401,7 @@ const App = () => {
     getMessageText, getContentBlocks,
   });
 
-  const { handleUndoFile, handleDiscardAll: handleDiscardAllRaw, handleKeepAll } = fileChangeMgmt;
+  const { handleUndoFile, handleDiscardAll: handleDiscardAllRaw, handleKeepAll, resetProcessedFiles } = fileChangeMgmt;
   const onDiscardAll = useCallback(
     () => { handleDiscardAllRaw(filteredFileChanges); },
     [handleDiscardAllRaw, filteredFileChanges],
@@ -421,6 +423,26 @@ const App = () => {
     t, addToast, currentSessionId, mergedMessages, getMessageText,
     setCurrentRewindRequest, setRewindDialogOpen, setRewindSelectDialogOpen,
     setIsRewinding, isRewinding,
+  });
+
+  // ── Rollback handlers ──
+  const {
+    rollbackDialogOpen,
+    currentRollbackRequest,
+    isRollingBack,
+    showRollbackDialog,
+    handleRollbackConfirm,
+    handleRollbackCancel,
+  } = useRollbackHandlers({
+    t,
+    addToast,
+    messages: mergedMessages,
+    getContentBlocks,
+    findToolResult,
+    getMessageText,
+    setDraftInput,
+    resetProcessedFiles,
+    streamingActive,
   });
 
   const statusPanelExpanded = !userCollapsedRef.current;
@@ -527,6 +549,8 @@ const App = () => {
           onLongContextChange={handleLongContextChange}
           messageQueue={messageQueue}
           onRemoveFromQueue={dequeueMessage}
+          onRollbackUserMessage={showRollbackDialog}
+          isRollingBack={isRollingBack}
         />
       ) : (
         <HistoryView
@@ -559,6 +583,11 @@ const App = () => {
         onRewindCancel={handleRewindCancel}
         currentProvider={currentProvider}
         permissionDialogTimeoutSeconds={permissionDialogTimeoutSeconds}
+        rollbackDialogOpen={rollbackDialogOpen}
+        currentRollbackRequest={currentRollbackRequest}
+        isRollingBack={isRollingBack}
+        onRollbackConfirm={handleRollbackConfirm}
+        onRollbackCancel={handleRollbackCancel}
       />
     </>
   );

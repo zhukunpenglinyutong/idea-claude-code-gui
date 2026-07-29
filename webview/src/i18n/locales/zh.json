@@ -1960,6 +1960,26 @@
     "notAvailable": "当前会话不支持回溯",
     "parseError": "解析结果失败"
   },
+  "rollback": {
+    "title": "是否重置至此？",
+    "tooltip": "回退至此",
+    "rollbackTo": "回退到",
+    "impact": "影响",
+    "confirmMessage": "将丢弃此消息之后的所有对话。",
+    "messagesAffected_one": "将丢弃 {{count}} 条消息",
+    "messagesAffected_other": "将丢弃 {{count}} 条消息",
+    "fileChangesReverted_one": "将恢复 {{count}} 个文件的修改",
+    "fileChangesReverted_other": "将恢复 {{count}} 个文件的修改",
+    "noFileChanges": "无文件修改需要恢复",
+    "cannotUndo": "此操作无法撤销。",
+    "confirm": "重置",
+    "cancel": "取消",
+    "restoring": "正在恢复修改...",
+    "success": "已成功回退",
+    "failed": "回退失败",
+    "notAvailable": "此消息不支持撤回",
+    "timeout": "撤回超时 — 后端无响应"
+  },
   "reasoning": {
     "title": "选择思考深度",
     "low": {

@@ -117,6 +117,69 @@
     line-height: 1;
 }
 
+/* Rollback button — always visible inline. top: 8px mirrors the copy
+   button's inherited offset from .message-copy-btn so the two align. */
+.message-rollback-btn {
+    position: relative;
+    top: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 2px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: color 0.2s ease, background 0.2s ease;
+    opacity: 0.7;
+    border-radius: 3px;
+    flex-shrink: 0;
+    vertical-align: middle;
+
+    &:hover {
+        opacity: 1;
+        color: var(--color-accent, #d4a574);
+        background: rgba(128, 128, 128, 0.1);
+    }
+
+    .rollback-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        svg {
+            width: 14px;
+            height: 14px;
+        }
+    }
+
+    .rollback-tooltip {
+        position: absolute;
+        top: calc(100% + 4px);
+        right: -4px;
+        background: var(--bg-elevated);
+        color: var(--text-primary);
+        border: 1px solid var(--border-secondary);
+        box-shadow: var(--shadow-sm);
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.2s ease, visibility 0.2s ease;
+        pointer-events: none;
+        white-space: nowrap;
+        z-index: 20;
+    }
+
+    &:hover .rollback-tooltip {
+        opacity: 1;
+        visibility: visible;
+    }
+}
+
 /* Assistant Message: Row layout for alignment */
 .message.assistant {
     background: transparent;

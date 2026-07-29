@@ -99,6 +99,18 @@ export function useFileChangesManagement({
     });
   }, [currentSessionId]);
 
+  // Reset processed files state (used after rollback)
+  const resetProcessedFiles = useCallback(() => {
+    setProcessedFiles([]);
+    if (currentSessionId) {
+      try {
+        localStorage.removeItem(`processed-files-${currentSessionId}`);
+      } catch {
+        // Ignore localStorage errors
+      }
+    }
+  }, [currentSessionId]);
+
   // Callback for Keep All - set current changes as the new baseline
   const handleKeepAll = useCallback(() => {
     // Use ref to get the latest messages.length, avoiding stale closure issues
@@ -217,5 +229,6 @@ export function useFileChangesManagement({
     handleUndoFile,
     handleDiscardAll,
     handleKeepAll,
+    resetProcessedFiles,
   };
 }

@@ -151,6 +151,10 @@ interface MessageListProps {
   onNavigateToDependencySettings?: () => void;
   /** Current active provider id; forwarded to MessageItem for streaming-connect label. */
   currentProvider?: string;
+  /** Callback when user clicks the rollback button on a user message */
+  onRollbackUserMessage?: (messageIndex: number, message: ClaudeMessage) => void;
+  /** Whether a rollback operation is currently in progress */
+  isRollingBack?: boolean;
   currentSessionId?: string | null;
 }
 
@@ -171,6 +175,8 @@ export const MessageList = memo(forwardRef<MessageListRevealHandle, MessageListP
   onNavigateToProviderSettings,
   onNavigateToDependencySettings,
   currentProvider,
+  onRollbackUserMessage,
+  isRollingBack = false,
   currentSessionId,
 }, ref) {
   const [revealedTurnCount, setRevealedTurnCount] = useState(0);
@@ -378,6 +384,8 @@ export const MessageList = memo(forwardRef<MessageListRevealHandle, MessageListP
             onNavigateToDependencySettings={onNavigateToDependencySettings}
             toolResultSignature={toolResultSignature}
             currentProvider={currentProvider}
+            onRollback={onRollbackUserMessage}
+            isRollingBack={isRollingBack}
             detailedOutputEnabled={detailedOutputEnabled}
           />
         );

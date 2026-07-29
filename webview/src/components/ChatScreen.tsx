@@ -115,6 +115,10 @@ export interface ChatScreenProps {
   // Message queue
   messageQueue: MessageQueueValue;
   onRemoveFromQueue: (id: string) => void;
+
+  // Rollback
+  onRollbackUserMessage?: (messageIndex: number, message: ClaudeMessage) => void;
+  isRollingBack?: boolean;
 }
 
 /**
@@ -145,6 +149,7 @@ export const ChatScreen = ({
   onStreamingEnabledChange,
   onAutoOpenFileEnabledChange, onLongContextChange,
   messageQueue, onRemoveFromQueue,
+  onRollbackUserMessage, isRollingBack = false,
 }: ChatScreenProps) => {
   const { t } = useTranslation();
   const { messages, status, loading, isThinking, streamingActive, loadingStartTime, subagentHistories } = useMessages();
@@ -273,6 +278,8 @@ export const ChatScreen = ({
                     setCurrentView('settings');
                   }}
                   currentProvider={currentProvider}
+                  onRollbackUserMessage={onRollbackUserMessage}
+                  isRollingBack={isRollingBack}
                   currentSessionId={currentSessionId}
                 />
               </ToolResultRawContext.Provider>
