@@ -28,4 +28,26 @@ public class DaemonBridgeTest {
     public void activeRequestWithNoRecentOutputEventuallyTimesOut() {
         assertTrue(DaemonBridge.shouldTreatAsUnresponsive(OVER_ACTIVE_REQUEST_THRESHOLD, OVER_ACTIVE_REQUEST_THRESHOLD, 1));
     }
+
+    /**
+     * Regression test for issue #1512: after a daemon restart the heartbeat
+     * baseline is reset, so a fresh heartbeat age must NOT be flagged as
+     * unresponsive even when there are no active requests.
+     */
+    @Test
+    public void freshHeartbeatAfterRestartIsNotUnresponsive() {
+        assertFalse(DaemonBridge.shouldTreatAsUnresponsive(RECENT_ACTIVITY, RECENT_ACTIVITY, 0));
+    }
+
+    /**
+     * Documents the exact restart-storm scenario from issue #1512: a stale
+     * heartbeat age (left over from the previous dead process) combined with
+     * a fresh activity age and no active requests IS treated as unresponsive.
+     * The fix prevents this stale value from ever reaching the check by
+     * resetting lastHeartbeatResponse when a new process is spawned.
+     */
+    @Test
+    public void staleHeartbeatWithFreshActivityIsUnresponsive() {
+        assertTrue(DaemonBridge.shouldTreatAsUnresponsive(297_132, 149, 0));
+    }
 }
