@@ -1574,6 +1574,10 @@
     "xhigh": {
       "label": "最多",
       "description": "最深推理，最高精度"
+    },
+    "ultra": {
+      "label": "Ultra",
+      "description": "最高推理強度，並自動委派任務"
     }
   },
   "errorBoundary": {

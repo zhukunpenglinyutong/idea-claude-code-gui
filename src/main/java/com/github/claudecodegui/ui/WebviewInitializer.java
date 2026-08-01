@@ -952,12 +952,14 @@ public class WebviewInitializer {
         String htmlContent = htmlLoader.loadChatHtml();
 
         // Each tab reads the same localStorage snapshot. Preserve the session's
-        // provider and model on both initial load and watchdog recovery.
+        // provider, model, and reasoning effort on both initial load and watchdog recovery.
         ClaudeSession session = host.getHandlerContext() != null
                 ? host.getHandlerContext().getSession() : null;
         String tabProvider = session != null ? session.getProvider() : null;
         String tabModel = session != null ? session.getModel() : null;
-        return htmlLoader.injectInitialTabState(htmlContent, tabProvider, tabModel);
+        String tabReasoningEffort = session != null ? session.getReasoningEffort() : null;
+        return htmlLoader.injectInitialTabState(
+                htmlContent, tabProvider, tabModel, tabReasoningEffort);
     }
 
     /**

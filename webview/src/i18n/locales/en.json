@@ -104,6 +104,8 @@
     "openSourceBannerStarAria": "Copy repository link and star on GitHub",
     "goInstallSdk": "Go to Install",
     "sdkTooLowForFable": "Claude SDK version is too low for the Fable model. Update the Claude Code SDK in Settings.",
+    "sdkTooLowForUltra": "Ultra requires Codex SDK 0.143.0 or newer. Update the Codex SDK in Settings.",
+    "ultraUnsupportedForModel": "Ultra is available for Codex GPT-5.6 Sol and Terra.",
     "updateSdk": "Update SDK",
     "commandNotImplemented": "`{{command}}` feature is not yet implemented.",
     "clearCommandDescription": "Clear conversation history and start a new session",
@@ -1985,6 +1987,10 @@
     "max": {
       "label": "Max",
       "description": "Maximum reasoning depth"
+    },
+    "ultra": {
+      "label": "Ultra",
+      "description": "Maximum reasoning with automatic task delegation"
     }
   },
   "errorBoundary": {

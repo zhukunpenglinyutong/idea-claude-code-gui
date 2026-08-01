@@ -27,6 +27,108 @@ describe('ReasoningSelect', () => {
     expect(onChange).toHaveBeenCalledWith('max');
   });
 
+  it('shows and selects ultra for GPT-5.6 Sol', () => {
+    const onChange = vi.fn();
+
+    render(
+      <ReasoningSelect
+        value="max"
+        onChange={onChange}
+        currentProvider="codex"
+        selectedModel="gpt-5.6-sol"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(screen.getByText('Ultra'));
+
+    expect(onChange).toHaveBeenCalledWith('ultra');
+  });
+
+  it('shows ultra for GPT-5.6 Terra regardless of case', () => {
+    render(
+      <ReasoningSelect
+        value="max"
+        onChange={vi.fn()}
+        currentProvider="codex"
+        selectedModel="GPT-5.6-TERRA"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button'));
+
+    expect(screen.getByText('Ultra')).toBeTruthy();
+  });
+
+  it('keeps ultra hidden for unverified custom model slugs', () => {
+    render(
+      <ReasoningSelect
+        value="xhigh"
+        onChange={vi.fn()}
+        currentProvider="codex"
+        selectedModel="provider/gpt-5.6-terra-preview"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button'));
+
+    expect(screen.queryByText('Ultra')).toBeNull();
+  });
+
+  it('shows ultra for the GPT-5.6 alias that resolves to Sol', () => {
+    render(
+      <ReasoningSelect
+        value="max"
+        onChange={vi.fn()}
+        currentProvider="codex"
+        selectedModel="gpt-5.6"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button'));
+
+    expect(screen.getByText('Ultra')).toBeTruthy();
+  });
+
+  it('keeps ultra hidden for GPT-5.6 Luna', () => {
+    render(
+      <ReasoningSelect
+        value="xhigh"
+        onChange={vi.fn()}
+        currentProvider="codex"
+        selectedModel="gpt-5.6-luna"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button'));
+
+    expect(screen.getByText('Max')).toBeTruthy();
+    expect(screen.queryByText('Ultra')).toBeNull();
+  });
+
+  it('falls back from ultra to max when switching to GPT-5.6 Luna', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <ReasoningSelect
+        value="ultra"
+        onChange={onChange}
+        currentProvider="codex"
+        selectedModel="gpt-5.6-sol"
+      />,
+    );
+
+    rerender(
+      <ReasoningSelect
+        value="ultra"
+        onChange={onChange}
+        currentProvider="codex"
+        selectedModel="gpt-5.6-luna"
+      />,
+    );
+
+    expect(onChange).toHaveBeenCalledWith('max');
+  });
+
   it('shows max for namespaced GPT-5.6 Codex models regardless of case', () => {
     render(
       <ReasoningSelect
@@ -55,6 +157,7 @@ describe('ReasoningSelect', () => {
     fireEvent.click(screen.getByRole('button'));
 
     expect(screen.queryByText('Max')).toBeNull();
+    expect(screen.queryByText('Ultra')).toBeNull();
   });
 
   it('keeps max hidden when the Codex model is unknown', () => {
@@ -69,6 +172,7 @@ describe('ReasoningSelect', () => {
     fireEvent.click(screen.getByRole('button'));
 
     expect(screen.queryByText('Max')).toBeNull();
+    expect(screen.queryByText('Ultra')).toBeNull();
   });
 
   it('shows max for custom GPT-5.6 model suffixes', () => {
@@ -100,6 +204,21 @@ describe('ReasoningSelect', () => {
 
     expect(screen.getByText('XHigh')).toBeTruthy();
     expect(screen.getByText('Max')).toBeTruthy();
+    expect(screen.queryByText('Ultra')).toBeNull();
+  });
+
+  it('keeps ultra hidden when the Claude model is unknown', () => {
+    render(
+      <ReasoningSelect
+        value="high"
+        onChange={vi.fn()}
+        currentProvider="claude"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button'));
+
+    expect(screen.queryByText('Ultra')).toBeNull();
   });
 
   it('shows max but not xhigh for Claude Sonnet 4.6', () => {

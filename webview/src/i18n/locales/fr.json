@@ -1569,6 +1569,10 @@
     "xhigh": {
       "label": "Maximum",
       "description": "Profondeur de raisonnement maximale"
+    },
+    "ultra": {
+      "label": "Ultra",
+      "description": "Raisonnement maximal avec délégation automatique des tâches"
     }
   },
   "errorBoundary": {

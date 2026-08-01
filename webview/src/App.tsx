@@ -148,7 +148,7 @@ const App = () => {
   const {
     currentProvider, selectedModel, permissionMode,
     selectedAgent, sdkStatusLoaded, currentSdkInstalled,
-    claudeSdkMeetsMinimum,
+    claudeSdkMeetsMinimum, codexSdkMeetsMinimum,
     currentProviderRef,
     activeProviderConfig, claudeSettingsAlwaysThinkingEnabled,
     reasoningEffort, codexFastMode, streamingEnabledSetting, sendShortcut, autoOpenFileEnabled,
@@ -332,7 +332,7 @@ const App = () => {
   } = useMessageSender({
     t, addToast,
     currentProvider, selectedModel, permissionMode, reasoningEffort, selectedAgent, codexFastMode,
-    sdkStatusLoaded, currentSdkInstalled,
+    sdkStatusLoaded, currentSdkInstalled, codexSdkMeetsMinimum,
     sentAttachmentsRef, chatInputRef, messagesContainerRef,
     isUserAtBottomRef, userPausedRef, isStreamingRef,
     setMessages, setLoading, setLoadingStartTime, setStreamingActive,

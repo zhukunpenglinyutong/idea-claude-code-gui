@@ -42,6 +42,7 @@ public class SessionSendServiceTest {
         assertEquals("low", SessionSendService.normalizeRequestedReasoningEffort(" low "));
         assertEquals("xhigh", SessionSendService.normalizeRequestedReasoningEffort("xhigh"));
         assertEquals("max", SessionSendService.normalizeRequestedReasoningEffort("max"));
+        assertEquals("ultra", SessionSendService.normalizeRequestedReasoningEffort("ultra"));
     }
 
     @Test
@@ -59,6 +60,15 @@ public class SessionSendServiceTest {
         SessionState state = new SessionState();
 
         assertNull(state.getReasoningEffort());
+    }
+
+    @Test
+    public void sessionStateStoresTrimmedUltraReasoningEffort() {
+        SessionState state = new SessionState();
+
+        state.setReasoningEffort(" ultra ");
+
+        assertEquals("ultra", state.getReasoningEffort());
     }
 
     @Test

@@ -6,6 +6,7 @@ import {
   MAX_EFFORT_CLAUDE_MODELS,
   XHIGH_EFFORT_CLAUDE_MODELS,
   codexModelSupportsMaxEffort,
+  codexModelSupportsUltraEffort,
   type ReasoningEffort,
 } from '../types';
 import { useDropdownPosition } from '../../../hooks/useDropdownPosition';
@@ -34,7 +35,8 @@ interface ReasoningSelectProps {
  * ReasoningSelect - Reasoning Effort Selector
  * Controls the depth of reasoning for AI models.
  * Visibility and available levels depend on the selected model:
- * - Codex GPT-5.6: low/medium/high/xhigh/max; other Codex models: up to xhigh
+ * - Codex GPT-5.6 Sol/Terra: low/medium/high/xhigh/max/ultra
+ * - Codex GPT-5.6 Luna: low/medium/high/xhigh/max; other Codex models: up to xhigh
  * - Claude Opus 5 and Opus 4.8: low/medium/high/xhigh/max
  * - Claude Sonnet 5, Sonnet 4.7, Opus 4.6, and Sonnet 4.6: low/medium/high/max
  * - Claude Haiku 4.5 and legacy models: hidden (no adaptive thinking support)
@@ -56,10 +58,19 @@ export const ReasoningSelect = ({ value, onChange, disabled, selectedModel, curr
   // Build the list of available levels for the current model
   const availableLevels = REASONING_LEVELS.filter(level => {
     if (currentProvider === 'codex') {
-      return level.id !== 'max' || (selectedModel !== undefined && codexModelSupportsMaxEffort(selectedModel));
+      if (level.id === 'max') {
+        return selectedModel !== undefined && codexModelSupportsMaxEffort(selectedModel);
+      }
+      if (level.id === 'ultra') {
+        return selectedModel !== undefined && codexModelSupportsUltraEffort(selectedModel);
+      }
+      return true;
     }
     if (currentProvider !== 'claude') {
-      return level.id !== 'max';
+      return level.id !== 'max' && level.id !== 'ultra';
+    }
+    if (level.id === 'ultra') {
+      return false;
     }
     if (!selectedModel) {
       return true;
@@ -73,7 +84,10 @@ export const ReasoningSelect = ({ value, onChange, disabled, selectedModel, curr
     return true;
   });
 
-  const currentLevel = availableLevels.find(l => l.id === value) || availableLevels[availableLevels.length - 2] || availableLevels[0];
+  const currentLevel = availableLevels.find(l => l.id === value)
+    || (value === 'ultra' ? availableLevels.find(l => l.id === 'max') : undefined)
+    || availableLevels[availableLevels.length - 2]
+    || availableLevels[0];
 
   useEffect(() => {
     if (!isVisible || availableLevels.some(level => level.id === value)) {

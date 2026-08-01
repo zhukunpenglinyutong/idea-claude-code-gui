@@ -1033,6 +1033,12 @@ interface Window {
    */
   __INITIAL_TAB_MODEL__?: string;
 
+  /**
+   * Per-tab reasoning effort injected by Java. This prevents the shared JCEF
+   * localStorage snapshot from overriding a restored tab's own effort.
+   */
+  __INITIAL_TAB_REASONING_EFFORT__?: string;
+
   // ============================================================================
   // Provider settings panel callbacks (registered by ProviderList)
   // ============================================================================

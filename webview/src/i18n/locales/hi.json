@@ -1568,6 +1568,10 @@
     "xhigh": {
       "label": "अधिकतम",
       "description": "अधिकतम तर्क गहराई"
+    },
+    "ultra": {
+      "label": "Ultra",
+      "description": "स्वचालित कार्य सौंपने के साथ अधिकतम तर्क"
     }
   },
   "errorBoundary": {

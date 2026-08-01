@@ -30,11 +30,14 @@ public enum SdkDefinition {
         "codex-sdk",
         "Codex SDK",
         "@openai/codex-sdk",
+        // Ultra became a first-class reasoning effort in Codex 0.143.0. Keep
+        // installing latest, but never advertise a fallback older than that
+        // floor or the UI could offer delegation semantics the runtime ignores.
         "latest",
         Collections.emptyList(),
-        Arrays.asList("0.117.0", "0.116.0", "0.115.0"),
+        Arrays.asList("0.144.1", "0.143.0"),
         "Codex AI 提供商所需。",
-        null // minRequiredVersion — no enforced minimum
+        "0.143.0" // minRequiredVersion — Ultra reasoning requires Codex >= 0.143.0
     );
 
     private final String id;
@@ -89,7 +92,7 @@ public enum SdkDefinition {
 
     /**
      * Minimum installed version required for full feature support.
-     * The Claude SDK needs 0.3.182 or later for the Fable tier; Codex has no minimum.
+     * Claude needs 0.3.182 or later for Fable; Codex needs 0.143.0 or later for Ultra.
      * Null means no minimum is enforced.
      */
     public String getMinRequiredVersion() {
