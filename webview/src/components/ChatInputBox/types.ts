@@ -458,12 +458,25 @@ export function codexModelSupportsMaxEffort(modelId: string): boolean {
 }
 
 /**
+ * Ultra combines maximum reasoning with automatic task delegation. The
+ * current Codex catalog exposes it for canonical GPT-5.6 Sol and Terra, but
+ * not Luna or unverified custom provider slugs. The gpt-5.6 alias resolves to Sol.
+ */
+export function codexModelSupportsUltraEffort(modelId: string): boolean {
+  const normalizedModelId = modelId.trim().toLowerCase();
+  return normalizedModelId === 'gpt-5.6'
+    || normalizedModelId === 'gpt-5.6-sol'
+    || normalizedModelId === 'gpt-5.6-terra';
+}
+
+/**
  * Reasoning Effort (thinking depth)
  * Controls the depth of reasoning for AI models
  * Claude API values: low, medium, high, xhigh, max
- * Codex API values: low, medium, high, xhigh; GPT-5.6 also supports max
+ * Codex API values: low, medium, high, xhigh; GPT-5.6 supports max;
+ * GPT-5.6 Sol and Terra additionally support ultra
  */
-export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra';
 
 /**
  * Codex execution speed mode.
@@ -514,6 +527,12 @@ export const REASONING_LEVELS: ReasoningInfo[] = [
     label: 'Max',
     icon: 'codicon-rocket',
     description: 'Maximum reasoning depth',
+  },
+  {
+    id: 'ultra',
+    label: 'Ultra',
+    icon: 'codicon-type-hierarchy',
+    description: 'Maximum reasoning with automatic task delegation',
   },
 ];
 

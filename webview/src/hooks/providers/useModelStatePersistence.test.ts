@@ -48,6 +48,7 @@ describe('useModelStatePersistence — boot sync does not clobber the persisted 
   afterEach(() => {
     vi.useRealTimers();
     delete (window as unknown as { sendToJava?: unknown }).sendToJava;
+    delete (window as unknown as { __INITIAL_TAB_REASONING_EFFORT__?: unknown }).__INITIAL_TAB_REASONING_EFFORT__;
   });
 
   it('does NOT send set_mode on boot when localStorage was wiped (reinstall)', () => {
@@ -162,5 +163,52 @@ describe('useModelStatePersistence — retired model migration', () => {
 
     expect(bridgeEventsFor('set_model')).toEqual([['set_model', DEFAULT_CLAUDE_MODEL_ID]]);
     expect(DEFAULT_CLAUDE_MODEL_ID).not.toBe('claude-fable-5');
+  });
+});
+
+describe('useModelStatePersistence — Codex reasoning effort', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sendBridgeEventMock.mockClear();
+    (window as unknown as { sendToJava?: unknown }).sendToJava = () => {};
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    delete (window as unknown as { sendToJava?: unknown }).sendToJava;
+    delete (window as unknown as { __INITIAL_TAB_REASONING_EFFORT__?: unknown }).__INITIAL_TAB_REASONING_EFFORT__;
+  });
+
+  it('restores Ultra from the persisted model-selection state', () => {
+    const setReasoningEffort = vi.fn();
+    localStorage.setItem('model-selection-state', JSON.stringify({
+      provider: 'codex',
+      codexModel: 'gpt-5.6-sol',
+      reasoningEffort: 'ultra',
+    }));
+
+    renderHook(() => useModelStatePersistence(makeOptions({ setReasoningEffort })));
+    vi.advanceTimersByTime(200);
+
+    expect(setReasoningEffort).toHaveBeenCalledWith('ultra');
+  });
+
+  it('prefers a restored tab effort over the shared localStorage effort', () => {
+    const setReasoningEffort = vi.fn();
+    (window as unknown as {
+      __INITIAL_TAB_REASONING_EFFORT__?: unknown;
+    }).__INITIAL_TAB_REASONING_EFFORT__ = 'high';
+    localStorage.setItem('model-selection-state', JSON.stringify({
+      provider: 'codex',
+      codexModel: 'gpt-5.6-sol',
+      reasoningEffort: 'ultra',
+    }));
+
+    renderHook(() => useModelStatePersistence(makeOptions({ setReasoningEffort })));
+    vi.advanceTimersByTime(200);
+
+    expect(setReasoningEffort).toHaveBeenCalledWith('high');
+    expect(setReasoningEffort).not.toHaveBeenCalledWith('ultra');
   });
 });

@@ -104,6 +104,8 @@
     "openSourceBannerStarAria": "复制仓库地址并前往 GitHub 点 Star",
     "goInstallSdk": "前往安装",
     "sdkTooLowForFable": "Claude SDK 版本过低，Fable 模型可能无法使用。请在设置中更新 Claude Code SDK。",
+    "sdkTooLowForUltra": "Ultra 需要 Codex SDK 0.143.0 或更高版本。请在设置中更新 Codex SDK。",
+    "ultraUnsupportedForModel": "Ultra 仅适用于 Codex GPT-5.6 Sol 和 Terra。",
     "updateSdk": "更新 SDK",
     "commandNotImplemented": "`{{command}}` 功能暂未实现。",
     "clearCommandDescription": "清除对话历史并新建会话",
@@ -1990,6 +1992,10 @@
     "max": {
       "label": "max",
       "description": "最大推理深度"
+    },
+    "ultra": {
+      "label": "ultra",
+      "description": "最高推理强度，并自动委派任务"
     }
   },
   "errorBoundary": {

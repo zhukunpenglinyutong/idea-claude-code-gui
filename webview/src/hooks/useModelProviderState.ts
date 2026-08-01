@@ -92,11 +92,11 @@ export function useModelProviderState({ addToast, t }: UseModelProviderStateOpti
     () => isSdkInstalled(currentProvider),
     [isSdkInstalled, currentProvider],
   );
-  // Whether the installed Claude SDK meets the minimum version required for the
-  // selected model's tier (Fable needs >= 0.3.182). `undefined` means the backend
-  // hasn't reported it (SDK not installed, or an old plugin version without the
-  // field) — callers must only warn on an explicit `false` to avoid false positives.
+  // Whether each installed SDK meets its feature floor (Claude Fable >= 0.3.182,
+  // Codex Ultra >= 0.143.0). `undefined` means the backend has not reported it;
+  // callers only block on an explicit `false` to avoid false positives.
   const claudeSdkMeetsMinimum = sdkStatus?.['claude-sdk']?.meetsMinimumVersion;
+  const codexSdkMeetsMinimum = sdkStatus?.['codex-sdk']?.meetsMinimumVersion;
 
   // ── Cross-provider handlers ──
   const handleModeSelect = useCallback((mode: PermissionMode) => {
@@ -203,6 +203,7 @@ export function useModelProviderState({ addToast, t }: UseModelProviderStateOpti
     selectedModel,
     currentSdkInstalled,
     claudeSdkMeetsMinimum,
+    codexSdkMeetsMinimum,
     currentProviderRef,
     handleModeSelect,
     handleModelSelect,

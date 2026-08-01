@@ -5,6 +5,7 @@ import type { ClaudeContentBlock, ClaudeMessage } from '../types';
 import {
   EFFORT_SUPPORTED_CLAUDE_MODELS,
   apply1MContextSuffix,
+  codexModelSupportsUltraEffort,
 } from '../components/ChatInputBox/types';
 import type { Attachment, ChatInputBoxHandle, PermissionMode, ReasoningEffort, SelectedAgent, CodexFastMode } from '../components/ChatInputBox/types';
 import type { ViewMode } from './useModelProviderState';
@@ -45,6 +46,7 @@ export interface UseMessageSenderOptions {
   selectedAgent: SelectedAgent | null;
   sdkStatusLoaded: boolean;
   currentSdkInstalled: boolean;
+  codexSdkMeetsMinimum?: boolean;
   sentAttachmentsRef: RefObject<Map<string, Array<{ fileName: string; mediaType: string }>>>;
   chatInputRef: RefObject<ChatInputBoxHandle | null>;
   messagesContainerRef: RefObject<HTMLDivElement | null>;
@@ -78,6 +80,7 @@ export function useMessageSender({
   selectedAgent,
   sdkStatusLoaded,
   currentSdkInstalled,
+  codexSdkMeetsMinimum,
   sentAttachmentsRef,
   chatInputRef,
   messagesContainerRef,
@@ -331,6 +334,22 @@ export function useMessageSender({
       setCurrentView('settings');
       return;
     }
+    if (reasoningEffort === 'ultra') {
+      if (currentProvider !== 'codex' || !codexModelSupportsUltraEffort(selectedModel)) {
+        addToast(t('chat.ultraUnsupportedForModel', {
+          defaultValue: 'Ultra is available for Codex GPT-5.6 Sol and Terra.',
+        }), 'warning');
+        return;
+      }
+      if (codexSdkMeetsMinimum === false) {
+        addToast(t('chat.sdkTooLowForUltra', {
+          defaultValue: 'Ultra requires Codex SDK 0.143.0 or newer. Update the Codex SDK in Settings.',
+        }), 'warning');
+        setSettingsInitialTab('dependencies');
+        setCurrentView('settings');
+        return;
+      }
+    }
 
     // Build user message content blocks
     const userContentBlocks = buildUserContentBlocks(text, attachments);
@@ -399,7 +418,10 @@ export function useMessageSender({
   }, [
     sdkStatusLoaded,
     currentSdkInstalled,
+    codexSdkMeetsMinimum,
     currentProvider,
+    selectedModel,
+    reasoningEffort,
     permissionMode,
     selectedAgent,
     buildUserContentBlocks,

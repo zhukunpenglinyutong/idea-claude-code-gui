@@ -1569,6 +1569,10 @@
     "xhigh": {
       "label": "Máximo",
       "description": "Profundidad máxima de razonamiento"
+    },
+    "ultra": {
+      "label": "Ultra",
+      "description": "Razonamiento máximo con delegación automática de tareas"
     }
   },
   "errorBoundary": {

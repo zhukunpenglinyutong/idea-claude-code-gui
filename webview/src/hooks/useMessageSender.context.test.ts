@@ -16,6 +16,7 @@ describe('useMessageSender - /context command', () => {
     selectedAgent: null,
     sdkStatusLoaded: true,
     currentSdkInstalled: true,
+    codexSdkMeetsMinimum: true,
     sentAttachmentsRef: { current: new Map() },
     chatInputRef: { current: null },
     messagesContainerRef: { current: null },
@@ -239,5 +240,67 @@ describe('useMessageSender - /context command', () => {
 
     const payload = getBridgePayload('send_message_with_attachments');
     expect(payload.reasoningEffort).toBe('low');
+  });
+
+  it('includes Codex Ultra reasoning effort in the message payload', () => {
+    const opts = createOptions({
+      currentProvider: 'codex',
+      selectedModel: 'gpt-5.6-sol',
+      reasoningEffort: 'ultra',
+    });
+
+    const { result } = renderHook(() => useMessageSender(opts));
+
+    act(() => {
+      result.current.handleSubmit('delegate this task');
+    });
+
+    const payload = getBridgePayload('send_message');
+    expect(payload.reasoningEffort).toBe('ultra');
+  });
+
+  it('blocks Ultra when the installed Codex SDK predates Ultra support', () => {
+    const addToast = vi.fn();
+    const setSettingsInitialTab = vi.fn();
+    const setCurrentView = vi.fn();
+    const opts = createOptions({
+      currentProvider: 'codex',
+      selectedModel: 'gpt-5.6-sol',
+      reasoningEffort: 'ultra',
+      codexSdkMeetsMinimum: false,
+      addToast,
+      setSettingsInitialTab,
+      setCurrentView,
+    });
+
+    const { result } = renderHook(() => useMessageSender(opts));
+
+    act(() => {
+      result.current.handleSubmit('delegate this task');
+    });
+
+    expect(window.sendToJava).not.toHaveBeenCalled();
+    expect(addToast).toHaveBeenCalledWith(expect.stringContaining('0.143.0'), 'warning');
+    expect(setSettingsInitialTab).toHaveBeenCalledWith('dependencies');
+    expect(setCurrentView).toHaveBeenCalledWith('settings');
+  });
+
+  it('blocks a stale Ultra selection after switching to an unsupported model', () => {
+    const addToast = vi.fn();
+    const opts = createOptions({
+      currentProvider: 'codex',
+      selectedModel: 'gpt-5.6-luna',
+      reasoningEffort: 'ultra',
+      addToast,
+    });
+
+    const { result } = renderHook(() => useMessageSender(opts));
+
+    act(() => {
+      result.current.handleSubmit('delegate this task');
+    });
+
+    expect(window.sendToJava).not.toHaveBeenCalled();
+    expect(addToast).toHaveBeenCalledWith(expect.stringContaining('Sol and Terra'), 'warning');
   });
 });

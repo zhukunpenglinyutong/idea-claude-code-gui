@@ -12,7 +12,7 @@ import {
 import type { CodexFastMode, PermissionMode, ReasoningEffort } from '../../components/ChatInputBox/types';
 
 const STORAGE_KEY = 'model-selection-state';
-const REASONING_VALUES = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+const REASONING_VALUES = ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const;
 const CODEX_FAST_MODE_VALUES = ['normal', 'fast'] as const;
 
 const getCustomModels = (key: string): { id: string }[] => {
@@ -91,16 +91,22 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
       const saved = localStorage.getItem(STORAGE_KEY);
       // Per-tab restore (issue #1353): when the Java backend has loaded a saved
       // session for this specific tab, it injects __INITIAL_TAB_PROVIDER__ /
-      // __INITIAL_TAB_MODEL__ into the HTML before React boots. Those values
-      // win over the global localStorage snapshot, which is shared across every
-      // tab in the JCEF process and would otherwise cause every CC tab on
-      // restart to be set to whichever provider was last saved by ANY tab.
+      // __INITIAL_TAB_MODEL__ / __INITIAL_TAB_REASONING_EFFORT__ into the HTML
+      // before React boots. Those values win over the global localStorage
+      // snapshot, which is shared across every tab in the JCEF process and
+      // would otherwise make every restored tab use the last saved preferences.
       const initialTabProvider = typeof window.__INITIAL_TAB_PROVIDER__ === 'string'
         ? window.__INITIAL_TAB_PROVIDER__.trim()
         : '';
       const initialTabModel = typeof window.__INITIAL_TAB_MODEL__ === 'string'
         ? window.__INITIAL_TAB_MODEL__.trim()
         : '';
+      const initialTabReasoningEffortRaw = typeof window.__INITIAL_TAB_REASONING_EFFORT__ === 'string'
+        ? window.__INITIAL_TAB_REASONING_EFFORT__.trim()
+        : '';
+      const initialTabReasoningEffort = isReasoningEffort(initialTabReasoningEffortRaw)
+        ? initialTabReasoningEffortRaw
+        : null;
       const hasBackendProvider = initialTabProvider === 'claude' || initialTabProvider === 'codex';
       const hasBackendModel = initialTabModel.length > 0;
 
@@ -157,7 +163,9 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
           setLongContextEnabled(state.longContextEnabled);
         }
 
-        if (isReasoningEffort(state.reasoningEffort)) {
+        if (initialTabReasoningEffort) {
+          setReasoningEffort(initialTabReasoningEffort);
+        } else if (isReasoningEffort(state.reasoningEffort)) {
           setReasoningEffort(state.reasoningEffort);
         }
         if (isCodexFastMode(state.codexFastMode)) {
@@ -182,6 +190,9 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
         if (hasBackendModel) {
           if (initialTabProvider === 'claude') applyClaudeModel(initialTabModel);
           else if (initialTabProvider === 'codex') applyCodexModel(initialTabModel);
+        }
+        if (initialTabReasoningEffort) {
+          setReasoningEffort(initialTabReasoningEffort);
         }
       }
 

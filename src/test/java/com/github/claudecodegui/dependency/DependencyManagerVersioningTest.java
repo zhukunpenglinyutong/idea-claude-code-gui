@@ -68,7 +68,8 @@ public class DependencyManagerVersioningTest {
     }
 
     @Test
-    public void codexSdkShouldHaveNoEnforcedMinimumVersion() {
-        assertNull(SdkDefinition.CODEX_SDK.getMinRequiredVersion());
+    public void codexSdkShouldRequireUltraCapableMinimumVersion() {
+        assertEquals("0.143.0", SdkDefinition.CODEX_SDK.getMinRequiredVersion());
+        assertEquals(List.of("0.144.1", "0.143.0"), SdkDefinition.CODEX_SDK.getFallbackVersions());
     }
 }

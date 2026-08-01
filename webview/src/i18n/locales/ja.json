@@ -1574,6 +1574,10 @@
     "xhigh": {
       "label": "最大",
       "description": "最大の推論深度"
+    },
+    "ultra": {
+      "label": "Ultra",
+      "description": "タスクの自動委任を伴う最大限の推論"
     }
   },
   "errorBoundary": {
