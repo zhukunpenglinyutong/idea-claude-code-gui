@@ -228,8 +228,8 @@ public class ChatWindowDelegate {
 
         PermissionService permissionService = PermissionService.getInstance(project, sessionId);
         permissionService.start();
-        permissionService.registerDialogShower(project, (toolName, inputs) ->
-            host.getPermissionHandler().showFrontendPermissionDialog(toolName, inputs));
+        permissionService.registerDialogShower(project, (requestId, toolName, inputs) ->
+            host.getPermissionHandler().showFrontendPermissionDialog(requestId, toolName, inputs));
         permissionService.registerAskUserQuestionDialogShower(project, (requestId, questionsData) ->
             host.getPermissionHandler().showAskUserQuestionDialog(requestId, questionsData));
         permissionService.registerPlanApprovalDialogShower(project, (requestId, planData) ->

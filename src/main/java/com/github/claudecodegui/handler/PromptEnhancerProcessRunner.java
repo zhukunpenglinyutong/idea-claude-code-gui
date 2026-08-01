@@ -109,7 +109,7 @@ final class PromptEnhancerProcessRunner {
             if (!finished) {
                 LOG.warn("[PromptEnhancer] Timeout after " + timeoutSeconds
                         + "s, force killing PID " + process.pid());
-                PlatformUtils.terminateProcess(process);
+                terminateAndWait(process);
                 throw new TimeoutException("Prompt enhancement timed out after "
                         + timeoutSeconds + "s");
             }
@@ -136,12 +136,33 @@ final class PromptEnhancerProcessRunner {
         } finally {
             if (process != null) {
                 if (process.isAlive()) {
-                    PlatformUtils.terminateProcess(process);
+                    terminateAndWait(process);
                 }
                 processManager.unregisterProcess(channelId, process);
             }
             if (readerFuture != null && !readerFuture.isDone()) {
                 readerFuture.cancel(true);
+            }
+        }
+    }
+
+    /**
+     * Terminate the process tree and wait for the root process to become dead.
+     * On Windows {@link PlatformUtils#terminateProcess(Process)} waits for the
+     * {@code taskkill} helper, not necessarily for the original process handle,
+     * so returning immediately can unregister a still-live child.
+     */
+    private static void terminateAndWait(Process process) {
+        PlatformUtils.terminateProcess(process);
+        try {
+            if (process.isAlive() && !process.waitFor(5, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                process.waitFor(2, TimeUnit.SECONDS);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            if (process.isAlive()) {
+                process.destroyForcibly();
             }
         }
     }

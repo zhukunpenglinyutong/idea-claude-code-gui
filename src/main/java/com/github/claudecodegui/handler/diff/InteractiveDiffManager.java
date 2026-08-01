@@ -99,6 +99,10 @@ public class InteractiveDiffManager {
             @NotNull InteractiveDiffRequest request,
             @NotNull CompletableFuture<DiffResult> resultFuture
     ) {
+        // A Remote permission decision can win before the EDT opens the review.
+        if (resultFuture.isDone()) {
+            return;
+        }
         // Use the original content from the request (before modifications)
         String originalContent = request.getOriginalContent();
         String newContent = request.getNewFileContents();
@@ -181,6 +185,18 @@ public class InteractiveDiffManager {
 
         // Set up window event listener first (before creating buttons that reference connection)
         MessageBusConnection connection = project.getMessageBus().connect();
+
+        // Desktop buttons close the view themselves. If another first-wins path
+        // (Remote decision / abort) completes the same future, close it here.
+        resultFuture.whenComplete((result, error) -> {
+            if (actionApplied.compareAndSet(false, true)) {
+                ApplicationManager.getApplication().invokeLater(() -> {
+                    connection.disconnect();
+                    cancelPendingRejectTask(rejectFutureRef);
+                    closeDiffView(project, diffRequestChain);
+                });
+            }
+        });
 
         // Create Apply/Reject actions for toolbar (ApplyAlways only for permission review)
         final DocumentContent finalProposedContent = proposedDiffContent;
@@ -307,7 +323,9 @@ public class InteractiveDiffManager {
         });
 
         // Show the diff
-        DiffManagerEx.getInstance().showDiffBuiltin(project, diffRequestChain, DiffDialogHints.DEFAULT);
+        if (!resultFuture.isDone()) {
+            DiffManagerEx.getInstance().showDiffBuiltin(project, diffRequestChain, DiffDialogHints.DEFAULT);
+        }
 
         LOG.info("Interactive diff opened for: " + request.getFilePath());
     }

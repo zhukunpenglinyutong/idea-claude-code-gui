@@ -80,7 +80,16 @@ public class SessionSendService {
         callbackFacade.notifyStateChange(state.isBusy(), state.isLoading(), state.getError());
     }
 
+    /**
+     * Send the user message to the appropriate provider bridge.
+     *
+     * @param turnProvider the frozen turn provider identity (Turn Identity Freeze
+     *                     Closure) — used instead of {@code state.getProvider()} so
+     *                     mutable SessionState changes during the turn do not route
+     *                     work to a different bridge
+     */
     public CompletableFuture<Void> sendMessageToProvider(
+            String turnProvider,
             String channelId,
             String input,
             List<ClaudeSession.Attachment> attachments,
@@ -99,7 +108,9 @@ public class SessionSendService {
             LOG.info("[Agent] Using agent from message (per-tab selection)");
         }
 
-        String currentProvider = state.getProvider();
+        // Use frozen turn identity — not mutable state.getProvider().
+        // Turn Identity Freeze Closure: once a turn starts, its provider is fixed.
+        String currentProvider = turnProvider != null ? turnProvider : state.getProvider();
         String sessionModeBeforeSend = state.getPermissionMode();
         String normalizedRequestedMode = normalizeRequestedPermissionMode(requestedPermissionMode);
         String effectivePermissionMode = resolveEffectivePermissionMode(

@@ -25,6 +25,37 @@ public class ClaudeSession {
     private static final Logger LOG = Logger.getInstance(ClaudeSession.class);
 
     /**
+     * Observer SPI fired whenever {@link #interrupt()} is invoked on a session
+     * that actually has a live channel to interrupt. Installed by the Remote
+     * gateway so that <em>any</em> interrupt &mdash; the desktop Stop button, a
+     * tab switch, a Remote {@code /abort}, or any other caller &mdash; marks the
+     * active Remote task abort-requested and cancels its pending interactions
+     * (Phase 2C-C §21 shared interrupt observation). ClaudeSession itself does
+     * not depend on the remote package; it only publishes the event.
+     */
+    public interface InterruptObserver {
+        void onInterrupt(ClaudeSession session);
+    }
+
+    private static final java.util.concurrent.atomic.AtomicReference<InterruptObserver>
+            interruptObserver = new java.util.concurrent.atomic.AtomicReference<>();
+
+    /**
+     * Install the process-wide interrupt observer. Returns the observer so the
+     * caller can later uninstall it with {@link #uninstallInterruptObserver}
+     * (Phase 2C-C.1 §5 — owner-based lifecycle).
+     */
+    public static InterruptObserver installInterruptObserver(InterruptObserver observer) {
+        interruptObserver.set(observer);
+        return observer;
+    }
+
+    /** Uninstall only if {@code observer} is still the current one. */
+    public static void uninstallInterruptObserver(InterruptObserver observer) {
+        interruptObserver.compareAndSet(observer, null);
+    }
+
+    /**
      * Maximum file size for Codex context injection (100KB)
      */
     private static final int MAX_FILE_SIZE_BYTES = 100 * 1024;
@@ -36,6 +67,17 @@ public class ClaudeSession {
 
     // Session state manager
     private final com.github.claudecodegui.session.SessionState state;
+
+    /**
+     * Immutable provider + channel identity for the currently executing Agent turn.
+     * {@code null} when no turn is active. Set synchronously at turn start (after
+     * {@link #launchClaude()} allocates the channelId) and cleared via CAS on terminal
+     * completion. Turn Identity Freeze Closure: all turn lifecycle operations — launch,
+     * send, interrupt, Desktop Stop, Remote Abort, Gateway dispose, clearAbort — target
+     * this identity, never the mutable {@link SessionState}.
+     */
+    private final java.util.concurrent.atomic.AtomicReference<TurnIdentity> activeTurnIdentity =
+            new java.util.concurrent.atomic.AtomicReference<>();
 
     // Message processors
     private final com.github.claudecodegui.session.MessageParser messageParser;
@@ -202,6 +244,15 @@ public class ClaudeSession {
         callbackFacade.setCallback(callback);
     }
 
+    /**
+     * The session's {@link CallbackHandler}, so non-desktop subscribers (e.g. the
+     * Remote event tap) can be added without going through the primary
+     * {@link SessionCallback} that drives the WebView.
+     */
+    public CallbackHandler getCallbackHandler() {
+        return callbackFacade.getCallbackHandler();
+    }
+
     public com.github.claudecodegui.session.EditorContextCollector getContextCollector() {
         return contextCollector;
     }
@@ -236,6 +287,14 @@ public class ClaudeSession {
      */
     public SessionState getState() {
         return state;
+    }
+
+    /**
+     * Returns the frozen turn identity for the currently executing Agent turn,
+     * or {@code null} if no turn is active. Package-private for tests.
+     */
+    TurnIdentity getActiveTurnIdentity() {
+        return activeTurnIdentity.get();
     }
 
     public String getSummary() {
@@ -277,8 +336,94 @@ public class ClaudeSession {
     }
 
     /**
-     * Launch Claude agent.
+     * Synchronously allocate (or reuse) the channel identity for a turn.
+     *
+     * <p>Does NOT schedule any async work — only captures the immutable
+     * {@code TurnIdentity}. Caller must publish it as {@link #activeTurnIdentity}
+     * BEFORE any async provider launch/send work begins.
+     *
+     * <p>The original {@link #launchClaude()} is preserved for idle/restart
+     * paths where no TurnIdentity is needed.
+     */
+    private TurnIdentity establishTurnIdentity() {
+        String channelId = state.getChannelId();
+        if (channelId == null) {
+            state.setError(null);
+            channelId = UUID.randomUUID().toString();
+            state.setChannelId(channelId);
+        }
+        return new TurnIdentity(state.getProvider(), channelId);
+    }
+
+    /**
+     * Async provider launch using the FROZEN turn identity — never reads
+     * mutable {@link SessionState} for provider or channelId.
+     *
+     * @param turnId the turn identity established by {@link #establishTurnIdentity()}
+     */
+    private CompletableFuture<String> launchClaudeForTurn(TurnIdentity turnId) {
+        String channelId = turnId.channelId();
+        return CompletableFuture.supplyAsync(() -> {
+                    try {
+                        // Validate and clean invalid sessionId (e.g., path instead of UUID)
+                        String currentSessionId = state.getSessionId();
+                        if (currentSessionId != null && (currentSessionId.contains("/") || currentSessionId.contains("\\"))) {
+                            LOG.warn("sessionId looks like a path, resetting: " + currentSessionId);
+                            state.setSessionId(null);
+                            currentSessionId = null;
+                        }
+
+                        // Use FROZEN turn identity — never mutable state for this turn.
+                        String currentCwd = state.getCwd();
+                        JsonObject result = providerRouter.launchChannel(
+                                turnId.provider(),
+                                turnId.channelId(),
+                                currentSessionId,
+                                currentCwd
+                        );
+
+                        // Check if sessionId exists and is not null
+                        if (result.has("sessionId") && !result.get("sessionId").isJsonNull()) {
+                            String newSessionId = result.get("sessionId").getAsString();
+                            // Validate sessionId format (should be UUID format)
+                            if (!newSessionId.contains("/") && !newSessionId.contains("\\")) {
+                                state.setSessionId(newSessionId);
+                                callbackFacade.notifySessionIdReceived(newSessionId);
+                            } else {
+                                LOG.warn("Ignoring invalid sessionId: " + newSessionId);
+                            }
+                        }
+
+                        return channelId;
+                    } catch (Exception e) {
+                        state.setError(e.getMessage());
+                        state.setChannelId(null);
+                        callbackFacade.notifyStateChange(state.isBusy(), state.isLoading(), state.getError());
+                        throw new RuntimeException("Failed to launch: " + e.getMessage(), e);
+                    }
+                }).orTimeout(com.github.claudecodegui.config.TimeoutConfig.QUICK_OPERATION_TIMEOUT,
+                        com.github.claudecodegui.config.TimeoutConfig.QUICK_OPERATION_UNIT)
+                .exceptionally(ex -> {
+                    if (ex instanceof java.util.concurrent.TimeoutException) {
+                        String timeoutMsg = "Channel launch timed out (" +
+                                com.github.claudecodegui.config.TimeoutConfig.QUICK_OPERATION_TIMEOUT + "s), please retry";
+                        LOG.warn(timeoutMsg);
+                        state.setError(timeoutMsg);
+                        state.setChannelId(null);
+                        callbackFacade.notifyStateChange(state.isBusy(), state.isLoading(), state.getError());
+                        throw new RuntimeException(timeoutMsg);
+                    }
+                    throw new RuntimeException(ex.getCause());
+                });
+    }
+
+    /**
+     * Launch Claude agent (idle/restart path — no active turn identity needed).
      * Reuses existing channelId if available, otherwise creates a new one.
+     *
+     * <p>For active-turn sends, use {@link #establishTurnIdentity()} +
+     * {@link #launchClaudeForTurn(TurnIdentity)} instead so the frozen identity
+     * is published BEFORE any async work begins.
      */
     public CompletableFuture<String> launchClaude() {
         if (state.getChannelId() != null) {
@@ -485,11 +630,26 @@ public class ClaudeSession {
         final String finalRequestedReasoningEffort = requestedReasoningEffort;
         final String finalRequestedCodexFastMode = requestedCodexFastMode;
 
-        return launchClaude().thenCompose(chId -> {
-            sendService.prepareContextCollector(contextCollector);
+        // ── Turn Identity Freeze Closure ──────────────────────────────────
+        //
+        // 1. SYNCHRONOUSLY allocate/reuse channelId + capture provider.
+        //    No async work has been scheduled yet. This is ONE synchronous
+        //    step — identity allocation and TurnIdentity creation are the
+        //    same lifecycle event.
+        //
+        // 2. PUBLISH the identity as the active turn BEFORE scheduling any
+        //    async work, so interrupt()/clearAbort() can find it from the
+        //    earliest possible moment.
+        //
+        // 3. ASYNC launch/send/cleanup all use this frozen identity.
+        final TurnIdentity turnId = establishTurnIdentity();
+        activeTurnIdentity.set(turnId);
+
+        return launchClaudeForTurn(turnId).thenCompose(chId -> {            sendService.prepareContextCollector(contextCollector);
 
             return contextCollector.collectContext().thenCompose(openedFilesJson ->
                     sendService.sendMessageToProvider(
+                            turnId.provider(),
                             chId,
                             userMessage.content,
                             attachments,
@@ -507,6 +667,17 @@ public class ClaudeSession {
             state.setLoading(false);
             callbackFacade.notifyStateChange(state.isBusy(), state.isLoading(), state.getError());
             return null;
+        }).whenComplete((v, ex) -> {
+            // Clear the provider bridge's abort state so the next turn is not
+            // falsely aborted by a stale interrupt. Uses the frozen turn
+            // identity. CAS ensures an old turn completion can never clear a
+            // newer turn identity (Turn Identity Freeze Closure).
+            try {
+                providerRouter.clearAbort(turnId.provider(), turnId.channelId());
+            } catch (Throwable ignored) {
+            } finally {
+                activeTurnIdentity.compareAndSet(turnId, null);
+            }
         });
     }
 
@@ -516,12 +687,39 @@ public class ClaudeSession {
 
     /**
      * Interrupt the current execution.
+     *
+     * <p>Uses the frozen {@link #activeTurnIdentity} (Turn Identity Freeze Closure)
+     * so interrupt always targets the real active turn's provider + channel, even if
+     * mutable {@link SessionState} has changed between turn start and interrupt.
      */
     public CompletableFuture<Void> interrupt() {
-        String provider = state.getProvider();
-        String channelId = state.getChannelId();
+        // Use frozen turn identity — never mutable SessionState for an active turn.
+        TurnIdentity turnId = activeTurnIdentity.get();
+        String provider;
+        String channelId;
+        if (turnId != null) {
+            provider = turnId.provider();
+            channelId = turnId.channelId();
+        } else {
+            // No active turn — fall back to SessionState for non-turn interrupts
+            // (e.g., idle restart, early lifecycle).
+            provider = state.getProvider();
+            channelId = state.getChannelId();
+        }
         if (channelId == null) {
             return CompletableFuture.completedFuture(null);
+        }
+
+        // Notify the shared interrupt observer (Remote gateway) so an active
+        // Remote task is marked abort-requested + pending interactions cancelled,
+        // regardless of who initiated the interrupt (Phase 2C-C §21).
+        InterruptObserver observer = interruptObserver.get();
+        if (observer != null) {
+            try {
+                observer.onInterrupt(this);
+            } catch (Throwable t) {
+                LOG.warn("[Interrupt] observer threw: " + t.getMessage(), t);
+            }
         }
 
         return CompletableFuture.runAsync(() -> {
@@ -562,6 +760,7 @@ public class ClaudeSession {
      */
     public CompletableFuture<Void> restart() {
         return interrupt().thenCompose(v -> {
+            activeTurnIdentity.set(null);
             state.setChannelId(null);
             state.setBusy(false);
             callbackFacade.notifyStateChange(state.isBusy(), state.isLoading(), state.getError());

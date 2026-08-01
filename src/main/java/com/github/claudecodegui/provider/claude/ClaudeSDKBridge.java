@@ -158,6 +158,26 @@ public class ClaudeSDKBridge extends BaseSDKBridge {
         super.interruptChannel(channelId);
     }
 
+    /**
+     * Clear provider abort state for {@code channelId} on turn completion: the daemon
+     * bridge's abort flag (Phase 2C-C.1 pre-launch abort) AND the per-channel pending
+     * interrupt (provider-abort final closure, PART B — for the per-process fallback).
+     * Called by {@code ClaudeSession.send}'s completion handler so the next turn is not
+     * falsely aborted by a stale interrupt.
+     */
+    @Override
+    public void clearAbort(String channelId) {
+        super.clearAbort(channelId); // processManager.clearInterrupt (per-process fallback)
+        DaemonBridge db = daemonCoordinator.getCurrentDaemonBridge();
+        if (db != null) {
+            try {
+                db.clearAbort();
+            } catch (Throwable t) {
+                LOG.debug("[ClaudeSDKBridge] clearAbort: " + t.getMessage());
+            }
+        }
+    }
+
     // ============================================================================
     // Abstract method implementations
     // ============================================================================

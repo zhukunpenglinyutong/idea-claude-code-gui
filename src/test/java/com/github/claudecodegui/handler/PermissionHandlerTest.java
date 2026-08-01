@@ -1,16 +1,17 @@
 package com.github.claudecodegui.handler;
 
 import com.github.claudecodegui.handler.core.HandlerContext;
+import com.github.claudecodegui.permission.InteractionHandle;
 import com.github.claudecodegui.permission.PermissionService;
+import com.github.claudecodegui.permission.SharedInteractionResolver;
+import com.github.claudecodegui.session.ClaudeSession;
 import com.github.claudecodegui.settings.CodemossSettingsService;
 import com.google.gson.JsonObject;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -26,39 +27,37 @@ import static org.junit.Assert.assertTrue;
 /**
  * Unit tests for {@link PermissionHandler}.
  *
- * <p>The dialog-show entry points ({@code showFrontendPermissionDialog},
- * {@code showAskUserQuestionDialog}, {@code showPlanApprovalDialog}) post to the IntelliJ EDT via
- * {@code ApplicationManager.getApplication().invokeLater(...)}, so they require the full plugin
- * test fixture and a backend safety-net wait to exercise the real safety net — not feasible in a plain JUnit
- * unit test. Instead we cover the testable surface:</p>
+ * <p>Phase 2C-C: pending interactions now live in the shared
+ * {@link SharedInteractionResolver} (no per-instance maps), so handles are
+ * injected directly into the resolver instead of via reflection. The desktop
+ * JS decision path and the Remote endpoint both complete the same handle.
  *
+ * <p>Coverage:
  * <ul>
  *   <li>{@link PermissionHandler#getSupportedTypes()} — the IPC dispatch table.</li>
- *   <li>{@link PermissionHandler#handle(String, String)} — the dispatch path for each supported
- *       type, plus rejection of unknown types.</li>
- *   <li>{@link PermissionHandler#clearPendingRequests()} — the session-change safety net that
- *       fans default-deny payloads to every in-flight future.</li>
- *   <li>The atomic {@link CompletableFuture#complete(Object)} contract that the three safety-net
- *       timers depend on (see PermissionHandler L2).</li>
+ *   <li>{@link PermissionHandler#handle(String, String)} — dispatch for each type.</li>
+ *   <li>{@link PermissionHandler#clearPendingRequests()} — session-change safety net.</li>
+ *   <li>The atomic {@link CompletableFuture#complete(Object)} contract the safety
+ *       nets depend on.</li>
+ *   <li>Safety-net timeout configuration + cancellation.</li>
  * </ul>
- *
- * <p>Pending-request maps are populated via reflection so we can exercise the response paths
- * without going through the EDT.</p>
  */
 public class PermissionHandlerTest {
 
+    private static final String SID = "test-session-id";
+
     private PermissionHandler handler;
+    private SharedInteractionResolver resolver;
 
     @Before
     public void setUp() {
+        resolver = SharedInteractionResolver.getInstance();
+        resolver.clearForTest();
         handler = new PermissionHandler(contextStub());
     }
 
     @Test
     public void getSupportedTypesReturnsTheThreeIpcMessageTypes() {
-        // Order is part of the dispatch contract documented in PermissionHandler.SUPPORTED_TYPES,
-        // but the asserted property here is set-membership: the bridge will deliver any of these
-        // three keys and the handler must claim ownership of all three.
         String[] actual = handler.getSupportedTypes().clone();
         String[] expected = {
                 "permission_decision",
@@ -72,54 +71,67 @@ public class PermissionHandlerTest {
 
     @Test
     public void handleReturnsFalseForUnknownType() {
-        // The IPC bridge fans messages to every registered handler; returning false lets the
-        // bridge try the next one. A false return value is therefore part of the contract, not
-        // an error condition.
         assertFalse(handler.handle("totally_unknown_type", "{}"));
     }
 
     @Test
     public void handleDispatchesPermissionDecisionAndCompletesAllowFuture() throws Exception {
         CompletableFuture<Integer> future = new CompletableFuture<>();
-        injectPermissionFuture("ch-allow", future);
+        registerPermission("ch-allow", "r-allow", future);
 
         String content = "{\"channelId\":\"ch-allow\",\"allow\":true,\"remember\":false}";
         assertTrue(handler.handle("permission_decision", content));
 
-        Integer result = future.get(2, TimeUnit.SECONDS);
-        assertEquals(PermissionService.PermissionResponse.ALLOW.getValue(), result.intValue());
-        assertTrue("future should be removed from map after dispatch", getPermissionMap().isEmpty());
+        assertEquals(PermissionService.PermissionResponse.ALLOW.getValue(),
+                future.get(2, TimeUnit.SECONDS).intValue());
+        // Resolved handles are kept (first-wins) until clearPendingRequests; a
+        // duplicate dispatch must not re-complete or fall back.
+        assertNotNull(resolver.getByChannelId("ch-allow"));
+        assertTrue(resolver.getByChannelId("ch-allow").isResolved());
     }
 
     @Test
     public void handleDispatchesPermissionDecisionAndCompletesAllowAlwaysFuture() throws Exception {
         CompletableFuture<Integer> future = new CompletableFuture<>();
-        injectPermissionFuture("ch-allow-always", future);
+        registerPermission("ch-allow-always", "r-allow-always", future);
 
         String content = "{\"channelId\":\"ch-allow-always\",\"allow\":true,\"remember\":true}";
         assertTrue(handler.handle("permission_decision", content));
 
-        Integer result = future.get(2, TimeUnit.SECONDS);
-        assertEquals(PermissionService.PermissionResponse.ALLOW_ALWAYS.getValue(), result.intValue());
+        assertEquals(PermissionService.PermissionResponse.ALLOW_ALWAYS.getValue(),
+                future.get(2, TimeUnit.SECONDS).intValue());
+    }
+
+    @Test
+    public void handleDispatchesPermissionDeny() throws Exception {
+        CompletableFuture<Integer> future = new CompletableFuture<>();
+        registerPermission("ch-deny", "r-deny", future);
+
+        String content = "{\"channelId\":\"ch-deny\",\"allow\":false,\"remember\":false}";
+        assertTrue(handler.handle("permission_decision", content));
+
+        assertEquals(PermissionService.PermissionResponse.DENY.getValue(),
+                future.get(2, TimeUnit.SECONDS).intValue());
     }
 
     @Test
     public void handleDispatchesAskUserQuestionResponse() throws Exception {
         CompletableFuture<JsonObject> future = new CompletableFuture<>();
-        injectAskUserFuture("auq-1", future);
+        registerAsk("auq-1", future);
 
         String content = "{\"requestId\":\"auq-1\",\"answers\":{\"color\":\"red\"}}";
         assertTrue(handler.handle("ask_user_question_response", content));
 
         JsonObject result = future.get(2, TimeUnit.SECONDS);
         assertEquals("red", result.get("color").getAsString());
-        assertTrue(getAskUserMap().isEmpty());
+        assertNotNull(resolver.get(SID, "auq-1"));
+        assertTrue(resolver.get(SID, "auq-1").isResolved());
     }
 
     @Test
     public void handleDispatchesPlanApprovalResponse() throws Exception {
         CompletableFuture<JsonObject> future = new CompletableFuture<>();
-        injectPlanApprovalFuture("plan-1", future);
+        registerPlan("plan-1", future);
 
         String content = "{\"requestId\":\"plan-1\",\"approved\":true,\"targetMode\":\"default\"}";
         assertTrue(handler.handle("plan_approval_response", content));
@@ -127,20 +139,18 @@ public class PermissionHandlerTest {
         JsonObject result = future.get(2, TimeUnit.SECONDS);
         assertTrue(result.get("approved").getAsBoolean());
         assertEquals("default", result.get("targetMode").getAsString());
-        assertTrue(getPlanApprovalMap().isEmpty());
+        assertNotNull(resolver.get(SID, "plan-1"));
+        assertTrue(resolver.get(SID, "plan-1").isResolved());
     }
 
-    // The session-change safety net: when the user switches sessions while a permission dialog is
-    // still on screen, every in-flight future must resolve immediately with a default-deny payload.
-    // Otherwise the agent that issued the request hangs until the backend safety-net timer
-    // fires — a delay long enough to look like a frozen session to the user.
+    // ── clearPendingRequests: session-change safety net ────────────────
 
     @Test
     public void clearPendingRequestsCompletesAllPermissionFuturesWithDeny() throws Exception {
         CompletableFuture<Integer> f1 = new CompletableFuture<>();
         CompletableFuture<Integer> f2 = new CompletableFuture<>();
-        injectPermissionFuture("ch-1", f1);
-        injectPermissionFuture("ch-2", f2);
+        registerPermission("ch-1", "r-1", f1);
+        registerPermission("ch-2", "r-2", f2);
 
         handler.clearPendingRequests();
 
@@ -148,53 +158,48 @@ public class PermissionHandlerTest {
                 f1.get(1, TimeUnit.SECONDS).intValue());
         assertEquals(PermissionService.PermissionResponse.DENY.getValue(),
                 f2.get(1, TimeUnit.SECONDS).intValue());
-        assertTrue("permission map must be drained after clear", getPermissionMap().isEmpty());
+        assertNull(resolver.getByChannelId("ch-1"));
+        assertNull(resolver.getByChannelId("ch-2"));
     }
 
     @Test
     public void clearPendingRequestsCompletesAskUserQuestionFuturesWithNull() throws Exception {
         CompletableFuture<JsonObject> f1 = new CompletableFuture<>();
         CompletableFuture<JsonObject> f2 = new CompletableFuture<>();
-        injectAskUserFuture("auq-1", f1);
-        injectAskUserFuture("auq-2", f2);
+        registerAsk("auq-1", f1);
+        registerAsk("auq-2", f2);
 
         handler.clearPendingRequests();
 
-        // AskUser path completes with null — the caller distinguishes "no answer" from an empty
-        // answers object by reading null here. See PermissionService.handleAskUserQuestion.
+        // null distinguishes "no answer" from an empty answers object.
         assertNull(f1.get(1, TimeUnit.SECONDS));
         assertNull(f2.get(1, TimeUnit.SECONDS));
-        assertTrue("askUser map must be drained after clear", getAskUserMap().isEmpty());
+        assertNull(resolver.get(SID, "auq-1"));
     }
 
     @Test
     public void clearPendingRequestsCompletesPlanApprovalFuturesWithRejection() throws Exception {
         CompletableFuture<JsonObject> f1 = new CompletableFuture<>();
-        injectPlanApprovalFuture("plan-1", f1);
+        registerPlan("plan-1", f1);
 
         handler.clearPendingRequests();
 
         JsonObject result = f1.get(1, TimeUnit.SECONDS);
         assertNotNull(result);
-        assertFalse("plan-approval default on session change must be reject", result.get("approved").getAsBoolean());
+        assertFalse("plan-approval default on session change must be reject",
+                result.get("approved").getAsBoolean());
         assertEquals("Session changed", result.get("message").getAsString());
-        assertTrue("planApproval map must be drained after clear", getPlanApprovalMap().isEmpty());
+        assertNull(resolver.get(SID, "plan-1"));
     }
 
     @Test
-    public void clearPendingRequestsOnEmptyMapsIsHarmless() throws Exception {
+    public void clearPendingRequestsOnEmptyIsHarmless() {
         // Called on every session switch including the very first one; must not throw.
         handler.clearPendingRequests();
-        assertTrue(getPermissionMap().isEmpty());
-        assertTrue(getAskUserMap().isEmpty());
-        assertTrue(getPlanApprovalMap().isEmpty());
+        assertEquals(0, resolver.size());
     }
 
-    // Documents the atomic-complete contract that backstops the three safety-net handlers. Each
-    // handler does:   if (future.complete(deny)) { cleanup(); }
-    // and relies on complete() to atomically reject the second caller. If complete() ever returned
-    // true twice the cleanup would race the response handler's own remove() — losing or
-    // duplicating IPC. JDK guarantees this; the test pins the assumption to the code we depend on.
+    // ── atomic complete contract (safety nets depend on this) ──────────
 
     @Test
     public void completableFutureCompleteIsAtomic_winnerGetsTrue_loserGetsFalse()
@@ -210,6 +215,8 @@ public class PermissionHandlerTest {
                 future.get(1, TimeUnit.SECONDS));
     }
 
+    // ── safety-net timeout configuration ───────────────────────────────
+
     @Test
     public void safetyNetTimeoutUsesConfiguredDialogTimeoutPlusBuffer() {
         FakeSettingsService settingsService = new FakeSettingsService(120);
@@ -220,9 +227,6 @@ public class PermissionHandlerTest {
 
     @Test
     public void safetyNetTimeoutFallsBackToDefaultPlusBufferWhenSettingsServiceIsNull() {
-        // When the handler context arrives without a settings service we use the same fallback
-        // as the Node bridge: DEFAULT + buffer. Falling back to MAX would mean an hour-long
-        // safety net for a transient failure.
         PermissionHandler nullSettingsHandler = new PermissionHandler(contextStub());
 
         long expected = CodemossSettingsService.DEFAULT_PERMISSION_DIALOG_TIMEOUT_SECONDS
@@ -269,53 +273,67 @@ public class PermissionHandlerTest {
         assertTrue(scheduler.task.cancelled);
     }
 
-    // --- reflection helpers (the three pending-request maps are private) ---
+    // ── handle registration helpers (replace the former reflection injection) ──
 
-    @SuppressWarnings("unchecked")
-    private Map<String, CompletableFuture<Integer>> getPermissionMap()
-            throws NoSuchFieldException, IllegalAccessException {
-        Field f = PermissionHandler.class.getDeclaredField("pendingPermissionRequests");
-        f.setAccessible(true);
-        return (Map<String, CompletableFuture<Integer>>) f.get(handler);
+    private void registerPermission(String channelId, String requestId, CompletableFuture<Integer> future) {
+        InteractionHandle handle = new InteractionHandle(InteractionHandle.Type.PERMISSION,
+                SID, requestId, channelId,
+                new InteractionHandle.Completer() {
+                    @Override
+                    public void complete(Object value) {
+                        future.complete((Integer) value);
+                    }
+                    @Override
+                    public void cancel(String reason) {
+                        future.complete(PermissionService.PermissionResponse.DENY.getValue());
+                    }
+                });
+        resolver.register(handle);
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<String, CompletableFuture<JsonObject>> getAskUserMap()
-            throws NoSuchFieldException, IllegalAccessException {
-        Field f = PermissionHandler.class.getDeclaredField("pendingAskUserQuestionRequests");
-        f.setAccessible(true);
-        return (Map<String, CompletableFuture<JsonObject>>) f.get(handler);
+    private void registerAsk(String requestId, CompletableFuture<JsonObject> future) {
+        InteractionHandle handle = new InteractionHandle(InteractionHandle.Type.QUESTION,
+                SID, requestId, null,
+                new InteractionHandle.Completer() {
+                    @Override
+                    public void complete(Object value) {
+                        future.complete((JsonObject) value);
+                    }
+                    @Override
+                    public void cancel(String reason) {
+                        future.complete(null);
+                    }
+                });
+        resolver.register(handle);
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<String, CompletableFuture<JsonObject>> getPlanApprovalMap()
-            throws NoSuchFieldException, IllegalAccessException {
-        Field f = PermissionHandler.class.getDeclaredField("pendingPlanApprovalRequests");
-        f.setAccessible(true);
-        return (Map<String, CompletableFuture<JsonObject>>) f.get(handler);
+    private void registerPlan(String requestId, CompletableFuture<JsonObject> future) {
+        InteractionHandle handle = new InteractionHandle(InteractionHandle.Type.PLAN,
+                SID, requestId, null,
+                new InteractionHandle.Completer() {
+                    @Override
+                    public void complete(Object value) {
+                        future.complete((JsonObject) value);
+                    }
+                    @Override
+                    public void cancel(String reason) {
+                        JsonObject rejected = new JsonObject();
+                        rejected.addProperty("approved", false);
+                        rejected.addProperty("message", reason != null ? reason : "Session changed");
+                        future.complete(rejected);
+                    }
+                });
+        resolver.register(handle);
     }
 
-    private void injectPermissionFuture(String key, CompletableFuture<Integer> future)
-            throws NoSuchFieldException, IllegalAccessException {
-        getPermissionMap().put(key, future);
-    }
-
-    private void injectAskUserFuture(String key, CompletableFuture<JsonObject> future)
-            throws NoSuchFieldException, IllegalAccessException {
-        getAskUserMap().put(key, future);
-    }
-
-    private void injectPlanApprovalFuture(String key, CompletableFuture<JsonObject> future)
-            throws NoSuchFieldException, IllegalAccessException {
-        getPlanApprovalMap().put(key, future);
-    }
+    // ── context stub ───────────────────────────────────────────────────
 
     private HandlerContext contextStub() {
         return contextStub(null);
     }
 
     private HandlerContext contextStub(CodemossSettingsService settingsService) {
-        return new HandlerContext(
+        HandlerContext ctx = new HandlerContext(
                 null,
                 null,
                 null,
@@ -325,6 +343,11 @@ public class PermissionHandlerTest {
                     @Override public String escapeJs(String str) { return str; }
                 }
         );
+        // PermissionHandler reads sessionId from the session to key ask/plan handles.
+        ClaudeSession session = new ClaudeSession(null, null, null);
+        session.getState().setSessionId(SID);
+        ctx.setSession(session);
+        return ctx;
     }
 
     private static class FakeSettingsService extends CodemossSettingsService {

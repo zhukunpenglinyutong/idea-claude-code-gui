@@ -257,6 +257,18 @@ public class ClaudeSDKBridgeRefactorTest {
             return CompletableFuture.completedFuture(false);
         }
 
+        // Production send path routes Agent sends through sendCommandChecked
+        // (Phase 2C-C.1 pre-launch abort); the fake must override it the same way.
+        @Override
+        public CompletableFuture<Boolean> sendCommandChecked(
+                String method,
+                JsonObject params,
+                DaemonOutputCallback callback
+        ) {
+            callback.onAbort();
+            return CompletableFuture.completedFuture(false);
+        }
+
         @Override
         public boolean isAlive() {
             return true;

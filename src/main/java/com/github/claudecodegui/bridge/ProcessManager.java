@@ -25,6 +25,13 @@ public class ProcessManager {
 
     private final Map<String, Process> activeChannelProcesses = new ConcurrentHashMap<>();
     private final Set<String> interruptedChannels = ConcurrentHashMap.newKeySet();
+    /**
+     * Per-channel spawn-vs-interrupt boundary locks (provider-abort final closure,
+     * PART B). Serialize {@link #beginSpawn} / {@link #registerProcessChecked} /
+     * {@link #interruptChannel} / {@link #clearInterrupt} for a given channelId so the
+     * spawn commit and the interrupt are mutually exclusive — no check-then-spawn gap.
+     */
+    private final Map<String, Object> channelLocks = new ConcurrentHashMap<>();
 
     /**
      * Generates a unique channel ID by appending a random UUID to {@code prefix}.
@@ -76,6 +83,12 @@ public class ProcessManager {
      * Interrupts a channel.
      * Uses platform-aware process termination to ensure the entire process tree
      * is properly terminated on Windows.
+     *
+     * <p>Records the interrupt UNDER the per-channel lock EVEN IF no process is
+     * registered yet (provider-abort final closure, PART B). Previously a pre-spawn
+     * interrupt returned early and was lost, so a later spawn ran un-aborted. Now a
+     * pending interrupt is visible to {@link #beginSpawn} / {@link #registerProcessChecked},
+     * which reject the spawn (or destroy the just-spawned process) before Agent work.
      */
     public void interruptChannel(String channelId) {
         if (channelId == null) {
@@ -83,41 +96,97 @@ public class ProcessManager {
             return;
         }
 
-        Process process = activeChannelProcesses.get(channelId);
-        if (process == null) {
-            LOG.info("[Interrupt] No active process found for channel: " + channelId);
-            return;
-        }
+        synchronized (lockFor(channelId)) {
+            // Record the interrupt even if no process is registered yet.
+            interruptedChannels.add(channelId);
+            Process process = activeChannelProcesses.get(channelId);
+            if (process == null) {
+                LOG.info("[Interrupt] No active process yet; pending interrupt recorded for channel: " + channelId);
+                return;
+            }
 
-        LOG.info("[Interrupt] Attempting to interrupt channel: " + channelId);
-        interruptedChannels.add(channelId);
+            LOG.info("[Interrupt] Attempting to interrupt channel: " + channelId);
+            // Use platform-aware process termination
+            // Windows: uses taskkill /F /T to kill the process tree
+            // Unix: uses standard destroy/destroyForcibly
+            PlatformUtils.terminateProcess(process);
 
-        // Use platform-aware process termination
-        // Windows: uses taskkill /F /T to kill the process tree
-        // Unix: uses standard destroy/destroyForcibly
-        PlatformUtils.terminateProcess(process);
-
-        // Wait for the process to fully terminate
-        try {
-            if (process.isAlive()) {
-                boolean terminated = process.waitFor(3, TimeUnit.SECONDS);
-                if (!terminated) {
-                    LOG.info("[Interrupt] Process still alive, force killing channel: " + channelId);
-                    process.destroyForcibly();
-                    process.waitFor(2, TimeUnit.SECONDS);
+            // Wait for the process to fully terminate
+            try {
+                if (process.isAlive()) {
+                    boolean terminated = process.waitFor(3, TimeUnit.SECONDS);
+                    if (!terminated) {
+                        LOG.info("[Interrupt] Process still alive, force killing channel: " + channelId);
+                        process.destroyForcibly();
+                        process.waitFor(2, TimeUnit.SECONDS);
+                    }
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                activeChannelProcesses.remove(channelId, process);
+                // Verify the process has actually terminated
+                if (process.isAlive()) {
+                    LOG.warn("[Interrupt] Warning: Process may still be alive for channel: " + channelId);
+                } else {
+                    LOG.info("[Interrupt] Successfully terminated channel: " + channelId);
                 }
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } finally {
-            activeChannelProcesses.remove(channelId, process);
-            // Verify the process has actually terminated
-            if (process.isAlive()) {
-                LOG.warn("[Interrupt] Warning: Process may still be alive for channel: " + channelId);
-            } else {
-                LOG.info("[Interrupt] Successfully terminated channel: " + channelId);
-            }
         }
+    }
+
+    /**
+     * Pre-spawn boundary (PART B). Atomically check whether an interrupt has already
+     * been recorded for {@code channelId}. Returns false if interrupted (the caller
+     * MUST NOT spawn — abort won). Returns true if clear (spawn may proceed). This is
+     * an optimization; the authoritative gate is {@link #registerProcessChecked},
+     * which re-checks atomically with the registration.
+     */
+    public boolean beginSpawn(String channelId) {
+        if (channelId == null) {
+            return true;
+        }
+        synchronized (lockFor(channelId)) {
+            return !interruptedChannels.contains(channelId);
+        }
+    }
+
+    /**
+     * Atomically register a spawned process UNLESS an interrupt has already won
+     * (PART B). Returns false if interrupted (the caller MUST destroy the process
+     * before it begins Agent work — stdin not yet written). Returns true and registers
+     * the process otherwise. Does NOT blindly clear a pending interrupt (unlike
+     * {@link #registerProcess}, which is for non-Agent helpers).
+     */
+    public boolean registerProcessChecked(String channelId, Process process) {
+        if (channelId == null || process == null) {
+            return true;
+        }
+        synchronized (lockFor(channelId)) {
+            if (interruptedChannels.contains(channelId)) {
+                return false; // interrupt won during spawn — reject
+            }
+            activeChannelProcesses.put(channelId, process);
+            return true;
+        }
+    }
+
+    /**
+     * Clear a recorded interrupt for {@code channelId}. Called on turn completion (via
+     * {@code ClaudeSession.send}'s completion handler) so the next turn on the same
+     * channel is not falsely rejected (PART B).
+     */
+    public void clearInterrupt(String channelId) {
+        if (channelId == null) {
+            return;
+        }
+        synchronized (lockFor(channelId)) {
+            interruptedChannels.remove(channelId);
+        }
+    }
+
+    private Object lockFor(String channelId) {
+        return channelLocks.computeIfAbsent(channelId, k -> new Object());
     }
 
     /**

@@ -36,6 +36,58 @@ public class PermissionService {
     // Track request files currently being processed to avoid duplicate handling
     private final Set<String> processingRequests = ConcurrentHashMap.newKeySet();
 
+    // Static so a single observer (installed by the Remote gateway) sees every
+    // PermissionService instance, regardless of which project/session it serves.
+    private static final java.util.concurrent.atomic.AtomicReference<PermissionInteractionObserver>
+            observerRef = new java.util.concurrent.atomic.AtomicReference<>();
+
+    /**
+     * Install the process-wide interaction observer. Returns the observer so the
+     * caller can later uninstall it with {@link #uninstallInteractionObserver}
+     * (Phase 2C-C.1 §5 — owner-based lifecycle).
+     */
+    public static PermissionInteractionObserver installInteractionObserver(
+            PermissionInteractionObserver observer) {
+        observerRef.set(observer);
+        return observer;
+    }
+
+    /**
+     * Uninstall only if {@code observer} is still the currently installed one.
+     * A later install by another owner will not be accidentally cleared.
+     */
+    public static void uninstallInteractionObserver(PermissionInteractionObserver observer) {
+        observerRef.compareAndSet(observer, null);
+    }
+
+    private static void fireInteraction(java.util.function.Consumer<PermissionInteractionObserver> action) {
+        PermissionInteractionObserver observer = observerRef.get();
+        if (observer == null) {
+            return;
+        }
+        try {
+            action.accept(observer);
+        } catch (Throwable t) {
+            LOG.warn("[PermissionService] interaction observer threw: " + t.getMessage(), t);
+        }
+    }
+
+    private String resolveInteractionSessionId() {
+        PermissionInteractionObserver observer = observerRef.get();
+        if (observer != null) {
+            try {
+                String resolved = observer.resolveInteractionSessionId(project, sessionId);
+                if (resolved != null && !resolved.isEmpty()) {
+                    return resolved;
+                }
+            } catch (Throwable t) {
+                LOG.warn("[PermissionService] interaction session resolution failed: "
+                        + t.getMessage(), t);
+            }
+        }
+        return sessionId;
+    }
+
     private void debugLog(String tag, String message) {
         LOG.debug(String.format("[%s] %s", tag, message));
     }
@@ -97,7 +149,16 @@ public class PermissionService {
     }
 
     public interface PermissionDialogShower {
-        CompletableFuture<Integer> showPermissionDialog(String toolName, JsonObject inputs);
+        /**
+         * Show the permission dialog.
+         *
+         * @param requestId the daemon-side request id (session-scoped); passed so
+         *                  the shower can register a resolvable handle keyed by
+         *                  {@code (sessionId, requestId)} for the shared Remote
+         *                  resolver (Phase 2C-C §3). The desktop webview still
+         *                  replies with the shower-generated {@code channelId}.
+         */
+        CompletableFuture<Integer> showPermissionDialog(String requestId, String toolName, JsonObject inputs);
     }
 
     public interface AskUserQuestionDialogShower {
@@ -366,7 +427,9 @@ public class PermissionService {
         processingRequests.add(fileName); // re-add: caller's finally will remove, but async needs it
         final long dialogStart = System.currentTimeMillis();
 
-        CompletableFuture<Integer> future = shower.showPermissionDialog(toolName, inputs);
+        CompletableFuture<Integer> future = shower.showPermissionDialog(requestId, toolName, inputs);
+        final java.util.concurrent.atomic.AtomicBoolean resolvedFlag = new java.util.concurrent.atomic.AtomicBoolean(false);
+        fireInteraction(o -> o.onPermissionRequested(project, sessionId, requestId, toolName, inputs));
         future.thenAccept(response -> {
             LOG.info("[PERM_FUTURE] response=" + response + ", elapsed="
                     + (System.currentTimeMillis() - dialogStart) + "ms, tool=" + toolName);
@@ -378,6 +441,9 @@ public class PermissionService {
                 }
                 notifyDecision(toolName, inputs, decision);
                 fileProtocol.writePermissionResponse(requestId, allow);
+                resolvedFlag.set(true);
+                final boolean alwaysAllow = decision == PermissionResponse.ALLOW_ALWAYS;
+                fireInteraction(o -> o.onPermissionResolved(sessionId, requestId, allow, alwaysAllow));
             } catch (Exception e) {
                 LOG.error("[PERM_FUTURE] Error: " + e.getMessage(), e);
             } finally {
@@ -387,6 +453,9 @@ public class PermissionService {
             LOG.error("[PERM_FUTURE] Exception: " + ex.getMessage(), ex);
             fileProtocol.writePermissionResponse(requestId, false);
             notifyDecision(toolName, inputs, PermissionResponse.DENY);
+            if (!resolvedFlag.get()) {
+                fireInteraction(o -> o.onPermissionResolved(sessionId, requestId, false, false));
+            }
             processingRequests.remove(fileName);
             return null;
         });
@@ -492,11 +561,14 @@ public class PermissionService {
                                            String requestId, JsonObject questionsData, String fileName) {
         final long dialogStart = System.currentTimeMillis();
         CompletableFuture<JsonObject> future = shower.showAskUserQuestionDialog(requestId, questionsData);
+        fireInteraction(o -> o.onAskUserQuestionRequested(project, sessionId, requestId, questionsData));
 
         future.thenAccept(answers -> {
             debugLog("ASK_RESPONSE", "Got answers after " + (System.currentTimeMillis() - dialogStart) + "ms");
             try {
                 fileProtocol.writeAskUserQuestionResponse(requestId, answers);
+                final JsonObject answersFinal = answers != null ? answers : new JsonObject();
+                fireInteraction(o -> o.onAskUserQuestionResolved(sessionId, requestId, answersFinal));
             } catch (Exception e) {
                 LOG.error("Error occurred", e);
             } finally {
@@ -505,6 +577,7 @@ public class PermissionService {
         }).exceptionally(ex -> {
             debugLog("ASK_EXCEPTION", "Dialog exception: " + ex.getMessage());
             fileProtocol.writeAskUserQuestionResponse(requestId, new JsonObject());
+            fireInteraction(o -> o.onAskUserQuestionResolved(sessionId, requestId, new JsonObject()));
             processingRequests.remove(fileName);
             return null;
         });
@@ -552,6 +625,7 @@ public class PermissionService {
                                             String requestId, JsonObject request, String fileName) {
         final long dialogStart = System.currentTimeMillis();
         CompletableFuture<JsonObject> future = shower.showPlanApprovalDialog(requestId, request);
+        fireInteraction(o -> o.onPlanApprovalRequested(project, sessionId, requestId, request));
 
         future.thenAccept(response -> {
             debugLog("PLAN_RESPONSE", "Got response after " + (System.currentTimeMillis() - dialogStart) + "ms");
@@ -559,15 +633,19 @@ public class PermissionService {
                 boolean approved = response.has("approved") && response.get("approved").getAsBoolean();
                 String targetMode = response.has("targetMode") ? response.get("targetMode").getAsString() : "default";
                 fileProtocol.writePlanApprovalResponse(requestId, approved, targetMode);
+                final String modeFinal = targetMode;
+                fireInteraction(o -> o.onPlanApprovalResolved(sessionId, requestId, approved, modeFinal));
             } catch (Exception e) {
                 LOG.error("Error occurred", e);
                 fileProtocol.writePlanApprovalResponse(requestId, false, "default");
+                fireInteraction(o -> o.onPlanApprovalResolved(sessionId, requestId, false, "default"));
             } finally {
                 processingRequests.remove(fileName);
             }
         }).exceptionally(ex -> {
             debugLog("PLAN_EXCEPTION", "Dialog exception: " + ex.getMessage());
             fileProtocol.writePlanApprovalResponse(requestId, false, "default");
+            fireInteraction(o -> o.onPlanApprovalResolved(sessionId, requestId, false, "default"));
             processingRequests.remove(fileName);
             return null;
         });
@@ -585,21 +663,50 @@ public class PermissionService {
             return false;
         }
 
-        CompletableFuture<DiffReviewResult> reviewFuture =
-                DiffReviewService.reviewFileChange(matched, toolName, inputs);
-        if (reviewFuture == null) {
+        DiffReviewService.ReviewHandle review =
+                DiffReviewService.reviewFileChangeControllable(matched, toolName, inputs);
+        if (review == null) {
             LOG.info("[DIFF_REVIEW] Not available for " + toolName + ", falling back");
             return false;
         }
 
+        String interactionSessionId = resolveInteractionSessionId();
+        SharedInteractionResolver sharedResolver = SharedInteractionResolver.getInstance();
+        InteractionHandle interaction = new InteractionHandle(
+                InteractionHandle.Type.PERMISSION, interactionSessionId, requestId, null,
+                new InteractionHandle.Completer() {
+                    @Override
+                    public void complete(Object value) {
+                        PermissionResponse decision = resolveDecision((Integer) value);
+                        review.resolve(decision.isAllow(), decision == PermissionResponse.ALLOW_ALWAYS);
+                    }
+
+                    @Override
+                    public void cancel(String reason) {
+                        review.resolve(false, false);
+                    }
+                });
+        sharedResolver.register(interaction);
+        fireInteraction(o -> o.onPermissionRequested(project, sessionId, requestId, toolName, inputs));
+
         safeDeleteFile(requestFile, "DIFF_REVIEW");
-        reviewFuture.thenAccept(result -> {
+        review.getFuture().thenAccept(result -> {
+            PermissionResponse decision = result.isAccepted()
+                    ? (result.isAlwaysAllow() ? PermissionResponse.ALLOW_ALWAYS : PermissionResponse.ALLOW)
+                    : PermissionResponse.DENY;
+            // Desktop completion also passes through the same first-wins handle.
+            // For a Remote completion this is a no-op because the resolver won.
+            interaction.tryComplete(decision.getValue());
             handleDiffReviewResult(result, requestId, toolName, inputs);
+            fireInteraction(o -> o.onPermissionResolved(sessionId, requestId,
+                    decision.isAllow(), decision == PermissionResponse.ALLOW_ALWAYS));
             processingRequests.remove(fileName);
         }).exceptionally(ex -> {
             LOG.error("Diff review failed", ex);
+            interaction.cancel("diff review failed");
             fileProtocol.writePermissionResponse(requestId, false);
             notifyDecision(toolName, inputs, PermissionResponse.DENY);
+            fireInteraction(o -> o.onPermissionResolved(sessionId, requestId, false, false));
             processingRequests.remove(fileName);
             return null;
         });

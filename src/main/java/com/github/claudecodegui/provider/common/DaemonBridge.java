@@ -63,6 +63,35 @@ public class DaemonBridge {
     private final AtomicInteger activeRequestCount = new AtomicInteger(0);
     private final Object startLock = new Object();
 
+    /**
+     * Abort-lifecycle lock + flag (Phase 2C-C.1 pre-launch abort verification).
+     *
+     * <p>{@code aborted} is set by {@link #sendAbort()} and checked by
+     * {@link #sendCommandChecked(String, JsonObject, DaemonOutputCallback)} at the
+     * daemon-commit boundary. The check + pending-request registration + stdin commit
+     * happen atomically under {@link #abortLock}, and {@code sendAbort} sets the flag
+     * under the same lock — so an abort that wins the race prevents the commit
+     * (skipped, future completed false), and an abort that loses (commit already
+     * happened) aborts the now-pending request via {@code sendAbort}'s
+     * pending-requests sweep. Either way no Agent turn escapes a shutdown abort.
+     *
+     * <p>Cleared by {@link #clearAbort()} on turn completion (via
+     * {@code ClaudeSession.send}'s completion handler) so the next turn is not
+     * falsely aborted. Per {@link DaemonBridge} instance (per session/bridge), so no
+     * cross-session interference.
+     */
+    private final Object abortLock = new Object();
+    private volatile boolean aborted = false;
+
+    /**
+     * Test seam only (null in production). Invoked inside {@link #sendAbort()} under
+     * {@link #abortLock}, after the pending-request sweep and before
+     * {@code pendingRequests.clear()} — lets a deterministic test pause the abort
+     * cleanup mid-flight (holding abortLock) to prove a racing next-turn commit
+     * cannot interleave. Provider-abort final closure (PART A) test infrastructure.
+     */
+    volatile Runnable abortCleanupHook;
+
     // Pending request handlers: requestId -> handler
     private final ConcurrentHashMap<String, RequestHandler> pendingRequests = new ConcurrentHashMap<>();
 
@@ -272,34 +301,198 @@ public class DaemonBridge {
      * Send an abort command to cancel the currently executing request.
      * The abort bypasses the daemon's command queue and is processed immediately.
      * Also completes all pending request futures so Java-side blocking calls unblock.
+     *
+     * <p>Sets the {@code aborted} flag (under {@link #abortLock}) BEFORE the daemon
+     * write / pending-request sweep. A racing {@link #sendCommandChecked} that has
+     * not yet committed will then observe {@code aborted} at its commit boundary and
+     * skip the commit (so no new Agent turn starts after this abort); one that has
+     * already committed is aborted by the pending-request sweep below (Phase 2C-C.1
+     * pre-launch abort verification).
      */
     public void sendAbort() {
-        // Send abort command to daemon so it stops the active SDK query
-        try {
-            if (daemonStdin != null && isRunning.get()) {
-                JsonObject abort = new JsonObject();
-                abort.addProperty("id", "abort-" + System.currentTimeMillis());
-                abort.addProperty("method", "abort");
-                synchronized (daemonStdin) {
-                    daemonStdin.write(abort.toString());
-                    daemonStdin.newLine();
-                    daemonStdin.flush();
+        // The ENTIRE abort lifecycle — set aborted, daemon-wide abort write, pending
+        // sweep, pendingRequests.clear, activeRequestCount reset — runs under abortLock,
+        // mutually exclusive with sendCommandChecked's commit (put + write). This is the
+        // provider-abort final closure (PART A): a next turn T2 (gate-serialized to
+        // start only after this turn T1's gate release, which itself runs after this
+        // block releases abortLock via clearAbort → finalizeTask) can never commit while
+        // T1's abort cleanup is in flight. So T1's stale sweep/clear/reset cannot remove,
+        // abort, or reset bookkeeping belonging to T2.
+        synchronized (abortLock) {
+            aborted = true;
+            // Send the daemon-wide abort command so it stops the active SDK query.
+            try {
+                if (daemonStdin != null && isRunning.get()) {
+                    JsonObject abort = new JsonObject();
+                    abort.addProperty("id", "abort-" + System.currentTimeMillis());
+                    abort.addProperty("method", "abort");
+                    writeRaw(abort.toString());
+                    LOG.info("[DaemonBridge] Sent abort command");
                 }
-                LOG.info("[DaemonBridge] Sent abort command");
+            } catch (IOException e) {
+                LOG.debug("[DaemonBridge] Error sending abort command: " + e.getMessage());
             }
-        } catch (IOException e) {
-            LOG.debug("[DaemonBridge] Error sending abort command: " + e.getMessage());
+            // Complete all pending request futures so Java-side callers unblock.
+            // onComplete(false) (via onAbort) so user-initiated aborts are a normal
+            // (unsuccessful) completion, not an error — matching Codex's handling.
+            // NOTE: handler.onAbort() → future.complete(false) may run the request's
+            // whenComplete cleanup synchronously on THIS thread (CompletableFuture
+            // callbacks run on the completing thread); that cleanup only touches
+            // pendingRequests/activeRequestCount (no lock re-acquisition), so it is
+            // safe to run here under abortLock.
+            for (Map.Entry<String, RequestHandler> entry : pendingRequests.entrySet()) {
+                entry.getValue().onAbort();
+            }
+            if (abortCleanupHook != null) {
+                abortCleanupHook.run(); // test seam only (null in production)
+            }
+            pendingRequests.clear();
+            activeRequestCount.set(0);
+        }
+    }
+
+    /**
+     * Clear the abort flag. Called by {@code ClaudeSession.send}'s completion handler
+     * so the next turn on this bridge is not falsely aborted. Under {@link #abortLock}
+     * so it is atomic with {@link #sendAbort()}'s set and
+     * {@link #sendCommandChecked}'s check.
+     */
+    public void clearAbort() {
+        synchronized (abortLock) {
+            aborted = false;
+        }
+    }
+
+    /** Whether an abort has been requested and not yet cleared (inspection). */
+    public boolean isAborted() {
+        return aborted;
+    }
+
+    /**
+     * Write one NDJSON line to the daemon's stdin under the {@code daemonStdin} monitor.
+     * Extracted as a protected seam so tests can override it (no-op) and exercise the
+     * real {@link #sendCommandChecked} commit / {@link #sendAbort} paths without a live
+     * daemon process. Production callers always invoke this with a non-null
+     * {@code daemonStdin} (after {@link #start()}).
+     */
+    protected void writeRaw(String json) throws IOException {
+        synchronized (daemonStdin) {
+            daemonStdin.write(json);
+            daemonStdin.newLine();
+            daemonStdin.flush();
+        }
+    }
+
+    /**
+     * Common request commit primitive for ALL daemon requests (both Agent and
+     * non-Agent). Every request that participates in {@code pendingRequests} /
+     * {@code activeRequestCount} / daemon stdin commit must serialize its
+     * register+commit with {@link #sendAbort()}'s sweep/clear/reset lifecycle
+     * via {@link #abortLock} (provider-abort final closure, PART A).
+     *
+     * <p>When {@code rejectWhenAborted} is true (Agent commands like
+     * {@code claude.send}), a fast-path check skips the commit if the bridge is
+     * already aborted — an abort that won the race prevents a new Agent turn.
+     *
+     * <p>When {@code rejectWhenAborted} is false (non-Agent commands like
+     * heartbeat, {@code claude.getContextUsage}, {@code claude.setPermissionMode},
+     * {@code claude.preconnect}, {@code claude.resetRuntime}), the request is
+     * NOT suppressed by the abort flag, but its register+commit is STILL
+     * serialized under {@code abortLock} so a concurrent {@code sendAbort}
+     * cannot corrupt its bookkeeping (sweep/observe R2, clear R2, reset count).
+     *
+     * @param method             Command method (e.g., "claude.send")
+     * @param params             Command parameters (JSON object)
+     * @param callback           Callback for processing output lines
+     * @param rejectWhenAborted  If true, reject the commit when the bridge is aborted
+     * @return CompletableFuture that completes when the command finishes
+     */
+    private CompletableFuture<Boolean> commitRequest(
+            String method, JsonObject params, DaemonOutputCallback callback,
+            boolean rejectWhenAborted
+    ) {
+        // Fast path (Agent commands only): already aborted → skip.
+        if (rejectWhenAborted) {
+            synchronized (abortLock) {
+                if (aborted) {
+                    CompletableFuture<Boolean> f = new CompletableFuture<>();
+                    try {
+                        callback.onAbort();
+                    } catch (Throwable t) {
+                        LOG.debug("[DaemonBridge] abort callback threw: " + t.getMessage());
+                    }
+                    f.complete(false);
+                    return f;
+                }
+            }
         }
 
-        // Complete all pending request futures so Java-side callers unblock.
-        // Use onComplete(false) instead of onError() so that user-initiated aborts
-        // are treated as a normal (unsuccessful) completion rather than an error,
-        // matching the graceful handling that Codex uses.
-        for (Map.Entry<String, RequestHandler> entry : pendingRequests.entrySet()) {
-            entry.getValue().onAbort();
+        if (!ensureRunning()) {
+            CompletableFuture<Boolean> f = new CompletableFuture<>();
+            f.completeExceptionally(new IOException("Daemon not running"));
+            return f;
         }
-        pendingRequests.clear();
-        activeRequestCount.set(0);
+
+        String requestId = String.valueOf(requestIdCounter.incrementAndGet());
+        CompletableFuture<Boolean> future = new CompletableFuture<>();
+        boolean countsAsActiveRequest = !"heartbeat".equals(method) && !"status".equals(method);
+        RequestHandler handler = new RequestHandler(callback, future);
+        markDaemonActivity();
+
+        // Ensure cleanup when future completes (e.g., via timeout or cancellation)
+        future.whenComplete((result, ex) -> {
+            pendingRequests.remove(requestId);
+            if (countsAsActiveRequest) {
+                activeRequestCount.updateAndGet(current -> Math.max(0, current - 1));
+            }
+        });
+
+        JsonObject request = new JsonObject();
+        request.addProperty("id", requestId);
+        request.addProperty("method", method);
+        request.add("params", params);
+
+        try {
+            // Atomic register + commit under abortLock: mutually exclusive with
+            // sendAbort's sweep/clear/reset. For Agent commands, re-check aborted;
+            // for non-Agent, just serialize — no stale-abort suppression.
+            synchronized (abortLock) {
+                if (rejectWhenAborted && aborted) {
+                    handler.onAbort();
+                    return future; // already completed false by onAbort
+                }
+                pendingRequests.put(requestId, handler);
+                if (countsAsActiveRequest) {
+                    activeRequestCount.incrementAndGet();
+                }
+                writeRaw(request.toString());
+            }
+            LOG.info("[DaemonBridge] Sent request " + requestId + ": " + method);
+        } catch (IOException e) {
+            pendingRequests.remove(requestId);
+            future.completeExceptionally(e);
+            LOG.error("[DaemonBridge] Failed to send request: " + e.getMessage());
+        }
+
+        return future;
+    }
+
+    /**
+     * Send a command that starts Agent work ({@code claude.send} /
+     * {@code claude.sendWithAttachments}), with a pre-commit abort check.
+     *
+     * <p>Delegates to {@link #commitRequest(String, JsonObject, DaemonOutputCallback, boolean)}
+     * with {@code rejectWhenAborted=true}. If {@link #sendAbort()} has marked this
+     * bridge aborted, the commit is SKIPPED.
+     *
+     * <p>Use {@link #sendCommand(String, JsonObject, DaemonOutputCallback)} for
+     * non-Agent commands (heartbeat, queries, mode push) which must NOT be skipped
+     * by a stale abort.
+     */
+    public CompletableFuture<Boolean> sendCommandChecked(
+            String method, JsonObject params, DaemonOutputCallback callback
+    ) {
+        return commitRequest(method, params, callback, true);
     }
 
     /**
@@ -339,13 +532,16 @@ public class DaemonBridge {
     // =========================================================================
 
     /**
-     * Send a command to the daemon and process output lines via callback.
+     * Send a non-Agent command to the daemon (heartbeat, {@code getContextUsage},
+     * {@code setPermissionMode}, {@code preconnect}, {@code resetRuntime}, etc.).
      *
-     * This method is non-blocking. Output lines are delivered to the callback
-     * as they arrive from the daemon. The returned future completes when the
-     * daemon signals "done" for this request.
+     * <p>Delegates to {@link #commitRequest(String, JsonObject, DaemonOutputCallback, boolean)}
+     * with {@code rejectWhenAborted=false}: the request is NOT suppressed by a stale
+     * abort flag, but its register+commit is serialized under {@link #abortLock} so
+     * a concurrent {@link #sendAbort()} cannot corrupt its bookkeeping (provider-abort
+     * final closure, PART A).
      *
-     * @param method   Command method (e.g., "claude.send")
+     * @param method   Command method (e.g., "claude.getContextUsage")
      * @param params   Command parameters (JSON object)
      * @param callback Callback for processing output lines
      * @return CompletableFuture that completes when the command finishes
@@ -355,51 +551,7 @@ public class DaemonBridge {
             JsonObject params,
             DaemonOutputCallback callback
     ) {
-        if (!ensureRunning()) {
-            CompletableFuture<Boolean> f = new CompletableFuture<>();
-            f.completeExceptionally(new IOException("Daemon not running"));
-            return f;
-        }
-
-        String requestId = String.valueOf(requestIdCounter.incrementAndGet());
-        CompletableFuture<Boolean> future = new CompletableFuture<>();
-        boolean countsAsActiveRequest = !"heartbeat".equals(method) && !"status".equals(method);
-
-        RequestHandler handler = new RequestHandler(callback, future);
-        pendingRequests.put(requestId, handler);
-        if (countsAsActiveRequest) {
-            activeRequestCount.incrementAndGet();
-        }
-        markDaemonActivity();
-
-        // Ensure cleanup when future completes (e.g., via timeout or cancellation)
-        future.whenComplete((result, ex) -> {
-            pendingRequests.remove(requestId);
-            if (countsAsActiveRequest) {
-                activeRequestCount.updateAndGet(current -> Math.max(0, current - 1));
-            }
-        });
-
-        // Build request JSON
-        JsonObject request = new JsonObject();
-        request.addProperty("id", requestId);
-        request.addProperty("method", method);
-        request.add("params", params);
-
-        try {
-            synchronized (daemonStdin) {
-                daemonStdin.write(request.toString());
-                daemonStdin.newLine();
-                daemonStdin.flush();
-            }
-            LOG.info("[DaemonBridge] Sent request " + requestId + ": " + method);
-        } catch (IOException e) {
-            pendingRequests.remove(requestId);
-            future.completeExceptionally(e);
-            LOG.error("[DaemonBridge] Failed to send request: " + e.getMessage());
-        }
-
-        return future;
+        return commitRequest(method, params, callback, false);
     }
 
     // =========================================================================

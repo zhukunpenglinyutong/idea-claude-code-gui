@@ -83,7 +83,11 @@ class ClaudeDaemonRequestExecutor {
                 String method = hasAttachments ? "claude.sendWithAttachments" : "claude.send";
                 log.info("[DaemonExecutor] Sending via daemon: " + method);
 
-                CompletableFuture<Boolean> cmdFuture = daemon.sendCommand(
+                // Use the abort-checked commit path: if the bridge was aborted
+                // (e.g. Gateway dispose / Desktop Stop won the pre-launch race),
+                // the request is never written and the future completes false —
+                // no Agent turn starts after the abort (Phase 2C-C.1 pre-launch abort).
+                CompletableFuture<Boolean> cmdFuture = daemon.sendCommandChecked(
                         method,
                         params,
                         new DaemonBridge.DaemonOutputCallback() {

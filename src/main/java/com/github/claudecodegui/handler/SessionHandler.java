@@ -8,6 +8,8 @@ import com.github.claudecodegui.bridge.NodeDetector;
 import com.github.claudecodegui.model.NodeDetectionResult;
 import com.github.claudecodegui.notifications.ClaudeNotifier;
 import com.github.claudecodegui.session.SessionState;
+import com.github.claudecodegui.session.SessionTurnGate;
+import com.github.claudecodegui.session.SessionTurnGateRegistry;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -184,45 +186,68 @@ public class SessionHandler extends BaseMessageHandler {
         final String finalRequestedReasoningEffort = requestedReasoningEffort;
         final String finalRequestedCodexFastMode = requestedCodexFastMode;
 
+        // Shared single-turn gate: covers desktop-vs-remote and desktop-vs-desktop
+        // races atomically (no TOCTOU like a busy-flag read).
+        final SessionTurnGate.Lease lease = SessionTurnGateRegistry.getInstance().acquire(context.getSession());
+        if (lease == null) {
+            ApplicationManager.getApplication().invokeLater(() -> {
+                callJavaScript("addErrorMessage", escapeJs("已有任务正在执行，请等待当前回合完成。"));
+            });
+            return;
+        }
+
         CompletableFuture.runAsync(() -> {
-            String currentWorkingDir = determineWorkingDirectory();
-            String previousCwd = context.getSession().getCwd();
+            try {
+                String currentWorkingDir = determineWorkingDirectory();
+                String previousCwd = context.getSession().getCwd();
 
-            if (!currentWorkingDir.equals(previousCwd)) {
-                context.getSession().setCwd(currentWorkingDir);
-                LOG.info("[SessionHandler] Updated working directory: " + currentWorkingDir);
-            }
+                if (!currentWorkingDir.equals(previousCwd)) {
+                    context.getSession().setCwd(currentWorkingDir);
+                    LOG.info("[SessionHandler] Updated working directory: " + currentWorkingDir);
+                }
 
-            // Capture project for use in async callbacks
-            var project = context.getProject();
-            if (project != null) {
-                ClaudeNotifier.setWaiting(project);
-            }
+                // Capture project for use in async callbacks
+                var project = context.getProject();
+                if (project != null) {
+                    ClaudeNotifier.setWaiting(project);
+                }
 
-            // [FIX] Pass agent prompt and file tags directly to session
-            context.getSession().send(finalPrompt, finalAgentPrompt, finalFileTagPaths,
-                            finalRequestedPermissionMode, finalRequestedReasoningEffort, finalRequestedCodexFastMode)
-                .thenRun(() -> {
-                    // Claude now triggers success on actual stream_end callback.
-                    // Codex has no stream_end event, keep success trigger at completion.
-                    if (project != null && "codex".equals(context.getSession().getProvider())) {
-                        var session = context.getSession();
-                        ClaudeNotifier.showSuccess(
-                            project,
-                            ClaudeNotifier.buildTitleFromSession(session),
-                            ClaudeNotifier.buildPreviewFromSession(session, "Task completed"));
-                    }
-                })
-                .exceptionally(ex -> {
-                    LOG.error("Failed to send message", ex);
-                    if (project != null) {
-                        ClaudeNotifier.showError(project, "Task failed: " + ex.getMessage());
-                    }
-                    ApplicationManager.getApplication().invokeLater(() -> {
-                        callJavaScript("addErrorMessage", escapeJs("发送失败: " + ex.getMessage()));
+                // [FIX] Pass agent prompt and file tags directly to session
+                CompletableFuture<Void> sendFuture = context.getSession().send(finalPrompt, finalAgentPrompt, finalFileTagPaths,
+                                finalRequestedPermissionMode, finalRequestedReasoningEffort, finalRequestedCodexFastMode);
+                // Release the gate on the send future's authoritative terminal
+                // completion (success or failure; send's internal exceptionally
+                // swallows errors but still completes the future).
+                sendFuture.whenComplete((v, ex) -> lease.release());
+                sendFuture
+                    .thenRun(() -> {
+                        // Claude now triggers success on actual stream_end callback.
+                        // Codex has no stream_end event, keep success trigger at completion.
+                        if (project != null && "codex".equals(context.getSession().getProvider())) {
+                            var session = context.getSession();
+                            ClaudeNotifier.showSuccess(
+                                project,
+                                ClaudeNotifier.buildTitleFromSession(session),
+                                ClaudeNotifier.buildPreviewFromSession(session, "Task completed"));
+                        }
+                    })
+                    .exceptionally(ex -> {
+                        LOG.error("Failed to send message", ex);
+                        if (project != null) {
+                            ClaudeNotifier.showError(project, "Task failed: " + ex.getMessage());
+                        }
+                        ApplicationManager.getApplication().invokeLater(() -> {
+                            callJavaScript("addErrorMessage", escapeJs("发送失败: " + ex.getMessage()));
+                        });
+                        return null;
                     });
-                    return null;
-                    });
+            } catch (Throwable t) {
+                lease.release();
+                LOG.error("Failed to send message (pre-send)", t);
+                ApplicationManager.getApplication().invokeLater(() -> {
+                    callJavaScript("addErrorMessage", escapeJs("发送失败: " + t.getMessage()));
+                });
+            }
         });
     }
 
@@ -345,44 +370,62 @@ public class SessionHandler extends BaseMessageHandler {
         final String finalRequestedReasoningEffort = requestedReasoningEffort;
         final String finalRequestedCodexFastMode = requestedCodexFastMode;
 
+        final SessionTurnGate.Lease lease = SessionTurnGateRegistry.getInstance().acquire(context.getSession());
+        if (lease == null) {
+            ApplicationManager.getApplication().invokeLater(() -> {
+                callJavaScript("addErrorMessage", escapeJs("已有任务正在执行，请等待当前回合完成。"));
+            });
+            return;
+        }
+
         CompletableFuture.runAsync(() -> {
-            String currentWorkingDir = determineWorkingDirectory();
-            String previousCwd = context.getSession().getCwd();
-            if (!currentWorkingDir.equals(previousCwd)) {
-                context.getSession().setCwd(currentWorkingDir);
-                LOG.info("[SessionHandler] Updated working directory: " + currentWorkingDir);
-            }
+            try {
+                String currentWorkingDir = determineWorkingDirectory();
+                String previousCwd = context.getSession().getCwd();
+                if (!currentWorkingDir.equals(previousCwd)) {
+                    context.getSession().setCwd(currentWorkingDir);
+                    LOG.info("[SessionHandler] Updated working directory: " + currentWorkingDir);
+                }
 
-            // Capture project for use in async callbacks
-            var project = context.getProject();
-            if (project != null) {
-                ClaudeNotifier.setWaiting(project);
-            }
+                // Capture project for use in async callbacks
+                var project = context.getProject();
+                if (project != null) {
+                    ClaudeNotifier.setWaiting(project);
+                }
 
-            // [FIX] Pass agent prompt and file tags directly to session
-            context.getSession().send(prompt, attachments, finalAgentPrompt, finalFileTagPaths,
-                            finalRequestedPermissionMode, finalRequestedReasoningEffort, finalRequestedCodexFastMode)
-                .thenRun(() -> {
-                    // Claude now triggers success on actual stream_end callback.
-                    // Codex has no stream_end event, keep success trigger at completion.
-                    if (project != null && "codex".equals(context.getSession().getProvider())) {
-                        var session = context.getSession();
-                        ClaudeNotifier.showSuccess(
-                            project,
-                            ClaudeNotifier.buildTitleFromSession(session),
-                            ClaudeNotifier.buildPreviewFromSession(session, "Task completed"));
-                    }
-                })
-                .exceptionally(ex -> {
-                    LOG.error("Failed to send message with attachments", ex);
-                    if (project != null) {
-                        ClaudeNotifier.showError(project, "Task failed: " + ex.getMessage());
-                    }
-                    ApplicationManager.getApplication().invokeLater(() -> {
-                        callJavaScript("addErrorMessage", escapeJs("发送失败: " + ex.getMessage()));
+                // [FIX] Pass agent prompt and file tags directly to session
+                CompletableFuture<Void> sendFuture = context.getSession().send(prompt, attachments, finalAgentPrompt, finalFileTagPaths,
+                                finalRequestedPermissionMode, finalRequestedReasoningEffort, finalRequestedCodexFastMode);
+                sendFuture.whenComplete((v, ex) -> lease.release());
+                sendFuture
+                    .thenRun(() -> {
+                        // Claude now triggers success on actual stream_end callback.
+                        // Codex has no stream_end event, keep success trigger at completion.
+                        if (project != null && "codex".equals(context.getSession().getProvider())) {
+                            var session = context.getSession();
+                            ClaudeNotifier.showSuccess(
+                                project,
+                                ClaudeNotifier.buildTitleFromSession(session),
+                                ClaudeNotifier.buildPreviewFromSession(session, "Task completed"));
+                        }
+                    })
+                    .exceptionally(ex -> {
+                        LOG.error("Failed to send message with attachments", ex);
+                        if (project != null) {
+                            ClaudeNotifier.showError(project, "Task failed: " + ex.getMessage());
+                        }
+                        ApplicationManager.getApplication().invokeLater(() -> {
+                            callJavaScript("addErrorMessage", escapeJs("发送失败: " + ex.getMessage()));
+                        });
+                        return null;
                     });
-                    return null;
-                    });
+            } catch (Throwable t) {
+                lease.release();
+                LOG.error("Failed to send message with attachments (pre-send)", t);
+                ApplicationManager.getApplication().invokeLater(() -> {
+                    callJavaScript("addErrorMessage", escapeJs("发送失败: " + t.getMessage()));
+                });
+            }
         });
     }
 

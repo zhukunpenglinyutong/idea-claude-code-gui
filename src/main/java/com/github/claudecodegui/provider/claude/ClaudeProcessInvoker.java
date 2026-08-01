@@ -138,9 +138,34 @@ class ClaudeProcessInvoker {
 
                 Process process = null;
                 try {
+                    // Pre-spawn boundary (provider-abort final closure, PART C):
+                    // if an interrupt already won, do NOT start Agent work.
+                    // Same atomic spawn-vs-interrupt protocol as Codex (PART B).
+                    if (!processManager.beginSpawn(channelId)) {
+                        long elapsed = System.currentTimeMillis() - startTime;
+                        log.info("[ProcessInvoker] Interrupt won before spawn (elapsed: " + elapsed + "ms)");
+                        result.success = false;
+                        result.error = "User interrupted";
+                        callback.onComplete(result);
+                        return result;
+                    }
                     process = pb.start();
                     log.info("[ProcessInvoker] Node.js process started, PID: " + process.pid());
-                    processManager.registerProcess(channelId, process);
+                    if (!processManager.registerProcessChecked(channelId, process)) {
+                        // Interrupt won during spawn — destroy the process BEFORE it
+                        // begins Agent work (stdin not yet written). No Agent turn runs.
+                        long elapsed = System.currentTimeMillis() - startTime;
+                        log.info("[ProcessInvoker] Interrupt won during spawn, rejecting (elapsed: " + elapsed + "ms)");
+                        try {
+                            process.destroyForcibly();
+                        } catch (Exception ignored) {
+                        }
+                        processManager.waitForProcessTermination(process);
+                        result.success = false;
+                        result.error = "User interrupted";
+                        callback.onComplete(result);
+                        return result;
+                    }
 
                     captureEarlyExitIfNeeded(process, lastNodeError);
                     ClaudeBridgeUtils.writeStdin(stdinJson, process);

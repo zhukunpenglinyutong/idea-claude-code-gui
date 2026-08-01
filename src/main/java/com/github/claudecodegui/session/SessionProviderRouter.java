@@ -34,6 +34,24 @@ public class SessionProviderRouter {
         claudeSDKBridge.interruptChannel(channelId);
     }
 
+    /**
+     * Clear provider abort state on turn completion (provider-abort final closure), so
+     * the next turn is not falsely aborted by a stale interrupt. Claude clears the
+     * daemon bridge flag + per-channel pending interrupt; Codex clears the per-channel
+     * pending interrupt.
+     */
+    public void clearAbort(String provider, String channelId) {
+        try {
+            if ("codex".equals(provider)) {
+                codexSDKBridge.clearAbort(channelId);
+            } else {
+                claudeSDKBridge.clearAbort(channelId);
+            }
+        } catch (Throwable t) {
+            // Best-effort cleanup; never destabilize the send path.
+        }
+    }
+
     public List<JsonObject> getSessionMessages(String provider, String sessionId, String cwd) {
         if ("codex".equals(provider)) {
             return codexSDKBridge.getSessionMessages(sessionId, cwd);

@@ -39,6 +39,41 @@ public class DiffReviewService {
     private static final Set<String> FILE_MODIFYING_TOOLS = Set.of("Edit", "Write");
 
     /**
+     * A diff review that can be completed either by the desktop controls or by
+     * the shared Remote permission resolver. Both paths complete the same
+     * underlying diff future, so first completion wins.
+     */
+    public static final class ReviewHandle {
+        private final CompletableFuture<DiffResult> diffFuture;
+        private final CompletableFuture<DiffReviewResult> reviewFuture;
+        private final String proposedContent;
+
+        ReviewHandle(CompletableFuture<DiffResult> diffFuture,
+                     CompletableFuture<DiffReviewResult> reviewFuture,
+                     String proposedContent) {
+            this.diffFuture = diffFuture;
+            this.reviewFuture = reviewFuture;
+            this.proposedContent = proposedContent;
+        }
+
+        public CompletableFuture<DiffReviewResult> getFuture() {
+            return reviewFuture;
+        }
+
+        public boolean resolve(boolean allow, boolean alwaysAllow) {
+            DiffResult result;
+            if (!allow) {
+                result = DiffResult.reject();
+            } else if (alwaysAllow) {
+                result = DiffResult.applyAlways(proposedContent);
+            } else {
+                result = DiffResult.apply(proposedContent);
+            }
+            return diffFuture.complete(result);
+        }
+    }
+
+    /**
      * Check if a tool is a file-modifying tool that should trigger diff review.
      */
     public static boolean isFileModifyingTool(@Nullable String toolName) {
@@ -56,6 +91,19 @@ public class DiffReviewService {
      */
     @Nullable
     public static CompletableFuture<DiffReviewResult> reviewFileChange(
+            @NotNull Project project,
+            @NotNull String toolName,
+            @NotNull JsonObject inputs
+    ) {
+        ReviewHandle handle = reviewFileChangeControllable(project, toolName, inputs);
+        return handle != null ? handle.getFuture() : null;
+    }
+
+    /**
+     * Open a review and retain a control handle for non-desktop resolution.
+     */
+    @Nullable
+    public static ReviewHandle reviewFileChangeControllable(
             @NotNull Project project,
             @NotNull String toolName,
             @NotNull JsonObject inputs
@@ -102,7 +150,7 @@ public class DiffReviewService {
             // Open the interactive diff and map the result
             CompletableFuture<DiffResult> diffFuture = InteractiveDiffManager.showInteractiveDiff(project, request);
 
-            return diffFuture.thenApply(diffResult -> {
+            CompletableFuture<DiffReviewResult> reviewFuture = diffFuture.thenApply(diffResult -> {
                 if (diffResult.isApplied()) {
                     LOG.info("DiffReview: User accepted changes for " + filePath
                             + (diffResult.isAppliedAlways() ? " (always allow)" : ""));
@@ -115,6 +163,7 @@ public class DiffReviewService {
                     return DiffReviewResult.rejected(filePath);
                 }
             });
+            return new ReviewHandle(diffFuture, reviewFuture, proposedContent);
         } catch (Exception e) {
             LOG.error("DiffReview: Failed to set up diff review for " + filePath, e);
             return null;

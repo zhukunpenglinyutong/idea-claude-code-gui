@@ -532,10 +532,30 @@ public class CodexSDKBridge extends BaseSDKBridge {
 
                 Process process = null;
                 try {
+                    // Pre-spawn boundary (provider-abort final closure, PART B):
+                    // if an interrupt already won, do NOT start Agent work.
+                    if (!processManager.beginSpawn(channelId)) {
+                        result.success = false;
+                        result.error = "User interrupted";
+                        callback.onComplete(result);
+                        return result;
+                    }
                     process = pb.start();
-                    processManager.registerProcess(channelId, process);
+                    if (!processManager.registerProcessChecked(channelId, process)) {
+                        // Interrupt won during spawn — destroy the process BEFORE it
+                        // begins Agent work (stdin not yet written). No Agent turn runs.
+                        try {
+                            process.destroyForcibly();
+                        } catch (Exception ignored) {
+                        }
+                        processManager.waitForProcessTermination(process);
+                        result.success = false;
+                        result.error = "User interrupted";
+                        callback.onComplete(result);
+                        return result;
+                    }
 
-                    // Write to stdin
+                    // Write to stdin (Agent work begins here)
                     try (java.io.OutputStream stdin = process.getOutputStream()) {
                         stdin.write(stdinJson.getBytes(StandardCharsets.UTF_8));
                         stdin.flush();

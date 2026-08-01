@@ -1,21 +1,22 @@
 package com.github.claudecodegui.handler;
 
 import com.github.claudecodegui.handler.core.HandlerContext;
-
+import com.github.claudecodegui.session.PermissionModeService;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 
 /**
  * Handles permission mode (bypassPermissions, etc.) get/set operations.
+ *
+ * <p>Phase 2C-C: the apply/get logic is delegated to the shared
+ * {@link PermissionModeService} so the desktop handler and the Remote
+ * {@code /mode} endpoint invoke the same business method (no second backend).
  */
 public class PermissionModeHandler {
 
     private static final Logger LOG = Logger.getInstance(PermissionModeHandler.class);
-
-    static final String PERMISSION_MODE_PROPERTY_KEY = "claude.code.permission.mode";
 
     private final HandlerContext context;
     private final Gson gson = new Gson();
@@ -25,29 +26,13 @@ public class PermissionModeHandler {
     }
 
     /**
-     * Get current permission mode.
+     * Get current permission mode and push it to the webview.
      */
     public void handleGetMode() {
         try {
-            String currentMode = "default";  // Default value (prompt on each tool call)
-
-            // Prefer getting from session first
-            if (this.context.getSession() != null) {
-                String sessionMode = this.context.getSession().getPermissionMode();
-                if (sessionMode != null && !sessionMode.trim().isEmpty()) {
-                    currentMode = sessionMode;
-                }
-            } else {
-                // If session does not exist, load from persistent storage
-                PropertiesComponent props = PropertiesComponent.getInstance();
-                String savedMode = props.getValue(PERMISSION_MODE_PROPERTY_KEY);
-                if (savedMode != null && !savedMode.trim().isEmpty()) {
-                    currentMode = savedMode.trim();
-                }
-            }
+            String currentMode = PermissionModeService.current(context.getSession());
 
             final String modeToSend = currentMode;
-
             ApplicationManager.getApplication().invokeLater(() -> {
                 this.context.callJavaScript("window.onModeReceived", this.context.escapeJs(modeToSend));
             });
@@ -65,7 +50,7 @@ public class PermissionModeHandler {
             if (content != null && !content.isEmpty()) {
                 try {
                     JsonObject json = this.gson.fromJson(content, JsonObject.class);
-                    if (json.has("mode")) {
+                    if (json != null && json.has("mode")) {
                         mode = json.get("mode").getAsString();
                     }
                 } catch (Exception e) {
@@ -73,62 +58,24 @@ public class PermissionModeHandler {
                 }
             }
 
-            // Check if session exists
-            if (this.context.getSession() != null) {
-                this.context.getSession().setPermissionMode(mode);
-
-                // Save permission mode to persistent storage
-                PropertiesComponent props = PropertiesComponent.getInstance();
-                props.setValue(PERMISSION_MODE_PROPERTY_KEY, mode);
-                LOG.info("Saved permission mode to settings: " + mode);
-                com.github.claudecodegui.notifications.ClaudeNotifier.setMode(this.context.getProject(), mode);
-
-                // Push the new mode to the live runtime so it takes effect on the
-                // next tool call in the current turn, mirroring the TUI's instant
-                // mode switch instead of waiting for the next user message.
-                pushPermissionModeLive(mode);
-            } else {
+            if (this.context.getSession() == null) {
                 LOG.warn("[PermissionModeHandler] WARNING: Session is null! Cannot set permission mode");
+                return;
+            }
+
+            String applied = PermissionModeService.apply(
+                    this.context.getSession(),
+                    this.context.getProject(),
+                    mode,
+                    this.context.getClaudeSDKBridge(),
+                    this.context.getCurrentProvider());
+            if (applied == null) {
+                LOG.warn("[PermissionModeHandler] Rejected invalid permission mode: " + mode);
+            } else {
+                LOG.info("[PermissionModeHandler] Applied permission mode: " + applied);
             }
         } catch (Exception e) {
             LOG.error("[PermissionModeHandler] Failed to set mode: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Notify the live AI Bridge runtime of a mode change so it applies
-     * immediately to the in-progress conversation.
-     */
-    private void pushPermissionModeLive(String mode) {
-        try {
-            String provider = this.context.getCurrentProvider();
-            if (provider == null || provider.isEmpty()) {
-                provider = com.github.claudecodegui.handler.core.HandlerContext.DEFAULT_PROVIDER;
-            }
-
-            // Only the Claude persistent runtime supports hot-swapping the mode
-            // on a live query today; Codex rebuilds thread options per turn.
-            // TODO: implement live permission-mode switch for the Codex provider
-            // (verify whether the Codex SDK supports reconfiguring approvalPolicy
-            // / sandbox on an active thread without recreating it).
-            if (!"claude".equals(provider)) {
-                return;
-            }
-
-            com.github.claudecodegui.session.ClaudeSession session = this.context.getSession();
-            if (session == null) {
-                return;
-            }
-            String sessionId = session.getSessionId();
-            String epoch = session.getRuntimeSessionEpoch();
-
-            this.context.getClaudeSDKBridge().setPermissionModeLive(sessionId, epoch, mode)
-                    .exceptionally(ex -> {
-                        LOG.warn("[PermissionModeHandler] Live mode push failed: " + ex.getMessage());
-                        return null;
-                    });
-        } catch (Exception e) {
-            LOG.warn("[PermissionModeHandler] Live mode push skipped: " + e.getMessage());
         }
     }
 }

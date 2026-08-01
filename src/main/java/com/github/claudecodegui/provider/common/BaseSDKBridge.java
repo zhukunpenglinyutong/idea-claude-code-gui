@@ -141,6 +141,16 @@ public abstract class BaseSDKBridge {
         processManager.interruptChannel(channelId);
     }
 
+    /**
+     * Clear provider abort state for a channel on turn completion (provider-abort final
+     * closure). Clears the per-channel pending-interrupt flag so the next turn is not
+     * falsely rejected. Subclasses (Claude daemon) override to also clear the daemon
+     * bridge abort flag.
+     */
+    public void clearAbort(String channelId) {
+        processManager.clearInterrupt(channelId);
+    }
+
     // ============================================================================
     // Node.js detection methods (common)
     // ============================================================================
