@@ -68,6 +68,11 @@ webview/src/version/version.ts
 AGENTS.md
 openspec/
 
+# WeChat Adapter build artifacts
+adapter/dist/
+adapter/coverage/
+adapter/*.log
+
 # 自定义沙箱目录（如果启用）
 .sandbox/
 logs/*.log

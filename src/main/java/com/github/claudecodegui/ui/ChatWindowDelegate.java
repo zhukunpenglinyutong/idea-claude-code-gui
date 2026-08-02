@@ -27,6 +27,7 @@ import com.github.claudecodegui.handler.SessionHandler;
 import com.github.claudecodegui.handler.SettingsHandler;
 import com.github.claudecodegui.handler.SkillHandler;
 import com.github.claudecodegui.handler.TabHandler;
+import com.github.claudecodegui.handler.WechatHandler;
 import com.github.claudecodegui.handler.WindowEventHandler;
 import com.github.claudecodegui.handler.file.FileExportHandler;
 import com.github.claudecodegui.handler.file.FileHandler;
@@ -41,6 +42,8 @@ import com.github.claudecodegui.session.SessionLifecycleManager;
 import com.github.claudecodegui.session.StreamMessageCoalescer;
 import com.github.claudecodegui.util.JsUtils;
 import com.github.claudecodegui.util.MessageJsonConverter;
+import com.github.claudecodegui.ui.toolwindow.ClaudeChatWindow;
+import com.github.claudecodegui.wechat.WechatWindowHandle;
 import com.google.gson.JsonObject;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.application.ApplicationManager;
@@ -113,6 +116,11 @@ public class ChatWindowDelegate {
          * reload is deferred to stream end.</p>
          */
         void reloadActiveSessionMessages();
+
+        /** Owning chat window, used for WeChat target identity resolution. */
+        default ClaudeChatWindow getChatWindow() {
+            return null;
+        }
     }
 
     private final DelegateHost host;
@@ -332,6 +340,10 @@ public class ChatWindowDelegate {
         permissionHandler.setPermissionDeniedCallback(host::interruptDueToPermissionDenial);
         host.setPermissionHandler(permissionHandler);
         messageDispatcher.registerHandler(permissionHandler);
+        ClaudeChatWindow window = host.getChatWindow();
+        if (window != null) {
+            messageDispatcher.registerHandler(new WechatHandler(handlerContext, new WechatWindowHandle.Impl(window)));
+        }
 
         HistoryHandler historyHandler = new HistoryHandler(handlerContext);
         historyHandler.setSessionLoadCallback((sessionId, projectPath, provider) -> {

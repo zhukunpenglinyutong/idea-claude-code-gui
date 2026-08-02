@@ -502,14 +502,84 @@ tasks.register('packageAiBridge', Exec) {
     }
 }
 
+// Package the WeChat Adapter bundle (M9): single-file esbuild output + metadata
+def adapterDir = file('adapter')
+def adapterPackDir = layout.buildDirectory.dir('adapter-pack').get().asFile
+def adapterArchive = new File(adapterPackDir, 'adapter.zip')
+def adapterHashFile = new File(adapterPackDir, 'adapter.hash')
+def adapterPackageJson = new File(adapterDir, 'package.json')
+def adapterPackageLock = new File(adapterDir, 'package-lock.json')
+def adapterLicense = new File(adapterDir, 'LICENSE')
+// Marker inside node_modules: npm ci wipes the whole directory, so the marker
+// doubles as "node_modules currently exists" for the UP-TO-DATE check.
+def adapterNpmMarker = new File(adapterDir, 'node_modules/.ccgui-adapter-ci-ok')
+String adapterNpmCmd = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
+
+// Prepare Adapter npm dependencies from package-lock.json so a clean checkout
+// (no adapter/node_modules) can build the plugin without manual pre-install.
+tasks.register('prepareAdapterDependencies') {
+    onlyIf { adapterDir.exists() }
+    inputs.files(adapterPackageJson, adapterPackageLock)
+    outputs.file(adapterNpmMarker)
+    doLast {
+        exec {
+            commandLine adapterNpmCmd, 'ci', '--no-audit', '--no-fund'
+            workingDir adapterDir
+        }
+        adapterNpmMarker.parentFile.mkdirs()
+        adapterNpmMarker.text = 'ok'
+    }
+}
+
+tasks.register('packageAdapter') {
+    onlyIf { adapterDir.exists() }
+    dependsOn('prepareAdapterDependencies')
+    inputs.dir(file("${adapterDir}/src"))
+    inputs.files(adapterPackageJson, adapterPackageLock, adapterLicense)
+    outputs.files(adapterArchive, adapterHashFile)
+    doFirst {
+        adapterPackDir.mkdirs()
+        if (adapterArchive.exists()) {
+            adapterArchive.delete()
+        }
+        exec {
+            commandLine adapterNpmCmd, 'run', 'bundle'
+            workingDir adapterDir
+        }
+    }
+    doLast {
+        File bundleFile = new File(adapterDir, 'dist/adapter-bundle.cjs')
+        if (!bundleFile.isFile()) {
+            throw new GradleException(
+                    "adapter bundle missing after npm run bundle: ${bundleFile.absolutePath}")
+        }
+        ant.zip(destfile: adapterArchive) {
+            fileset(dir: file("${adapterDir}/dist")) {
+                include(name: 'adapter-bundle.cjs')
+            }
+            fileset(dir: adapterDir) {
+                include(name: 'package.json')
+                include(name: 'LICENSE')
+            }
+        }
+        // adapter.hash is the SHA-256 of adapter-bundle.cjs (never of the zip):
+        // AdapterProcessService verifies the extracted bundle against it.
+        def digest = java.security.MessageDigest.getInstance('SHA-256')
+        def hash = digest.digest(bundleFile.bytes).collect { String.format('%02x', it) }.join()
+        adapterHashFile.text = hash
+        println "✓ adapter.zip created: ${adapterArchive.absolutePath} (${adapterArchive.length()} bytes)"
+        println "✓ adapter.hash (SHA-256 of adapter-bundle.cjs): ${hash}"
+    }
+}
+
 // Extract plugin name
 def pluginName = project.name
 
 tasks.matching { it.name.startsWith('prepareSandbox') }.configureEach {
-    dependsOn('buildWebview', 'packageAiBridge')
+    dependsOn('buildWebview', 'packageAiBridge', 'packageAdapter')
     // Declare ai-bridge files as task inputs so changes to JS source
     // invalidate the UP-TO-DATE check and ensure doLast (copy/cleanup) runs.
-    inputs.files(aiBridgeArchive, aiBridgeHashFile)
+    inputs.files(aiBridgeArchive, aiBridgeHashFile, adapterArchive, adapterHashFile)
     def sandboxRootProvider = layout.buildDirectory.dir('idea-sandbox')
     // Capture needed file references during configuration phase
     def archiveSource = aiBridgeArchive
@@ -532,8 +602,14 @@ tasks.matching { it.name.startsWith('prepareSandbox') }.configureEach {
         }
 
         // Versioned plugin directories (IC-*/plugins/, PC-*/plugins/, etc.)
+        // Match IDE sandbox dirs named like IC-2024.3.1 (three segments) AND
+        // PC-2024.3 / PY-2024.3 / PY-2025.1 (two segments). The previous regex
+        // required exactly three numeric segments, which silently skipped the
+        // two-segment PyCharm sandboxes and left their plugin dir without
+        // ai-bridge.zip. Constrain to <LETTERS>-<digits>.<digits>[.<digits>]
+        // so we don't match unrelated sandbox subdirectories.
         sandboxRoot.listFiles()?.each { file ->
-            if (file.isDirectory() && file.name.matches(/[A-Z]+-\d+\.\d+\.\d+/)) {
+            if (file.isDirectory() && file.name.matches(/[A-Z]+-\d+\.\d+(\.\d+)?/)) {
                 def versionedPluginDir = new File(file, "plugins/${pluginName}")
                 if (versionedPluginDir.exists() || versionedPluginDir.parentFile.exists()) {
                     pluginDirs.add(versionedPluginDir)
@@ -564,21 +640,28 @@ tasks.matching { it.name.startsWith('prepareSandbox') }.configureEach {
             if (hashSource.exists()) {
                 ant.copy(file: hashSource, todir: pluginDir)
             }
+            if (adapterArchive.exists()) {
+                ant.copy(file: adapterArchive, todir: pluginDir)
+            }
+            if (adapterHashFile.exists()) {
+                ant.copy(file: adapterHashFile, todir: pluginDir)
+            }
 
             println "✓ ai-bridge.zip copied to: ${archiveTarget.absolutePath}"
+            println "✓ adapter.zip copied to: ${new File(pluginDir, 'adapter.zip').absolutePath}"
         }
     }
 }
 
 // Configure tasks after prepareSandbox to ensure ai-bridge.zip is included
 tasks.matching { it.name == 'preparePluginForDistribution' || it.name == 'composedJar' }.configureEach {
-    dependsOn('packageAiBridge')
+    dependsOn('packageAiBridge', 'packageAdapter')
 }
 
 tasks.named('buildPlugin') {
-    dependsOn('packageAiBridge', 'checkstyleMain')
+    dependsOn('packageAiBridge', 'packageAdapter', 'checkstyleMain')
     // Invalidate UP-TO-DATE when ai-bridge.zip content changes.
-    inputs.files(aiBridgeArchive, aiBridgeHashFile)
+    inputs.files(aiBridgeArchive, aiBridgeHashFile, adapterArchive, adapterHashFile)
 
     doLast {
         // Unzip the plugin zip, add ai-bridge.zip and ai-bridge.hash, then repackage
@@ -599,6 +682,8 @@ tasks.named('buildPlugin') {
                 copy {
                     from aiBridgeArchive
                     from aiBridgeHashFile
+                    from adapterArchive
+                    from adapterHashFile
                     into pluginDir
                 }
 

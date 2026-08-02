@@ -716,7 +716,7 @@ public class ClaudeChatWindow {
     private static final java.util.regex.Pattern SAFE_JS_FUNCTION_NAME =
             java.util.regex.Pattern.compile("^[a-zA-Z_$][a-zA-Z0-9_$.]*$");
 
-    void callJavaScript(String functionName, String... args) {
+    public void callJavaScript(String functionName, String... args) {
         JBCefBrowser targetBrowser = this.browser;
         if (this.disposed || targetBrowser == null) {
             LOG.warn("Cannot call JS function " + functionName + ": disposed=" + this.disposed
@@ -744,6 +744,11 @@ public class ClaudeChatWindow {
                 if (args != null) {
                     for (int i = 0; i < args.length; i++) {
                         if (i > 0) { argsJs.append(", "); }
+                        // Contract: every caller pre-escapes string arguments
+                        // with JsUtils.escapeJs (single-quoted JS literal).
+                        // Callers that pass raw text must escape at the call
+                        // site; double-escaping here would corrupt pre-escaped
+                        // payloads such as updateMessages.
                         String arg = args[i] == null ? "" : args[i];
                         argsJs.append("'").append(arg).append("'");
                     }
@@ -754,6 +759,8 @@ public class ClaudeChatWindow {
                                 "  try {" +
                                 "    if (typeof " + callee + " === 'function') {" +
                                 "      " + callee + "(" + argsJs + ");" +
+                                "    } else {" +
+                                "      console.error('[Backend->Frontend] Missing JS function: " + functionName + "');" +
                                 "    }" +
                                 "  } catch (e) {" +
                                 "    console.error('[Backend->Frontend] Failed to call " + functionName + ":', e);" +
@@ -1542,6 +1549,11 @@ public class ClaudeChatWindow {
 
     private ChatWindowDelegate.DelegateHost createDelegateHost() {
         return new ChatWindowDelegate.DelegateHost() {
+            @Override
+            public ClaudeChatWindow getChatWindow() {
+                return ClaudeChatWindow.this;
+            }
+
             @Override
             public Project getProject() {
                 return project;

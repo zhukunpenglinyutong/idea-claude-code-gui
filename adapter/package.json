@@ -1,0 +1,30 @@
+{
+  "name": "ccgui-wechat-adapter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local WeChat transport adapter for the CCGUI Remote Gateway (MVP M2: gateway client + one-target binding)",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "test": "vitest run && tsc -p tsconfig.test.json --noEmit",
+    "bundle": "esbuild src/main.ts --bundle --platform=node --format=cjs --outfile=dist/adapter-bundle.cjs --log-level=warning",
+    "start": "node dist/cli.js",
+    "daemon": "node dist/main.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/qrcode-terminal": "^0.12.2",
+    "esbuild": "^0.28.1",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

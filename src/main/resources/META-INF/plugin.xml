@@ -90,6 +90,12 @@
             serviceImplementation="com.github.claudecodegui.remote.RemoteGatewayService"/>
         <postStartupActivity implementation="com.github.claudecodegui.remote.RemoteGatewayBootstrap"/>
 
+        <!-- WeChat Adapter process + sanitized connection state (M9) -->
+        <applicationService
+            serviceImplementation="com.github.claudecodegui.wechat.AdapterProcessService"/>
+        <applicationService
+            serviceImplementation="com.github.claudecodegui.wechat.WechatConnectionService"/>
+
         <!-- StatusBar widget for task notification -->
         <statusBarWidgetFactory id="ClaudeStatusBarWidget"
                                 implementation="com.github.claudecodegui.notifications.ClaudeStatusBarWidget$Factory"/>
