@@ -84,6 +84,12 @@
         <!-- Monitor Run/Debug Service Output -->
         <postStartupActivity implementation="com.github.claudecodegui.service.RunConfigMonitorService"/>
 
+        <!-- Remote Gateway (local HTTP entrypoint for external clients). OFF by default;
+             enabled via CCGUI_REMOTE_ENABLED env var. Application-level singleton. -->
+        <applicationService
+            serviceImplementation="com.github.claudecodegui.remote.RemoteGatewayService"/>
+        <postStartupActivity implementation="com.github.claudecodegui.remote.RemoteGatewayBootstrap"/>
+
         <!-- StatusBar widget for task notification -->
         <statusBarWidgetFactory id="ClaudeStatusBarWidget"
                                 implementation="com.github.claudecodegui.notifications.ClaudeStatusBarWidget$Factory"/>

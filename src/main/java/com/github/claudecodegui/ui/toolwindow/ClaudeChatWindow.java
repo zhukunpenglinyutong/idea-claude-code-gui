@@ -199,6 +199,13 @@ public class ClaudeChatWindow {
         this.permissionServiceKey = chatWindowDelegate.setupPermissionService();
         this.sessionId = this.permissionServiceKey;
 
+        // Register the permission-session → tab mapping so the Remote interaction
+        // observer can find this tab's active RemoteTask by its stable tabId
+        // (Phase 2C-C.0 BUG A fix — source mapping instead of sessionId equality).
+        com.github.claudecodegui.remote.RemoteTaskRegistry.getInstance().registerPermissionSource(
+                this.permissionServiceKey,
+                com.github.claudecodegui.remote.RemoteTabRegistry.getInstance().tabIdFor(this));
+
         this.sessionLifecycleManager = new SessionLifecycleManager(new SessionLifecycleManager.SessionHost() {
             @Override
             public Project getProject() {
@@ -1366,6 +1373,10 @@ public class ClaudeChatWindow {
                 permissionService.unregisterPlanApprovalDialogShower(project);
                 PermissionService.removeInstance(this.permissionServiceKey);
                 LOG.info("Removed PermissionService instance for key: " + this.permissionServiceKey);
+                // Clean up the Remote observer source mapping so no stale entry
+                // survives the window close (Phase 2C-C.0 BUG A fix).
+                com.github.claudecodegui.remote.RemoteTaskRegistry.getInstance()
+                        .unregisterPermissionSource(this.permissionServiceKey);
             }
         } catch (Exception e) {
             LOG.warn("Failed to unregister dialog showers or remove session instance: " + e.getMessage());
