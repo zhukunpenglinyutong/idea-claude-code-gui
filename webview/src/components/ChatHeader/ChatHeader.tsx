@@ -19,6 +19,54 @@ export interface ChatHeaderProps {
   onOpenSearch?: () => void;
   onTitleChange?: (newTitle: string) => void;
   titleEditable?: boolean;
+  /** Sanitized WeChat per-tab UI state, e.g. BOUND_CURRENT_TAB. */
+  wechatState?: string;
+  onWechatClick?: () => void;
+}
+
+export function wechatDotTone(state: string | undefined): 'off' | 'pending' | 'ok' | 'error' {
+  switch (state) {
+    case 'BOUND_CURRENT_TAB':
+    case 'CONNECTED_UNBOUND':
+      return 'ok';
+    case 'QR_PENDING':
+    case 'SCANNED':
+    case 'VERIFY_CODE_REQUIRED':
+    case 'LOGGED_OUT':
+      return 'pending';
+    case 'TARGET_INVALID':
+    case 'REAUTH_REQUIRED':
+    case 'ERROR':
+    case 'ADAPTER_OFFLINE':
+      return 'error';
+    default:
+      return 'off';
+  }
+}
+
+/** Translation key for the WeChat state used as the entry button title. */
+export function wechatStateLabel(state: string | undefined): string {
+  switch (state) {
+    case 'BOUND_CURRENT_TAB':
+      return 'wechat.state.boundCurrent';
+    case 'CONNECTED_UNBOUND':
+      return 'wechat.state.connectedUnbound';
+    case 'QR_PENDING':
+    case 'LOGGED_OUT':
+      return 'wechat.state.waitingScan';
+    case 'SCANNED':
+      return 'wechat.state.scanned';
+    case 'VERIFY_CODE_REQUIRED':
+      return 'wechat.state.verifyCode';
+    case 'TARGET_INVALID':
+      return 'wechat.state.targetInvalid';
+    case 'REAUTH_REQUIRED':
+      return 'wechat.state.reauth';
+    case 'ADAPTER_OFFLINE':
+      return 'wechat.state.offline';
+    default:
+      return 'wechat.state.unknown';
+  }
 }
 
 export function ChatHeader({
@@ -33,6 +81,8 @@ export function ChatHeader({
   onOpenSearch,
   onTitleChange,
   titleEditable = false,
+  wechatState,
+  onWechatClick,
 }: ChatHeaderProps): React.ReactElement | null {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
@@ -163,6 +213,18 @@ export function ChatHeader({
             >
               <span className="codicon codicon-history" />
             </button>
+            {onWechatClick !== undefined && (
+              <button
+                className="icon-button wechat-entry"
+                onClick={onWechatClick}
+                data-tooltip={t('wechat.entry.tooltip')}
+                aria-label={t('wechat.entry.tooltip')}
+                title={t(wechatStateLabel(wechatState))}
+              >
+                <span className="codicon codicon-comment-discussion" />
+                <span className={`wechat-status-dot dot-${wechatDotTone(wechatState)}`} />
+              </button>
+            )}
             <button
               className="icon-button"
               onClick={onSettings}

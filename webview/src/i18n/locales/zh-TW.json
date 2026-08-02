@@ -1689,5 +1689,77 @@
         }
       }
     }
+  },
+  "wechat": {
+    "entry": {
+      "tooltip": "微信遠端"
+    },
+    "state": {
+      "boundCurrent": "微信遠端已綁定目前標籤頁",
+      "connectedUnbound": "微信遠端已連線，未綁定標籤頁",
+      "waitingScan": "微信遠端等待掃碼",
+      "scanned": "微信遠端已掃碼，等待確認",
+      "verifyCode": "微信遠端需要輸入配對碼",
+      "targetInvalid": "微信遠端綁定目標已失效",
+      "reauth": "微信遠端登入已失效",
+      "offline": "微信遠端未連線",
+      "unknown": "微信遠端"
+    },
+    "dialog": {
+      "title": "微信遠端"
+    },
+    "node": {
+      "title": "需要 Node.js 22 或更高版本",
+      "body": "微信遠端需要 Node.js 22 或更高版本。",
+      "version": "目前偵測版本：{{version}}。",
+      "upgrade": "請用你熟悉的方式升級或切換 Node.js，完成後重新偵測。",
+      "noAuto": "CC GUI 不會自動下載或修改你的系統環境。",
+      "redetect": "重新偵測",
+      "checking": "偵測中…"
+    },
+    "qr": {
+      "title": "使用微信掃碼連線",
+      "scanPrompt": "打開手機微信掃描 QR Code，並在微信中確認登入。",
+      "scanned": "已掃碼，請在手機微信中確認登入。",
+      "expiresIn": "QR Code 將在 {{time}} 後自動重新整理",
+      "updated": "QR Code 已更新，請重新掃描",
+      "refresh": "重新整理 QR Code",
+      "refreshing": "重新整理中…",
+      "qrAlt": "微信登入 QR Code",
+      "qrLoading": "QR Code 產生中…"
+    },
+    "verify": {
+      "prompt": "輸入手機微信中顯示的配對碼。",
+      "placeholder": "配對碼",
+      "submit": "確認配對碼",
+      "submitting": "處理中…"
+    },
+    "connectedUnbound": "微信已連線。綁定後，微信訊息將傳送到目前標籤頁。",
+    "boundCurrent": "微信遠端已綁定目前標籤頁。",
+    "boundOther": "微信目前綁定到其他標籤頁。\n改綁後，新的微信訊息將傳送到目前標籤頁。",
+    "keepBinding": "保持目前綁定",
+    "rebindToCurrent": "改綁到目前標籤頁",
+    "rebindBody": "改綁後，新的微信訊息與執行進度將傳送到目前標籤頁。",
+    "rebindWarn": "原標籤頁中正在執行的任務不會被中斷。",
+    "rebindConfirm": "確認改綁",
+    "targetInvalid": "原綁定標籤頁已失效，請綁定目前標籤頁後繼續使用。",
+    "logout": {
+      "title": "退出登入？",
+      "body": "退出後將清除微信登入狀態與標籤頁綁定。",
+      "chatSafe": "CC GUI 中的工作階段與聊天記錄不會受到影響，下次使用需要重新掃碼。",
+      "action": "退出登入",
+      "cancel": "取消"
+    },
+    "reauth": {
+      "title": "微信登入已失效",
+      "body": "微信登入狀態已失效，需要重新掃碼連線。",
+      "login": "重新登入"
+    },
+    "adapterOffline": "微信遠端介面卡未執行。",
+    "retry": "重試",
+    "connect": "連線",
+    "bindCurrent": "綁定目前標籤頁",
+    "unbind": "解除綁定",
+    "close": "關閉"
   }
 }

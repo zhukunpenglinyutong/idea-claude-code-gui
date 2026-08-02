@@ -105,6 +105,37 @@
     font-size: 18px;
 }
 
+.wechat-entry {
+    position: relative;
+}
+
+.wechat-status-dot {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1px solid var(--bg-secondary);
+    pointer-events: none;
+
+    &.dot-off {
+        background: var(--text-tertiary);
+    }
+
+    &.dot-pending {
+        background: #d9a13b;
+    }
+
+    &.dot-ok {
+        background: var(--color-success);
+    }
+
+    &.dot-error {
+        background: var(--color-danger);
+    }
+}
+
 /* Session title: editable on hover */
 .session-title-wrapper {
     display: flex;

@@ -1,0 +1,168 @@
+/*
+ * WeChat dialog: integrated lightweight layout (no sectioned
+ * header/body/footer dividers). The overlay mask reuses the public
+ * .confirm-dialog-overlay; buttons reuse .confirm-dialog-button variants.
+ */
+
+.wechat-dialog {
+  width: min(420px, calc(100vw - 32px));
+  max-height: 85vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.wechat-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 16px 0;
+}
+
+.wechat-dialog-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.wechat-close {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.wechat-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.wechat-dialog-body {
+  padding: 12px 16px;
+}
+
+.wechat-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 16px 16px;
+}
+
+/* Body text: 13px, line-height 1.5-1.6, theme primary color. */
+.wechat-text {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.wechat-text:last-child {
+  margin-bottom: 0;
+}
+
+/* Auxiliary/secondary text (12px, theme tertiary color). */
+.wechat-aux,
+.wechat-countdown {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+
+/* Error text: theme error color, never a full red panel. */
+.wechat-error {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--color-error);
+}
+
+/* Warning note: theme warning color, not saturated danger red. */
+.wechat-warning {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-warning);
+}
+
+.wechat-status-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* QR keeps a white quiet zone so it never sits directly on a dark theme. */
+.wechat-qr-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  background: #ffffff;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.wechat-qr-box img {
+  width: 220px;
+  height: 220px;
+  display: block;
+}
+
+/* While a scan is waiting for phone confirmation, weaken the QR visually. */
+.wechat-qr-scanned img {
+  opacity: 0.45;
+}
+
+.wechat-qr-placeholder {
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.wechat-verify-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.wechat-verify-input {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid var(--border-secondary);
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+/* Light-weight danger action (logout confirm): danger text/border only,
+ * never a solid red fill. Sizes come from .confirm-dialog-button. */
+.confirm-dialog-button.wechat-danger-button {
+  background: transparent;
+  border: 1px solid var(--color-dialog-button-danger);
+  color: var(--color-dialog-button-danger);
+}
+
+.confirm-dialog-button.wechat-danger-button:hover {
+  background: var(--bg-hover);
+}
+
+.confirm-dialog-button.wechat-danger-button:active {
+  background: var(--bg-active);
+}
+
+/* Disabled state for async actions (public buttons have no :disabled rule). */
+.wechat-dialog .confirm-dialog-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Theme focus ring for keyboard users. */
+.confirm-dialog-button:focus-visible,
+.wechat-close:focus-visible,
+.wechat-verify-input:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 1px;
+}

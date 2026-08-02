@@ -2105,5 +2105,77 @@
         }
       }
     }
+  },
+  "wechat": {
+    "entry": {
+      "tooltip": "微信远程"
+    },
+    "state": {
+      "boundCurrent": "微信远程已绑定当前标签页",
+      "connectedUnbound": "微信远程已连接，未绑定标签页",
+      "waitingScan": "微信远程等待扫码",
+      "scanned": "微信远程已扫码，等待确认",
+      "verifyCode": "微信远程需要输入配对码",
+      "targetInvalid": "微信远程绑定目标已失效",
+      "reauth": "微信远程登录已失效",
+      "offline": "微信远程未连接",
+      "unknown": "微信远程"
+    },
+    "dialog": {
+      "title": "微信远程"
+    },
+    "node": {
+      "title": "需要 Node.js 22 或更高版本",
+      "body": "微信远程需要 Node.js 22 或更高版本。",
+      "version": "当前检测版本：{{version}}。",
+      "upgrade": "请使用你熟悉的方式升级或切换 Node.js，完成后重新检测。",
+      "noAuto": "CC GUI 不会自动下载或修改你的系统环境。",
+      "redetect": "重新检测",
+      "checking": "检测中…"
+    },
+    "qr": {
+      "title": "使用微信扫码连接",
+      "scanPrompt": "打开手机微信扫描二维码，并在微信中确认登录。",
+      "scanned": "已扫码，请在手机微信中确认登录。",
+      "expiresIn": "二维码将在 {{time}} 后自动刷新",
+      "updated": "二维码已更新，请重新扫描",
+      "refresh": "刷新二维码",
+      "refreshing": "刷新中…",
+      "qrAlt": "微信登录二维码",
+      "qrLoading": "二维码生成中…"
+    },
+    "verify": {
+      "prompt": "输入手机微信中显示的配对码。",
+      "placeholder": "配对码",
+      "submit": "确认配对码",
+      "submitting": "处理中…"
+    },
+    "connectedUnbound": "微信已连接。绑定后，微信消息将发送到当前标签页。",
+    "boundCurrent": "微信远程已绑定当前标签页。",
+    "boundOther": "微信当前绑定到其他标签页。\n改绑后，新的微信消息将发送到当前标签页。",
+    "keepBinding": "保持当前绑定",
+    "rebindToCurrent": "改绑到当前标签页",
+    "rebindBody": "改绑后，新的微信消息和执行进度将发送到当前标签页。",
+    "rebindWarn": "原标签页中正在执行的任务不会被中断。",
+    "rebindConfirm": "确认改绑",
+    "targetInvalid": "原绑定标签页已失效，请绑定当前标签页后继续使用。",
+    "logout": {
+      "title": "退出登录？",
+      "body": "退出后将清除微信登录状态和标签页绑定。",
+      "chatSafe": "CC GUI 中的会话和聊天记录不会受到影响，下次使用需要重新扫码。",
+      "action": "退出登录",
+      "cancel": "取消"
+    },
+    "reauth": {
+      "title": "微信登录已失效",
+      "body": "微信登录状态已失效，需要重新扫码连接。",
+      "login": "重新登录"
+    },
+    "adapterOffline": "微信远程适配器未运行。",
+    "retry": "重试",
+    "connect": "连接",
+    "bindCurrent": "绑定当前标签页",
+    "unbind": "解除绑定",
+    "close": "关闭"
   }
 }

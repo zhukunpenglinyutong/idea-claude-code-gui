@@ -29,6 +29,8 @@ import { applyDiffTheme, getStoredDiffTheme } from './utils/diffTheme';
 import type { Attachment, ChatInputBoxHandle } from './components/ChatInputBox/types';
 import { ToastContainer } from './components/Toast';
 import { ChatHeader } from './components/ChatHeader';
+import { WechatDialog } from './components/WechatDialog/WechatDialog';
+import { useWechatRemote } from './hooks/useWechatRemote';
 import { ChatScreen } from './components/ChatScreen';
 import type { MessageListRevealHandle } from './components/ConversationSearch/types';
 import { useSubagentContextValues, useSetTaskEvents } from './contexts/SubagentContext';
@@ -274,6 +276,7 @@ const App = () => {
   });
 
   useHistoryLoader({ currentView, currentProvider });
+  const wechatRemote = useWechatRemote();
 
   // ── Window callbacks (bridge communication) ──
   useWindowCallbacks({
@@ -458,6 +461,13 @@ const App = () => {
   return (
     <>
       <ToastContainer messages={toasts} onDismiss={dismissToast} />
+      <WechatDialog
+        open={wechatRemote.open}
+        view={wechatRemote.view}
+        t={t}
+        onClose={wechatRemote.closeDialog}
+        onAction={wechatRemote.action}
+      />
       <ChatHeader
         currentView={currentView}
         sessionTitle={sessionTitle}
@@ -471,6 +481,8 @@ const App = () => {
           setCurrentView('settings');
         }}
         onOpenSearch={() => setSearchOpen(true)}
+        wechatState={wechatRemote.view?.uiState}
+        onWechatClick={wechatRemote.openDialog}
         titleEditable
         onTitleChange={(newTitle) => {
           setCustomSessionTitle(newTitle);

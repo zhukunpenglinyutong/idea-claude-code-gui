@@ -2100,5 +2100,77 @@
         }
       }
     }
+  },
+  "wechat": {
+    "entry": {
+      "tooltip": "WeChat Remote"
+    },
+    "state": {
+      "boundCurrent": "WeChat Remote bound to current tab",
+      "connectedUnbound": "WeChat Remote connected, no tab bound",
+      "waitingScan": "WeChat Remote waiting for scan",
+      "scanned": "WeChat Remote scanned, waiting for confirmation",
+      "verifyCode": "WeChat Remote requires a pairing code",
+      "targetInvalid": "WeChat Remote target is invalid",
+      "reauth": "WeChat Remote sign-in expired",
+      "offline": "WeChat Remote not running",
+      "unknown": "WeChat Remote"
+    },
+    "dialog": {
+      "title": "WeChat Remote"
+    },
+    "node": {
+      "title": "Node.js 22 or later is required",
+      "body": "WeChat Remote requires Node.js 22 or later.",
+      "version": "Detected version: {{version}}.",
+      "upgrade": "Upgrade or switch Node.js using your preferred method, then run the check again.",
+      "noAuto": "CC GUI will not download Node.js or modify your system environment.",
+      "redetect": "Check Again",
+      "checking": "Checking…"
+    },
+    "qr": {
+      "title": "Connect with WeChat",
+      "scanPrompt": "Scan the QR code with WeChat on your phone, then confirm the sign-in.",
+      "scanned": "Scanned. Confirm the sign-in in WeChat on your phone.",
+      "expiresIn": "QR code will refresh in {{time}}",
+      "updated": "QR code updated. Please scan the new code.",
+      "refresh": "Refresh QR code",
+      "refreshing": "Refreshing…",
+      "qrAlt": "WeChat sign-in QR code",
+      "qrLoading": "Generating QR code…"
+    },
+    "verify": {
+      "prompt": "Enter the pairing code shown in WeChat on your phone.",
+      "placeholder": "Pairing code",
+      "submit": "Confirm code",
+      "submitting": "Processing…"
+    },
+    "connectedUnbound": "WeChat is connected. Bind it so messages from WeChat are sent to the current tab.",
+    "boundCurrent": "WeChat Remote is bound to the current tab.",
+    "boundOther": "WeChat is currently bound to another tab.\nAfter rebinding, new WeChat messages will be sent to the current tab.",
+    "keepBinding": "Keep current binding",
+    "rebindToCurrent": "Rebind to current tab",
+    "rebindBody": "After rebinding, new WeChat messages and progress updates will be sent to the current tab.",
+    "rebindWarn": "Tasks running in the original tab will not be interrupted.",
+    "rebindConfirm": "Confirm rebind",
+    "targetInvalid": "The previously bound tab is no longer available. Bind the current tab to continue.",
+    "logout": {
+      "title": "Sign out of WeChat?",
+      "body": "Signing out clears the WeChat login state and the tab binding.",
+      "chatSafe": "Your CC GUI sessions and chat history are not affected. You will need to scan the QR code again next time.",
+      "action": "Sign out",
+      "cancel": "Cancel"
+    },
+    "reauth": {
+      "title": "WeChat Sign-In Expired",
+      "body": "Your WeChat sign-in has expired. Scan the QR code again to reconnect.",
+      "login": "Sign in again"
+    },
+    "adapterOffline": "WeChat Remote is not running.",
+    "retry": "Retry",
+    "connect": "Connect",
+    "bindCurrent": "Bind current tab",
+    "unbind": "Unbind",
+    "close": "Close"
   }
 }

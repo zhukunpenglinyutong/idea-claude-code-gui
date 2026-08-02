@@ -2,6 +2,9 @@
  * Global window interface extensions for IDEA plugin communication
  */
 interface Window {
+  /** Sanitized WeChat per-tab status pushed by Java (M9). */
+  onWechatStatus?: (json: string) => void;
+
   /**
    * Send message to Java backend
    */
