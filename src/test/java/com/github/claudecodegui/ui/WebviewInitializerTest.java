@@ -65,4 +65,27 @@ public class WebviewInitializerTest {
 
         Assert.assertEquals(1, reloadCalls.get());
     }
+
+    /**
+     * Verifies that recovery context is installed before the Java bridge becomes visible.
+     */
+    @Test
+    public void bridgeBootstrapMarksWatchdogRecoveryBeforeInstallingBridge() {
+        String script = WebviewInitializer.buildBridgeInjection("query(msg)", true);
+
+        Assert.assertTrue(script.contains("window.__CCGUI_RECOVERY_RELOAD__ = true;"));
+        Assert.assertTrue(script.indexOf("__CCGUI_RECOVERY_RELOAD__")
+                < script.indexOf("window.sendToJava"));
+        Assert.assertTrue(script.contains("query(msg)"));
+    }
+
+    /**
+     * Verifies that a normal first load is explicitly distinguished from recovery.
+     */
+    @Test
+    public void bridgeBootstrapMarksInitialLoadAsNonRecovery() {
+        String script = WebviewInitializer.buildBridgeInjection("query(msg)", false);
+
+        Assert.assertTrue(script.contains("window.__CCGUI_RECOVERY_RELOAD__ = false;"));
+    }
 }

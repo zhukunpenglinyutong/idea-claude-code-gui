@@ -197,6 +197,14 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
 
       const syncToBackend = () => {
         if (window.sendToJava) {
+          // Native watchdog reload reuses the document created for the tab's
+          // original provider/model. Java will push the current session state
+          // through applyBackendTabState; echoing this stale boot snapshot here
+          // would mutate that live session and can mix Claude history with a
+          // Codex route.
+          if (window.__CCGUI_RECOVERY_RELOAD__ === true) {
+            return;
+          }
           sendBridgeEvent('set_provider', restoredProvider);
           const modelToSync = restoredProvider === 'codex'
             ? restoredCodexModel
@@ -227,20 +235,50 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
 
   // Persist snapshot whenever any of the seven keys change.
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        provider: currentProvider,
-        claudeModel: selectedClaudeModel,
-        codexModel: selectedCodexModel,
-        claudePermissionMode,
-        codexPermissionMode,
-        longContextEnabled,
-        reasoningEffort,
-        codexFastMode,
-      }));
-    } catch {
-      // Failed to save model selection state — non-fatal.
-    }
+    let retryTimer: number | undefined;
+    let retryCount = 0;
+    const MAX_CONTEXT_RETRIES = 50;
+
+    const persistWhenPageContextIsReady = () => {
+      const recoveryState = window.__CCGUI_RECOVERY_RELOAD__;
+      const pageContextUnknown = recoveryState === undefined;
+      const recoveryStatePending = recoveryState === true
+        && window.__CCGUI_RECOVERY_STATE_APPLIED__ !== true;
+
+      // React can mount before JCEF onLoadEnd injects the page context. Treat
+      // unknown as unsafe: writing now could publish stale HTML/default state
+      // through localStorage shared by every tab. Retry for the same bounded
+      // startup window used by the bridge fallback.
+      if (pageContextUnknown || recoveryStatePending) {
+        retryCount += 1;
+        if (retryCount < MAX_CONTEXT_RETRIES) {
+          retryTimer = window.setTimeout(persistWhenPageContextIsReady, 100);
+        }
+        return;
+      }
+
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          provider: currentProvider,
+          claudeModel: selectedClaudeModel,
+          codexModel: selectedCodexModel,
+          claudePermissionMode,
+          codexPermissionMode,
+          longContextEnabled,
+          reasoningEffort,
+          codexFastMode,
+        }));
+      } catch {
+        // Failed to save model selection state — non-fatal.
+      }
+    };
+
+    persistWhenPageContextIsReady();
+    return () => {
+      if (retryTimer !== undefined) {
+        window.clearTimeout(retryTimer);
+      }
+    };
   }, [
     currentProvider,
     selectedClaudeModel,

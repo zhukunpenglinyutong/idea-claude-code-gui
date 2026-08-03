@@ -4,6 +4,7 @@ import com.github.claudecodegui.handler.UsagePushService;
 import com.github.claudecodegui.handler.core.HandlerContext;
 
 import com.github.claudecodegui.session.SessionSendService;
+import com.github.claudecodegui.settings.CodemossSettingsService;
 import com.github.claudecodegui.skill.SlashCommandRegistry;
 import com.github.claudecodegui.util.EditorFileUtils;
 import com.google.gson.Gson;
@@ -98,7 +99,10 @@ public class ModelProviderHandler {
 
             com.github.claudecodegui.notifications.ClaudeNotifier.setModel(context.getProject(), model);
 
-            String resolvedModelForUsage = resolveConfiguredClaudeModelFromSettings(model);
+            String resolvedModelForUsage = resolveConfiguredClaudeModelFromSettings(
+                    model,
+                    context.getSettingsService()
+            );
             int newMaxTokens = getModelContextLimit(resolvedModelForUsage);
             LOG.info("[ModelProviderHandler] Model context limit: " + newMaxTokens
                     + " tokens for selected model: " + model
@@ -301,9 +305,20 @@ public class ModelProviderHandler {
         });
     }
 
-    private String resolveConfiguredClaudeModelFromSettings(String baseModel) {
+    /**
+     * Resolves a visible Claude family model through the configured provider environment.
+     * Shared by explicit model changes and WebView recovery so both paths calculate the
+     * same context limit for custom model mappings.
+     */
+    public static String resolveConfiguredClaudeModelFromSettings(
+            String baseModel,
+            CodemossSettingsService settingsService
+    ) {
+        if (settingsService == null) {
+            return baseModel;
+        }
         try {
-            JsonObject claudeSettings = context.getSettingsService().readClaudeSettings();
+            JsonObject claudeSettings = settingsService.readClaudeSettings();
             if (claudeSettings == null || !claudeSettings.has("env") || !claudeSettings.get("env").isJsonObject()) {
                 return baseModel;
             }

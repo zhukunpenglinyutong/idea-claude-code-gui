@@ -634,6 +634,15 @@ if (typeof window !== 'undefined' && !window.onModeReceived) {
   };
 }
 
+// Pre-register the authoritative tab-state callback. On a fast JCEF reload,
+// Java can answer frontend_ready before React's callback effect has mounted.
+if (typeof window !== 'undefined' && !window.applyBackendTabState) {
+  debugLog('[Main] Pre-registering applyBackendTabState placeholder');
+  window.applyBackendTabState = (json: string) => {
+    window.__pendingBackendTabState = json;
+  };
+}
+
 if (typeof window !== 'undefined' && !window.showPermissionDialog) {
   debugLog('[Main] Pre-registering showPermissionDialog placeholder');
   window.showPermissionDialog = (json: string) => {

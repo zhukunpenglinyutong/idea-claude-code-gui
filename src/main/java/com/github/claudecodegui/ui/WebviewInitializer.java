@@ -80,6 +80,12 @@ public class WebviewInitializer {
     private final Object bridgeLock = new Object();
 
     /**
+     * True after watchdog recovery starts. Native reloads reuse the initial HTML,
+     * so the frontend must not echo that document's stale provider/model back to Java.
+     */
+    private volatile boolean recoveryPageLoad;
+
+    /**
      * JCEF JS bridges for the current browser. Keeping each browser's queries
      * together prevents a stale load callback from using a replacement browser's
      * native callback handles during a watchdog recreation.
@@ -318,8 +324,10 @@ public class WebviewInitializer {
                                 || !currentBridges.isCurrentFor(createdBrowser)) {
                             return;
                         }
-                        injection = "window.sendToJava = function(msg) { "
-                                + currentBridges.jsQuery.inject("msg") + " };";
+                        injection = buildBridgeInjection(
+                                currentBridges.jsQuery.inject("msg"),
+                                recoveryPageLoad
+                        );
                         shiftEscInjection = buildShiftEscInjection(
                                 currentBridges.hidePanelQuery.inject("''",
                                         "function() {}",
@@ -508,8 +516,10 @@ public class WebviewInitializer {
             if (this.bridges != currentBridges || !currentBridges.isCurrentFor(browser)) {
                 return false;
             }
-            bridgeInjection = "window.sendToJava = function(msg) { "
-                    + currentBridges.jsQuery.inject("msg") + " };";
+            bridgeInjection = buildBridgeInjection(
+                    currentBridges.jsQuery.inject("msg"),
+                    recoveryPageLoad
+            );
             shiftEscInjection = buildShiftEscInjection(
                     currentBridges.hidePanelQuery.inject("''",
                             "function() {}",
@@ -553,6 +563,16 @@ public class WebviewInitializer {
                 "    }" +
                 "  }, true);" +
                 "}";
+    }
+
+    /**
+     * Builds the minimum bridge bootstrap shared by onLoadEnd and remote-JCEF fallback.
+     * The recovery marker is installed before sendToJava becomes visible so React boot
+     * synchronization cannot race ahead and overwrite the current Java session.
+     */
+    static String buildBridgeInjection(String jsQueryInvocation, boolean recoveryPageLoad) {
+        return "window.__CCGUI_RECOVERY_RELOAD__ = " + recoveryPageLoad + ";"
+                + "window.sendToJava = function(msg) { " + jsQueryInvocation + " };";
     }
 
     static List<String> buildConfigurationInjections(
@@ -929,6 +949,7 @@ public class WebviewInitializer {
             host.setFrontendReady(false);
             try {
                 LOG.info("[WebviewWatchdog] Reloading webview (" + reason + ")");
+                recoveryPageLoad = true;
                 reloadCurrentPage(browser.getCefBrowser());
                 BrowserBridges currentBridges;
                 synchronized (this.bridgeLock) {
@@ -979,6 +1000,7 @@ public class WebviewInitializer {
             if (host.isDisposed()) { return; }
 
             host.setFrontendReady(false);
+            recoveryPageLoad = true;
             JPanel mainPanel = host.getMainPanel();
             JBCefBrowser browser = host.getBrowser();
             try {

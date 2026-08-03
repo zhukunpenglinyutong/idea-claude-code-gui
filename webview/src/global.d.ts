@@ -1033,6 +1033,21 @@ interface Window {
    */
   __INITIAL_TAB_MODEL__?: string;
 
+  /**
+   * Set by Java before exposing sendToJava. True when this document was loaded
+   * by watchdog reload/recreate and its initial provider/model may be stale.
+   */
+  __CCGUI_RECOVERY_RELOAD__?: boolean;
+
+  /** True after React has applied Java's authoritative state on a recovery page. */
+  __CCGUI_RECOVERY_STATE_APPLIED__?: boolean;
+
+  /** Current Java session configuration pushed after frontend_ready. */
+  applyBackendTabState?: (json: string) => void;
+
+  /** Buffers applyBackendTabState when Java responds before React callbacks mount. */
+  __pendingBackendTabState?: string;
+
   // ============================================================================
   // Provider settings panel callbacks (registered by ProviderList)
   // ============================================================================

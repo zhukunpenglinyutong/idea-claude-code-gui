@@ -21,12 +21,14 @@ import com.github.claudecodegui.handler.PermissionHandler;
 import com.github.claudecodegui.handler.PromptEnhancerHandler;
 import com.github.claudecodegui.handler.PromptHandler;
 import com.github.claudecodegui.handler.provider.CustomModelPricingHandler;
+import com.github.claudecodegui.handler.provider.ModelProviderHandler;
 import com.github.claudecodegui.handler.provider.ProviderHandler;
 import com.github.claudecodegui.handler.RewindHandler;
 import com.github.claudecodegui.handler.SessionHandler;
 import com.github.claudecodegui.handler.SettingsHandler;
 import com.github.claudecodegui.handler.SkillHandler;
 import com.github.claudecodegui.handler.TabHandler;
+import com.github.claudecodegui.handler.UsagePushService;
 import com.github.claudecodegui.handler.WindowEventHandler;
 import com.github.claudecodegui.handler.file.FileExportHandler;
 import com.github.claudecodegui.handler.file.FileHandler;
@@ -512,8 +514,10 @@ public class ChatWindowDelegate {
             "window.updateLinkifyCapabilities",
             JsUtils.escapeJs(OpenClassHandler.buildCapabilitiesJson())
         );
+        pushCurrentTabStateToFrontend();
         host.getSessionLifecycleManager().sendCurrentPermissionMode();
         replayCurrentSessionStateToFrontend();
+        refreshFrontendDerivedState();
         host.persistTabSessionState();
 
         if (pendingQuickFixPrompt != null && pendingQuickFixCallback != null) {
@@ -528,6 +532,81 @@ public class ChatWindowDelegate {
         }
 
         host.getStreamCoalescer().flush(null);
+    }
+
+    /**
+     * Pushes the current Java session configuration before replaying its transcript.
+     * Native JCEF reload re-executes the initial HTML, whose provider/model snapshot
+     * may be stale after a user switch; Java is authoritative during recovery.
+     */
+    private void pushCurrentTabStateToFrontend() {
+        ClaudeSession session = host.getSession();
+        if (session == null || host.isDisposed()) {
+            return;
+        }
+
+        String payload = buildBackendTabStateJson(
+                session.getProvider(),
+                session.getModel(),
+                session.getPermissionMode(),
+                session.getReasoningEffort(),
+                session.getCodexServiceTier()
+        );
+        host.callJavaScript("window.applyBackendTabState", JsUtils.escapeJs(payload));
+    }
+
+    /**
+     * Restores derived UI state that boot-time set_provider/set_model used to refresh.
+     * Recovery deliberately suppresses those mutating commands, so usage limits and
+     * editor context must be refreshed through their side-effect-free service methods.
+     */
+    private void refreshFrontendDerivedState() {
+        ClaudeSession session = host.getSession();
+        HandlerContext context = host.getHandlerContext();
+        if (session == null || context == null || host.isDisposed()) {
+            return;
+        }
+
+        UsagePushService usagePushService = new UsagePushService(context);
+        usagePushService.pushUsageUpdateAfterModelChange(
+                resolveModelContextLimitForRecovery(session.getModel(), context.getSettingsService())
+        );
+        usagePushService.refreshContextBar();
+    }
+
+    /**
+     * Resolves custom Claude provider mappings before calculating the recovery limit.
+     * Package-private for regression tests that pin parity with explicit set_model.
+     */
+    static int resolveModelContextLimitForRecovery(
+            String model,
+            CodemossSettingsService settingsService
+    ) {
+        String resolvedModel = ModelProviderHandler.resolveConfiguredClaudeModelFromSettings(
+                model,
+                settingsService
+        );
+        return SettingsHandler.getModelContextLimit(resolvedModel);
+    }
+
+    /**
+     * Builds the provider/model snapshot consumed by the frontend recovery callback.
+     * Package-private for focused serialization tests without constructing a JCEF browser.
+     */
+    static String buildBackendTabStateJson(
+            String provider,
+            String model,
+            String permissionMode,
+            String reasoningEffort,
+            String codexServiceTier
+    ) {
+        JsonObject state = new JsonObject();
+        state.addProperty("provider", provider);
+        state.addProperty("model", model);
+        state.addProperty("permissionMode", permissionMode);
+        state.addProperty("reasoningEffort", reasoningEffort);
+        state.addProperty("codexFastMode", "fast".equals(codexServiceTier) ? "fast" : "normal");
+        return state.toString();
     }
 
     private void replayCurrentSessionStateToFrontend() {
