@@ -916,7 +916,7 @@ public class WebviewInitializer {
     }
 
     /**
-     * Reload the webview HTML content.
+     * Reload the current webview page without registering another HTML payload.
      */
     public void reloadWebview(String reason) {
         ApplicationManager.getApplication().invokeLater(() -> {
@@ -929,7 +929,7 @@ public class WebviewInitializer {
             host.setFrontendReady(false);
             try {
                 LOG.info("[WebviewWatchdog] Reloading webview (" + reason + ")");
-                browser.loadHTML(loadChatHtmlWithInitialTabState());
+                reloadCurrentPage(browser.getCefBrowser());
                 BrowserBridges currentBridges;
                 synchronized (this.bridgeLock) {
                     currentBridges = this.bridges;
@@ -940,11 +940,22 @@ public class WebviewInitializer {
                 host.getWebviewWatchdog().resetTimestamps();
                 host.getMainPanel().revalidate();
                 host.getMainPanel().repaint();
-            } catch (Exception e) {
+            } catch (Exception | LinkageError e) {
                 LOG.warn("[WebviewWatchdog] Reload failed, escalating to recreate: " + e.getMessage(), e);
                 recreateWebview(reason + "_reload_failed");
             }
         });
+    }
+
+    /**
+     * Reload the URL already registered for a JCEF browser.
+     *
+     * <p>{@link JBCefBrowser#loadHTML(String)} registers every HTML payload under a new
+     * generated URL in the platform-wide load-HTML request map. Reusing the current URL
+     * avoids retaining another copy of the full webview document on each watchdog recovery.</p>
+     */
+    static void reloadCurrentPage(CefBrowser cefBrowser) {
+        cefBrowser.reload();
     }
 
     private String loadChatHtmlWithInitialTabState() {
@@ -952,7 +963,7 @@ public class WebviewInitializer {
         String htmlContent = htmlLoader.loadChatHtml();
 
         // Each tab reads the same localStorage snapshot. Preserve the session's
-        // provider and model on both initial load and watchdog recovery.
+        // provider and model in the initial document reused by native reloads.
         ClaudeSession session = host.getHandlerContext() != null
                 ? host.getHandlerContext().getSession() : null;
         String tabProvider = session != null ? session.getProvider() : null;
