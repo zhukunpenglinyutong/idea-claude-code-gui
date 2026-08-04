@@ -40,8 +40,12 @@ public class SessionCallbackAdapter implements ClaudeSession.SessionCallback {
     private volatile boolean active = true;
     /** Lock making deactivate() atomic with onMessageUpdate()'s active-check-then-enqueue. */
     private final Object lifecycleLock = new Object();
-    /** Guards against duplicate onStreamEnd delivery from dual-path dispatch. */
-    private volatile boolean streamEndSignalSent = false;
+    /** Tracks whether the ordered flush path dispatched its frontend signal. */
+    private volatile boolean streamEndPrimaryDispatched = false;
+    /** Guards the host lifecycle callback while allowing an idempotent frontend retry. */
+    private volatile boolean streamEndLifecycleCompleted = false;
+    /** Identifies the active stream so a late callback cannot end the next turn. */
+    private volatile long streamGeneration = 0L;
 
     public SessionCallbackAdapter(
             StreamMessageCoalescer streamCoalescer,
@@ -225,6 +229,7 @@ public class SessionCallbackAdapter implements ClaudeSession.SessionCallback {
         // Cancel any stale fallback alarm from the previous turn to prevent
         // it from firing during the new turn's streaming phase.
         streamEndFallbackAlarm.cancelAllRequests();
+        streamGeneration++;
         contentDeltaThrottler.reset();
         thinkingDeltaThrottler.reset();
         streamCoalescer.onStreamStart();
@@ -243,11 +248,12 @@ public class SessionCallbackAdapter implements ClaudeSession.SessionCallback {
         if (isInactive()) {
             return;
         }
-        // Reset the signal guard so this turn's dual-path dispatch can proceed.
-        // Thread-safety: this runs on the process reader thread; the callbacks that
-        // read/write streamEndSignalSent all run on EDT (via invokeLater or Alarm).
-        // The reset happens-before flush() schedules any callbacks, so no race exists.
-        streamEndSignalSent = false;
+        // Reset the dispatch guards so this turn's dual-path delivery can proceed.
+        // Thread-safety: this reset runs on the process reader thread before flush()
+        // schedules callbacks; subsequent dispatch state access happens on EDT.
+        streamEndPrimaryDispatched = false;
+        streamEndLifecycleCompleted = false;
+        final long endingStreamGeneration = streamGeneration;
 
         // Each step is wrapped in safeRun so that a failure in one step
         // (e.g., flushNow throwing due to a disposed throttler, or JCEF
@@ -271,47 +277,62 @@ public class SessionCallbackAdapter implements ClaudeSession.SessionCallback {
         // The frontend's onStreamEnd is idempotent (per-turn guard), so receiving
         // both signals is harmless — only the first takes effect.
 
-        // Primary: ordered delivery via flush callback
+        // Primary: ordered delivery via flush callback. Do not cancel the delayed
+        // retry here: JCEF dispatch is asynchronous and can drop this call without
+        // throwing, so a successful Java invocation is not a frontend acknowledgement.
         streamCoalescer.flush(sequence -> {
-            if (streamEndSignalSent) {
+            if (isInactive() || streamGeneration != endingStreamGeneration) {
                 return;
             }
-            streamEndSignalSent = true;
-            streamEndFallbackAlarm.cancelAllRequests();
-            sendStreamEndToFrontend(sequence);
+            streamEndPrimaryDispatched = true;
+            sendStreamEndSignalToFrontend(sequence);
+            completeStreamEndLifecycle();
         });
 
-        // Fallback: independent delivery after timeout
+        // Fallback: always retry the idempotent frontend signal after the timeout.
+        // If the primary callback never runs, this path also completes host cleanup.
         streamEndFallbackAlarm.cancelAllRequests();
         streamEndFallbackAlarm.addRequest(() -> {
-            if (streamEndSignalSent || isInactive()) {
+            if (isInactive() || streamGeneration != endingStreamGeneration) {
                 return;
             }
-            streamEndSignalSent = true;
-            LOG.warn("Stream end signal delivered via fallback (primary flush callback did not fire within 300ms)");
-            sendStreamEndToFrontend(-1);
+            if (streamEndPrimaryDispatched) {
+                LOG.debug("Retrying stream end signal after primary dispatch");
+            } else {
+                LOG.warn("Stream end signal delivered via fallback (primary flush callback did not fire within 300ms)");
+            }
+            sendStreamEndSignalToFrontend(-1);
+            completeStreamEndLifecycle();
         }, 300);
     }
 
     /**
-     * Send the onStreamEnd signal and associated cleanup to the frontend.
-     * Called from either the primary (flush callback) or fallback (Alarm) path.
+     * Send the idempotent onStreamEnd signal and loading cleanup to the frontend.
+     * Called from both the primary (flush callback) and fallback (Alarm) paths.
      *
      * @param sequence the flush sequence number, or -1 if fired from fallback
      */
-    private void sendStreamEndToFrontend(long sequence) {
+    private void sendStreamEndSignalToFrontend(long sequence) {
         if (isInactive()) {
-            LOG.debug("Skipping sendStreamEndToFrontend — adapter deactivated (sequence=" + sequence + ")");
+            LOG.debug("Skipping stream end signal - adapter deactivated (sequence=" + sequence + ")");
             return;
         }
         safeRun("callJavaScript(onStreamEnd)", () ->
                 jsTarget.callJavaScript("onStreamEnd", String.valueOf(sequence)));
         safeRun("callJavaScript(showLoading, false)", () ->
                 jsTarget.callJavaScript("showLoading", "false"));
+        LOG.debug("Stream ended - notified frontend (sequence=" + sequence + ")");
+    }
+
+    /** Complete host-side stream cleanup exactly once for this turn. */
+    private void completeStreamEndLifecycle() {
+        if (streamEndLifecycleCompleted) {
+            return;
+        }
+        streamEndLifecycleCompleted = true;
         if (streamEndCallback != null) {
             safeRun("streamEndCallback", streamEndCallback);
         }
-        LOG.debug("Stream ended - notified frontend (sequence=" + sequence + ")");
     }
 
     private static void safeRun(String label, Runnable action) {

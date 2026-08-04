@@ -4,6 +4,7 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
 
@@ -18,9 +19,7 @@ import static org.junit.Assert.*;
  */
 public class SessionCallbackAdapterStreamEndTest {
 
-    /**
-     * Records callJavaScript invocations for assertion.
-     */
+    /** Records callJavaScript invocations for assertion. */
     private static final class RecordingJsTarget implements SessionCallbackAdapter.JsTarget {
         final List<String> calls = new ArrayList<>();
 
@@ -40,52 +39,89 @@ public class SessionCallbackAdapterStreamEndTest {
      * IntelliJ Alarm/invokeLater.
      */
     private static final class DualPathSimulator {
-        private volatile boolean streamEndSignalSent = false;
+        private volatile boolean streamEndPrimaryDispatched = false;
+        private volatile boolean streamEndLifecycleCompleted = false;
+        private volatile long streamGeneration = 0L;
+        private long endingStreamGeneration = 0L;
         private final RecordingJsTarget jsTarget;
+        private final Runnable streamEndCallback;
 
-        DualPathSimulator(RecordingJsTarget jsTarget) {
+        DualPathSimulator(RecordingJsTarget jsTarget, Runnable streamEndCallback) {
             this.jsTarget = jsTarget;
+            this.streamEndCallback = streamEndCallback;
         }
 
         /** Simulate the flush callback path (primary). */
         void simulateFlushCallback(long sequence) {
-            if (streamEndSignalSent) {
+            if (streamGeneration != endingStreamGeneration) {
                 return;
             }
-            streamEndSignalSent = true;
-            jsTarget.callJavaScript("onStreamEnd", String.valueOf(sequence));
-            jsTarget.callJavaScript("showLoading", "false");
+            streamEndPrimaryDispatched = true;
+            sendStreamEndSignal(sequence);
+            completeStreamEndLifecycle();
         }
 
         /** Simulate the fallback alarm path. */
         void simulateFallback() {
-            if (streamEndSignalSent) {
+            if (streamGeneration != endingStreamGeneration) {
                 return;
             }
-            streamEndSignalSent = true;
-            jsTarget.callJavaScript("onStreamEnd", String.valueOf(-1));
+            sendStreamEndSignal(-1);
+            completeStreamEndLifecycle();
+        }
+
+        private void sendStreamEndSignal(long sequence) {
+            jsTarget.callJavaScript("onStreamEnd", String.valueOf(sequence));
             jsTarget.callJavaScript("showLoading", "false");
+        }
+
+        private void completeStreamEndLifecycle() {
+            if (streamEndLifecycleCompleted) {
+                return;
+            }
+            streamEndLifecycleCompleted = true;
+            streamEndCallback.run();
         }
 
         /** Reset for a new onStreamEnd call. */
         void reset() {
-            streamEndSignalSent = false;
+            streamEndPrimaryDispatched = false;
+            streamEndLifecycleCompleted = false;
+            endingStreamGeneration = streamGeneration;
         }
 
-        boolean isStreamEndSent() {
-            return streamEndSignalSent;
+        void simulateStreamStart() {
+            streamGeneration++;
         }
+
+        boolean isPrimaryDispatched() {
+            return streamEndPrimaryDispatched;
+        }
+
+        boolean isLifecycleCompleted() {
+            return streamEndLifecycleCompleted;
+        }
+    }
+
+    private static DualPathSimulator createSimulator(
+            RecordingJsTarget jsTarget,
+            AtomicInteger lifecycleCompletions
+    ) {
+        return new DualPathSimulator(jsTarget, lifecycleCompletions::incrementAndGet);
     }
 
     @Test
     public void primaryPathSendsStreamEndWithSequence() {
         RecordingJsTarget jsTarget = new RecordingJsTarget();
-        DualPathSimulator sim = new DualPathSimulator(jsTarget);
+        AtomicInteger lifecycleCompletions = new AtomicInteger();
+        DualPathSimulator sim = createSimulator(jsTarget, lifecycleCompletions);
 
         sim.reset();
         sim.simulateFlushCallback(42);
 
-        assertTrue(sim.isStreamEndSent());
+        assertTrue(sim.isPrimaryDispatched());
+        assertTrue(sim.isLifecycleCompleted());
+        assertEquals(1, lifecycleCompletions.get());
         assertEquals(2, jsTarget.calls.size());
         assertEquals("onStreamEnd:42", jsTarget.calls.get(0));
         assertEquals("showLoading:false", jsTarget.calls.get(1));
@@ -94,63 +130,93 @@ public class SessionCallbackAdapterStreamEndTest {
     @Test
     public void fallbackPathSendsStreamEndWithNegativeSequence() {
         RecordingJsTarget jsTarget = new RecordingJsTarget();
-        DualPathSimulator sim = new DualPathSimulator(jsTarget);
+        AtomicInteger lifecycleCompletions = new AtomicInteger();
+        DualPathSimulator sim = createSimulator(jsTarget, lifecycleCompletions);
 
         sim.reset();
         sim.simulateFallback();
 
-        assertTrue(sim.isStreamEndSent());
+        assertFalse(sim.isPrimaryDispatched());
+        assertTrue(sim.isLifecycleCompleted());
+        assertEquals(1, lifecycleCompletions.get());
         assertEquals(2, jsTarget.calls.size());
         assertEquals("onStreamEnd:-1", jsTarget.calls.get(0));
         assertEquals("showLoading:false", jsTarget.calls.get(1));
     }
 
     @Test
-    public void primaryPathBlocksFallback() {
+    public void fallbackRetriesFrontendAfterPrimaryWithoutRepeatingLifecycle() {
         RecordingJsTarget jsTarget = new RecordingJsTarget();
-        DualPathSimulator sim = new DualPathSimulator(jsTarget);
+        AtomicInteger lifecycleCompletions = new AtomicInteger();
+        DualPathSimulator sim = createSimulator(jsTarget, lifecycleCompletions);
 
         sim.reset();
-        // Primary fires first
         sim.simulateFlushCallback(42);
-        // Fallback fires after — should be no-op
         sim.simulateFallback();
 
-        assertEquals(2, jsTarget.calls.size()); // Only primary's calls
+        assertEquals(4, jsTarget.calls.size());
         assertEquals("onStreamEnd:42", jsTarget.calls.get(0));
+        assertEquals("showLoading:false", jsTarget.calls.get(1));
+        assertEquals("onStreamEnd:-1", jsTarget.calls.get(2));
+        assertEquals("showLoading:false", jsTarget.calls.get(3));
+        assertEquals(1, lifecycleCompletions.get());
     }
 
     @Test
-    public void fallbackBlocksPrimary() {
+    public void latePrimaryRetriesFrontendAfterFallbackWithoutRepeatingLifecycle() {
         RecordingJsTarget jsTarget = new RecordingJsTarget();
-        DualPathSimulator sim = new DualPathSimulator(jsTarget);
+        AtomicInteger lifecycleCompletions = new AtomicInteger();
+        DualPathSimulator sim = createSimulator(jsTarget, lifecycleCompletions);
 
         sim.reset();
-        // Fallback fires first (primary flush failed)
         sim.simulateFallback();
-        // Primary fires late — should be no-op
         sim.simulateFlushCallback(42);
 
-        assertEquals(2, jsTarget.calls.size()); // Only fallback's calls
+        assertEquals(4, jsTarget.calls.size());
         assertEquals("onStreamEnd:-1", jsTarget.calls.get(0));
+        assertEquals("showLoading:false", jsTarget.calls.get(1));
+        assertEquals("onStreamEnd:42", jsTarget.calls.get(2));
+        assertEquals("showLoading:false", jsTarget.calls.get(3));
+        assertEquals(1, lifecycleCompletions.get());
+    }
+
+    @Test
+    public void latePrimaryDoesNotEndNextStream() {
+        RecordingJsTarget jsTarget = new RecordingJsTarget();
+        AtomicInteger lifecycleCompletions = new AtomicInteger();
+        DualPathSimulator sim = createSimulator(jsTarget, lifecycleCompletions);
+
+        sim.reset();
+        sim.simulateFallback();
+        sim.simulateStreamStart();
+        sim.simulateFlushCallback(42);
+
+        assertEquals(2, jsTarget.calls.size());
+        assertEquals("onStreamEnd:-1", jsTarget.calls.get(0));
+        assertEquals("showLoading:false", jsTarget.calls.get(1));
+        assertEquals(1, lifecycleCompletions.get());
     }
 
     @Test
     public void resetAllowsNextTurn() {
         RecordingJsTarget jsTarget = new RecordingJsTarget();
-        DualPathSimulator sim = new DualPathSimulator(jsTarget);
+        AtomicInteger lifecycleCompletions = new AtomicInteger();
+        DualPathSimulator sim = createSimulator(jsTarget, lifecycleCompletions);
 
-        // First turn
+        sim.simulateStreamStart();
         sim.reset();
         sim.simulateFlushCallback(10);
         assertEquals(2, jsTarget.calls.size());
+        assertEquals(1, lifecycleCompletions.get());
 
-        // Second turn — reset allows new delivery
+        sim.simulateStreamStart();
         sim.reset();
-        assertFalse(sim.isStreamEndSent());
+        assertFalse(sim.isPrimaryDispatched());
+        assertFalse(sim.isLifecycleCompleted());
         sim.simulateFlushCallback(20);
         assertEquals(4, jsTarget.calls.size());
         assertEquals("onStreamEnd:20", jsTarget.calls.get(2));
+        assertEquals(2, lifecycleCompletions.get());
     }
 
     /**
@@ -162,8 +228,6 @@ public class SessionCallbackAdapterStreamEndTest {
     public void flushCallbackPassesSequenceToOnStreamEnd() {
         RecordingJsTarget jsTarget = new RecordingJsTarget();
 
-        // Simulate what happens when flush(callback) is called:
-        // The callback receives the sequence from the coalescer.
         final AtomicLong capturedSequence = new AtomicLong(-999);
         LongConsumer flushCallback = seq -> {
             capturedSequence.set(seq);
@@ -177,4 +241,3 @@ public class SessionCallbackAdapterStreamEndTest {
         assertEquals("onStreamEnd:77", jsTarget.calls.get(0));
     }
 }
-
