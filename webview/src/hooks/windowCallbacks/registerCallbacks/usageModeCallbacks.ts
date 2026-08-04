@@ -155,6 +155,12 @@ export function registerUsageModeCallbacks(options: UseWindowCallbacksOptions): 
     window.applyBackendTabState(pending);
   }
 
+  if (typeof window.__pendingUsageUpdate === 'string') {
+    const pending = window.__pendingUsageUpdate;
+    delete window.__pendingUsageUpdate;
+    window.onUsageUpdate(pending);
+  }
+
   window.updateActiveProvider = (jsonStr: string) => {
     try {
       const provider = JSON.parse(jsonStr);

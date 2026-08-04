@@ -7,6 +7,7 @@ import com.github.claudecodegui.session.SessionSendService;
 import com.github.claudecodegui.settings.CodemossSettingsService;
 import com.github.claudecodegui.skill.SlashCommandRegistry;
 import com.github.claudecodegui.util.EditorFileUtils;
+import com.github.claudecodegui.util.TokenUsageUtils;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.intellij.openapi.application.ApplicationManager;
@@ -89,12 +90,27 @@ public class ModelProviderHandler {
                 }
             }
 
-            LOG.info("[ModelProviderHandler] Setting model to: " + model);
+            String previousModel = context.getCurrentModel();
+            boolean modelChanged = isActualModelSwitch(previousModel, model);
+            LOG.info("[ModelProviderHandler] Setting model to: " + model
+                    + " (was: " + previousModel + ")");
             context.setCurrentModel(model);
 
             if (context.getSession() != null) {
                 context.getSession().setModel(model);
+                if (modelChanged) {
+                    TokenUsageUtils.clearContextUsageFromSessionMessages(
+                            context.getSession().getMessages()
+                    );
+                }
                 LOG.info("[ModelProviderHandler] Updated session model to canonical ID: " + model);
+            }
+
+            if (modelChanged) {
+                // Context capacity belongs to the model that produced the snapshot.
+                // Keep historical turnUsage/cost, but wait for the newly selected
+                // model to report its own current-context usage.
+                usagePushService.clearUsageDisplay();
             }
 
             com.github.claudecodegui.notifications.ClaudeNotifier.setModel(context.getProject(), model);
@@ -112,7 +128,9 @@ public class ModelProviderHandler {
             final String confirmedProvider = context.getCurrentProvider();
             ApplicationManager.getApplication().invokeLater(() -> {
                 context.callJavaScript("window.onModelConfirmed", context.escapeJs(confirmedModel), context.escapeJs(confirmedProvider));
-                usagePushService.pushUsageUpdateAfterModelChange(newMaxTokens);
+                if (modelChanged) {
+                    usagePushService.pushUsageUpdateAfterModelChange(newMaxTokens);
+                }
             });
         } catch (Exception e) {
             LOG.error("[ModelProviderHandler] Failed to set model: " + e.getMessage(), e);
@@ -142,6 +160,18 @@ public class ModelProviderHandler {
 
             if (context.getSession() != null) {
                 context.getSession().setProvider(provider);
+                if (isActualProviderSwitch(previousProvider, provider)) {
+                    TokenUsageUtils.clearContextUsageFromSessionMessages(
+                            context.getSession().getMessages()
+                    );
+                }
+            }
+
+            if (isActualProviderSwitch(previousProvider, provider)) {
+                // Context usage belongs to the provider that produced it. Keep
+                // historical turnUsage/cost, but show no current-context value until
+                // the new provider reports a real snapshot.
+                usagePushService.clearUsageDisplay();
             }
 
             // Bug fix (Node process leak L2): when the tab moves AWAY from Claude
@@ -186,6 +216,30 @@ public class ModelProviderHandler {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Return whether a provider command represents a real cross-provider switch.
+     * Null/empty initialization values and same-provider reaffirmations are no-ops.
+     */
+    static boolean isActualProviderSwitch(String previousProvider, String newProvider) {
+        return previousProvider != null
+                && newProvider != null
+                && !previousProvider.isEmpty()
+                && !newProvider.isEmpty()
+                && !previousProvider.equals(newProvider);
+    }
+
+    /**
+     * Return whether a model command represents a real model transition.
+     * Null/empty initialization values and same-model reaffirmations are no-ops.
+     */
+    static boolean isActualModelSwitch(String previousModel, String newModel) {
+        return previousModel != null
+                && newModel != null
+                && !previousModel.isEmpty()
+                && !newModel.isEmpty()
+                && !previousModel.equals(newModel);
     }
 
     /**

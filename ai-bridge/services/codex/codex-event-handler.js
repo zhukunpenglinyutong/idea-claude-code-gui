@@ -36,6 +36,71 @@ import {
 } from './codex-tool-normalization.js';
 
 const COMMAND_DENIED_ABORT_ERROR = '__CODEX_COMMAND_DENIED_ABORT__';
+const CODEX_USAGE_FIELDS = [
+  'input_tokens',
+  'cached_input_tokens',
+  'cache_write_input_tokens',
+  'output_tokens',
+  'reasoning_output_tokens',
+  'total_tokens',
+];
+
+function normalizeCodexUsage(usage) {
+  if (!usage || typeof usage !== 'object') return null;
+  const normalized = {};
+  let hasNumericField = false;
+  for (const field of CODEX_USAGE_FIELDS) {
+    const value = Number(usage[field]);
+    if (Number.isFinite(value)) {
+      normalized[field] = Math.max(0, value);
+      hasNumericField = true;
+    }
+  }
+  return hasNumericField ? normalized : null;
+}
+
+function subtractCodexUsage(total, baseline) {
+  if (!total || !baseline) return null;
+  const delta = {};
+  for (const field of CODEX_USAGE_FIELDS) {
+    delta[field] = Math.max(0, (total[field] || 0) - (baseline[field] || 0));
+  }
+  return delta;
+}
+
+function handleTokenCountEvent(event, state) {
+  const info = event?.payload?.info;
+  if (!info || typeof info !== 'object') return false;
+
+  const totalUsage = normalizeCodexUsage(info.total_token_usage);
+  const lastUsage = normalizeCodexUsage(info.last_token_usage);
+  if (!totalUsage && !lastUsage) return false;
+
+  if (!state.turnUsageBaseline && totalUsage && lastUsage) {
+    state.turnUsageBaseline = subtractCodexUsage(totalUsage, lastUsage);
+  }
+  if (totalUsage) {
+    state.latestTotalTokenUsage = totalUsage;
+  }
+
+  const forwardedInfo = {};
+  if (totalUsage) forwardedInfo.total_token_usage = totalUsage;
+  if (lastUsage) forwardedInfo.last_token_usage = lastUsage;
+  const contextWindow = Number(info.model_context_window);
+  if (Number.isFinite(contextWindow) && contextWindow > 0) {
+    forwardedInfo.model_context_window = contextWindow;
+  }
+
+  state.emitMessage({
+    type: 'event_msg',
+    payload: { type: 'token_count', info: forwardedInfo },
+  });
+  return true;
+}
+
+function resolveCompletedTurnUsage(state) {
+  return subtractCodexUsage(state.latestTotalTokenUsage, state.turnUsageBaseline);
+}
 
 export function isWindowsTaskkillParseNoise(message) {
   if (typeof message !== 'string') return false;
@@ -224,7 +289,10 @@ export function createInitialEventState(emitMessage) {
     commandApprovalAbortRequested: false,
     runtimePolicyLogged: false,
     suppressNoResponseFallback: false,
+    turnStarted: false,
     turnCompleted: false,
+    turnUsageBaseline: null,
+    latestTotalTokenUsage: null,
     currentThreadId: null,
     finalResponse: '',
     assistantText: '',
@@ -347,6 +415,40 @@ async function ensureSessionTurnBoundary(state, config) {
   }
 
   return false;
+}
+
+/**
+ * Recover raw token_count events that the public Codex SDK stream omits. Only
+ * entries after the verified current-turn boundary are accepted, preventing a
+ * resumed thread from reusing the previous turn's context snapshot.
+ */
+async function replayCurrentTurnTokenCountsFromSession(state, config) {
+  if (state.latestTotalTokenUsage) return 0;
+  if (!await ensureSessionTurnBoundary(state, config)) return 0;
+
+  const sessionPath = ensureSessionFilePath(state, getSessionThreadId(state, config));
+  if (!sessionPath) return 0;
+
+  let content = '';
+  try {
+    content = await readFile(sessionPath, 'utf8');
+  } catch (error) {
+    logDebug('SESSION_REPLAY', 'Failed to read current-turn token usage:', error?.message || error);
+    return 0;
+  }
+
+  const lines = splitSessionJsonlEntries(content);
+  const startIndex = Number.isInteger(state.sessionTurnStartCursor)
+    ? state.sessionTurnStartCursor
+    : lines.length;
+  let replayed = 0;
+  for (let i = startIndex; i < lines.length; i++) {
+    let parsed;
+    try { parsed = JSON.parse(lines[i]); } catch { continue; }
+    if (parsed?.type !== 'event_msg' || parsed?.payload?.type !== 'token_count') continue;
+    if (handleTokenCountEvent(parsed, state)) replayed += 1;
+  }
+  return replayed;
 }
 
 function warnSessionTurnBoundaryNotReady(state) {
@@ -849,13 +951,19 @@ export async function processCodexEventStream(events, state, config) {
       }
 
       case 'turn.started': {
+        state.turnStarted = true;
         state.turnCompleted = false;
+        state.turnUsageBaseline = null;
+        state.latestTotalTokenUsage = null;
         await ensureSessionTurnBoundary(state, config);
         console.log('[DEBUG] Turn started');
         break;
       }
 
       case 'event_msg': {
+        if (state.turnStarted && event?.payload?.type === 'token_count') {
+          handleTokenCountEvent(event, state);
+        }
         await replayMissingFunctionCallsDuringStream(state, config);
         break;
       }
@@ -916,13 +1024,18 @@ export async function processCodexEventStream(events, state, config) {
           console.log('[DEBUG] Replayed session function calls:', JSON.stringify(replayed));
         }
         flushPendingCustomPatchBatches(state);
-        if (event.usage) {
-          console.log('[DEBUG] Token usage:', event.usage);
+        const replayedTokenCounts = await replayCurrentTurnTokenCountsFromSession(state, config);
+        if (replayedTokenCounts > 0) {
+          console.log('[DEBUG] Replayed current-turn token_count events:', replayedTokenCounts);
+        }
+        const completedTurnUsage = resolveCompletedTurnUsage(state);
+        if (completedTurnUsage) {
+          console.log('[DEBUG] Token usage:', completedTurnUsage);
           const claudeUsage = {
-            input_tokens: event.usage.input_tokens || 0,
-            output_tokens: event.usage.output_tokens || 0,
+            input_tokens: completedTurnUsage.input_tokens || 0,
+            output_tokens: completedTurnUsage.output_tokens || 0,
             cache_creation_input_tokens: 0,
-            cache_read_input_tokens: event.usage.cached_input_tokens || 0
+            cache_read_input_tokens: completedTurnUsage.cached_input_tokens || 0
           };
           state.emitMessage({
             type: 'result', subtype: 'usage', is_error: false,
@@ -933,6 +1046,7 @@ export async function processCodexEventStream(events, state, config) {
         if (typeof config.onTurnCompleted === 'function') {
           config.onTurnCompleted(event, state);
         }
+        state.turnStarted = false;
         break;
       }
 

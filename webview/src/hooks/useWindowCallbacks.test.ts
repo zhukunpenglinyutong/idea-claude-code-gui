@@ -120,6 +120,7 @@ describe('useWindowCallbacks integration', () => {
     // so each test starts from a clean pending state.
     delete (window as unknown as Record<string, unknown>).__pendingPermissionDialogTimeout;
     delete window.__pendingBackendTabState;
+    delete window.__pendingUsageUpdate;
     delete window.__CCGUI_RECOVERY_STATE_APPLIED__;
   });
 
@@ -199,6 +200,33 @@ describe('useWindowCallbacks integration', () => {
     expect(opts.setSelectedCodexModel).toHaveBeenCalledWith('gpt-5.6-sol');
     expect(opts.setCodexFastMode).toHaveBeenCalledWith('fast');
     expect(window.__pendingBackendTabState).toBeUndefined();
+  });
+
+  it('drains a usage update received before React callback registration', () => {
+    window.__pendingUsageUpdate = JSON.stringify({
+      percentage: 4.78,
+      usedTokens: 12345,
+      maxTokens: 258400,
+    });
+    const opts = createOptions();
+
+    renderHook(() => useWindowCallbacks(opts));
+
+    expect(opts.setUsagePercentage).toHaveBeenCalledWith(4.78);
+    expect(opts.setUsageUsedTokens).toHaveBeenCalledWith(12345);
+    expect(opts.setUsageMaxTokens).toHaveBeenCalledWith(258400);
+    expect(window.__pendingUsageUpdate).toBeUndefined();
+  });
+
+  it('clears stale token details when a new provider has no usage snapshot yet', () => {
+    const opts = createOptions();
+    renderHook(() => useWindowCallbacks(opts));
+
+    act(() => window.onUsageUpdate!(JSON.stringify({ percentage: 0 })));
+
+    expect(opts.setUsagePercentage).toHaveBeenCalledWith(0);
+    expect(opts.setUsageUsedTokens).toHaveBeenCalledWith(undefined);
+    expect(opts.setUsageMaxTokens).toHaveBeenCalledWith(undefined);
   });
 
   // ===== historyLoadComplete releases transition guard =====

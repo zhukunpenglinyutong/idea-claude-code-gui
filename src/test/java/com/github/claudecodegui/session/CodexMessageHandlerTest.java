@@ -17,6 +17,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * Unit tests for translating Codex bridge events into provider-neutral session state.
+ */
 public class CodexMessageHandlerTest {
 
     private static final class RecordingCallback implements ClaudeSession.SessionCallback {
@@ -341,6 +344,10 @@ public class CodexMessageHandlerTest {
         assertFalse(callback.lastLoading);
     }
 
+    /**
+     * Verifies that result usage remains available for per-turn accounting without
+     * being promoted to an untrusted current-context snapshot.
+     */
     @Test
     public void resultMessageStampsNormalizedTurnUsageOnLastAssistant() {
         SessionState state = new SessionState();
@@ -358,8 +365,7 @@ public class CodexMessageHandlerTest {
                 + "\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":36310}}");
 
         Message message = state.getMessages().get(0);
-        // Status-bar channel keeps the cache-inclusive usage untouched
-        assertEquals(37000, message.raw.getAsJsonObject("usage").get("input_tokens").getAsInt());
+        assertFalse(message.raw.has("usage"));
         // turnUsage is normalized to the Claude schema: input excludes cache
         var turnUsage = message.raw.getAsJsonObject("turnUsage");
         assertEquals(690, turnUsage.get("input_tokens").getAsInt());
@@ -409,6 +415,11 @@ public class CodexMessageHandlerTest {
         assertFalse(message.raw.has("turnCostUsd"));
     }
 
+    /**
+     * Verifies that token_count uses the current-context last_token_usage snapshot,
+     * preserves the provider-reported context window, and remains excluded from
+     * per-turn usage accounting.
+     */
     @Test
     public void tokenCountEventAttachesStatusBarUsageButNeverTurnUsage() {
         SessionState state = new SessionState();
@@ -419,13 +430,100 @@ public class CodexMessageHandlerTest {
 
         CodexMessageHandler handler = new CodexMessageHandler(state, callbackHandler);
         handler.onMessage("assistant", "{\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"done\"}]}}");
-        // token_count carries session-cumulative totals, not turn totals
+        handler.onMessage("event_msg", "{\"payload\":{\"type\":\"token_count\",\"info\":{"
+                + "\"total_token_usage\":{\"input_tokens\":500000,\"output_tokens\":9000,\"cached_input_tokens\":480000},"
+                + "\"last_token_usage\":{\"input_tokens\":18000,\"output_tokens\":400,\"cached_input_tokens\":16000},"
+                + "\"model_context_window\":258400}}}");
+
+        Message message = state.getMessages().get(0);
+        assertEquals(18000, message.raw.getAsJsonObject("usage").get("input_tokens").getAsInt());
+        assertEquals(258400, message.raw.getAsJsonObject("usage").get("model_context_window").getAsInt());
+        assertFalse(message.raw.has("turnUsage"));
+    }
+
+    /**
+     * Verifies that older token_count payloads without last_token_usage continue
+     * to use total_token_usage as a best-effort context-display fallback.
+     */
+    @Test
+    public void tokenCountEventFallsBackToTotalUsageForOlderPayloads() {
+        SessionState state = new SessionState();
+
+        CallbackHandler callbackHandler = new CallbackHandler();
+        RecordingCallback callback = new RecordingCallback();
+        callbackHandler.setCallback(callback);
+
+        CodexMessageHandler handler = new CodexMessageHandler(state, callbackHandler);
+        handler.onMessage("assistant", "{\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"done\"}]}}");
         handler.onMessage("event_msg", "{\"payload\":{\"type\":\"token_count\",\"info\":{"
                 + "\"total_token_usage\":{\"input_tokens\":500000,\"output_tokens\":9000,\"cached_input_tokens\":480000}}}}");
 
         Message message = state.getMessages().get(0);
         assertEquals(500000, message.raw.getAsJsonObject("usage").get("input_tokens").getAsInt());
+        assertEquals(9000, message.raw.getAsJsonObject("usage").get("output_tokens").getAsInt());
         assertFalse(message.raw.has("turnUsage"));
+    }
+
+    /**
+     * Verifies that a later turn.completed result retains per-turn accounting without
+     * overwriting the precise current-context snapshot received from token_count.
+     */
+    @Test
+    public void resultMessageDoesNotOverwriteTokenCountContextSnapshot() {
+        SessionState state = new SessionState();
+        state.setModel("gpt-5.1");
+
+        CallbackHandler callbackHandler = new CallbackHandler();
+        RecordingCallback callback = new RecordingCallback();
+        callbackHandler.setCallback(callback);
+
+        CodexMessageHandler handler = new CodexMessageHandler(state, callbackHandler);
+        handler.onMessage("assistant", "{\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"done\"}]}}");
+        handler.onMessage("event_msg", "{\"payload\":{\"type\":\"token_count\",\"info\":{"
+                + "\"last_token_usage\":{\"input_tokens\":18000,\"output_tokens\":400,\"cached_input_tokens\":16000},"
+                + "\"model_context_window\":258400}}}");
+        handler.onMessage("result", "{\"type\":\"result\",\"subtype\":\"usage\",\"usage\":{"
+                + "\"input_tokens\":37000,\"output_tokens\":353,\"cached_input_tokens\":36310}}");
+
+        Message message = state.getMessages().get(0);
+        JsonObject contextUsage = message.raw.getAsJsonObject("usage");
+        assertEquals(18000, contextUsage.get("input_tokens").getAsInt());
+        assertEquals(258400, contextUsage.get("model_context_window").getAsInt());
+        JsonObject turnUsage = message.raw.getAsJsonObject("turnUsage");
+        assertEquals(690, turnUsage.get("input_tokens").getAsInt());
+        assertEquals(36310, turnUsage.get("cache_read_input_tokens").getAsInt());
+        assertEquals(353, turnUsage.get("output_tokens").getAsInt());
+        assertTrue(message.raw.has("turnCostUsd"));
+    }
+
+    /**
+     * Verifies that a token_count arriving before the assistant message is retained
+     * and applied when turn.completed later provides the per-turn usage.
+     */
+    @Test
+    public void tokenCountBeforeAssistantIsAppliedWhenResultArrives() {
+        SessionState state = new SessionState();
+        state.setModel("gpt-5.1");
+
+        CallbackHandler callbackHandler = new CallbackHandler();
+        RecordingCallback callback = new RecordingCallback();
+        callbackHandler.setCallback(callback);
+
+        CodexMessageHandler handler = new CodexMessageHandler(state, callbackHandler);
+        handler.onMessage("stream_start", "");
+        handler.onMessage("event_msg", "{\"payload\":{\"type\":\"token_count\",\"info\":{"
+                + "\"last_token_usage\":{\"input_tokens\":49060,\"output_tokens\":231,\"cached_input_tokens\":46848},"
+                + "\"model_context_window\":258400}}}");
+        handler.onMessage("assistant", "{\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"done\"}]}}");
+        handler.onMessage("result", "{\"type\":\"result\",\"subtype\":\"usage\",\"usage\":{"
+                + "\"input_tokens\":120000,\"output_tokens\":2000,\"cached_input_tokens\":100000}}");
+
+        Message message = state.getMessages().get(0);
+        JsonObject contextUsage = message.raw.getAsJsonObject("usage");
+        assertEquals(49060, contextUsage.get("input_tokens").getAsInt());
+        assertEquals(231, contextUsage.get("output_tokens").getAsInt());
+        assertEquals(258400, contextUsage.get("model_context_window").getAsInt());
+        assertEquals(20000, message.raw.getAsJsonObject("turnUsage").get("input_tokens").getAsInt());
     }
 
     @Test

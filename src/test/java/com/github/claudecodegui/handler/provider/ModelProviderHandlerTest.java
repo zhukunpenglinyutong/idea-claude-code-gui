@@ -180,4 +180,33 @@ public class ModelProviderHandlerTest {
         // to avoid spurious 5–10s daemon restarts.
         assertFalse(ModelProviderHandler.shouldShutdownClaudeDaemonOnProviderSwitch("claude", ""));
     }
+
+    /**
+     * Verifies that cross-provider selection invalidates provider-specific context
+     * usage while same-provider reaffirmations remain no-ops.
+     */
+    @Test
+    public void shouldOnlyInvalidateUsageOnActualProviderSwitch() {
+        assertTrue(ModelProviderHandler.isActualProviderSwitch("claude", "codex"));
+        assertTrue(ModelProviderHandler.isActualProviderSwitch("codex", "claude"));
+        assertFalse(ModelProviderHandler.isActualProviderSwitch("codex", "codex"));
+        assertFalse(ModelProviderHandler.isActualProviderSwitch(null, "codex"));
+        assertFalse(ModelProviderHandler.isActualProviderSwitch("claude", ""));
+    }
+
+    /**
+     * Verifies that context usage is invalidated only when the selected model
+     * actually changes, including context-capacity suffix transitions.
+     */
+    @Test
+    public void shouldOnlyInvalidateUsageOnActualModelSwitch() {
+        assertTrue(ModelProviderHandler.isActualModelSwitch("gpt-5.4", "gpt-5.6-sol"));
+        assertTrue(ModelProviderHandler.isActualModelSwitch(
+                "claude-sonnet-4-6",
+                "claude-sonnet-4-6[1m]"
+        ));
+        assertFalse(ModelProviderHandler.isActualModelSwitch("gpt-5.6-sol", "gpt-5.6-sol"));
+        assertFalse(ModelProviderHandler.isActualModelSwitch(null, "gpt-5.6-sol"));
+        assertFalse(ModelProviderHandler.isActualModelSwitch("gpt-5.6-sol", ""));
+    }
 }

@@ -643,6 +643,15 @@ if (typeof window !== 'undefined' && !window.applyBackendTabState) {
   };
 }
 
+// Keep the latest usage snapshot when frontend_ready is handled before React's
+// callback effect mounts. Usage is state, so only the newest snapshot matters.
+if (typeof window !== 'undefined' && !window.onUsageUpdate) {
+  debugLog('[Main] Pre-registering onUsageUpdate placeholder');
+  window.onUsageUpdate = (json: string) => {
+    window.__pendingUsageUpdate = json;
+  };
+}
+
 if (typeof window !== 'undefined' && !window.showPermissionDialog) {
   debugLog('[Main] Pre-registering showPermissionDialog placeholder');
   window.showPermissionDialog = (json: string) => {

@@ -40,8 +40,7 @@ public class UsagePushService {
         try {
             ClaudeSession session = context.getSession();
             if (session == null) {
-                // Even without a session, send update so frontend knows the new maxTokens
-                sendUsageUpdate(0, newMaxTokens);
+                clearUsageDisplay();
                 return;
             }
 
@@ -49,17 +48,49 @@ public class UsagePushService {
             List<ClaudeSession.Message> messages = session.getMessages();
             JsonObject lastUsage = TokenUsageUtils.findLastUsageFromSessionMessages(messages);
             if (lastUsage == null) {
-                // No usage data available yet — send update with zero used tokens
-                sendUsageUpdate(0, newMaxTokens);
+                // The provider has not reported a real context snapshot yet. Avoid
+                // presenting a static model limit as authoritative session capacity.
+                clearUsageDisplay();
                 return;
             }
-            int usedTokens = TokenUsageUtils.extractUsedTokens(lastUsage, context.getCurrentProvider());
+            int usedTokens = TokenUsageUtils.extractUsedTokens(lastUsage, session.getProvider());
 
             // Send update
             sendUsageUpdate(usedTokens, newMaxTokens);
 
         } catch (Exception e) {
             LOG.error("[UsagePushService] Failed to push usage update after model change: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Push the usage already retained by the active session during WebView recovery.
+     * An empty session is intentionally left untouched: its history may still be
+     * loading, and publishing zero with a static limit would overwrite valid UI state.
+     *
+     * @param fallbackMaxTokens static model limit used only when provider usage does
+     *                          not contain a session-specific context window
+     * @return true when a usage snapshot was available and scheduled for delivery
+     */
+    public boolean pushCurrentUsageIfAvailable(int fallbackMaxTokens) {
+        try {
+            ClaudeSession session = context.getSession();
+            if (session == null) {
+                return false;
+            }
+
+            JsonObject lastUsage = TokenUsageUtils.findLastUsageFromSessionMessages(session.getMessages());
+            if (lastUsage == null) {
+                return false;
+            }
+
+            int usedTokens = TokenUsageUtils.extractUsedTokens(lastUsage, session.getProvider());
+            int maxTokens = TokenUsageUtils.extractMaxTokens(lastUsage, fallbackMaxTokens);
+            sendUsageUpdate(usedTokens, maxTokens);
+            return true;
+        } catch (Exception e) {
+            LOG.error("[UsagePushService] Failed to restore current usage: " + e.getMessage(), e);
+            return false;
         }
     }
 
@@ -79,6 +110,21 @@ public class UsagePushService {
         usageUpdate.addProperty("usedTokens", usedTokens);
         usageUpdate.addProperty("maxTokens", maxTokens);
 
+        sendUsagePayload(usageUpdate);
+    }
+
+    /**
+     * Clear provider-specific usage details while the next provider snapshot is
+     * unknown. Only percentage is sent so the frontend also clears its tooltip
+     * numerator and denominator.
+     */
+    public void clearUsageDisplay() {
+        JsonObject usageUpdate = new JsonObject();
+        usageUpdate.addProperty("percentage", 0);
+        sendUsagePayload(usageUpdate);
+    }
+
+    private void sendUsagePayload(JsonObject usageUpdate) {
         String usageJson = gson.toJson(usageUpdate);
 
         // Push to frontend (must be executed on the EDT thread)

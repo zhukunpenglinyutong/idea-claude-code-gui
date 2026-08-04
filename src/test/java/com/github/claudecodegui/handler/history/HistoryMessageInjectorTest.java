@@ -1,6 +1,7 @@
 package com.github.claudecodegui.handler.history;
 
 import com.github.claudecodegui.handler.core.HandlerContext;
+import com.github.claudecodegui.provider.codex.CodexHistoryReader;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -19,6 +20,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * Unit tests for converting persisted provider history into frontend/session messages.
+ */
 public class HistoryMessageInjectorTest {
 
     @Test
@@ -195,6 +199,88 @@ public class HistoryMessageInjectorTest {
         assertEquals(1, result.size());
         assertEquals("assistant", result.get(0).get("type").getAsString());
         assertEquals("visible assistant reply", result.get(0).get("content").getAsString());
+    }
+
+    /**
+     * Verifies that persisted Codex token-count metadata is attached to the latest
+     * assistant message so watchdog recovery can reuse its real context window.
+     */
+    @Test
+    public void convertCodexMessagesPreservesTokenCountContextWindow() {
+        JsonArray messages = new JsonArray();
+        messages.add(responseItemAssistantMessage("2026-05-14T10:00:01.000Z", "visible assistant reply"));
+        messages.add(tokenCountEvent(
+                "2026-05-14T10:00:02.000Z",
+                500000,
+                9000,
+                12000,
+                345,
+                258400
+        ));
+
+        List<JsonObject> result = HistoryMessageInjector.convertCodexMessagesToFrontendBatch(messages);
+
+        assertEquals(1, result.size());
+        JsonObject usage = result.get(0).getAsJsonObject("raw").getAsJsonObject("usage");
+        assertEquals(12000, usage.get("input_tokens").getAsInt());
+        assertEquals(345, usage.get("output_tokens").getAsInt());
+        assertEquals(258400, usage.get("model_context_window").getAsInt());
+    }
+
+    /**
+     * Verifies that older Codex history without last_token_usage retains the
+     * cumulative total_token_usage compatibility fallback.
+     */
+    @Test
+    public void convertCodexMessagesFallsBackToTotalTokenUsageForOlderHistory() {
+        JsonArray messages = new JsonArray();
+        messages.add(responseItemAssistantMessage("2026-05-14T10:00:01.000Z", "visible assistant reply"));
+        messages.add(tokenCountEvent("2026-05-14T10:00:02.000Z", 12000, 345, 258400));
+
+        List<JsonObject> result = HistoryMessageInjector.convertCodexMessagesToFrontendBatch(messages);
+
+        JsonObject usage = result.get(0).getAsJsonObject("raw").getAsJsonObject("usage");
+        assertEquals(12000, usage.get("input_tokens").getAsInt());
+        assertEquals(345, usage.get("output_tokens").getAsInt());
+        assertEquals(258400, usage.get("model_context_window").getAsInt());
+    }
+
+    /**
+     * Verifies that the production streaming history scanner attaches token_count
+     * metadata to the latest assistant instead of dropping it during pagination.
+     */
+    @Test
+    public void scanCodexHistoryPagePreservesTokenCountContextWindow() throws Exception {
+        JsonArray messages = new JsonArray();
+        messages.add(eventUserMessage("2026-05-14T10:00:00.000Z", "question"));
+        messages.add(responseItemAssistantMessage("2026-05-14T10:00:01.000Z", "answer"));
+        messages.add(tokenCountEvent(
+                "2026-05-14T10:00:02.000Z",
+                500000,
+                9000,
+                12000,
+                345,
+                258400
+        ));
+        CodexHistoryReader reader = new CodexHistoryReader() {
+            @Override
+            public int forEachSessionMessage(String sessionId, java.util.function.Consumer<JsonObject> consumer) {
+                for (JsonElement message : messages) {
+                    consumer.accept(message.getAsJsonObject());
+                }
+                return messages.size();
+            }
+        };
+
+        HistoryMessageInjector.CodexHistoryPage page =
+                HistoryMessageInjector.scanCodexHistoryPage(reader, "fixture-session", null, 30);
+
+        assertEquals(2, page.messages.size());
+        JsonObject assistant = page.messages.get(1);
+        JsonObject usage = assistant.getAsJsonObject("raw").getAsJsonObject("usage");
+        assertEquals(12000, usage.get("input_tokens").getAsInt());
+        assertEquals(345, usage.get("output_tokens").getAsInt());
+        assertEquals(258400, usage.get("model_context_window").getAsInt());
     }
 
     @Test
@@ -566,6 +652,49 @@ public class HistoryMessageInjectorTest {
         JsonArray localImages = new JsonArray();
         localImages.add(localImagePath);
         line.getAsJsonObject("payload").add("local_images", localImages);
+        return line;
+    }
+
+    private static JsonObject tokenCountEvent(
+            String timestamp,
+            int inputTokens,
+            int outputTokens,
+            int contextWindow
+    ) {
+        JsonObject line = new JsonObject();
+        line.addProperty("timestamp", timestamp);
+        line.addProperty("type", "event_msg");
+
+        JsonObject totalUsage = new JsonObject();
+        totalUsage.addProperty("input_tokens", inputTokens);
+        totalUsage.addProperty("output_tokens", outputTokens);
+        totalUsage.addProperty("cached_input_tokens", 0);
+
+        JsonObject info = new JsonObject();
+        info.add("total_token_usage", totalUsage);
+        info.addProperty("model_context_window", contextWindow);
+
+        JsonObject payload = new JsonObject();
+        payload.addProperty("type", "token_count");
+        payload.add("info", info);
+        line.add("payload", payload);
+        return line;
+    }
+
+    private static JsonObject tokenCountEvent(
+            String timestamp,
+            int totalInputTokens,
+            int totalOutputTokens,
+            int lastInputTokens,
+            int lastOutputTokens,
+            int contextWindow
+    ) {
+        JsonObject line = tokenCountEvent(timestamp, totalInputTokens, totalOutputTokens, contextWindow);
+        JsonObject lastUsage = new JsonObject();
+        lastUsage.addProperty("input_tokens", lastInputTokens);
+        lastUsage.addProperty("output_tokens", lastOutputTokens);
+        lastUsage.addProperty("cached_input_tokens", 0);
+        line.getAsJsonObject("payload").getAsJsonObject("info").add("last_token_usage", lastUsage);
         return line;
     }
 

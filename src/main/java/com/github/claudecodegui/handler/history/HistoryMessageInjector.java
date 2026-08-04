@@ -441,6 +441,55 @@ public class HistoryMessageInjector {
         return frontendMessages;
     }
 
+    private static JsonObject extractCodexTokenCountUsage(JsonObject message) {
+        if (message == null
+                || !"event_msg".equals(getStringProperty(message, "type"))
+                || !message.has("payload")
+                || !message.get("payload").isJsonObject()) {
+            return null;
+        }
+        JsonObject payload = message.getAsJsonObject("payload");
+        if (!"token_count".equals(getStringProperty(payload, "type"))
+                || !payload.has("info")
+                || !payload.get("info").isJsonObject()) {
+            return null;
+        }
+        JsonObject info = payload.getAsJsonObject("info");
+        JsonObject contextUsage = null;
+        if (info.has("last_token_usage") && info.get("last_token_usage").isJsonObject()) {
+            contextUsage = info.getAsJsonObject("last_token_usage");
+        } else if (info.has("total_token_usage") && info.get("total_token_usage").isJsonObject()) {
+            // Compatibility with older Codex JSONL records that predate
+            // last_token_usage. The cumulative value is only a fallback.
+            contextUsage = info.getAsJsonObject("total_token_usage");
+        }
+        if (contextUsage == null) {
+            return null;
+        }
+
+        JsonObject usage = new JsonObject();
+        usage.addProperty("input_tokens", getIntProperty(contextUsage, "input_tokens"));
+        usage.addProperty("output_tokens", getIntProperty(contextUsage, "output_tokens"));
+        usage.addProperty("cache_read_input_tokens", getIntProperty(contextUsage, "cached_input_tokens"));
+        usage.addProperty("cache_creation_input_tokens", 0);
+        int contextWindow = getIntProperty(info, "model_context_window");
+        if (contextWindow > 0) {
+            usage.addProperty("model_context_window", contextWindow);
+        }
+        return usage;
+    }
+
+    private static int getIntProperty(JsonObject object, String propertyName) {
+        if (object == null || !object.has(propertyName) || object.get(propertyName).isJsonNull()) {
+            return 0;
+        }
+        try {
+            return Math.max(0, object.get(propertyName).getAsInt());
+        } catch (RuntimeException ignored) {
+            return 0;
+        }
+    }
+
     private static boolean isInternalHistoryToolCall(JsonObject payload) {
         String payloadType = getStringProperty(payload, "type");
         String toolName = getStringProperty(payload, "name");
@@ -489,12 +538,19 @@ public class HistoryMessageInjector {
     private static final class CodexFrontendMessageAccumulator {
         private final Consumer<JsonObject> consumer;
         private JsonObject pending;
+        private JsonObject latestAssistant;
 
         private CodexFrontendMessageAccumulator(Consumer<JsonObject> consumer) {
             this.consumer = consumer;
         }
 
         private void accept(JsonObject rawMessage) {
+            JsonObject usage = extractCodexTokenCountUsage(rawMessage);
+            if (usage != null) {
+                attachUsageToLatestAssistant(usage);
+                return;
+            }
+
             JsonObject incoming = convertCodexMessageToFrontend(rawMessage);
             if (incoming == null) {
                 return;
@@ -512,6 +568,7 @@ public class HistoryMessageInjector {
 
             emitPending();
             pending = incoming;
+            rememberLatestAssistant(incoming);
         }
 
         /**
@@ -524,6 +581,27 @@ public class HistoryMessageInjector {
             }
             emitPending();
             pending = incoming;
+            rememberLatestAssistant(incoming);
+        }
+
+        private void rememberLatestAssistant(JsonObject incoming) {
+            if ("assistant".equals(getStringProperty(incoming, "type"))) {
+                latestAssistant = incoming;
+            }
+        }
+
+        private void attachUsageToLatestAssistant(JsonObject usage) {
+            if (latestAssistant == null || usage == null) {
+                return;
+            }
+            JsonObject raw;
+            if (latestAssistant.has("raw") && latestAssistant.get("raw").isJsonObject()) {
+                raw = latestAssistant.getAsJsonObject("raw");
+            } else {
+                raw = new JsonObject();
+                latestAssistant.add("raw", raw);
+            }
+            raw.add("usage", usage.deepCopy());
         }
 
         private void finish() {

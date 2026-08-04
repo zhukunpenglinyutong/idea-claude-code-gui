@@ -5,7 +5,6 @@ import com.github.claudecodegui.i18n.ClaudeCodeGuiBundle;
 import com.github.claudecodegui.model.SessionTemplate;
 import com.github.claudecodegui.settings.CodemossSettingsService;
 import com.github.claudecodegui.handler.core.HandlerContext;
-import com.github.claudecodegui.handler.SettingsHandler;
 import com.github.claudecodegui.provider.claude.ClaudeSDKBridge;
 import com.github.claudecodegui.provider.codex.CodexSDKBridge;
 import com.github.claudecodegui.skill.SlashCommandRegistry;
@@ -393,16 +392,13 @@ public class SessionLifecycleManager {
     }
 
     /**
-     * Reset token usage statistics in the frontend (used after new session creation).
+     * Clear the transient context-usage display after creating a new session.
+     * The new provider/session has not reported a real token count yet, so used/max
+     * values intentionally remain unknown instead of using a static model fallback.
      */
     private void resetTokenUsage() {
-        int maxTokens = SettingsHandler.getModelContextLimit(host.getHandlerContext().getCurrentModel());
         JsonObject usageUpdate = new JsonObject();
         usageUpdate.addProperty("percentage", 0);
-        usageUpdate.addProperty("totalTokens", 0);
-        usageUpdate.addProperty("limit", maxTokens);
-        usageUpdate.addProperty("usedTokens", 0);
-        usageUpdate.addProperty("maxTokens", maxTokens);
 
         String usageJson = new Gson().toJson(usageUpdate);
 

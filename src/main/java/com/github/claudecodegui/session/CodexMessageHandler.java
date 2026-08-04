@@ -55,6 +55,13 @@ public class CodexMessageHandler implements MessageCallback {
     private boolean streamEndedThisTurn = false;
 
     /**
+     * Latest provider-reported context snapshot for the active turn. Retained until
+     * the result arrives so an early token_count event can be attached after the
+     * assistant message is created.
+     */
+    private JsonObject pendingContextUsage = null;
+
+    /**
      * Constructor.
      *
      * @param state state
@@ -282,7 +289,15 @@ public class CodexMessageHandler implements MessageCallback {
             // Normalize to the Claude usage schema (input excludes cache) and stamp it
             // as turnUsage for the per-turn token display in the webview.
             com.google.gson.JsonObject turnUsage = buildTurnUsage(usage);
-            boolean updated = attachUsageToLastAssistant(usage, turnUsage);
+            // turn.completed usage is per-turn accounting only. It may be cumulative
+            // in some Codex SDK versions and never carries the authoritative context
+            // window, so it must not become the status-bar context snapshot.
+            JsonObject contextUsage = pendingContextUsage;
+            boolean updated = attachUsageToLastAssistant(
+                    contextUsage,
+                    turnUsage,
+                    pendingContextUsage != null
+            );
             if (updated) {
                 callbackHandler.notifyMessageUpdate(state.getMessages());
                 LOG.info("Codex usage applied from result message");
@@ -347,26 +362,38 @@ public class CodexMessageHandler implements MessageCallback {
             }
 
             com.google.gson.JsonObject info = payload.getAsJsonObject("info");
-            if (!info.has("total_token_usage") || !info.get("total_token_usage").isJsonObject()) {
+            JsonObject contextUsage = null;
+            if (info.has("last_token_usage") && info.get("last_token_usage").isJsonObject()) {
+                contextUsage = info.getAsJsonObject("last_token_usage");
+            } else if (info.has("total_token_usage") && info.get("total_token_usage").isJsonObject()) {
+                // Older Codex event formats may not expose last_token_usage. Keep the
+                // historical cumulative payload as a best-effort compatibility fallback.
+                contextUsage = info.getAsJsonObject("total_token_usage");
+            }
+            if (contextUsage == null) {
                 return;
             }
 
-            com.google.gson.JsonObject totalUsage = info.getAsJsonObject("total_token_usage");
-            int inputTokens = totalUsage.has("input_tokens") ? totalUsage.get("input_tokens").getAsInt() : 0;
-            int outputTokens = totalUsage.has("output_tokens") ? totalUsage.get("output_tokens").getAsInt() : 0;
-            int cachedInputTokens = totalUsage.has("cached_input_tokens") ? totalUsage.get("cached_input_tokens").getAsInt() : 0;
+            int inputTokens = contextUsage.has("input_tokens") ? contextUsage.get("input_tokens").getAsInt() : 0;
+            int outputTokens = contextUsage.has("output_tokens") ? contextUsage.get("output_tokens").getAsInt() : 0;
+            int cachedInputTokens = contextUsage.has("cached_input_tokens") ? contextUsage.get("cached_input_tokens").getAsInt() : 0;
 
             com.google.gson.JsonObject usage = new com.google.gson.JsonObject();
             usage.addProperty("input_tokens", inputTokens);
             usage.addProperty("output_tokens", outputTokens);
             usage.addProperty("cache_read_input_tokens", cachedInputTokens);
             usage.addProperty("cache_creation_input_tokens", 0);
+            int modelContextWindow = readInt(info, "model_context_window");
+            if (modelContextWindow > 0) {
+                usage.addProperty("model_context_window", modelContextWindow);
+            }
+            pendingContextUsage = usage.deepCopy();
 
-            // token_count carries total_token_usage (session-cumulative), which feeds the
-            // context-usage status bar via the top-level usage field. It is NOT turn-scoped,
-            // so never stamp it as turnUsage — the turn aggregate comes from the result
-            // message (turn.completed) in handleResultMessage.
-            boolean updated = attachUsageToLastAssistant(usage, null);
+            // token_count.last_token_usage is the current context snapshot. It feeds the
+            // status bar via the top-level usage field and must replace any earlier result
+            // fallback. It is NOT turn-scoped, so never stamp it as turnUsage — the turn
+            // aggregate comes from turn.completed in handleResultMessage.
+            boolean updated = attachUsageToLastAssistant(usage, null, true);
             if (updated) {
                 callbackHandler.notifyMessageUpdate(state.getMessages());
                 LOG.debug("Codex token_count applied: input=" + inputTokens + ", output=" + outputTokens + ", cached=" + cachedInputTokens);
@@ -385,15 +412,25 @@ public class CodexMessageHandler implements MessageCallback {
      *
      * @param usage usage for the status bar (top-level usage field)
      * @param turnUsage whole-turn usage in Claude schema, or null to skip
+     * @param replaceContextUsage whether usage may replace an existing context snapshot
      * @return boolean
      * @since 1.0.0
      */
-    private boolean attachUsageToLastAssistant(com.google.gson.JsonObject usage, com.google.gson.JsonObject turnUsage) {
+    private boolean attachUsageToLastAssistant(
+            com.google.gson.JsonObject usage,
+            com.google.gson.JsonObject turnUsage,
+            boolean replaceContextUsage
+    ) {
         java.util.List<Message> messages = state.getMessagesReference();
         for (int i = messages.size() - 1; i >= 0; i--) {
             Message msg = messages.get(i);
             if (msg.type == Message.Type.ASSISTANT && msg.raw != null) {
-                msg.raw.add("usage", usage);
+                // A result message is only a compatibility fallback for the context bar.
+                // It must not overwrite the more precise token_count snapshot, while a
+                // later token_count event must be allowed to replace the fallback.
+                if (usage != null && (replaceContextUsage || !msg.raw.has("usage"))) {
+                    msg.raw.add("usage", usage);
+                }
                 if (turnUsage != null) {
                     msg.raw.add("turnUsage", turnUsage);
                     Double turnCostUsd = UsageCostCalculator.calculateTurnCostUsd("codex", turnUsage, state.getModel());
@@ -832,6 +869,7 @@ public class CodexMessageHandler implements MessageCallback {
     private void handleStreamStart() {
         isStreaming = true;
         streamEndedThisTurn = false;
+        pendingContextUsage = null;
         resetStreamingAccumulator();
         callbackHandler.notifyStreamStart();
         LOG.debug("Codex stream started");

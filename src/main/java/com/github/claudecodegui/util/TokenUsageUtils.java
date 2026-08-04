@@ -42,6 +42,31 @@ public final class TokenUsageUtils {
     }
 
     /**
+     * Resolve the effective context window retained in provider usage metadata.
+     * Providers that do not report a session-specific value keep the existing
+     * static model limit as a compatibility fallback.
+     */
+    public static int extractMaxTokens(JsonObject usage, int fallbackMaxTokens) {
+        if (usage != null) {
+            String[] keys = {"model_context_window", "maxTokens", "limit"};
+            for (String key : keys) {
+                if (!usage.has(key) || usage.get(key).isJsonNull()) {
+                    continue;
+                }
+                try {
+                    int value = usage.get(key).getAsInt();
+                    if (value > 0) {
+                        return value;
+                    }
+                } catch (RuntimeException ignored) {
+                    // Ignore malformed provider metadata and retain the static fallback.
+                }
+            }
+        }
+        return Math.max(0, fallbackMaxTokens);
+    }
+
+    /**
      * Find the last usage JSON from a list of raw server messages (JsonObject).
      * Scans from end to find the last assistant message with usage data.
      */
@@ -80,5 +105,27 @@ public final class TokenUsageUtils {
             }
         }
         return null;
+    }
+
+    /**
+     * Remove provider-specific current-context snapshots from retained messages.
+     * Per-turn accounting remains intact because {@code turnUsage} and
+     * {@code turnCostUsd} are deliberately not touched.
+     *
+     * @param messages session messages retained across a provider switch
+     */
+    public static void clearContextUsageFromSessionMessages(List<ClaudeSession.Message> messages) {
+        if (messages == null) {
+            return;
+        }
+        for (ClaudeSession.Message message : messages) {
+            if (message == null || message.raw == null) {
+                continue;
+            }
+            message.raw.remove("usage");
+            if (message.raw.has("message") && message.raw.get("message").isJsonObject()) {
+                message.raw.getAsJsonObject("message").remove("usage");
+            }
+        }
     }
 }

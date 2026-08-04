@@ -216,7 +216,12 @@ public class CodexSDKBridge extends BaseSDKBridge {
                         return;
                     }
 
-                    result.messages.add(msg);
+                    // event_msg is protocol metadata (for example token_count), not a
+                    // conversation message. Route it to the callback below without
+                    // inflating SDKResult.messageCount.
+                    if (!"event_msg".equals(msgType)) {
+                        result.messages.add(msg);
+                    }
 
                     if ("assistant".equals(msgType)) {
                         try {

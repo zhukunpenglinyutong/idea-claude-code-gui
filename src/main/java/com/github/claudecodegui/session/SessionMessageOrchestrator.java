@@ -51,7 +51,12 @@ public class SessionMessageOrchestrator {
                 messageParser,
                 callbackFacade,
                 historyAccess,
-                (usedTokens, maxTokens) -> ClaudeNotifier.setTokenUsage(project, usedTokens, maxTokens),
+                (usedTokens, maxTokens) -> {
+                    if (project != null) {
+                        ClaudeNotifier.setTokenUsage(project, usedTokens, maxTokens);
+                    }
+                    callbackFacade.notifyUsageUpdate(usedTokens, maxTokens);
+                },
                 100,
                 50
         );
@@ -161,7 +166,7 @@ public class SessionMessageOrchestrator {
                     }
                 }
 
-                restoreTokenUsage(serverMessages);
+                restoreTokenUsage();
                 callbackFacade.notifyMessageUpdate(state.getMessages());
             } catch (Exception e) {
                 state.setError(e.getMessage());
@@ -281,15 +286,16 @@ public class SessionMessageOrchestrator {
         return null;
     }
 
-    private void restoreTokenUsage(List<JsonObject> serverMessages) {
+    private void restoreTokenUsage() {
         try {
-            JsonObject lastUsage = TokenUsageUtils.findLastUsageFromRawMessages(serverMessages);
+            JsonObject lastUsage = TokenUsageUtils.findLastUsageFromSessionMessages(state.getMessages());
             if (lastUsage == null) {
                 return;
             }
 
             int usedTokens = TokenUsageUtils.extractUsedTokens(lastUsage, state.getProvider());
-            int maxTokens = SettingsHandler.getModelContextLimit(state.getModel());
+            int fallbackMaxTokens = SettingsHandler.getModelContextLimit(state.getModel());
+            int maxTokens = TokenUsageUtils.extractMaxTokens(lastUsage, fallbackMaxTokens);
             usageDisplay.show(usedTokens, maxTokens);
             LOG.debug("Restored token usage from history: " + usedTokens + " / " + maxTokens);
         } catch (Exception e) {

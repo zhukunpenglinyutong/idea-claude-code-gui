@@ -1048,6 +1048,9 @@ interface Window {
   /** Buffers applyBackendTabState when Java responds before React callbacks mount. */
   __pendingBackendTabState?: string;
 
+  /** Buffers the latest usage update when Java responds before React callbacks mount. */
+  __pendingUsageUpdate?: string;
+
   // ============================================================================
   // Provider settings panel callbacks (registered by ProviderList)
   // ============================================================================

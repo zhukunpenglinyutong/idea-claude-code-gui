@@ -14,6 +14,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * Unit tests for loading provider history and restoring session-side derived state.
+ */
 public class SessionMessageOrchestratorTest {
 
     @Test
@@ -123,6 +126,115 @@ public class SessionMessageOrchestratorTest {
         assertEquals("The stack trace points to SessionSendService.", state.getMessages().get(1).content);
         assertEquals(1, callback.messageUpdates.size());
         assertTrue(callback.stateChanges.contains("false:false:null"));
+    }
+
+    /**
+     * Verifies that history recovery prefers the context window retained in provider
+     * usage metadata and forwards the restored usage through the session callback.
+     */
+    @Test
+    public void loadFromServerRestoresProviderReportedContextWindow() {
+        SessionState state = new SessionState();
+        state.setProvider("codex");
+        state.setModel("gpt-5.6-sol");
+        state.setSessionId("session-codex-usage");
+        state.setCwd("/workspace");
+
+        RecordingCallback callback = new RecordingCallback();
+        SessionCallbackFacade callbackFacade = new SessionCallbackFacade(null);
+        callbackFacade.setCallback(callback);
+
+        RecordingHistoryAccess historyAccess = new RecordingHistoryAccess();
+        JsonObject assistant = createProviderMessage("assistant", "Recovered answer");
+        JsonObject usage = new JsonObject();
+        usage.addProperty("input_tokens", 12000);
+        usage.addProperty("output_tokens", 345);
+        usage.addProperty("model_context_window", 258400);
+        assistant.getAsJsonObject("message").add("usage", usage);
+        historyAccess.providerHistory = List.of(assistant);
+
+        SessionMessageOrchestrator orchestrator = new SessionMessageOrchestrator(
+                null,
+                state,
+                new MessageParser(),
+                callbackFacade,
+                historyAccess
+        );
+
+        orchestrator.loadFromServer().join();
+
+        assertEquals(List.of("12345:258400"), callback.usageUpdates);
+    }
+
+    /**
+     * Verifies that providers without a session-specific context window retain the
+     * existing static model-limit behavior instead of dropping the usage update.
+     */
+    @Test
+    public void loadFromServerFallsBackToStaticModelContextWindow() {
+        SessionState state = new SessionState();
+        state.setProvider("claude");
+        state.setModel("claude-sonnet-4-6");
+        state.setSessionId("session-claude-usage");
+        state.setCwd("/workspace");
+
+        RecordingCallback callback = new RecordingCallback();
+        SessionCallbackFacade callbackFacade = new SessionCallbackFacade(null);
+        callbackFacade.setCallback(callback);
+
+        RecordingHistoryAccess historyAccess = new RecordingHistoryAccess();
+        JsonObject assistant = createProviderMessage("assistant", "Recovered answer");
+        JsonObject usage = new JsonObject();
+        usage.addProperty("input_tokens", 12000);
+        usage.addProperty("output_tokens", 345);
+        assistant.getAsJsonObject("message").add("usage", usage);
+        historyAccess.providerHistory = List.of(assistant);
+
+        SessionMessageOrchestrator orchestrator = new SessionMessageOrchestrator(
+                null,
+                state,
+                new MessageParser(),
+                callbackFacade,
+                historyAccess
+        );
+
+        orchestrator.loadFromServer().join();
+
+        assertEquals(List.of("12345:200000"), callback.usageUpdates);
+    }
+
+    /**
+     * Verifies that loading history without usage metadata does not publish a
+     * synthetic zero value before a provider snapshot becomes available.
+     */
+    @Test
+    public void loadFromServerDoesNotPublishSyntheticUsageWithoutProviderSnapshot() {
+        SessionState state = new SessionState();
+        state.setProvider("codex");
+        state.setModel("gpt-5.6-sol");
+        state.setSessionId("session-without-usage");
+        state.setCwd("/workspace");
+
+        RecordingCallback callback = new RecordingCallback();
+        SessionCallbackFacade callbackFacade = new SessionCallbackFacade(null);
+        callbackFacade.setCallback(callback);
+
+        RecordingHistoryAccess historyAccess = new RecordingHistoryAccess();
+        historyAccess.providerHistory = List.of(
+                createProviderMessage("assistant", "Recovered answer without usage")
+        );
+
+        SessionMessageOrchestrator orchestrator = new SessionMessageOrchestrator(
+                null,
+                state,
+                new MessageParser(),
+                callbackFacade,
+                historyAccess
+        );
+
+        orchestrator.loadFromServer().join();
+
+        assertTrue(callback.usageUpdates.isEmpty());
     }
 
     @Test
@@ -367,6 +479,7 @@ public class SessionMessageOrchestratorTest {
         private final List<List<ClaudeSession.Message>> messageUpdates = new ArrayList<>();
         private final List<String> stateChanges = new ArrayList<>();
         private final List<String> messageUuidPatches = new ArrayList<>();
+        private final List<String> usageUpdates = new ArrayList<>();
 
         @Override
         public void onMessageUpdate(List<ClaudeSession.Message> messages) {
@@ -376,6 +489,11 @@ public class SessionMessageOrchestratorTest {
         @Override
         public void onStateChange(boolean busy, boolean loading, String error) {
             stateChanges.add(busy + ":" + loading + ":" + error);
+        }
+
+        @Override
+        public void onUsageUpdate(int usedTokens, int maxTokens) {
+            usageUpdates.add(usedTokens + ":" + maxTokens);
         }
 
         @Override

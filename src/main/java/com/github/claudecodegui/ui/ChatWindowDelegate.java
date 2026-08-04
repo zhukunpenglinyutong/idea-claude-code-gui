@@ -557,8 +557,9 @@ public class ChatWindowDelegate {
 
     /**
      * Restores derived UI state that boot-time set_provider/set_model used to refresh.
-     * Recovery deliberately suppresses those mutating commands, so usage limits and
-     * editor context must be refreshed through their side-effect-free service methods.
+     * Recovery deliberately suppresses those mutating commands. Usage is only pushed
+     * when the session already has a provider snapshot; an empty pre-history session
+     * must not publish a synthetic zero with a static context limit.
      */
     private void refreshFrontendDerivedState() {
         ClaudeSession session = host.getSession();
@@ -568,7 +569,7 @@ public class ChatWindowDelegate {
         }
 
         UsagePushService usagePushService = new UsagePushService(context);
-        usagePushService.pushUsageUpdateAfterModelChange(
+        usagePushService.pushCurrentUsageIfAvailable(
                 resolveModelContextLimitForRecovery(session.getModel(), context.getSettingsService())
         );
         usagePushService.refreshContextBar();
