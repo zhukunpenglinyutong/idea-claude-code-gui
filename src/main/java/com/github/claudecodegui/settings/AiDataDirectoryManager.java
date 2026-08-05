@@ -645,7 +645,7 @@ public final class AiDataDirectoryManager {
         if (!isDirectDirectoryLink(path)) {
             throw new AiDataDirectoryException("PATH_IS_NOT_LINK");
         }
-        Files.delete(path);
+        Files.deleteIfExists(path);
     }
 
     private Map<Path, Path> copyDirectory(Path source, Path target) throws IOException {
@@ -865,7 +865,11 @@ public final class AiDataDirectoryManager {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
                 if (!file.equals(storageMarker)) {
-                    pathDeleter.delete(file);
+                    if (attributes.isSymbolicLink()) {
+                        Files.deleteIfExists(file);
+                    } else {
+                        pathDeleter.delete(file);
+                    }
                 }
                 return FileVisitResult.CONTINUE;
             }
