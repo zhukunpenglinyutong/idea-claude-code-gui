@@ -1,5 +1,6 @@
 package com.github.claudecodegui.provider.claude;
 
+import com.github.claudecodegui.bridge.AiDataProcessGate;
 import com.github.claudecodegui.session.ClaudeSession;
 import com.github.claudecodegui.provider.common.DaemonBridge;
 import com.github.claudecodegui.provider.common.MessageCallback;
@@ -60,8 +61,10 @@ class ClaudeDaemonRequestExecutor {
             AtomicReference<String> lastNodeError = new AtomicReference<>(null);
             AtomicBoolean wasAborted = new AtomicBoolean(false);
             long startTime = System.currentTimeMillis();
+            AiDataProcessGate.ProcessPermit processPermit = null;
 
             try {
+                processPermit = AiDataProcessGate.getInstance().acquireProcessPermit();
                 JsonObject params = requestParamsBuilder.buildSendParams(
                         message,
                         sessionId,
@@ -195,6 +198,9 @@ class ClaudeDaemonRequestExecutor {
 
                 return result;
             } catch (Exception e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
                 long elapsed = System.currentTimeMillis() - startTime;
                 if (wasAborted.get()) {
                     // Abort arrived but future was already completed exceptionally by the
@@ -210,6 +216,10 @@ class ClaudeDaemonRequestExecutor {
                     callback.onError(result.error);
                 }
                 return result;
+            } finally {
+                if (processPermit != null) {
+                    processPermit.close();
+                }
             }
         }).exceptionally(ex -> {
             SDKResult errorResult = new SDKResult();

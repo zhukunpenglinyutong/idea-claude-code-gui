@@ -73,8 +73,7 @@ final class PromptEnhancerProcessRunner {
         Process process = null;
         CompletableFuture<Void> readerFuture = null;
         try {
-            process = pb.start();
-            processManager.registerProcess(channelId, process);
+            process = processManager.startManagedProcess(channelId, pb);
             LOG.info("[PromptEnhancer] Process started, PID: " + process.pid()
                     + ", channelId: " + channelId);
 

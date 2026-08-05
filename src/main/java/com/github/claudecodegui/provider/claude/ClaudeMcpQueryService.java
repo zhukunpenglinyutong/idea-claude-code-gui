@@ -209,8 +209,7 @@ class ClaudeMcpQueryService {
             envConfigurator.updateProcessEnvironment(pb, node);
             pb.environment().put("CLAUDE_USE_STDIN", "true");
 
-            process = pb.start();
-            processManager.registerProcess(channelId, process);
+            process = processManager.startManagedProcess(channelId, pb);
             final Process finalProcess = process;
 
             ClaudeBridgeUtils.writeStdin(gson.toJson(stdinInput), process, log, logPrefix);

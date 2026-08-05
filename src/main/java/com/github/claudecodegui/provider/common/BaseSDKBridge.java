@@ -292,8 +292,7 @@ public abstract class BaseSDKBridge {
 
                 Process process = null;
                 try {
-                    process = pb.start();
-                    processManager.registerProcess(channelId, process);
+                    process = processManager.startManagedProcess(channelId, pb);
 
                     // Write to stdin
                     try (java.io.OutputStream stdin = process.getOutputStream()) {

@@ -539,8 +539,7 @@ public class CodexSDKBridge extends BaseSDKBridge {
 
                 Process process = null;
                 try {
-                    process = pb.start();
-                    processManager.registerProcess(channelId, process);
+                    process = processManager.startManagedProcess(channelId, pb);
 
                     // Write to stdin
                     try (java.io.OutputStream stdin = process.getOutputStream()) {
@@ -677,8 +676,7 @@ public class CodexSDKBridge extends BaseSDKBridge {
                 // Inject custom "mcp" env vars from active provider
                 injectCustomEnvVars(pb.environment(), "mcp");
 
-                process = pb.start();
-                processManager.registerProcess(channelId, process);
+                process = processManager.startManagedProcess(channelId, pb);
                 final Process finalProcess = process;
 
                 try (java.io.OutputStream stdin = process.getOutputStream()) {

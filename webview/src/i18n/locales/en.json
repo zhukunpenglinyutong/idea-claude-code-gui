@@ -40,7 +40,8 @@
     "gotIt": "Got it",
     "seconds": "s",
     "minutes": "m",
-    "optional": "Optional"
+    "optional": "Optional",
+    "refresh": "Refresh"
   },
   "chat": {
     "sendMessage": "Send message to {{provider}}",
@@ -367,6 +368,42 @@
       "uninstallSuccess": "Pet uninstalled",
       "aliasSuccess": "Pet alias updated",
       "operationFailed": "Pet operation failed: {{error}}"
+    },
+    "storage": {
+      "title": "AI Data Storage",
+      "description": "Move Claude Code, Codemoss, and Codex data to another disk while keeping ~/.claude, ~/.codemoss, and ~/.codex as stable access paths.",
+      "canonicalPath": "Access path",
+      "physicalPath": "Physical path",
+      "targetRoot": "Storage root",
+      "targetPlaceholder": "Choose a directory on the target disk",
+      "chooseRoot": "Choose storage root",
+      "statusTitle": "Directory status",
+      "statusSummary": "{{linked}} / {{total}} relocated",
+      "states": {
+        "missing": "Not created",
+        "local": "Stored in user home",
+        "linked": "Relocated",
+        "unavailable": "Unavailable"
+      },
+      "migrationHint": "Stop active Claude Code and Codex tasks before migrating. Data is copied and verified first, then the original directories are retained as backups. Restart the IDE after a successful migration.",
+      "currentRoot": "Current storage location",
+      "migrate": "Move data",
+      "migrating": "Moving and verifying...",
+      "alreadyMigrated": "Already stored here",
+      "migrateConfirmTitle": "Confirm AI data migration",
+      "migrateConfirm": "The three AI data directories will be copied and verified before their stable access paths are switched.",
+      "confirmMigration": "Start migration",
+      "migrationWarning": "Stop all Claude Code, Codemoss, and Codex tasks before continuing.",
+      "migrateSuccess": "AI data moved successfully. Restart the IDE before continuing work.",
+      "cleanupBackups": "Delete backups ({{count}})",
+      "cleaning": "Deleting backups...",
+      "cleanupConfirmTitle": "Delete migration backups",
+      "cleanupConfirm": "Permanently delete the verified pre-migration backups? This cannot be undone.",
+      "deleteBackups": "Delete backups",
+      "cleanupSuccess": "Migration backups deleted",
+      "operationFailed": "AI data storage operation failed: {{error}}",
+      "recovered": "An interrupted AI data migration was rolled back safely.",
+      "wslUnsupported": "WSL uses a separate Linux filesystem namespace and cannot reuse Windows junctions. Configure the directories inside WSL separately."
     },
     "basic": {
       "title": "Basic Configuration",

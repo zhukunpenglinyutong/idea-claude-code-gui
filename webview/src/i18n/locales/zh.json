@@ -40,7 +40,8 @@
     "gotIt": "知道了",
     "seconds": "秒",
     "minutes": "分",
-    "optional": "可选"
+    "optional": "可选",
+    "refresh": "刷新"
   },
   "chat": {
     "sendMessage": "给 {{provider}} 发送消息",
@@ -367,6 +368,42 @@
       "uninstallSuccess": "宠物已卸载",
       "aliasSuccess": "宠物别名已更新",
       "operationFailed": "宠物操作失败：{{error}}"
+    },
+    "storage": {
+      "title": "AI 数据存储",
+      "description": "将 Claude Code、Codemoss 和 Codex 数据迁移到其他磁盘，同时保留 ~/.claude、~/.codemoss、~/.codex 作为稳定访问路径。",
+      "canonicalPath": "访问路径",
+      "physicalPath": "物理路径",
+      "targetRoot": "存储根目录",
+      "targetPlaceholder": "选择目标磁盘上的目录",
+      "chooseRoot": "选择存储根目录",
+      "statusTitle": "目录状态",
+      "statusSummary": "{{linked}} / {{total}} 已迁移",
+      "states": {
+        "missing": "尚未创建",
+        "local": "存储在用户目录",
+        "linked": "已迁移",
+        "unavailable": "不可用"
+      },
+      "migrationHint": "迁移前请停止正在运行的 Claude Code 和 Codex 任务。系统会先复制并校验数据，再保留原目录作为备份；迁移成功后请重启 IDE。",
+      "currentRoot": "当前存储位置",
+      "migrate": "迁移数据",
+      "migrating": "正在迁移并校验...",
+      "alreadyMigrated": "已迁移至此目录",
+      "migrateConfirmTitle": "确认迁移 AI 数据",
+      "migrateConfirm": "系统将复制并校验三个 AI 数据目录，然后切换稳定访问路径。",
+      "confirmMigration": "开始迁移",
+      "migrationWarning": "开始前请确保 Claude Code、Codemoss 和 Codex 任务均已停止。",
+      "migrateSuccess": "AI 数据迁移成功，请重启 IDE 后再继续工作。",
+      "cleanupBackups": "删除备份（{{count}}）",
+      "cleaning": "正在删除备份...",
+      "cleanupConfirmTitle": "删除迁移备份",
+      "cleanupConfirm": "确定永久删除迁移前已校验的备份吗？此操作不可撤销。",
+      "deleteBackups": "删除备份",
+      "cleanupSuccess": "迁移备份已删除",
+      "operationFailed": "AI 数据存储操作失败：{{error}}",
+      "recovered": "检测到中断的 AI 数据迁移，已安全回滚。",
+      "wslUnsupported": "WSL 使用独立的 Linux 文件系统命名空间，不能复用 Windows junction，请在 WSL 内单独配置。"
     },
     "basic": {
       "title": "基础配置",

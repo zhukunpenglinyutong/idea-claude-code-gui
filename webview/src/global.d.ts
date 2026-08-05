@@ -243,6 +243,9 @@ interface Window {
   updateHatchPetStatus?: (json: string) => void;
   updateHatchPetReference?: (json: string) => void;
   onHatchPetCommandPrepared?: (json: string) => void;
+  updateAiDataDirectoryStatus?: (json: string) => void;
+  onAiDataDirectoryRootSelected?: (json: string) => void;
+  onAiDataDirectoryOperation?: (json: string) => void;
 
   /**
    * Show PlanApproval dialog

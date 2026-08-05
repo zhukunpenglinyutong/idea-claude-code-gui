@@ -138,9 +138,8 @@ class ClaudeProcessInvoker {
 
                 Process process = null;
                 try {
-                    process = pb.start();
+                    process = processManager.startManagedProcess(channelId, pb);
                     log.info("[ProcessInvoker] Node.js process started, PID: " + process.pid());
-                    processManager.registerProcess(channelId, process);
 
                     captureEarlyExitIfNeeded(process, lastNodeError);
                     ClaudeBridgeUtils.writeStdin(stdinJson, process);

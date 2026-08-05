@@ -109,8 +109,7 @@ class ClaudeRewindService {
                 boolean finished = false;
                 int exitCode = -1;
                 try {
-                    process = pb.start();
-                    processManager.registerProcess(channelId, process);
+                    process = processManager.startManagedProcess(channelId, pb);
                     log.info("[Rewind] Process started, PID: " + process.pid());
 
                     ClaudeBridgeUtils.writeStdin(stdinJson, process);
