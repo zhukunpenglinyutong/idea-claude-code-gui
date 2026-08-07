@@ -74,8 +74,9 @@ const SettingsView = ({
   const { t } = useTranslation();
   const isCodexMode = currentProvider === 'codex';
   // Codex mode: align with Claude capabilities for settings tabs.
+  // The Codex pet entry is temporarily disabled (grayed out, not clickable).
   const disabledTabs = useMemo<SettingsTab[]>(
-    () => [],
+    () => ['pet'],
     []
   );
 
