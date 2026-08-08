@@ -55,6 +55,34 @@ jobs:
           if-no-files-found: error
           archive: false
 
+  snapshot:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.build.outputs.artifact-name }}
+          path: dist
+          skip-decompress: true
+
+      - name: Publish latest main snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete snapshot --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+          gh release create snapshot "dist/${{ needs.build.outputs.artifact-name }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Latest main snapshot" \
+            --notes "Automated snapshot build from main commit $GITHUB_SHA." \
+            --prerelease
+
   release:
     needs: build
     runs-on: ubuntu-latest
