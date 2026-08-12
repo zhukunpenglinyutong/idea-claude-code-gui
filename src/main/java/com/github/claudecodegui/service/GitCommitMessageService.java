@@ -112,11 +112,32 @@ public class GitCommitMessageService {
      * True when the current thread is the EDT and a real Application is available
      * so we can re-dispatch. Headless/unit-test environments without an
      * Application keep the synchronous path for deterministic assertions.
+     *
+     * <p>Both {@link Application#isDispatchThread()} and
+     * {@link java.awt.EventQueue#isDispatchThread()} are checked. The AWT
+     * fallback catches edge cases where an action's {@code actionPerformed}
+     * runs on the EDT via {@code WriteIntentReadAction} or {@code InvokeLater}
+     * but the IntelliJ Application reports the thread as non-dispatch (observed
+     * on some 2026.2 builds). Without this, {@code CommitDiffProvider} would
+     * call {@code GitRepositoryManager.getRepositoryForFile} synchronously on
+     * the EDT, triggering the "Do not call synchronous repository update in EDT"
+     * assertion.
      */
     private static boolean shouldOffloadToBackground() {
         try {
             Application app = ApplicationManager.getApplication();
-            return app != null && app.isDispatchThread();
+            if (app == null) {
+                return false;
+            }
+            // Primary: IntelliJ's own EDT detection.
+            if (app.isDispatchThread()) {
+                return true;
+            }
+            // Fallback: AWT EventQueue detection. This covers the edge case
+            // where the IntelliJ Application does not recognise the thread as
+            // its dispatch thread but AWT does (the action pipeline still runs
+            // on the AWT EDT).
+            return java.awt.EventQueue.isDispatchThread();
         } catch (Throwable t) {
             return false;
         }
