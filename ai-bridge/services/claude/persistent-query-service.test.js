@@ -217,7 +217,8 @@ test('turnSink creation happens after beginRuntimeTurn', () => {
   // This test verifies the order documented in the fix
   // Actual executeTurn flow:
   // 1. beginRuntimeTurn(runtime)
-  // 2. runtime.turnSink = createTurnSink()
+  // 2. await waitForReaderQuiescent(runtime)
+  // 3. runtime.turnSink = createTurnSink()
   // This ensures executeTurn is ready to consume before perpetual reader can push
 
   const runtime = {
@@ -327,8 +328,9 @@ test('executeTurn resets abortRequested at the start of a new turn', async () =>
     query: { close() {} },
   };
 
-  // Start the turn; executeTurn blocks on turnSink.take() until the sink is
-  // failed (as abortCurrentTurn does to unblock a live turn).
+  // Start the turn; executeTurn waits for reader quiescence before creating
+  // turnSink, then blocks on turnSink.take() until the sink is failed (as
+  // abortCurrentTurn does to unblock a live turn).
   const failSink = __testing.executeTurn(runtime, {
     requestedSessionId: null,
     runtimeSessionEpoch: null,
@@ -338,7 +340,10 @@ test('executeTurn resets abortRequested at the start of a new turn', async () =>
     userMessage: { type: 'user', message: { role: 'user', content: 'hi' } },
   });
 
-  // Simulate the CLI closing the stream out from under the turn.
+  // Wait for the quiescence gate to create the sink before simulating the CLI
+  // closing the stream out from under the turn.
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.ok(runtime.turnSink);
   runtime.turnSink.fail(new Error('stream ended'));
   runtime.closed = true;
 
