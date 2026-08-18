@@ -101,9 +101,13 @@ public class UsagePushService {
 
     /**
      * Send usage update to the frontend.
+     *
+     * <p>Does not clamp percentage to 100: send the true value so the frontend
+     * can distinguish "exactly 100" from "100 and counting" via
+     * {@code formatUsagePercentageLabel} (which appends a "+" when overflowing).
      */
     public void sendUsageUpdate(int usedTokens, int maxTokens) {
-        int percentage = Math.min(100, maxTokens > 0 ? (int) ((usedTokens * 100.0) / maxTokens) : 0);
+        int percentage = maxTokens > 0 ? (int) ((usedTokens * 100.0) / maxTokens) : 0;
 
         LOG.info("[UsagePushService] Sending usage update: usedTokens=" + usedTokens + ", maxTokens=" + maxTokens + ", percentage=" + percentage + "%");
 

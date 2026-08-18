@@ -360,12 +360,14 @@ public class SessionCallbackAdapter implements ClaudeSession.SessionCallback {
         if (isInactive()) {
             return;
         }
+        final int safeMaxTokens = normalizeUsageValue(maxTokens);
+        final int safeUsedTokens = normalizeUsageValue(usedTokens);
         ApplicationManager.getApplication().invokeLater(() -> {
             if (isInactive()) {
                 return;
             }
-            int safeUsedTokens = normalizeUsageValue(usedTokens);
-            int safeMaxTokens = normalizeUsageValue(maxTokens);
+            // Don't clamp to 100: send the true percentage so the frontend can
+            // distinguish "exactly 100" from "100 and counting".
             double percentage = calculateUsagePercentage(safeUsedTokens, safeMaxTokens);
             String json = String.format("{\"percentage\":%.2f,\"usedTokens\":%d,\"maxTokens\":%d}",
                     percentage, safeUsedTokens, safeMaxTokens);
@@ -391,7 +393,9 @@ public class SessionCallbackAdapter implements ClaudeSession.SessionCallback {
             return 0.0;
         }
         double percentage = usedTokens * 100.0 / maxTokens;
-        return Math.max(0.0, Math.min(100.0, percentage));
+        // Don't clamp to 100: send the true percentage so the frontend can
+        // distinguish "exactly 100" from "100 and counting".
+        return Math.max(0.0, percentage);
     }
 
     @Override

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useMemo, useCallback, useId, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import './ContextUsageDialog.css';
-import { clampUsagePercentage } from '../utils/usagePercentage';
+import { clampUsagePercentage, formatUsagePercentageTooltip, isOverflowing } from '../utils/usagePercentage';
 
 export interface ContextUsageData {
   categories: Array<{
@@ -269,7 +269,6 @@ const ContextUsageDialog = memo(function ContextUsageDialog({
     isAutoCompactEnabled = false,
     autoCompactThreshold,
   } = data;
-  const safePercentage = clampUsagePercentage(percentage);
 
   return (
     <div className="context-usage-overlay" onMouseDown={handleCloseMouseDown}>
@@ -305,7 +304,7 @@ const ContextUsageDialog = memo(function ContextUsageDialog({
         <div id={descriptionId} className="context-usage-summary">
           <span className="context-usage-model">{model}</span>
           <span className="context-usage-tokens">
-            {formatTokens(totalTokens)} / {formatTokens(rawMaxTokens)} ({safePercentage}%)
+            {formatTokens(totalTokens)} / {formatTokens(rawMaxTokens)} ({formatUsagePercentageTooltip(percentage)})
           </span>
           {isAutoCompactEnabled && (
             <span className="context-usage-autocompact">
@@ -317,6 +316,13 @@ const ContextUsageDialog = memo(function ContextUsageDialog({
                 : t('contextUsage.autoCompactEnabled', {
                     defaultValue: 'Auto-compact: enabled',
                   })}
+            </span>
+          )}
+          {isOverflowing(percentage) && (
+            <span className="context-usage-overflow-warning">
+              ⚠ {t('contextUsage.overflowWarning', {
+                defaultValue: 'Context exceeded: consider running /compact',
+              })}
             </span>
           )}
         </div>

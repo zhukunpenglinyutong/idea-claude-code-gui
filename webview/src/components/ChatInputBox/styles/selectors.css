@@ -403,6 +403,16 @@
   transition: stroke-dashoffset 0.3s;
 }
 
+/* Over-limit: usage exceeds model context window. Turns the ring and label red. */
+.token-indicator-fill.overflowing {
+  stroke: var(--vscode-errorForeground, #ef4444);
+}
+
+.token-percentage-label.overflowing {
+  color: var(--vscode-errorForeground, #ef4444);
+  font-weight: 600;
+}
+
 /* Usage hover tooltip bubble */
 .token-tooltip {
   position: absolute;

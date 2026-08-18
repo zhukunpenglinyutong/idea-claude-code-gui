@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import type { TokenIndicatorProps } from './types';
-import { clampUsagePercentage } from '../../utils/usagePercentage';
+import { clampUsagePercentage, formatUsagePercentageLabel, formatUsagePercentageTooltip } from '../../utils/usagePercentage';
 
 /**
  * TokenIndicator - Usage ring progress bar component
@@ -24,10 +24,10 @@ export const TokenIndicator = ({
   // Calculate offset (fill clockwise from top)
   const strokeOffset = circumference * (1 - safePercentage / 100);
 
-  // Indicator label: integer percentage (no decimal)
-  const labelPercentage = `${Math.round(safePercentage)}%`;
-  // Tooltip: one decimal place for precision
-  const tooltipPercentage = `${(Math.round(safePercentage * 10) / 10).toFixed(1)}%`;
+  // Indicator label: integer percentage (no decimal). Adds "+" when overflowing the model window.
+  const labelPercentage = formatUsagePercentageLabel(percentage);
+  // Tooltip: one decimal place for precision. Adds "+" when overflowing the model window.
+  const tooltipPercentage = formatUsagePercentageTooltip(percentage);
 
   const formatTokens = (value?: number) => {
     if (typeof value !== 'number' || !isFinite(value)) return undefined;
@@ -65,7 +65,7 @@ export const TokenIndicator = ({
           />
           {/* Progress arc */}
           <circle
-            className="token-indicator-fill"
+            className={`token-indicator-fill ${percentage > 100 ? 'overflowing' : ''}`}
             cx={center}
             cy={center}
             r={radius}
@@ -78,7 +78,11 @@ export const TokenIndicator = ({
           {tooltip}
         </div>
       </div>
-      <span className="token-percentage-label">{labelPercentage}</span>
+      <span
+        className={`token-percentage-label ${percentage > 100 ? 'overflowing' : ''}`}
+      >
+        {labelPercentage}
+      </span>
     </div>
   );
 };

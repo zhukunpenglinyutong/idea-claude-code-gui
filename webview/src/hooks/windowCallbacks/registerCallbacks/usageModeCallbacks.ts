@@ -66,7 +66,9 @@ export function registerUsageModeCallbacks(options: UseWindowCallbacksOptions): 
           );
         }
 
-        const safePercentage = Math.max(0, Math.min(100, data.percentage));
+        // Don't clamp percentage to 100: send the true value so TokenIndicator
+        // can distinguish "exactly 100" from "100 and counting".
+        const safePercentage = Math.max(0, data.percentage);
         setUsagePercentage(safePercentage);
         setUsageUsedTokens(used);
         setUsageMaxTokens(max);

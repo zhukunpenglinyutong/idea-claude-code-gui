@@ -2080,6 +2080,7 @@
     "loading": "Loading context usage...",
     "autoCompactEnabled": "Auto-compact: enabled",
     "autoCompactEnabledWithThreshold": "Auto-compact: enabled ({{threshold}}%)",
+    "overflowWarning": "Context exceeded: consider running /compact",
     "notAvailable": "N/A",
     "categories": {
       "systemPrompt": "System prompt",

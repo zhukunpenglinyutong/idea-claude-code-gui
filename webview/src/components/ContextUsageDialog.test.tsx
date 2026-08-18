@@ -111,7 +111,22 @@ describe('ContextUsageDialog', () => {
       />,
     );
 
-    expect(container.querySelector('.context-usage-tokens')?.textContent).toBe('2.4k / 2.0k (100%)');
+    // ★ Changed from "100%" to "100.0%+" since the test exercises an overflowing case
+    expect(container.querySelector('.context-usage-tokens')?.textContent).toBe('2.4k / 2.0k (100.0%+)');
+  });
+
+  it('shows the overflow warning when percentage exceeds 100', () => {
+    render(
+      <ContextUsageDialog
+        isOpen
+        isLoading={false}
+        data={{ ...sampleData, totalTokens: 2400, percentage: 120 }}
+        onClose={() => {}}
+      />,
+    );
+
+    expect(screen.getByText(/上下文已超出/)).toBeTruthy();
+  });
   });
 
   it('uses a finite fallback opacity for invalid square fullness', () => {

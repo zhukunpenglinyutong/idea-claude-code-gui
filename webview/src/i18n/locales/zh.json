@@ -2085,6 +2085,7 @@
     "loading": "正在加载上下文使用情况...",
     "autoCompactEnabled": "自动压缩已启用",
     "autoCompactEnabledWithThreshold": "自动压缩已启用 ({{threshold}}%)",
+    "overflowWarning": "上下文已超出：建议执行 /compact 进行压缩",
     "notAvailable": "不可用",
     "categories": {
       "systemPrompt": "系统提示词",
