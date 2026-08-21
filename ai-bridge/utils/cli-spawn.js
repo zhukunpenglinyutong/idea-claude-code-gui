@@ -5,7 +5,7 @@
 import { spawn } from 'child_process';
 import { createInterface } from 'readline';
 import { emitSendError, endStream } from './marker-protocol.js';
-import { isWindowsCmdShim } from './cli-path.js';
+import { isWindowsCmdShim, quoteWindowsShellBin } from './cli-path.js';
 
 function killChildTree(child, label) {
   if (!child || child.killed) return;
@@ -88,14 +88,16 @@ export function runCliStreaming({
 
     let child;
     try {
-      child = spawn(bin, args, {
+      // Windows .cmd/.bat shims must be spawned via a shell, and Node does not
+      // quote `bin` in shell mode - quote paths containing spaces ourselves so
+      // cmd.exe does not split them at the first space (#1665).
+      const needsShell = isWindowsCmdShim(bin);
+      child = spawn(needsShell ? quoteWindowsShellBin(bin) : bin, args, {
         cwd,
         env,
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: process.platform !== 'win32',
-        // Windows npm `.cmd`/`.bat` shims cannot be spawned without a shell
-        // (Node >= 18.20 / 20.12, CVE-2024-27980).
-        shell: isWindowsCmdShim(bin),
+        shell: needsShell,
       });
     } catch (error) {
       hadError = true;

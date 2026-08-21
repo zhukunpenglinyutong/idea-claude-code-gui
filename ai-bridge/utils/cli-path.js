@@ -34,6 +34,32 @@ export function isWindowsCmdShim(bin) {
 }
 
 /**
+ * Quote a binary path for shell spawning on Windows (#1665).
+ *
+ * Node's `spawn(bin, args, { shell: true })` concatenates `bin` and `args`
+ * into a single `cmd.exe /d /s /c "<bin> <args...>"` command line WITHOUT
+ * quoting `bin`. When the resolved CLI path contains spaces (e.g.
+ * `D:\Program Files\nodejs\opencode.cmd`), cmd.exe splits it at the first
+ * space and the spawn fails with garbled "not recognized as an internal or
+ * external command" errors.
+ *
+ * Wrapping the whole command in quotes makes cmd.exe (with `/s` semantics)
+ * strip only the outer quotes and pass `bin` through as one token.
+ *
+ * @param {string} bin - resolved binary path or bare name
+ * @returns {string} quoted bin, or the input unchanged when no quoting needed
+ */
+export function quoteWindowsShellBin(bin) {
+  const value = String(bin || '');
+  if (!value) return value;
+  // Only quote when it contains a space; quoting a bare name would break cmd lookup.
+  if (!/\s/.test(value)) return value;
+  // Already fully quoted.
+  if (/^".*"$/s.test(value)) return value;
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+/**
  * Pick the best match from `where` output lines on Windows.
  * Prefer `.exe` / `.cmd` / `.bat` over extensionless npm bash shims.
  *

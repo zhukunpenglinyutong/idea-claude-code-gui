@@ -4,6 +4,7 @@ import {
   isWindowsCmdShim,
   selectWindowsWhereMatch,
   resolveWindowsSpawnableBin,
+  quoteWindowsShellBin,
 } from './cli-path.js';
 
 test('isWindowsCmdShim detects .cmd/.bat only on win32-style paths', () => {
@@ -104,4 +105,38 @@ test('resolveWindowsSpawnableBin handles paths with spaces', () => {
   const exists = (p) => p === `${base}.cmd`;
   const resolved = resolveWindowsSpawnableBin(base, exists, true);
   assert.equal(resolved, `${base}.cmd`);
+});
+
+// ---------- quoteWindowsShellBin (#1665) ----------
+
+test('quoteWindowsShellBin wraps spaced paths in double quotes', () => {
+  assert.equal(
+    quoteWindowsShellBin('D:\\Program Files\\nodejs\\opencode.cmd'),
+    '"D:\\Program Files\\nodejs\\opencode.cmd"',
+  );
+});
+
+test('quoteWindowsShellBin leaves space-free paths untouched', () => {
+  // Bare names must stay unquoted: quoting would break cmd's PATH lookup.
+  assert.equal(quoteWindowsShellBin('opencode.cmd'), 'opencode.cmd');
+  assert.equal(quoteWindowsShellBin('C:\\npm\\opencode.cmd'), 'C:\\npm\\opencode.cmd');
+  assert.equal(quoteWindowsShellBin('pi'), 'pi');
+});
+
+test('quoteWindowsShellBin does not double-quote already quoted values', () => {
+  const quoted = '"D:\\Program Files\\nodejs\\opencode.cmd"';
+  assert.equal(quoteWindowsShellBin(quoted), quoted);
+});
+
+test('quoteWindowsShellBin escapes embedded quotes by doubling them', () => {
+  assert.equal(
+    quoteWindowsShellBin('C:\\weird "path"\\opencode.cmd'),
+    '"C:\\weird ""path""\\opencode.cmd"',
+  );
+});
+
+test('quoteWindowsShellBin handles empty and falsy input', () => {
+  assert.equal(quoteWindowsShellBin(''), '');
+  assert.equal(quoteWindowsShellBin(null), '');
+  assert.equal(quoteWindowsShellBin(undefined), '');
 });

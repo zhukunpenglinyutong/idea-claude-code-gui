@@ -9,6 +9,7 @@ import {
   commonCliBinDirs,
   enrichPathWithBinDirs,
   isWindowsCmdShim,
+  quoteWindowsShellBin,
   resolveOpenCodeCliPath,
 } from '../../utils/cli-path.js';
 
@@ -66,13 +67,15 @@ export function listModels() {
 
   let result;
   try {
-    result = spawnSync(bin, ['models'], {
+    // Quote spaced paths for the shell spawn (see quoteWindowsShellBin, #1665).
+    const needsShell = isWindowsCmdShim(bin);
+    result = spawnSync(needsShell ? quoteWindowsShellBin(bin) : bin, ['models'], {
       encoding: 'utf8',
       env,
       timeout: 45_000,
       maxBuffer: 8 * 1024 * 1024,
       // Windows npm `.cmd` shims require a shell to spawn.
-      shell: isWindowsCmdShim(bin),
+      shell: needsShell,
     });
   } catch (error) {
     console.log(JSON.stringify({
