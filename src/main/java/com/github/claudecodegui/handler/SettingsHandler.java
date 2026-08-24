@@ -25,6 +25,7 @@ public class SettingsHandler extends BaseMessageHandler {
     private final UsagePushService usagePushService;
     private final PermissionModeHandler permissionModeHandler;
     private final ModelProviderHandler modelProviderHandler;
+    private final CodexContextWindowHandler codexContextWindowHandler;
     private final NodePathHandler nodePathHandler;
     private final ClaudeCliPathHandler claudeCliPathHandler;
     private final ProjectConfigHandler projectConfigHandler;
@@ -43,6 +44,8 @@ public class SettingsHandler extends BaseMessageHandler {
         "set_provider",
         "set_reasoning_effort",
         "set_codex_fast_mode",
+        "get_codex_context_window",
+        "set_codex_context_window",
         "set_dsh_preset",
         "get_node_path",
         "set_node_path",
@@ -120,6 +123,7 @@ public class SettingsHandler extends BaseMessageHandler {
         this.usagePushService = new UsagePushService(context);
         this.permissionModeHandler = new PermissionModeHandler(context);
         this.modelProviderHandler = new ModelProviderHandler(context, usagePushService);
+        this.codexContextWindowHandler = new CodexContextWindowHandler(context);
         this.nodePathHandler = new NodePathHandler(context);
         this.claudeCliPathHandler = new ClaudeCliPathHandler(context);
         this.projectConfigHandler = new ProjectConfigHandler(context);
@@ -149,6 +153,7 @@ public class SettingsHandler extends BaseMessageHandler {
      * Should be called when the owning ClaudeChatWindow is disposed.
      */
     public void dispose() {
+        codexContextWindowHandler.dispose();
         if (themeCallbackHandle != null) {
             ThemeConfigService.unregisterThemeChangeListener(themeCallbackHandle);
             themeCallbackHandle = null;
@@ -182,6 +187,12 @@ public class SettingsHandler extends BaseMessageHandler {
                 return true;
             case "set_codex_fast_mode":
                 modelProviderHandler.handleSetCodexFastMode(content);
+                return true;
+            case "get_codex_context_window":
+                codexContextWindowHandler.handleGet();
+                return true;
+            case "set_codex_context_window":
+                codexContextWindowHandler.handleSet(content);
                 return true;
             case "set_dsh_preset":
                 dshPresetHandler.handleSetDshPreset(content);

@@ -161,7 +161,10 @@ const App = () => {
     claudeSdkMeetsMinimum,
     currentProviderRef,
     activeProviderConfig, claudeSettingsAlwaysThinkingEnabled,
-    reasoningEffort, codexFastMode, dshPreset, streamingEnabledSetting, sendShortcut, autoOpenFileEnabled,
+    reasoningEffort, codexFastMode,
+    codexContextWindow, codexContextWindowTokens,
+    codexContextWindowLoading, codexContextWindowSaving,
+    dshPreset, streamingEnabledSetting, sendShortcut, autoOpenFileEnabled,
     longContextEnabled,
     usagePercentage, usageUsedTokens, usageMaxTokens,
     setPermissionMode, setCurrentProvider,
@@ -178,7 +181,8 @@ const App = () => {
     setUsagePercentage, setUsageUsedTokens, setUsageMaxTokens,
     syncActiveProviderModelMapping,
     handleModeSelect, handleModelSelect, handleProviderSelect,
-    handleReasoningChange, handleCodexFastModeChange, handleDshPresetChange, handleAgentSelect, handleToggleThinking,
+    handleReasoningChange, handleCodexFastModeChange, handleCodexContextWindowChange,
+    refreshCodexContextWindow, handleDshPresetChange, handleAgentSelect, handleToggleThinking,
     handleStreamingEnabledChange, handleSendShortcutChange,
     handleAutoOpenFileEnabledChange, handleLongContextChange,
   } = useModelProviderState({ addToast, t });
@@ -649,6 +653,10 @@ const App = () => {
               claudeSettingsAlwaysThinkingEnabled={claudeSettingsAlwaysThinkingEnabled}
               reasoningEffort={reasoningEffort}
               codexFastMode={codexFastMode}
+              codexContextWindow={codexContextWindow}
+              codexContextWindowTokens={codexContextWindowTokens}
+              codexContextWindowLoading={codexContextWindowLoading}
+              codexContextWindowSaving={codexContextWindowSaving}
               dshPreset={dshPreset}
               streamingEnabledSetting={streamingEnabledSetting}
               sendShortcut={sendShortcut}
@@ -662,6 +670,8 @@ const App = () => {
               onAgentSelect={handleAgentSelect}
               onReasoningChange={handleReasoningChange}
               onCodexFastModeChange={handleCodexFastModeChange}
+              onCodexContextWindowChange={handleCodexContextWindowChange}
+              onCodexContextWindowRefresh={refreshCodexContextWindow}
               onDshPresetChange={handleDshPresetChange}
               onToggleThinking={handleToggleThinking}
               onStreamingEnabledChange={handleStreamingEnabledChange}

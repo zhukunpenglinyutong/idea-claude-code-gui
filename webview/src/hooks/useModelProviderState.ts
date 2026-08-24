@@ -58,7 +58,7 @@ export function useModelProviderState({ addToast, t }: UseModelProviderStateOpti
 
   // ── Provider-specific sub-hooks ──
   const claude = useClaudeProvider();
-  const codex = useCodexProvider();
+  const codex = useCodexProvider({ currentProvider, addToast, t });
   const grok = useGrokProvider();
   const kimi = useKimiProvider();
   const openCode = useOpenCodeProvider();

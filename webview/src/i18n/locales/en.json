@@ -2341,6 +2341,28 @@
       "description": "Codex fast response mode (uses additional credits)"
     }
   },
+  "codexContextWindow": {
+    "title": "Select Codex context window",
+    "loading": "Context…",
+    "customLabel": "Custom {{value}}",
+    "saved": "Codex context updated; the next message will use it",
+    "saveFailed": "Failed to update Codex context window",
+    "saveTimeout": "Timed out while saving the Codex context setting",
+    "bridgeUnavailable": "Codex context settings are not available yet",
+    "savingBlocked": "Please wait for the Codex context setting to finish saving",
+    "default": {
+      "label": "Default 272K",
+      "description": "Remove overrides and use the official Codex default context window"
+    },
+    "500k": {
+      "label": "500K",
+      "description": "Request 500K context with automatic compaction around 450K"
+    },
+    "1m": {
+      "label": "1M",
+      "description": "Request 1M context; the actual window depends on the model and Codex runtime"
+    }
+  },
   "dshPresets": {
     "title": "Select DeepSeek Harness agent preset",
     "none": { "label": "Default", "description": "dsh default headless composition (full toolset)" },

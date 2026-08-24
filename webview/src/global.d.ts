@@ -1121,6 +1121,23 @@ interface Window {
   /** Buffers backend tab state when Java responds before React callbacks mount. */
   __pendingBackendTabState?: string;
 
+  /** Global Codex context-window config pushed by the Java backend. */
+  updateCodexContextWindowConfig?: (
+    dataOrStr:
+      | string
+      | {
+          success?: boolean;
+          preset?: string;
+          contextWindow?: number | null;
+          autoCompactTokenLimit?: number | null;
+          custom?: boolean;
+          error?: string;
+        }
+  ) => void;
+
+  /** Buffers Codex context config when Java responds before the provider hook mounts. */
+  __pendingCodexContextWindowConfig?: string;
+
   // ============================================================================
   // Provider settings panel callbacks (registered by ProviderList)
   // ============================================================================

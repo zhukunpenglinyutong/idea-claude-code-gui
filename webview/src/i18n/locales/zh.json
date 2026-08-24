@@ -2346,6 +2346,28 @@
       "description": "Codex快速响应模式（会产生额外消耗）"
     }
   },
+  "codexContextWindow": {
+    "title": "选择 Codex 上下文窗口",
+    "loading": "上下文…",
+    "customLabel": "自定义 {{value}}",
+    "saved": "Codex 上下文已更新，下一条消息生效",
+    "saveFailed": "更新 Codex 上下文失败",
+    "saveTimeout": "保存 Codex 上下文设置超时",
+    "bridgeUnavailable": "Codex 上下文设置尚不可用",
+    "savingBlocked": "请等待 Codex 上下文设置保存完成",
+    "default": {
+      "label": "默认 272K",
+      "description": "移除覆盖项，使用 Codex 官方默认上下文窗口"
+    },
+    "500k": {
+      "label": "500K",
+      "description": "请求 500K 上下文，约在 450K 时自动压缩"
+    },
+    "1m": {
+      "label": "1M",
+      "description": "请求 1M 上下文；实际窗口受模型和 Codex 运行时限制"
+    }
+  },
   "dshPresets": {
     "title": "选择 DeepSeek Harness Agent 预设",
     "none": { "label": "默认", "description": "dsh 默认 headless 组合（完整工具集）" },

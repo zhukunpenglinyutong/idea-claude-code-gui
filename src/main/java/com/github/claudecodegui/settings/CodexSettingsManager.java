@@ -43,6 +43,14 @@ public class CodexSettingsManager {
     private static final String PROVIDER_CONFIG_BASELINE_FILE_NAME = "config.toml.provider_backup";
     private static final Set<String> GLOBAL_CONFIG_KEYS = Set.of("mcp_servers", "skills");
     private static final Object CONFIG_FILE_LOCK = new Object();
+    private static final String MODEL_CONTEXT_WINDOW_KEY = "model_context_window";
+    private static final String MODEL_AUTO_COMPACT_TOKEN_LIMIT_KEY = "model_auto_compact_token_limit";
+    private static final int DEFAULT_CONTEXT_WINDOW = 272_000;
+    private static final int DEFAULT_AUTO_COMPACT_TOKEN_LIMIT = 244_800;
+    private static final int MEDIUM_CONTEXT_WINDOW = 500_000;
+    private static final int MEDIUM_AUTO_COMPACT_TOKEN_LIMIT = 450_000;
+    private static final int LARGE_CONTEXT_WINDOW = 1_000_000;
+    private static final int LARGE_AUTO_COMPACT_TOKEN_LIMIT = 900_000;
 
     // Pattern to validate TOML bare keys (letters, digits, hyphens, underscores)
     private static final Pattern TOML_KEY_PATTERN = Pattern.compile("^[a-zA-Z0-9_-]+$");
@@ -54,6 +62,11 @@ public class CodexSettingsManager {
         this.gson = gson;
         String userHome = NodeDetector.resolveHomeForFileOps();
         this.codexDir = Paths.get(userHome, ".codex");
+    }
+
+    CodexSettingsManager(Gson gson, Path codexDir) {
+        this.gson = gson;
+        this.codexDir = codexDir;
     }
 
     /**
@@ -176,6 +189,343 @@ public class CodexSettingsManager {
     boolean isConfigLockHeldByCurrentThread() {
         return Thread.holdsLock(CONFIG_FILE_LOCK);
     }
+
+    /**
+     * 读取 Codex 顶层上下文窗口配置，并映射为 CC GUI 支持的预设。
+     *
+     * <p>这里只读取第一个 TOML section 之前的顶层标量，避免把同名的 Provider
+     * 子项误判为全局配置。与预设不完全匹配的已有配置会作为 custom 返回，供前端
+     * 如实展示而不会在读取时改写用户文件。</p>
+     *
+     * @return 当前权威配置快照
+     * @throws IOException 读取配置文件失败时抛出
+     */
+    public CodexContextWindowConfig readContextWindowConfig() throws IOException {
+        synchronized (CONFIG_FILE_LOCK) {
+            return readContextWindowConfigUnlocked();
+        }
+    }
+
+    private CodexContextWindowConfig readContextWindowConfigUnlocked() throws IOException {
+        Path configPath = getConfigTomlPath();
+        if (!Files.exists(configPath)) {
+            return CodexContextWindowConfig.defaultConfig();
+        }
+
+        String content = Files.readString(configPath, StandardCharsets.UTF_8);
+        Integer contextWindow = readTopLevelInteger(content, MODEL_CONTEXT_WINDOW_KEY);
+        Integer autoCompactTokenLimit = readTopLevelInteger(content, MODEL_AUTO_COMPACT_TOKEN_LIMIT_KEY);
+
+        if (contextWindow == null && autoCompactTokenLimit == null) {
+            return CodexContextWindowConfig.defaultConfig();
+        }
+        if (Integer.valueOf(DEFAULT_CONTEXT_WINDOW).equals(contextWindow)
+                && (autoCompactTokenLimit == null
+                    || Integer.valueOf(DEFAULT_AUTO_COMPACT_TOKEN_LIMIT).equals(autoCompactTokenLimit))) {
+            return CodexContextWindowConfig.defaultConfig();
+        }
+        if (Integer.valueOf(MEDIUM_CONTEXT_WINDOW).equals(contextWindow)
+                && (autoCompactTokenLimit == null
+                    || Integer.valueOf(MEDIUM_AUTO_COMPACT_TOKEN_LIMIT).equals(autoCompactTokenLimit))) {
+            return new CodexContextWindowConfig(
+                    CodexContextWindowConfig.PRESET_500K,
+                    MEDIUM_CONTEXT_WINDOW,
+                    autoCompactTokenLimit != null ? autoCompactTokenLimit : MEDIUM_AUTO_COMPACT_TOKEN_LIMIT,
+                    false
+            );
+        }
+        if (Integer.valueOf(LARGE_CONTEXT_WINDOW).equals(contextWindow)
+                && (autoCompactTokenLimit == null
+                    || Integer.valueOf(LARGE_AUTO_COMPACT_TOKEN_LIMIT).equals(autoCompactTokenLimit))) {
+            return new CodexContextWindowConfig(
+                    CodexContextWindowConfig.PRESET_1M,
+                    LARGE_CONTEXT_WINDOW,
+                    autoCompactTokenLimit != null ? autoCompactTokenLimit : LARGE_AUTO_COMPACT_TOKEN_LIMIT,
+                    false
+            );
+        }
+
+        return new CodexContextWindowConfig(
+                CodexContextWindowConfig.PRESET_CUSTOM,
+                contextWindow,
+                autoCompactTokenLimit,
+                true
+        );
+    }
+
+    /**
+     * 原子更新 Codex 顶层上下文窗口配置，保留其余 TOML 文本、注释和 section。
+     *
+     * <p>default 会移除两个覆盖项；500k 和 1m 会写入窗口值以及 90% 自动压缩线。
+     * 此方法不会修改 model、Provider 或压缩 scope。</p>
+     *
+     * @param preset default、500k 或 1m
+     * @return 写入后重新读取的权威配置
+     * @throws IOException 读取或写入失败时抛出
+     * @throws IllegalArgumentException 预设非法时抛出
+     */
+    public CodexContextWindowConfig updateContextWindowPreset(String preset) throws IOException {
+        synchronized (CONFIG_FILE_LOCK) {
+            return updateContextWindowPresetUnlocked(preset);
+        }
+    }
+
+    private CodexContextWindowConfig updateContextWindowPresetUnlocked(String preset) throws IOException {
+        int contextWindow;
+        int autoCompactTokenLimit;
+        boolean restoreDefault;
+        switch (preset) {
+            case CodexContextWindowConfig.PRESET_DEFAULT:
+                contextWindow = DEFAULT_CONTEXT_WINDOW;
+                autoCompactTokenLimit = DEFAULT_AUTO_COMPACT_TOKEN_LIMIT;
+                restoreDefault = true;
+                break;
+            case CodexContextWindowConfig.PRESET_500K:
+                contextWindow = MEDIUM_CONTEXT_WINDOW;
+                autoCompactTokenLimit = MEDIUM_AUTO_COMPACT_TOKEN_LIMIT;
+                restoreDefault = false;
+                break;
+            case CodexContextWindowConfig.PRESET_1M:
+                contextWindow = LARGE_CONTEXT_WINDOW;
+                autoCompactTokenLimit = LARGE_AUTO_COMPACT_TOKEN_LIMIT;
+                restoreDefault = false;
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported Codex context window preset: " + preset);
+        }
+
+        Path configPath = getConfigTomlPath();
+        if (restoreDefault && !Files.exists(configPath)) {
+            return CodexContextWindowConfig.defaultConfig();
+        }
+
+        String original = Files.exists(configPath)
+                ? Files.readString(configPath, StandardCharsets.UTF_8)
+                : "";
+        String patched = patchTopLevelContextWindow(
+                original,
+                restoreDefault ? null : contextWindow,
+                restoreDefault ? null : autoCompactTokenLimit
+        );
+
+        if (!patched.equals(original)) {
+            writeStringAtomically(configPath, patched);
+            LOG.info("[CodexSettingsManager] Updated Codex context window preset to: " + preset);
+        }
+        return readContextWindowConfigUnlocked();
+    }
+
+    private Integer readTopLevelInteger(String content, String key) {
+        String normalized = stripBom(content);
+        String[] lines = normalized.split("\\r?\\n", -1);
+        Pattern assignmentPattern = Pattern.compile(
+                "^\\s*" + exactTomlKeyPattern(key)
+                        + "\\s*=\\s*([0-9][0-9_]*)\\s*(?:#.*)?$"
+        );
+        for (String line : lines) {
+            if (isTomlSectionHeader(line)) {
+                break;
+            }
+            java.util.regex.Matcher matcher = assignmentPattern.matcher(line);
+            if (!matcher.matches()) {
+                continue;
+            }
+            try {
+                long parsed = Long.parseLong(matcher.group(1).replace("_", ""));
+                if (parsed > 0 && parsed <= Integer.MAX_VALUE) {
+                    return (int) parsed;
+                }
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private String patchTopLevelContextWindow(
+            String original,
+            Integer contextWindow,
+            Integer autoCompactTokenLimit
+    ) throws IOException {
+        boolean hasBom = original.startsWith("\uFEFF");
+        String body = stripBom(original);
+        String newline = body.contains("\r\n") ? "\r\n" : "\n";
+        boolean endedWithNewline = body.endsWith("\n") || body.endsWith("\r");
+        String[] sourceLines = body.split("\\r?\\n", -1);
+        List<String> topLevel = new ArrayList<>();
+        List<String> sections = new ArrayList<>();
+        boolean inSection = false;
+        boolean contextWritten = false;
+        boolean autoCompactWritten = false;
+
+        Pattern contextPattern = topLevelAssignmentPattern(MODEL_CONTEXT_WINDOW_KEY);
+        Pattern autoCompactPattern = topLevelAssignmentPattern(MODEL_AUTO_COMPACT_TOKEN_LIMIT_KEY);
+
+        for (String line : sourceLines) {
+            if (!inSection && isTomlSectionHeader(line)) {
+                inSection = true;
+            }
+            if (inSection) {
+                sections.add(line);
+                continue;
+            }
+
+            if (contextPattern.matcher(line).matches()) {
+                if (contextWindow != null && !contextWritten) {
+                    topLevel.add(MODEL_CONTEXT_WINDOW_KEY + " = " + contextWindow);
+                    contextWritten = true;
+                }
+                continue;
+            }
+            if (autoCompactPattern.matcher(line).matches()) {
+                if (autoCompactTokenLimit != null && !autoCompactWritten) {
+                    topLevel.add(MODEL_AUTO_COMPACT_TOKEN_LIMIT_KEY + " = " + autoCompactTokenLimit);
+                    autoCompactWritten = true;
+                }
+                continue;
+            }
+            topLevel.add(line);
+        }
+
+        if (contextWindow != null && !contextWritten) {
+            insertBeforeTrailingBlankLines(topLevel, MODEL_CONTEXT_WINDOW_KEY + " = " + contextWindow);
+        }
+        if (autoCompactTokenLimit != null && !autoCompactWritten) {
+            int insertionIndex = indexBeforeTrailingBlankLines(topLevel);
+            topLevel.add(insertionIndex, MODEL_AUTO_COMPACT_TOKEN_LIMIT_KEY + " = " + autoCompactTokenLimit);
+        }
+
+        if (!sections.isEmpty() && !topLevel.isEmpty()
+                && !topLevel.get(topLevel.size() - 1).isEmpty()) {
+            topLevel.add("");
+        }
+
+        List<String> resultLines = new ArrayList<>(topLevel.size() + sections.size());
+        resultLines.addAll(topLevel);
+        resultLines.addAll(sections);
+
+        // split(..., -1) already represents a trailing newline as an empty last line.
+        // New files should also end with a newline, matching standard config.toml formatting.
+        if (body.isEmpty() && contextWindow != null) {
+            endedWithNewline = true;
+        }
+        while (resultLines.size() > 1
+                && resultLines.get(resultLines.size() - 1).isEmpty()
+                && resultLines.get(resultLines.size() - 2).isEmpty()
+                && !endedWithNewline) {
+            resultLines.remove(resultLines.size() - 1);
+        }
+
+        String patched = String.join(newline, resultLines);
+        if (endedWithNewline && !patched.endsWith(newline)) {
+            patched += newline;
+        }
+        if (hasBom) {
+            patched = "\uFEFF" + patched;
+        }
+
+        validatePatchedContextWindow(patched, contextWindow, autoCompactTokenLimit);
+        return patched;
+    }
+
+    private void validatePatchedContextWindow(
+            String patched,
+            Integer expectedContextWindow,
+            Integer expectedAutoCompactTokenLimit
+    ) throws IOException {
+        Integer actualContextWindow = readTopLevelInteger(patched, MODEL_CONTEXT_WINDOW_KEY);
+        Integer actualAutoCompactTokenLimit = readTopLevelInteger(
+                patched,
+                MODEL_AUTO_COMPACT_TOKEN_LIMIT_KEY
+        );
+        if (!java.util.Objects.equals(expectedContextWindow, actualContextWindow)
+                || !java.util.Objects.equals(expectedAutoCompactTokenLimit, actualAutoCompactTokenLimit)) {
+            throw new IOException("Failed to validate patched Codex context window configuration");
+        }
+    }
+
+    private Pattern topLevelAssignmentPattern(String key) {
+        return Pattern.compile("^\\s*" + exactTomlKeyPattern(key) + "\\s*=.*$");
+    }
+
+    private String exactTomlKeyPattern(String key) {
+        String quoted = Pattern.quote(key);
+        return "(?:" + quoted + "|\\\"" + quoted + "\\\"|'" + quoted + "')";
+    }
+
+    private boolean isTomlSectionHeader(String line) {
+        String trimmed = line == null ? "" : line.trim();
+        return trimmed.startsWith("[");
+    }
+
+    private String stripBom(String content) {
+        return content != null && content.startsWith("\uFEFF") ? content.substring(1) : content;
+    }
+
+    private void insertBeforeTrailingBlankLines(List<String> lines, String value) {
+        lines.add(indexBeforeTrailingBlankLines(lines), value);
+    }
+
+    private int indexBeforeTrailingBlankLines(List<String> lines) {
+        int index = lines.size();
+        while (index > 0 && lines.get(index - 1).trim().isEmpty()) {
+            index--;
+        }
+        return index;
+    }
+
+    /**
+     * Codex 上下文窗口的权威配置快照。
+     */
+    public static final class CodexContextWindowConfig {
+        public static final String PRESET_DEFAULT = "default";
+        public static final String PRESET_500K = "500k";
+        public static final String PRESET_1M = "1m";
+        public static final String PRESET_CUSTOM = "custom";
+
+        private final String preset;
+        private final Integer contextWindow;
+        private final Integer autoCompactTokenLimit;
+        private final boolean custom;
+
+        CodexContextWindowConfig(
+                String preset,
+                Integer contextWindow,
+                Integer autoCompactTokenLimit,
+                boolean custom
+        ) {
+            this.preset = preset;
+            this.contextWindow = contextWindow;
+            this.autoCompactTokenLimit = autoCompactTokenLimit;
+            this.custom = custom;
+        }
+
+        static CodexContextWindowConfig defaultConfig() {
+            return new CodexContextWindowConfig(
+                    PRESET_DEFAULT,
+                    DEFAULT_CONTEXT_WINDOW,
+                    DEFAULT_AUTO_COMPACT_TOKEN_LIMIT,
+                    false
+            );
+        }
+
+        public String getPreset() {
+            return preset;
+        }
+
+        public Integer getContextWindow() {
+            return contextWindow;
+        }
+
+        public Integer getAutoCompactTokenLimit() {
+            return autoCompactTokenLimit;
+        }
+
+        public boolean isCustom() {
+            return custom;
+        }
+    }
+
 
     /**
      * Read auth.json

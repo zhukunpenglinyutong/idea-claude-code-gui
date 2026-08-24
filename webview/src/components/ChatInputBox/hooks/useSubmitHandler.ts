@@ -13,6 +13,7 @@ export interface UseSubmitHandlerOptions {
   sdkStatusLoading: boolean;
   sdkInstalled: boolean;
   currentProvider: string;
+  submitBlocked?: boolean;
   clearInput: () => void;
   /** Cancel any pending debounced input callbacks to prevent stale values from refilling the input */
   cancelPendingInput: () => void;
@@ -49,6 +50,7 @@ export function useSubmitHandler({
   sdkStatusLoading,
   sdkInstalled,
   currentProvider,
+  submitBlocked = false,
   clearInput,
   cancelPendingInput,
   invalidateCache,
@@ -67,6 +69,16 @@ export function useSubmitHandler({
   t,
 }: UseSubmitHandlerOptions) {
   return useCallback(() => {
+    if (submitBlocked) {
+      addToast?.(
+        t('codexContextWindow.savingBlocked', {
+          defaultValue: 'Please wait for the Codex context setting to finish saving',
+        }),
+        'info',
+      );
+      return;
+    }
+
     // Force fresh DOM read to avoid stale cache (e.g., after paste)
     invalidateCache();
     const content = getTextContent();
@@ -126,6 +138,7 @@ export function useSubmitHandler({
     sdkStatusLoading,
     sdkInstalled,
     currentProvider,
+    submitBlocked,
     clearInput,
     cancelPendingInput,
     externalAttachments,

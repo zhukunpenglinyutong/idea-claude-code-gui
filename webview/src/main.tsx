@@ -659,6 +659,16 @@ if (typeof window !== 'undefined' && !window.applyBackendTabState) {
   };
 }
 
+// Keep the latest global Codex context config if Java answers before the
+// provider hook has registered its authoritative callback.
+if (typeof window !== 'undefined' && !window.updateCodexContextWindowConfig) {
+  window.updateCodexContextWindowConfig = (dataOrString) => {
+    window.__pendingCodexContextWindowConfig = typeof dataOrString === 'string'
+      ? dataOrString
+      : JSON.stringify(dataOrString);
+  };
+}
+
 if (typeof window !== 'undefined' && !window.showPermissionDialog) {
   debugLog('[Main] Pre-registering showPermissionDialog placeholder');
   window.showPermissionDialog = (json: string) => {

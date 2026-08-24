@@ -7,6 +7,43 @@ function createAttachment(id: string): Attachment {
 }
 
 describe('useSubmitHandler', () => {
+  it('blocks keyboard and button submission while Codex context config is saving', () => {
+    const addToast = vi.fn();
+    const clearInput = vi.fn();
+    const onSubmit = vi.fn();
+
+    const { result } = renderHook(() =>
+      useSubmitHandler({
+        getTextContent: () => 'hello',
+        invalidateCache: vi.fn(),
+        attachments: [],
+        isLoading: false,
+        sdkStatusLoading: false,
+        sdkInstalled: true,
+        currentProvider: 'codex',
+        submitBlocked: true,
+        clearInput,
+        cancelPendingInput: vi.fn(),
+        externalAttachments: undefined,
+        setInternalAttachments: vi.fn(),
+        fileCompletion: { close: vi.fn() },
+        commandCompletion: { close: vi.fn() },
+        agentCompletion: { close: vi.fn() },
+        promptCompletion: { close: vi.fn() },
+        dollarCommandCompletion: { close: vi.fn() },
+        recordInputHistory: vi.fn(),
+        onSubmit,
+        addToast,
+        t: (key) => key,
+      })
+    );
+
+    result.current();
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(clearInput).not.toHaveBeenCalled();
+    expect(addToast).toHaveBeenCalledWith('codexContextWindow.savingBlocked', 'info');
+  });
+
   it('does nothing when input is empty and no attachments', () => {
     const clearInput = vi.fn();
     const close = vi.fn();
