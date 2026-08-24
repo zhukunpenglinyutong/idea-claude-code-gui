@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs';
-import { resolve, dirname } from 'path';
+import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { homedir } from 'os';
 import {
   selectWorkingDirectory,
-  isBridgeDirectory,
+  isUnsafeWorkingDirectory,
   normalizePathForComparison,
   getClaudeProjectKey,
   getClaudeProjectSessionFilePath,
@@ -47,17 +47,6 @@ function withoutProjectEnv(fn) {
   }
 }
 
-test('isBridgeDirectory matches the ai-bridge install dir', () => {
-  assert.equal(isBridgeDirectory(BRIDGE_DIR), true);
-});
-
-test('isBridgeDirectory rejects unrelated, empty, and nullish paths', () => {
-  assert.equal(isBridgeDirectory(homedir()), false);
-  assert.equal(isBridgeDirectory(''), false);
-  assert.equal(isBridgeDirectory(null), false);
-  assert.equal(isBridgeDirectory(undefined), false);
-});
-
 test('selectWorkingDirectory never resolves to the bridge dir (issue #1343)', () => {
   withoutProjectEnv(() => {
     const result = selectWorkingDirectory(BRIDGE_DIR);
@@ -77,6 +66,79 @@ test('selectWorkingDirectory returns a valid requested cwd unchanged', () => {
   withoutProjectEnv(() => {
     const home = homedir();
     assert.ok(samePath(selectWorkingDirectory(home), resolve(home)));
+  });
+});
+
+test('isUnsafeWorkingDirectory rejects plugin and gemini homes', () => {
+  assert.equal(
+    isUnsafeWorkingDirectory('/Users/x/Library/Application Support/JetBrains/IntelliJIdea2026.2/plugins/idea-claude-code-gui/ai-bridge'),
+    true,
+  );
+  assert.equal(isUnsafeWorkingDirectory('/Users/x/.gemini'), true);
+  assert.equal(isUnsafeWorkingDirectory('/Users/x/.gemini/antigravity-cli'), true);
+  assert.equal(isUnsafeWorkingDirectory('/path/to/normal/project'), false);
+});
+
+test('isUnsafeWorkingDirectory rejects the bridge install tree, not dirs named ai-bridge', () => {
+  // Inside the actual install tree (this module's own root) — unsafe.
+  assert.equal(isUnsafeWorkingDirectory(BRIDGE_DIR), true);
+  assert.equal(isUnsafeWorkingDirectory(join(BRIDGE_DIR, 'services')), true);
+  // A project merely living under a directory NAMED ai-bridge is legitimate.
+  assert.equal(isUnsafeWorkingDirectory('/Users/x/dev/ai-bridge/my-project'), false);
+  assert.equal(isUnsafeWorkingDirectory('/home/x/src/ai-bridge'), false);
+});
+
+test('isUnsafeWorkingDirectory matches real-case JetBrains trees on case-sensitive platforms (linux)', () => {
+  // Linux does not fold case, so the lowercase literal alone never matched
+  // the real ~/.local/share/JetBrains/... tree — both spellings must reject.
+  assert.equal(isUnsafeWorkingDirectory('/home/x/.local/share/JetBrains/IntelliJIdea2026.2', 'linux'), true);
+  assert.equal(isUnsafeWorkingDirectory('/home/x/.local/share/jetbrains/IntelliJIdea2026.2', 'linux'), true);
+  assert.equal(isUnsafeWorkingDirectory('/home/x/.config', 'linux'), false);
+});
+
+test('isUnsafeWorkingDirectory rejects Windows AppData and Linux .config JetBrains trees', () => {
+  // Windows roots: win32 normalization folds case and slashes, so one
+  // lowercase spelling each covers Roaming and Local.
+  assert.equal(isUnsafeWorkingDirectory('C:\\Users\\u\\AppData\\Roaming\\JetBrains\\IntelliJIdea2026.2', 'win32'), true);
+  assert.equal(isUnsafeWorkingDirectory('C:\\Users\\u\\AppData\\Local\\JetBrains\\IntelliJIdea2026.2', 'win32'), true);
+  assert.equal(isUnsafeWorkingDirectory('C:\\Users\\u\\AppData\\Roaming\\OtherApp', 'win32'), false);
+  // Linux config root — both spellings, like .local/share above.
+  assert.equal(isUnsafeWorkingDirectory('/home/x/.config/JetBrains/IntelliJIdea2026.2', 'linux'), true);
+  assert.equal(isUnsafeWorkingDirectory('/home/x/.config/jetbrains/ide', 'linux'), true);
+  // A non-JetBrains .config path stays legitimate everywhere.
+  assert.equal(isUnsafeWorkingDirectory('/home/x/.config/my-tool', 'linux'), false);
+});
+
+test('normalizePathForComparison lowercases on darwin/win32 and preserves case on linux', () => {
+  // Injectable platform (defaults to process.platform) so the darwin branch
+  // is testable on linux CI — same convention as cli-path's forceWindows.
+  const p = '/Users/x/Library/Application Support/JetBrains';
+  assert.equal(normalizePathForComparison(p, 'darwin'), '/users/x/library/application support/jetbrains');
+  assert.equal(normalizePathForComparison(p, 'win32'), '/users/x/library/application support/jetbrains');
+  assert.equal(normalizePathForComparison(p, 'linux'), p);
+});
+
+test('isUnsafeWorkingDirectory matches the JetBrains guard on darwin via case-folding only', () => {
+  // Both exact spellings (…application support/jetbrains… and
+  // …Application Support/JetBrains…) are listed as literals, so each matches
+  // on every platform by design. This variant matches NEITHER literal — it
+  // can only match through darwin/win32 case folding, which pins the fold.
+  const macPath = '/Users/x/Library/Application support/JetBrains/IntelliJIdea2026.2';
+  assert.equal(isUnsafeWorkingDirectory(macPath, 'darwin'), true);
+  assert.equal(isUnsafeWorkingDirectory(macPath, 'linux'), false);
+  // The canonical real-case macOS tree is rejected on linux too — via the
+  // real-case literal, not the fold (Linux JetBrains trees use this spelling).
+  assert.equal(
+    isUnsafeWorkingDirectory('/Users/x/Library/Application Support/JetBrains/IntelliJIdea2026.2', 'linux'),
+    true,
+  );
+});
+
+test('selectWorkingDirectory skips ~/.gemini candidate', () => {
+  withoutProjectEnv(() => {
+    const home = homedir();
+    const result = selectWorkingDirectory(join(home, '.gemini'));
+    assert.ok(!samePath(result, join(home, '.gemini')), `expected non-gemini cwd, got ${result}`);
   });
 });
 

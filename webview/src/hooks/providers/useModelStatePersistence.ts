@@ -4,6 +4,7 @@ import {
   CLAUDE_MODELS,
   CODEX_MODELS,
   DEFAULT_CLAUDE_MODEL_ID,
+  DEFAULT_GEMINI_MODEL_ID,
   GROK_DEFAULT_MODEL_ID,
   KIMI_DEFAULT_MODEL_ID,
   OMP_DEFAULT_MODEL_ID,
@@ -16,12 +17,16 @@ import {
   normalizeClaudeModelId,
   apply1MContextSuffix,
   strip1MContextSuffix,
+  composeGeminiAgyModelId,
+  splitGeminiAgyModelId,
+  toGeminiFamilyId,
+  isLiveClaudeModelId,
+  REASONING_EFFORTS,
 } from '../../components/ChatInputBox/types';
 import type { CodexFastMode, PermissionMode, ReasoningEffort } from '../../components/ChatInputBox/types';
 import { isCliOnlyProvider, normalizeCliPermissionMode, OMP_ROLE_MODEL_IDS } from './cliProviders';
 
 const STORAGE_KEY = 'model-selection-state';
-const REASONING_VALUES = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 const CODEX_FAST_MODE_VALUES = ['normal', 'fast'] as const;
 
 const getCustomModels = (key: string): { id: string }[] => {
@@ -34,7 +39,7 @@ const getCustomModels = (key: string): { id: string }[] => {
 };
 
 const isReasoningEffort = (value: unknown): value is ReasoningEffort =>
-  typeof value === 'string' && (REASONING_VALUES as readonly string[]).includes(value);
+  typeof value === 'string' && (REASONING_EFFORTS as readonly string[]).includes(value);
 
 const isCodexFastMode = (value: unknown): value is CodexFastMode =>
   typeof value === 'string' && (CODEX_FAST_MODE_VALUES as readonly string[]).includes(value);
@@ -53,8 +58,10 @@ export interface UseModelStatePersistenceOptions {
   setCurrentProvider: (value: string) => void;
   setSelectedClaudeModel: (value: string) => void;
   setSelectedCodexModel: (value: string) => void;
+  setSelectedGeminiModel: (value: string) => void;
   setClaudePermissionMode: (value: PermissionMode) => void;
   setCodexPermissionMode: (value: PermissionMode) => void;
+  setGeminiPermissionMode: (value: PermissionMode) => void;
   setSelectedGrokModel: (value: string) => void;
   setSelectedKimiModel: (value: string) => void;
   setSelectedOpenCodeModel: (value: string) => void;
@@ -76,8 +83,10 @@ export interface UseModelStatePersistenceOptions {
   currentProvider: string;
   selectedClaudeModel: string;
   selectedCodexModel: string;
+  selectedGeminiModel: string;
   claudePermissionMode: PermissionMode;
   codexPermissionMode: PermissionMode;
+  geminiPermissionMode: PermissionMode;
   selectedGrokModel: string;
   selectedKimiModel: string;
   selectedOpenCodeModel: string;
@@ -111,8 +120,10 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
     setCurrentProvider,
     setSelectedClaudeModel,
     setSelectedCodexModel,
+    setSelectedGeminiModel,
     setClaudePermissionMode,
     setCodexPermissionMode,
+    setGeminiPermissionMode,
     setSelectedGrokModel,
     setSelectedKimiModel,
     setSelectedOpenCodeModel,
@@ -133,8 +144,10 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
     currentProvider,
     selectedClaudeModel,
     selectedCodexModel,
+    selectedGeminiModel,
     claudePermissionMode,
     codexPermissionMode,
+    geminiPermissionMode,
     selectedGrokModel,
     selectedKimiModel,
     selectedOpenCodeModel,
@@ -173,14 +186,23 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
         : '';
       const hasBackendProvider = initialTabProvider === 'claude'
         || initialTabProvider === 'codex'
+        || initialTabProvider === 'gemini'
         || isCliOnlyProvider(initialTabProvider);
       const hasBackendModel = initialTabModel.length > 0;
 
       let restoredProvider = 'claude';
       let restoredClaudeModel = DEFAULT_CLAUDE_MODEL_ID;
       let restoredCodexModel = CODEX_MODELS[0].id;
+      let restoredGeminiModel = DEFAULT_GEMINI_MODEL_ID;
+      // Composed with restoredGeminiModel for the boot set_model sync — Java
+      // compares full agy slugs (gemini-3.5-flash-high), so syncing the bare
+      // family id would make shouldResetGeminiSessionOnModelChange wipe the
+      // --conversation resume id on every restart. Mirrors useCodexProvider's
+      // initial 'high'.
+      let restoredGeminiEffort: ReasoningEffort = 'high';
       let restoredClaudePermissionMode: PermissionMode = 'default';
       let restoredCodexPermissionMode: PermissionMode = 'default';
+      let restoredGeminiPermissionMode: PermissionMode = 'default';
       let restoredGrokModel = GROK_DEFAULT_MODEL_ID;
       let restoredKimiModel = KIMI_DEFAULT_MODEL_ID;
       let restoredOpenCodeModel = OPENCODE_DEFAULT_MODEL_ID;
@@ -213,8 +235,40 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
         // so any non-empty saved id is accepted — same policy as CLI providers.
         // A stale id is corrected by the catalog auto-select once the fetch lands.
         if (typeof modelId === 'string' && modelId.trim().length > 0) {
-          restoredCodexModel = modelId;
-          setSelectedCodexModel(modelId);
+          // Store the trimmed id — the guard tests the trimmed form, so a
+          // whitespace-padded persisted id must not travel onward verbatim.
+          const trimmedId = modelId.trim();
+          restoredCodexModel = trimmedId;
+          setSelectedCodexModel(trimmedId);
+        }
+      };
+      const applyGeminiModel = (modelId: string) => {
+        if (typeof modelId !== 'string' || !modelId.trim()) return;
+        const split = splitGeminiAgyModelId(modelId);
+        const baseId = toGeminiFamilyId(modelId) || split.baseId || modelId;
+        // Cross-provider guard: __INITIAL_TAB_MODEL__ and the localStorage
+        // snapshot are shared across chat tabs, so a claude-era tab's model
+        // can arrive here as a gemini tab's saved model. A live claude id is
+        // not an agy model — the boot sync would relay it as set_model and
+        // agy rejects it at spawn. Same validate-and-reject as
+        // applyClaudeModel above; retired claude ids agy still ships
+        // (claude-sonnet-4-6) pass and unknown dynamic ids stay accepted.
+        if (isLiveClaudeModelId(baseId)) return;
+        const effort = split.effort;
+        if (baseId) {
+          restoredGeminiModel = baseId;
+          setSelectedGeminiModel(baseId);
+          if (effort && isReasoningEffort(effort)) {
+            restoredGeminiEffort = effort;
+            // The saved gemini slug may embed a gemini-only tier ('thinking').
+            // This applier runs AFTER the reasoningEffort clamp above, so an
+            // unguarded setter would re-leak it into the shared slot of a
+            // non-gemini tab. Only a gemini tab takes the tier live; the
+            // restored value still feeds the slug compose on switch-back.
+            if (restoredProvider === 'gemini') {
+              setReasoningEffort(effort);
+            }
+          }
         }
       };
       // CLI catalogs are dynamic (user-defined Grok profiles, backend-reported
@@ -261,7 +315,7 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
         // hydration so non-provider preferences (permission mode, reasoning
         // effort, codex fast mode, …) are restored from localStorage.
         const providerCandidate = hasBackendProvider ? initialTabProvider : state.provider;
-        if (['claude', 'codex'].includes(providerCandidate) || isCliOnlyProvider(providerCandidate)) {
+        if (['claude', 'codex', 'gemini'].includes(providerCandidate) || isCliOnlyProvider(providerCandidate)) {
           restoredProvider = providerCandidate;
           setCurrentProvider(providerCandidate);
         }
@@ -273,6 +327,9 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
           restoredCodexPermissionMode = state.codexPermissionMode === 'plan'
             ? 'default'
             : state.codexPermissionMode;
+        }
+        if (isValidPermissionMode(state.geminiPermissionMode)) {
+          restoredGeminiPermissionMode = state.geminiPermissionMode;
         }
         if (isValidPermissionMode(state.grokPermissionMode)) {
           restoredGrokPermissionMode = normalizeCliPermissionMode(state.grokPermissionMode, 'grok');
@@ -299,7 +356,15 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
         }
 
         if (isReasoningEffort(state.reasoningEffort)) {
-          setReasoningEffort(state.reasoningEffort);
+          restoredGeminiEffort = state.reasoningEffort;
+          // A gemini-only tier must not leak into the shared slot of a
+          // non-gemini tab (Java rejects it there); clamp like the provider
+          // switch does. The true value still feeds the gemini slug compose.
+          if (state.reasoningEffort === 'thinking' && restoredProvider !== 'gemini') {
+            setReasoningEffort('high');
+          } else {
+            setReasoningEffort(state.reasoningEffort);
+          }
         }
         if (isCodexFastMode(state.codexFastMode)) {
           restoredCodexFastMode = state.codexFastMode;
@@ -319,6 +384,11 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
           ? initialTabModel
           : state.codexModel;
         applyCodexModel(codexModelCandidate);
+
+        const geminiModelCandidate = hasBackendModel && restoredProvider === 'gemini'
+          ? initialTabModel
+          : state.geminiModel;
+        applyGeminiModel(geminiModelCandidate);
 
         const grokModelCandidate = hasBackendModel && restoredProvider === 'grok'
           ? initialTabModel
@@ -356,6 +426,7 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
         if (hasBackendModel) {
           if (initialTabProvider === 'claude') applyClaudeModel(initialTabModel);
           else if (initialTabProvider === 'codex') applyCodexModel(initialTabModel);
+          else if (initialTabProvider === 'gemini') applyGeminiModel(initialTabModel);
           else if (initialTabProvider === 'grok') applyGrokModel(initialTabModel);
           else if (initialTabProvider === 'kimi') applyKimiModel(initialTabModel);
           else if (initialTabProvider === 'opencode') applyOpenCodeModel(initialTabModel);
@@ -380,21 +451,23 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
 
       const initialPermissionMode: PermissionMode = restoredProvider === 'codex'
         ? restoredCodexPermissionMode
-        : restoredProvider === 'grok'
-          ? restoredGrokPermissionMode
-          : restoredProvider === 'kimi'
-            ? restoredKimiPermissionMode
-            : restoredProvider === 'opencode'
-              ? restoredOpenCodePermissionMode
-              : restoredProvider === 'pi'
-                ? restoredPiPermissionMode
-                : restoredProvider === 'omp'
-                  ? restoredOmpPermissionMode
-                  : restoredProvider === 'dsh'
+        : restoredProvider === 'gemini'
+          ? restoredGeminiPermissionMode
+          : restoredProvider === 'grok'
+            ? restoredGrokPermissionMode
+            : restoredProvider === 'kimi'
+              ? restoredKimiPermissionMode
+              : restoredProvider === 'opencode'
+                ? restoredOpenCodePermissionMode
+                : restoredProvider === 'pi'
+                  ? restoredPiPermissionMode
+                  : restoredProvider === 'omp'
+                    ? restoredOmpPermissionMode                  : restoredProvider === 'dsh'
                     ? restoredDshPermissionMode
                     : restoredClaudePermissionMode;
       setClaudePermissionMode(restoredClaudePermissionMode);
       setCodexPermissionMode(restoredCodexPermissionMode);
+      setGeminiPermissionMode(restoredGeminiPermissionMode);
       setGrokPermissionMode(restoredGrokPermissionMode);
       setKimiPermissionMode(restoredKimiPermissionMode);
       setOpenCodePermissionMode(restoredOpenCodePermissionMode);
@@ -417,17 +490,21 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
           sendBridgeEvent('set_provider', restoredProvider);
           const modelToSync = restoredProvider === 'codex'
             ? restoredCodexModel
-            : restoredProvider === 'grok'
-              ? restoredGrokModel
-              : restoredProvider === 'kimi'
-                ? restoredKimiModel
-                : restoredProvider === 'opencode'
-                  ? restoredOpenCodeModel
-                  : restoredProvider === 'pi'
-                    ? restoredPiModel
-                    : restoredProvider === 'omp'
-                      ? restoredOmpModel
-                      : restoredProvider === 'dsh'
+            : restoredProvider === 'gemini'
+              // Full slug — see restoredGeminiEffort: Java compares against
+              // the session's agy slug, and a bare family id would force a
+              // session reset on boot.
+              ? composeGeminiAgyModelId(restoredGeminiModel, restoredGeminiEffort)
+              : restoredProvider === 'grok'
+                ? restoredGrokModel
+                : restoredProvider === 'kimi'
+                  ? restoredKimiModel
+                  : restoredProvider === 'opencode'
+                    ? restoredOpenCodeModel
+                    : restoredProvider === 'pi'
+                      ? restoredPiModel
+                      : restoredProvider === 'omp'
+                        ? restoredOmpModel                      : restoredProvider === 'dsh'
                         ? restoredDshModel
                         : apply1MContextSuffix(restoredClaudeModel, restoredLongContextEnabled);
           sendBridgeEvent('set_model', modelToSync);
@@ -485,8 +562,10 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
           provider: currentProvider,
           claudeModel: selectedClaudeModel,
           codexModel: selectedCodexModel,
+          geminiModel: selectedGeminiModel,
           claudePermissionMode,
           codexPermissionMode,
+          geminiPermissionMode,
           grokModel: selectedGrokModel,
           kimiModel: selectedKimiModel,
           openCodeModel: selectedOpenCodeModel,
@@ -519,8 +598,10 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
     currentProvider,
     selectedClaudeModel,
     selectedCodexModel,
+    selectedGeminiModel,
     claudePermissionMode,
     codexPermissionMode,
+    geminiPermissionMode,
     selectedGrokModel,
     selectedKimiModel,
     selectedOpenCodeModel,

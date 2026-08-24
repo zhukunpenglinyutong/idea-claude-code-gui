@@ -1,6 +1,12 @@
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AVAILABLE_MODELS, normalizeClaudeModelId, modelSupports1MContext, strip1MContextSuffix } from '../types';
+import {
+  AVAILABLE_MODELS,
+  normalizeClaudeModelId,
+  modelSupports1MContext,
+  strip1MContextSuffix,
+  toGeminiFamilyId,
+} from '../types';
 import type { ModelInfo } from '../types';
 import { readClaudeModelMapping } from '../../../utils/claudeModelMapping';
 import { ProviderModelIcon } from '../../shared/ProviderModelIcon';
@@ -174,9 +180,14 @@ export const ModelSelect = ({ value, onChange, models = AVAILABLE_MODELS, curren
     preferredAlignment: 'right',
   });
 
-  // Strip [1m] suffix for finding the model in the list
+  // Strip [1m] suffix for finding the model in the list.
+  // Gemini: backend may echo full agy slugs (...-high); UI list is family base ids.
   const strippedValue = strip1MContextSuffix(value);
-  const normalizedValue = currentProvider === 'claude' ? normalizeClaudeModelId(strippedValue) : strippedValue;
+  const normalizedValue = currentProvider === 'claude'
+    ? normalizeClaudeModelId(strippedValue)
+    : currentProvider === 'gemini'
+      ? toGeminiFamilyId(strippedValue) || strippedValue
+      : strippedValue;
   // Prefer the user's selection even when the catalog is still loading / only a
   // static fallback is available. Falling back to models[0] made OpenCode (and
   // other dynamic providers) visually snap back to the first entry after leaving
@@ -193,6 +204,9 @@ export const ModelSelect = ({ value, onChange, models = AVAILABLE_MODELS, curren
   }, [currentProvider]);
 
   const isSelectedModel = (modelId: string): boolean => {
+    if (currentProvider === 'gemini') {
+      return modelId === normalizedValue || modelId === strippedValue;
+    }
     if (currentProvider !== 'claude') {
       return modelId === strippedValue;
     }
@@ -205,6 +219,7 @@ export const ModelSelect = ({ value, onChange, models = AVAILABLE_MODELS, curren
     // providers) expose models whose ids collide with those slots (e.g.
     // claude-sonnet-4-6). For any non-claude provider, render the catalog label
     // verbatim — never let the Claude model mapping override catalog labels.
+
     if (currentProvider !== 'claude') {
       return append1MContextSuffix(model.label ?? '', model.id, show1MContext);
     }

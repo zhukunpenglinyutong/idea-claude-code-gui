@@ -3,7 +3,7 @@
  * Detection only — the plugin never auto-installs these binaries.
  */
 
-export type CliToolId = 'grok' | 'kimi' | 'opencode' | 'pi' | 'dsh' | 'omp';
+export type CliToolId = 'agy' | 'grok' | 'kimi' | 'opencode' | 'pi' | 'dsh' | 'omp';
 
 export interface CliToolStatus {
   id: CliToolId;
@@ -40,6 +40,16 @@ export interface CliToolDefinition {
  * and are shown in a dialog — never executed by the plugin.
  */
 export const CLI_TOOL_DEFINITIONS: CliToolDefinition[] = [
+  {
+    id: 'agy',
+    nameKey: 'settings.cli.tools.agy.name',
+    descriptionKey: 'settings.cli.tools.agy.description',
+    binaryName: 'agy',
+    docsUrl: 'https://antigravity.google/docs/cli/install',
+    installCommand: 'curl -fsSL https://antigravity.google/docs/cli/install | bash',
+    installCommandWindows: 'irm https://antigravity.google/install.ps1 | iex',
+    altInstallCommand: 'npm install -g @google/antigravity-cli',
+  },
   {
     id: 'grok',
     nameKey: 'settings.cli.tools.grok.name',

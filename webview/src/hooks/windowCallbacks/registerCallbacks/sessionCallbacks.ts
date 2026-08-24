@@ -43,22 +43,24 @@ export function registerSessionAndSdkCallbacks(
   window.setSessionId = (sessionId: string) => {
     const oldId = currentSessionIdRef.current;
     releaseSessionTransition();
-    currentSessionIdRef.current = sessionId;
-    setCurrentSessionId(sessionId);
+    // Empty string means "clear" (model/provider switch drops resume id).
+    const normalized = sessionId && String(sessionId).trim() ? String(sessionId).trim() : null;
+    currentSessionIdRef.current = normalized;
+    setCurrentSessionId(normalized);
 
     // B-011 + B-014: Persist custom title under the real SDK session ID.
     // NOTE: We intentionally do NOT delete the old ID's title to prevent
     // data loss when Codex creates new threads for continued conversations.
     // Orphaned title entries are harmless and cleaned up on session deletion.
     const title = customSessionTitleRef.current;
-    if (title && oldId !== sessionId) {
+    if (title && normalized && oldId !== normalized) {
       // AI-generated titles can exceed the backend limit. Fall back to
       // local-only update so the UI keeps the title visible without a
       // silent backend write failure.
       if (title.length <= CUSTOM_TITLE_MAX_LENGTH) {
-        updateHistoryTitle(sessionId, title);
+        updateHistoryTitle(normalized, title);
       } else {
-        applyHistoryTitleLocal(sessionId, title);
+        applyHistoryTitleLocal(normalized, title);
       }
     }
   };

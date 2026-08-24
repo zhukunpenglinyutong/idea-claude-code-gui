@@ -159,4 +159,33 @@ describe('resolveProviderModels', () => {
     expect(result[0]).toEqual(customs[0]);
     expect(result.map((m) => m.id)).toContain(CLAUDE_MODELS[0].id);
   });
+
+  it('prefers Gemini family list and never uses flat cli effort slugs', () => {
+    const families = [
+      { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash' },
+      { id: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
+    ];
+    const flatCli = [
+      { id: 'gemini-3.6-flash-high', label: 'Gemini 3.6 Flash (High)' },
+      { id: 'gemini-3.6-flash-medium', label: 'Gemini 3.6 Flash (Medium)' },
+      { id: 'claude-opus-4-6-thinking', label: 'Claude Opus 4.6 (Thinking)' },
+    ];
+    expect(
+      resolveProviderModels({
+        provider: 'gemini',
+        cliModels: flatCli,
+        cliCatalogHasEntries: true,
+        geminiModels: families,
+      }),
+    ).toEqual(families);
+
+    // Without geminiModels, fall back to static family list — not flat cliModels
+    const fallback = resolveProviderModels({
+      provider: 'gemini',
+      cliModels: flatCli,
+      cliCatalogHasEntries: true,
+    });
+    expect(fallback.map((m) => m.id)).not.toContain('gemini-3.6-flash-high');
+    expect(fallback.map((m) => m.id)).toContain('gemini-3.5-flash');
+  });
 });

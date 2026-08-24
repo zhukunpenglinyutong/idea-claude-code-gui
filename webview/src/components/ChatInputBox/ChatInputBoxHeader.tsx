@@ -13,6 +13,7 @@ export function ChatInputBoxHeader({
   sdkStatusError,
   sdkInstalled,
   currentProvider,
+  selectedModel,
   onRetrySdkStatus,
   onInstallSdk,
   t,
@@ -43,6 +44,8 @@ export function ChatInputBoxHeader({
   sdkStatusLoading: boolean;
   sdkStatusError: boolean;
   currentProvider: string;
+  /** Selected model id (Gemini quota family pick) */
+  selectedModel?: string;
   onRetrySdkStatus?: () => void;
   onInstallSdk?: () => void;
   t: TFunction;
@@ -123,7 +126,7 @@ export function ChatInputBoxHeader({
               : sdkStatusError
                 ? t('chat.sdkStatusUnavailable')
               : t('chat.sdkNotInstalled', {
-                  provider: currentProvider === 'codex' ? 'Codex' : 'Claude Code',
+                  provider: currentProvider === 'codex' ? 'Codex' : currentProvider === 'gemini' ? 'Gemini' : currentProvider === 'grok' ? 'Grok' : 'Claude Code',
                 })}
           </span>
           {sdkStatusError ? (
@@ -177,6 +180,7 @@ export function ChatInputBoxHeader({
         selectedAgent={selectedAgent}
         onClearAgent={onClearAgent}
         currentProvider={currentProvider}
+        selectedModel={selectedModel}
         hasMessages={hasMessages}
         onRewind={onRewind}
         statusPanelExpanded={statusPanelExpanded}

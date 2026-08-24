@@ -65,6 +65,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 
+import com.github.claudecodegui.provider.gemini.GeminiSDKBridge;
+
 /**
  * Chat window instance. Coordinates UI components, session management,
  * and message dispatching. One instance per tab.
@@ -76,6 +78,7 @@ public class ClaudeChatWindow {
     private final ClaudeSDKBridge claudeSDKBridge;
     private final CodexSDKBridge codexSDKBridge;
     private final GrokSDKBridge grokSDKBridge;
+    private final GeminiSDKBridge geminiSDKBridge;
     private final Map<String, MarkerCliBridge> cliBridges;
     private final KimiCliBridge kimiCliBridge;
     private final OpenCodeCliBridge openCodeCliBridge;
@@ -226,6 +229,7 @@ public class ClaudeChatWindow {
         this.claudeSDKBridge = new ClaudeSDKBridge();
         this.codexSDKBridge = new CodexSDKBridge();
         this.grokSDKBridge = new GrokSDKBridge();
+        this.geminiSDKBridge = new GeminiSDKBridge();
         this.kimiCliBridge = new KimiCliBridge();
         this.openCodeCliBridge = new OpenCodeCliBridge();
         this.piCliBridge = new PiCliBridge();
@@ -297,7 +301,8 @@ public class ClaudeChatWindow {
                 () -> frontendReady
         );
 
-        this.session = new ClaudeSession(project, claudeSDKBridge, codexSDKBridge, cliBridges, grokSDKBridge);
+        this.session = new ClaudeSession(project, claudeSDKBridge, codexSDKBridge, cliBridges,
+                grokSDKBridge, geminiSDKBridge);
 
         this.chatWindowDelegate = new ChatWindowDelegate(createDelegateHost());
         chatWindowDelegate.loadPermissionModeFromSettings();
@@ -326,6 +331,10 @@ public class ClaudeChatWindow {
             @Override
             public GrokSDKBridge getGrokSDKBridge() {
                 return grokSDKBridge;
+            }
+
+            public GeminiSDKBridge getGeminiSDKBridge() {
+                return geminiSDKBridge;
             }
 
             @Override
@@ -1390,6 +1399,10 @@ public class ClaudeChatWindow {
 
     public GrokSDKBridge getGrokSDKBridge() {
         return grokSDKBridge;
+    }
+
+    public GeminiSDKBridge getGeminiSDKBridge() {
+        return geminiSDKBridge;
     }
 
     public CodexSDKBridge getCodexSDKBridge() {
@@ -2915,6 +2928,18 @@ public class ClaudeChatWindow {
         }
 
         try {
+            if (geminiSDKBridge != null) {
+                int activeCount = geminiSDKBridge.getActiveProcessCount();
+                if (activeCount > 0) {
+                    LOG.info("Cleaning up " + activeCount + " active Gemini process(es)...");
+                }
+                geminiSDKBridge.cleanupAllProcesses();
+            }
+        } catch (Exception e) {
+            LOG.warn("Failed to clean up Gemini processes: " + e.getMessage());
+        }
+
+        try {
             if (targetBrowser != null) {
                 targetBrowser.dispose();
             }
@@ -3117,6 +3142,10 @@ public class ClaudeChatWindow {
             @Override
             public GrokSDKBridge getGrokSDKBridge() {
                 return grokSDKBridge;
+            }
+
+            public GeminiSDKBridge getGeminiSDKBridge() {
+                return geminiSDKBridge;
             }
 
             @Override

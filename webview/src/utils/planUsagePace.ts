@@ -29,10 +29,78 @@ export interface PlanUsageSnapshot {
   provider?: string;
   source?: string;
   message?: string;
+  /**
+   * Antigravity dual billing families (optional).
+   * Keys: {@code gemini} | {@code third_party}. Each value is a mini-snapshot
+   * with only 5h/7d windows. Webview binds by selected model.
+   */
+  families?: Record<string, PlanUsageSnapshot>;
+  defaultFamily?: string | null;
   /** Plan tier, e.g. z.ai {@code level} ("max"). */
   level?: string;
   /** True when the payload is a cached copy served after a failed refresh probe. */
   stale?: boolean;
+}
+
+/** Which Antigravity quota family a model slug bills against. */
+export type QuotaFamily = 'gemini' | 'third_party';
+
+/**
+ * Map selected agy model id → quota family.
+ * Gemini Models vs Claude and GPT models (TUI /usage groups).
+ */
+export function resolveGeminiQuotaFamily(modelId?: string | null): QuotaFamily {
+  const id = (modelId || '').trim().toLowerCase();
+  if (!id) return 'gemini';
+  if (
+    id.includes('claude')
+    || id.includes('opus')
+    || id.includes('sonnet')
+    || id.includes('gpt')
+    || id.includes('oss')
+    || id.startsWith('3p')
+  ) {
+    return 'third_party';
+  }
+  return 'gemini';
+}
+
+/**
+ * Bind top-level capacity fields to the family matching {@code modelId}.
+ * Switcher stays 5h/7d only (family chosen by model, not by chip).
+ */
+export function selectGeminiPlanFamily(
+  snapshot: PlanUsageSnapshot | null,
+  modelId?: string | null,
+): PlanUsageSnapshot | null {
+  if (!snapshot?.present) return snapshot;
+  const families = snapshot.families;
+  if (!families || Object.keys(families).length === 0) {
+    return snapshot;
+  }
+  const famKey = resolveGeminiQuotaFamily(modelId);
+  const fam = families[famKey]
+    || (snapshot.defaultFamily ? families[snapshot.defaultFamily] : undefined)
+    || families.gemini
+    || Object.values(families)[0];
+  if (!fam) return snapshot;
+  const windows = fam.windows ?? [];
+  const capacityPct = typeof fam.capacityPct === 'number'
+    ? fam.capacityPct
+    : windows[0]?.usedPct;
+  if (typeof capacityPct !== 'number' && windows.length === 0) {
+    return snapshot;
+  }
+  return {
+    ...snapshot,
+    present: true,
+    capacityPct: typeof capacityPct === 'number' ? capacityPct : snapshot.capacityPct,
+    resetAt: fam.resetAt ?? windows[0]?.resetAt ?? snapshot.resetAt,
+    periodType: fam.periodType ?? windows[0]?.periodType ?? snapshot.periodType,
+    periodStart: fam.periodStart ?? snapshot.periodStart,
+    // Only this family's 5h/7d — bar switcher cycles period, not family
+    windows: windows.length > 0 ? windows : snapshot.windows,
+  };
 }
 
 export const PLAN_USAGE_WINDOW_STORAGE_KEY = 'ccgui.planUsage.windowId';
@@ -244,9 +312,12 @@ export function parseCapacityPayload(data: unknown): PlanUsageSnapshot {
     };
   }
   const windows = parseWindows(o.windows);
+  const families = parseFamilies(o.families);
   const pctRaw = o.capacity_pct ?? o.used_pct ?? o.capacityPct;
   const pct = typeof pctRaw === 'number' ? pctRaw : Number(pctRaw);
-  if (!Number.isFinite(pct) && windows.length === 0) {
+  // Present if top-level % OR at least one window OR any family
+  const familyHasData = families && Object.keys(families).length > 0;
+  if (!Number.isFinite(pct) && windows.length === 0 && !familyHasData) {
     return {
       present: false,
       message: 'capacity missing capacity_pct',
@@ -263,11 +334,50 @@ export function parseCapacityPayload(data: unknown): PlanUsageSnapshot {
     periodType: typeof o.period_type === 'string' ? o.period_type : typeof o.periodType === 'string' ? o.periodType : null,
     periodStart: typeof o.period_start === 'string' ? o.period_start : null,
     windows: windows.length > 0 ? windows : undefined,
+    families,
+    defaultFamily:
+      typeof o.default_family === 'string'
+        ? o.default_family
+        : typeof o.defaultFamily === 'string'
+          ? o.defaultFamily
+          : null,
     provider: typeof o.provider === 'string' ? o.provider : undefined,
     source: typeof o.source === 'string' ? o.source : 'gateway',
     level: typeof o.level === 'string' ? o.level : undefined,
     stale: o.stale === true ? true : undefined,
   };
+}
+
+function parseFamilies(raw: unknown): Record<string, PlanUsageSnapshot> | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const out: Record<string, PlanUsageSnapshot> = {};
+  for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+    if (!val || typeof val !== 'object') continue;
+    const v = val as Record<string, unknown>;
+    const windows = parseWindows(v.windows);
+    const pctRaw = v.capacity_pct ?? v.used_pct ?? v.capacityPct;
+    const pct = typeof pctRaw === 'number' ? pctRaw : Number(pctRaw);
+    if (!Number.isFinite(pct) && windows.length === 0) continue;
+    out[key] = {
+      present: true,
+      capacityPct: Number.isFinite(pct) ? clampPercent(pct) : windows[0]?.usedPct,
+      resetAt:
+        typeof v.reset_at === 'string'
+          ? v.reset_at
+          : typeof v.resetAt === 'string'
+            ? v.resetAt
+            : null,
+      periodType:
+        typeof v.period_type === 'string'
+          ? v.period_type
+          : typeof v.periodType === 'string'
+            ? v.periodType
+            : null,
+      periodStart: typeof v.period_start === 'string' ? v.period_start : null,
+      windows: windows.length > 0 ? windows : undefined,
+    };
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 /** Prefer stored window id if present; else binding top-level; else first window. */
@@ -363,3 +473,4 @@ export function nextWindowId(
   const next = idx < 0 ? 0 : (idx + 1) % windows.length;
   return windows[next].id;
 }
+

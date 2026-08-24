@@ -71,51 +71,6 @@ public class PathUtils {
         }
     }
 
-    /**
-     * Guard a provider daemon's requested working directory against the project
-     * base so it cannot be pointed outside the project.
-     *
-     * <p>Returns {@code null} when there is no project base to guard against, in
-     * which case the caller should keep the original cwd. When the cwd is missing
-     * or resolves outside the project base, the project base is returned (clamping
-     * the daemon back inside the project). When the cwd already resolves inside
-     * (or equal to) the project base, the cwd is returned verbatim so legitimate
-     * sub-directory selections are preserved. Comparison is done on normalized
-     * absolute paths (so trailing-slash / relative differences don't bypass the
-     * guard), but the returned value keeps the original path form.
-     */
-    public static String guardWorkingDirectory(String cwd, String projectBase) {
-        if (projectBase == null || projectBase.isEmpty()) {
-            return null;
-        }
-        String base = normalizeAbsolute(projectBase);
-        if (base == null || base.isEmpty()) {
-            return null;
-        }
-        if (!isValidWorkingDirectory(cwd)) {
-            return projectBase;
-        }
-        String normalizedCwd = normalizeAbsolute(cwd);
-        if (normalizedCwd == null || !isWithinOrEqual(normalizedCwd, base)) {
-            return projectBase;
-        }
-        return cwd;
-    }
-
-    /** Non-null, non-empty, and not one of the sentinel strings the webview sends for "no cwd". */
-    private static boolean isValidWorkingDirectory(String cwd) {
-        return cwd != null && !cwd.isEmpty() && !"undefined".equals(cwd) && !"null".equals(cwd);
-    }
-
-    /** True when {@code path} equals {@code base} or is nested directly under it. */
-    private static boolean isWithinOrEqual(String path, String base) {
-        if (path.equals(base)) {
-            return true;
-        }
-        String prefix = base.endsWith(File.separator) ? base : base + File.separator;
-        return path.startsWith(prefix);
-    }
-
     /** True for the WSL UNC roots ({@code \\wsl.localhost\...}, {@code \\wsl$\...}) in either slash form. */
     private static boolean isWslUncPath(String path) {
         String p = path.replace('\\', '/');
@@ -381,6 +336,118 @@ public class PathUtils {
         }
 
         return false;
+    }
+
+    /**
+     * Paths that must never be used as the agent working directory / agy
+     * {@code workspaceDirs}. Observed failures used plugin install dirs, the
+     * embedded ai-bridge tree, or {@code ~/.gemini} when cwd fell through.
+     *
+     * @param path candidate working directory
+     * @return true when the path is empty or clearly not a user project root
+     */
+    public static boolean isUnsafeWorkingDirectory(String path) {
+        return isUnsafeWorkingDirectory(path, null);
+    }
+
+    /**
+     * Same as {@link #isUnsafeWorkingDirectory(String)} with the bridge install
+     * tree anchor. The standalone checkout is rejected by position (inside
+     * {@code bridgeDir}), not by name — a user directory legitimately named
+     * {@code ai-bridge} outside the install tree must stay usable, mirroring the
+     * JS-side guard in {@code ai-bridge/utils/path-utils.js}.
+     *
+     * @param path      candidate working directory
+     * @param bridgeDir resolved bridge install directory (daemon process.cwd());
+     *                  null skips the anchored check (name literals still apply)
+     * @return true when the path is empty or clearly not a user project root
+     */
+    public static boolean isUnsafeWorkingDirectory(String path, File bridgeDir) {
+        if (path == null || path.trim().isEmpty()) {
+            return true;
+        }
+        String normalized = normalizeToUnix(path.trim()).toLowerCase();
+        if (normalized.isEmpty() || "undefined".equals(normalized) || "null".equals(normalized)) {
+            return true;
+        }
+        // JetBrains plugin install / config trees (embedded ai-bridge lives here).
+        if (normalized.contains("/application support/jetbrains/")) {
+            return true;
+        }
+        if (normalized.contains("/plugins/idea-claude-code-gui")) {
+            return true;
+        }
+        if (normalized.contains("/.local/share/jetbrains/")) {
+            return true;
+        }
+        // Windows JetBrains config/install roots (AppData Roaming + Local).
+        if (normalized.contains("/appdata/roaming/jetbrains/")) {
+            return true;
+        }
+        if (normalized.contains("/appdata/local/jetbrains/")) {
+            return true;
+        }
+        // Linux JetBrains config root (~/.config/JetBrains; comparison is lowercased).
+        if (normalized.contains("/.config/jetbrains/")) {
+            return true;
+        }
+        // Standalone bridge install tree used as process.cwd() by the daemon —
+        // anchored to the actual install dir, not the "ai-bridge" name.
+        if (bridgeDir != null) {
+            String anchor = normalizeToUnix(normalizeAbsolute(bridgeDir.getAbsolutePath())).toLowerCase();
+            String anchorPrefix = anchor.endsWith("/") ? anchor : anchor + "/";
+            if (!anchor.isEmpty() && (normalized.equals(anchor) || normalized.startsWith(anchorPrefix))) {
+                return true;
+            }
+        }
+        // Antigravity CLI default home — was seen as workspaceDirs=[~/.gemini].
+        if (normalized.endsWith("/.gemini") || normalized.contains("/.gemini/")) {
+            return true;
+        }
+        if (normalized.endsWith("/.gemini/antigravity-cli")
+                || normalized.contains("/.gemini/antigravity-cli/")) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Prefer {@code requested} when it is a safe existing directory; otherwise
+     * fall back to {@code projectBasePath} when that is safe. Returns the first
+     * usable path, or {@code null} when neither is acceptable: agy uses process
+     * cwd as {@code workspaceDirs}, so spawning from a plugin install /
+     * bridge / {@code ~/.gemini} tree must fall through, not clamp.
+     *
+     * <p>{@code bridgeDir} anchors the "bridge's own tree" check — the same
+     * resolver result the daemon is spawned with ({@code
+     * BridgePreloader.getSharedResolver().findSdkDir()}); null when the resolver
+     * is unavailable, in which case only the name-based literals apply.
+     */
+    public static String selectSafeWorkingDirectory(String requested, String projectBasePath, File bridgeDir) {
+        String primary = firstSafeExistingDirectory(requested, bridgeDir);
+        if (primary != null) {
+            return primary;
+        }
+        String fallback = firstSafeExistingDirectory(projectBasePath, bridgeDir);
+        if (fallback != null) {
+            return fallback;
+        }
+        return null;
+    }
+
+    private static String firstSafeExistingDirectory(String path, File bridgeDir) {
+        if (path == null || path.trim().isEmpty() || isUnsafeWorkingDirectory(path, bridgeDir)) {
+            return null;
+        }
+        String normalized = normalizeAbsolute(path.trim());
+        if (normalized == null || normalized.isEmpty() || isUnsafeWorkingDirectory(normalized, bridgeDir)) {
+            return null;
+        }
+        File dir = new File(normalized);
+        if (!dir.isDirectory()) {
+            return null;
+        }
+        return normalized;
     }
 
     // ==================== Path Validation ====================

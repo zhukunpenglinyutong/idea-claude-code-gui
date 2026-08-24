@@ -172,12 +172,22 @@ public final class CliStatusDetector {
         return new ArrayList<>(candidates);
     }
 
-    private static List<String> homeBinDirs(CliToolId tool, String home) {
+    // Package-private for the dir-contract unit test (same testability
+    // idiom as envKeysFor above).
+    static List<String> homeBinDirs(CliToolId tool, String home) {
         List<String> dirs = new ArrayList<>();
         if (home == null || home.isBlank()) {
             return dirs;
         }
         switch (tool) {
+            case AGY:
+                dirs.add(join(home, ".gemini", "antigravity-cli", "bin"));
+                dirs.add(join(home, ".antigravity", "bin"));
+                dirs.add(join(home, ".local", "bin"));
+                // ~/bin is probed by the JS resolver (resolveAgyBinary) — keep
+                // the lists in lockstep, else status and sends disagree.
+                dirs.add(join(home, "bin"));
+                break;
             case GROK:
                 dirs.add(join(home, ".grok", "bin"));
                 dirs.add(join(home, ".local", "bin"));
@@ -235,8 +245,17 @@ public final class CliStatusDetector {
         return dirs;
     }
 
-    private static String[] envKeysFor(CliToolId tool) {
+    // Package-private for the env-contract unit test (project's testability
+    // idiom, cf. ChatWindowDelegate).
+    static String[] envKeysFor(CliToolId tool) {
         return switch (tool) {
+            // GEMINI_CLI_PATH deliberately absent: it names Google's gemini CLI
+            // in pre-existing setups — the JS resolver ignores it, so honoring
+            // it here would report "available" while sends fail.
+            // AGY_BIN/ANTIGRAVITY_BIN equally absent: the JS resolver
+            // (resolveAgyBinary) honors only AGY_PATH/AGY_CLI_PATH — listing
+            // more here would report "available" while sends still fail.
+            case AGY -> new String[]{"AGY_PATH", "AGY_CLI_PATH"};
             case GROK -> new String[]{"GROK_BIN", "GROK_PATH", "GROK_CLI_PATH"};
             case KIMI -> new String[]{"KIMI_BIN", "KIMI_PATH", "KIMI_CLI_PATH", "KIMI_CODE_BIN"};
             case OPENCODE -> new String[]{"OPENCODE_BIN", "OPENCODE_PATH", "OPENCODE_CLI_PATH"};
@@ -434,6 +453,8 @@ public final class CliStatusDetector {
         String current = env.getOrDefault(pathKey, env.getOrDefault("PATH", ""));
         String sep = PlatformUtils.isWindows() ? ";" : ":";
         List<String> extras = new ArrayList<>(List.of(
+                join(home, ".gemini", "antigravity-cli", "bin"),
+                join(home, ".antigravity", "bin"),
                 join(home, ".kimi-code", "bin"),
                 join(home, ".kimi", "bin"),
                 join(home, ".opencode", "bin"),

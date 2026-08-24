@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { realpathSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -50,7 +51,7 @@ lines.on('line', (line) => {
 
     assert.equal(result.error, null);
     assert.equal(result.tools.length, 1);
-    assert.equal(path.resolve(result.tools[0].description), path.resolve(workingDirectory));
+    assert.equal(realpathSync(result.tools[0].description), realpathSync(workingDirectory));
   } finally {
     await rm(workingDirectory, {
       recursive: true,

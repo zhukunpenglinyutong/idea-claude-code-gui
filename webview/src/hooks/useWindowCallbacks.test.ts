@@ -44,8 +44,10 @@ describe('useWindowCallbacks integration', () => {
     setCurrentProvider: vi.fn(),
     setClaudePermissionMode: vi.fn(),
     setCodexPermissionMode: vi.fn(),
+    setGeminiPermissionMode: vi.fn(),
     setSelectedClaudeModel: vi.fn(),
     setSelectedCodexModel: vi.fn(),
+    setSelectedGeminiModel: vi.fn(),
     setLongContextEnabled: vi.fn(),
     setReasoningEffort: vi.fn(),
     setCodexFastMode: vi.fn(),
@@ -176,6 +178,70 @@ describe('useWindowCallbacks integration', () => {
     expect(opts.setCodexFastMode).toHaveBeenCalledWith('normal');
     expect(window.__CCGUI_RECOVERY_STATE_APPLIED__).toBe(true);
     expect((window.sendToJava as ReturnType<typeof vi.fn>).mock.calls.length).toBe(bridgeCallsBeforeRestore);
+  });
+
+  it('applies gemini recovery state: family selection + slug-derived effort, no bridge echo (AC8)', () => {
+    const currentProviderRef = { current: 'claude' };
+    const opts = createOptions({ currentProviderRef });
+    renderHook(() => useWindowCallbacks(opts));
+    const bridgeCallsBeforeRestore = (window.sendToJava as ReturnType<typeof vi.fn>).mock.calls.length;
+
+    act(() => {
+      window.applyBackendTabState?.(JSON.stringify({
+        provider: 'gemini',
+        model: 'gemini-3.5-flash-thinking',
+        permissionMode: 'default',
+        // The plain field excludes gemini-only tiers; the slug is authoritative
+        // and must not be clobbered by this stale value.
+        reasoningEffort: 'high',
+      }));
+    });
+
+    expect(currentProviderRef.current).toBe('gemini');
+    expect(opts.setCurrentProvider).toHaveBeenCalledWith('gemini');
+    expect(opts.setSelectedGeminiModel).toHaveBeenCalledWith('gemini-3.5-flash');
+    expect(opts.setReasoningEffort).toHaveBeenCalledWith('thinking');
+    expect(opts.setReasoningEffort).not.toHaveBeenCalledWith('high');
+    expect(window.__CCGUI_RECOVERY_STATE_APPLIED__).toBe(true);
+    expect((window.sendToJava as ReturnType<typeof vi.fn>).mock.calls.length).toBe(bridgeCallsBeforeRestore);
+  });
+
+  it('mirrors the family default effort for a bare gemini family id (legacy tab state)', () => {
+    // A bare id carries no tier — the shared slot must mirror the family
+    // default (same shape as the App.tsx history bare-row branch), not keep
+    // whatever the previous tab held while the backend runs the default.
+    const currentProviderRef = { current: 'gemini' };
+    const opts = createOptions({
+      currentProviderRef,
+      resolveDefaultEffort: (familyId: string) => (familyId === 'gemini-3.5-flash' ? 'medium' : 'high'),
+    });
+    renderHook(() => useWindowCallbacks(opts));
+
+    act(() => {
+      window.applyBackendTabState?.(JSON.stringify({
+        provider: 'gemini',
+        model: 'gemini-3.5-flash',
+        permissionMode: 'default',
+      }));
+    });
+
+    expect(currentProviderRef.current).toBe('gemini');
+    expect(opts.setSelectedGeminiModel).toHaveBeenCalledWith('gemini-3.5-flash');
+    expect(opts.setReasoningEffort).toHaveBeenCalledWith('medium');
+  });
+
+  it('rejects unknown providers but still marks recovery state processed', () => {
+    const opts = createOptions();
+    renderHook(() => useWindowCallbacks(opts));
+
+    act(() => {
+      window.applyBackendTabState?.(JSON.stringify({ provider: 'no-such-provider', model: 'x' }));
+    });
+
+    // The flag means "the recovery payload was processed", not "it was
+    // applicable": leaving it unset keeps the persistence save effect
+    // rescheduling at 1s intervals forever (recoveryStatePending never clears).
+    expect(window.__CCGUI_RECOVERY_STATE_APPLIED__).toBe(true);
   });
 
   it('drains Java recovery state buffered before React callback registration', () => {

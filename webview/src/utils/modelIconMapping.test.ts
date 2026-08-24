@@ -29,6 +29,7 @@ describe('modelIconMapping', () => {
     expect(resolveIconVendor('opencode')).toBe('opencode');
     // Runtime CLI provider — must not fall through to Claude default
     expect(resolveIconVendor('pi')).toBe('pi');
+    expect(resolveIconVendor('agy')).toBe('gemini');
     expect(resolveIconVendor('omp')).toBe('omp');
   });
 

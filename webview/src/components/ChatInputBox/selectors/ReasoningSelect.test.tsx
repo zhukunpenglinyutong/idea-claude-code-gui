@@ -161,4 +161,57 @@ describe('ReasoningSelect', () => {
 
     expect(screen.queryByRole('button')).toBeNull();
   });
+
+  it('hides reasoning dropdown for Gemini models with no efforts', () => {
+    const { container } = render(
+      <ReasoningSelect
+        value={'' as any}
+        onChange={vi.fn()}
+        currentProvider={'gemini'}
+        selectedModel={'claude-sonnet-4-6'}
+        geminiFamilies={[
+          {
+            id: 'claude-sonnet-4-6',
+            label: 'Claude Sonnet 4.6',
+            description: 'Default',
+            defaultEffort: '',
+            defaultModelId: 'claude-sonnet-4-6',
+            efforts: [
+              { id: '', label: 'Default', modelId: 'claude-sonnet-4-6' }
+            ]
+          }
+        ]}
+      />,
+    );
+    expect(container.firstChild).toBeNull();
+  });
+
+  it('shows reasoning dropdown correctly and strips :current from selectedModel', () => {
+    const { getByRole, getAllByText } = render(
+      <ReasoningSelect
+        value={'medium'}
+        onChange={vi.fn()}
+        currentProvider={'gemini'}
+        selectedModel={'gpt-oss-120b-medium:current'}
+        geminiFamilies={[
+          {
+            id: 'gpt-oss-120b',
+            label: 'GPT-OSS 120B',
+            description: 'Medium',
+            defaultEffort: 'medium',
+            defaultModelId: 'gpt-oss-120b-medium',
+            efforts: [
+              { id: 'medium', label: 'Medium', modelId: 'gpt-oss-120b-medium' }
+            ]
+          }
+        ]}
+      />,
+    );
+    
+    const button = getByRole('button');
+    expect(button).toBeDefined();
+    
+    fireEvent.click(button);
+    expect(getAllByText('Medium').length).toBeGreaterThan(0);
+  });
 });

@@ -39,6 +39,36 @@ public class SessionStateTest {
     }
 
     @Test
+    public void setModelKeepsRetiredIdsLiveForNonClaudeProviders() {
+        // Regression (gemini/agy): claude-sonnet-4-6 is retired in the Claude API
+        // but LIVE in the agy catalog ("Claude Sonnet 4.6 (Thinking)"). The
+        // migration used to rewrite it to claude-sonnet-5 on every provider, so
+        // selecting Sonnet 4.6 in the gemini menu sent --model claude-sonnet-5
+        // to agy ("invalid model selection"). Only the Claude provider migrates.
+        SessionState state = new SessionState();
+        state.setProvider("gemini");
+        state.setModel("claude-sonnet-4-6");
+        Assert.assertEquals("claude-sonnet-4-6", state.getModel());
+        // The [1m] variant must survive too (claude-tab poisoning carried it).
+        state.setModel("claude-sonnet-4-6[1m]");
+        Assert.assertEquals("claude-sonnet-4-6[1m]", state.getModel());
+        // Opus 4.6 is likewise live in agy.
+        state.setModel("claude-opus-4-6");
+        Assert.assertEquals("claude-opus-4-6", state.getModel());
+    }
+
+    @Test
+    public void setModelMigratesRetiredIdsAfterSwitchingBackToClaudeProvider() {
+        // Restore order everywhere is provider-then-model; a tab switched back to
+        // the Claude provider must still self-heal retired ids (#1678 intact).
+        SessionState state = new SessionState();
+        state.setProvider("gemini");
+        state.setProvider("claude");
+        state.setModel("claude-sonnet-4-6");
+        Assert.assertEquals("claude-sonnet-5", state.getModel());
+    }
+
+    @Test
     public void setModelLeavesLiveModelsUntouched() {
         SessionState state = new SessionState();
         state.setModel("claude-sonnet-5");

@@ -101,6 +101,8 @@ const PROVIDER_TO_VENDOR: Record<string, ModelVendor> = {
   codex: 'openai',
   grok: 'grok',
   gemini: 'gemini',
+  agy: 'gemini',
+  antigravity: 'gemini',
   qwen: 'qwen',
   deepseek: 'deepseek',
   kimi: 'kimi',

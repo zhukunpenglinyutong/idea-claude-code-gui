@@ -259,11 +259,13 @@ public class SessionState {
     }
 
     public void setModel(String model) {
-        this.model = normalizeRetiredModelId(model);
+        this.model = normalizeRetiredModelId(model, this.provider);
     }
 
     /**
      * Migrate retired Claude model ids to their live replacement on write.
+     * Delegates to {@link #normalizeRetiredModelId(String, String)} with the Claude
+     * provider (kept for the Claude-settings call site in CodemossSettingsService).
      *
      * <p>Persisted tab state (.idea/claudeCodeTabState.xml) and history sessions keep
      * whatever model id was saved forever. When a model is retired from the API
@@ -277,12 +279,27 @@ public class SessionState {
      *         anything else (including non-Claude ids) passed through unchanged
      */
     public static String normalizeRetiredModelId(String model) {
+        return normalizeRetiredModelId(model, "claude");
+    }
+
+    /**
+     * Provider-aware variant used by {@link #setModel(String)}. The retired-id
+     * migration above is a Claude-API concern: the agy/gemini provider still ships
+     * claude-sonnet-4-6 live (menu entry "Claude Sonnet 4.6 (Thinking)"), and
+     * rewriting it there stored claude-sonnet-5 in the session, which agy rejects
+     * at spawn ("invalid model selection"). Only the Claude provider migrates;
+     * every other provider passes the trimmed id through unchanged.
+     */
+    public static String normalizeRetiredModelId(String model, String provider) {
         if (model == null) {
             return null;
         }
         String trimmed = model.trim();
         if (trimmed.isEmpty()) {
             // Blank input normalizes to "" like every other path returns trimmed.
+            return trimmed;
+        }
+        if (!"claude".equals(provider)) {
             return trimmed;
         }
         String base = trimmed;

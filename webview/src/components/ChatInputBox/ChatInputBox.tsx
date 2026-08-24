@@ -131,6 +131,8 @@ export const ChatInputBox = memo(forwardRef<ChatInputBoxHandle, ChatInputBoxProp
       onAutoOpenFileEnabledChange,
       longContextEnabled = true,
       onLongContextChange,
+      geminiFamilies,
+      geminiModels,
     }: ChatInputBoxProps,
     ref: React.ForwardedRef<ChatInputBoxHandle>
   ) => {
@@ -662,6 +664,7 @@ export const ChatInputBox = memo(forwardRef<ChatInputBoxHandle, ChatInputBoxProp
           sdkStatusError={sdkStatusError}
           sdkInstalled={sdkInstalled}
           currentProvider={currentProvider}
+          selectedModel={selectedModel}
           onRetrySdkStatus={onRetrySdkStatus}
           onInstallSdk={onInstallSdk}
           t={t}
@@ -780,6 +783,8 @@ export const ChatInputBox = memo(forwardRef<ChatInputBoxHandle, ChatInputBoxProp
           reasoningEffort={reasoningEffort}
           codexFastMode={codexFastMode}
           dshPreset={dshPreset}
+          geminiFamilies={geminiFamilies}
+          geminiModels={geminiModels}
           onSubmit={handleSubmit}
           onStop={onStop}
           onModeSelect={handleModeSelect}

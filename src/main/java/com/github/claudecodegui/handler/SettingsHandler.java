@@ -44,6 +44,7 @@ public class SettingsHandler extends BaseMessageHandler {
         "set_reasoning_effort",
         "set_codex_fast_mode",
         "set_dsh_preset",
+        "get_gemini_models",
         "get_node_path",
         "set_node_path",
         "get_claude_cli_path",
@@ -185,6 +186,9 @@ public class SettingsHandler extends BaseMessageHandler {
                 return true;
             case "set_dsh_preset":
                 dshPresetHandler.handleSetDshPreset(content);
+                return true;
+            case "get_gemini_models":
+                modelProviderHandler.handleGetGeminiModels(content);
                 return true;
             // Node path
             case "get_node_path":

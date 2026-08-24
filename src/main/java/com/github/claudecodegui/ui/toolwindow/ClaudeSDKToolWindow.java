@@ -157,23 +157,44 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
     }
 
     private static void cleanupWindowProcesses(@NotNull ClaudeChatWindow window) {
+        // Per-bridge try/catch (same shape as ClaudeChatWindow.dispose()): a
+        // throw from one bridge's cleanup must not skip the others.
         try {
             if (window.getClaudeSDKBridge() != null) {
                 window.getClaudeSDKBridge().cleanupAllProcesses();
             }
+        } catch (Exception e) {
+            LOG.warn("[ShutdownHook] Failed to clean up Claude processes: " + e.getMessage());
+        }
+        try {
             if (window.getCodexSDKBridge() != null) {
                 window.getCodexSDKBridge().cleanupAllProcesses();
             }
+        } catch (Exception e) {
+            LOG.warn("[ShutdownHook] Failed to clean up Codex processes: " + e.getMessage());
+        }
+        try {
+            if (window.getGeminiSDKBridge() != null) {
+                window.getGeminiSDKBridge().cleanupAllProcesses();
+            }
+        } catch (Exception e) {
+            LOG.warn("[ShutdownHook] Failed to clean up Gemini processes: " + e.getMessage());
+        }
+        try {
             if (window.getCliBridges() != null) {
                 for (com.github.claudecodegui.provider.common.MarkerCliBridge bridge
                         : window.getCliBridges().values()) {
                     if (bridge != null) {
-                        bridge.cleanupAllProcesses();
+                        try {
+                            bridge.cleanupAllProcesses();
+                        } catch (Exception e) {
+                            LOG.warn("[ShutdownHook] Failed to clean up CLI processes: " + e.getMessage());
+                        }
                     }
                 }
             }
         } catch (Exception e) {
-            LOG.error("[ShutdownHook] Error cleaning up processes: " + e.getMessage(), e);
+            LOG.warn("[ShutdownHook] Failed to clean up CLI bridges: " + e.getMessage());
         }
     }
 

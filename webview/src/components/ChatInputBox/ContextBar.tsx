@@ -1,7 +1,9 @@
-import React, { useRef, useState, useEffect, useCallback, memo } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getFileIcon } from '../../utils/fileIcons';
+import { useGeminiPlanUsage } from '../../hooks/useGeminiPlanUsage';
 import { useClaudePlanUsage } from '../../hooks/useClaudePlanUsage';
+import { selectGeminiPlanFamily } from '../../utils/planUsagePace';
 import { PlanUsageIndicator } from './PlanUsageIndicator';
 import { TokenIndicator } from './TokenIndicator';
 import type { SelectedAgent } from './types';
@@ -30,6 +32,8 @@ interface ContextBarProps {
   onClearAgent?: () => void;
   /** Current provider (for conditional rendering) */
   currentProvider?: string;
+  /** Selected model id (Gemini: picks Gemini vs Claude/GPT quota family) */
+  selectedModel?: string;
   /** Whether there are messages (for rewind button visibility) */
   hasMessages?: boolean;
   /** Rewind callback */
@@ -56,6 +60,7 @@ export const ContextBar: React.FC<ContextBarProps> = memo(({
   selectedAgent,
   onClearAgent,
   currentProvider = 'claude',
+  selectedModel,
   hasMessages = false,
   onRewind,
   statusPanelExpanded = true,
@@ -65,8 +70,15 @@ export const ContextBar: React.FC<ContextBarProps> = memo(({
 }) => {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isGemini = currentProvider === 'gemini';
   const isClaude = currentProvider === 'claude';
+  const geminiPlanUsage = useGeminiPlanUsage(currentProvider);
   const claudePlanUsage = useClaudePlanUsage(currentProvider);
+  // Family (Gemini Models vs Claude/GPT) follows selected model; bar only switches 5h/7d
+  const geminiSnapshotForModel = useMemo(
+    () => selectGeminiPlanFamily(geminiPlanUsage.snapshot, selectedModel),
+    [geminiPlanUsage.snapshot, selectedModel],
+  );
   const popoverRef = useRef<HTMLDivElement>(null);
   const [showEnablePopover, setShowEnablePopover] = useState(false);
 
@@ -269,6 +281,13 @@ export const ContextBar: React.FC<ContextBarProps> = memo(({
 
       {/* Right side tools - StatusPanel toggle and Rewind button */}
       <div className="context-tools-right">
+        {isGemini && (
+          <PlanUsageIndicator
+            snapshot={geminiSnapshotForModel}
+            status={geminiPlanUsage.status}
+          />
+        )}
+
         {isClaude && (
           <PlanUsageIndicator
             snapshot={claudePlanUsage.snapshot}

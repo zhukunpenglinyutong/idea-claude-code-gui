@@ -848,6 +848,10 @@
       "copied": "Copied to clipboard",
       "copyFailed": "Failed to copy",
       "tools": {
+        "agy": {
+          "name": "Antigravity CLI (Gemini)",
+          "description": "Google Antigravity CLI（Gemini）終端 AI 編程 Agent"
+        },
         "grok": {
           "name": "Grok CLI",
           "description": "xAI Grok 終端編碼助手"

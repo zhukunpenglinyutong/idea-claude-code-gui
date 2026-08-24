@@ -38,6 +38,7 @@ import { handleOpenCodeCommand } from './channels/opencode-channel.js';
 import { handlePiCommand } from './channels/pi-channel.js';
 import { handleOmpCommand } from './channels/omp-channel.js';
 import { handleDshCommand } from './channels/dsh-channel.js';
+import { handleGeminiCommand } from './channels/gemini-channel.js';
 import { getSdkStatus, isClaudeSdkAvailable, isCodexSdkAvailable } from './utils/sdk-loader.js';
 import { injectStartupEnvVars, configureCliIdentity } from './config/api-config.js';
 
@@ -151,6 +152,7 @@ const providerHandlers = {
   pi: handlePiCommand,
   omp: handleOmpCommand,
   dsh: handleDshCommand,
+  gemini: handleGeminiCommand,
   system: handleSystemCommand
 };
 
@@ -161,7 +163,7 @@ const providerHandlers = {
     // Validate provider
     console.error('[DIAG-EXEC] Validating provider...');
     if (!provider || !providerHandlers[provider]) {
-      console.error('Invalid provider. Use "claude", "codex", "grok", "kimi", "opencode", "pi", "omp", "dsh", or "system"');
+      console.error('Invalid provider. Use "claude", "codex", "grok", "kimi", "opencode", "pi", "omp", "dsh", "gemini", or "system"');
       writeJsonAndExit({
         success: false,
         error: 'Invalid provider: ' + provider

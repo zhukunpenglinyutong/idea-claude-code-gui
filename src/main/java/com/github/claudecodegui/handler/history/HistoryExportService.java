@@ -6,6 +6,7 @@ import com.github.claudecodegui.handler.core.HandlerContext;
 import com.github.claudecodegui.provider.claude.ClaudeHistoryReader;
 import com.github.claudecodegui.provider.codex.CodexHistoryReader;
 import com.github.claudecodegui.provider.grok.GrokHistoryReader;
+import com.github.claudecodegui.provider.gemini.GeminiHistoryReader;
 import com.github.claudecodegui.provider.kimi.KimiHistoryReader;
 import com.github.claudecodegui.provider.opencode.OpenCodeHistoryReader;
 import com.github.claudecodegui.provider.pi.PiHistoryReader;
@@ -147,6 +148,12 @@ class HistoryExportService {
         if ("pi".equals(provider)) {
             LOG.info("[HistoryHandler] 使用 PiHistoryReader 导出 PI 会话");
             return toJsonArray(new PiHistoryReader().getSessionMessages(sessionId, projectPath));
+        }
+        if ("gemini".equals(provider)) {
+            LOG.info("[HistoryHandler] 使用 GeminiHistoryReader 读取 Gemini 会话消息");
+            GeminiHistoryReader geminiReader = new GeminiHistoryReader();
+            String messagesJson = geminiReader.getSessionMessagesAsJson(sessionId);
+            return JsonParser.parseString(messagesJson != null ? messagesJson : "[]");
         }
         if ("omp".equals(provider)) {
             LOG.info("[HistoryHandler] 使用 OmpHistoryReader 导出 OMP 会话");

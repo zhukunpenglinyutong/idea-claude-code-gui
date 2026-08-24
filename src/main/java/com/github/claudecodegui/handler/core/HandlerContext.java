@@ -3,6 +3,7 @@ package com.github.claudecodegui.handler.core;
 import com.github.claudecodegui.session.ClaudeSession;
 import com.github.claudecodegui.provider.claude.ClaudeSDKBridge;
 import com.github.claudecodegui.provider.codex.CodexSDKBridge;
+import com.github.claudecodegui.provider.gemini.GeminiSDKBridge;
 import com.github.claudecodegui.provider.grok.GrokSDKBridge;
 import com.github.claudecodegui.settings.CodemossSettingsService;
 import com.intellij.openapi.application.ApplicationManager;
@@ -24,6 +25,7 @@ public class HandlerContext {
     private final Project project;
     private final ClaudeSDKBridge claudeSDKBridge;
     private final CodexSDKBridge codexSDKBridge;
+    private final GeminiSDKBridge geminiSDKBridge;
     private final GrokSDKBridge grokSDKBridge;
     private final CodemossSettingsService settingsService;
     private final JsCallback jsCallback;
@@ -53,7 +55,7 @@ public class HandlerContext {
             CodemossSettingsService settingsService,
             JsCallback jsCallback
     ) {
-        this(project, claudeSDKBridge, codexSDKBridge, null, settingsService, jsCallback, () -> true, () -> null);
+        this(project, claudeSDKBridge, codexSDKBridge, null, null, settingsService, jsCallback, () -> true, () -> null);
     }
 
     public HandlerContext(
@@ -65,7 +67,7 @@ public class HandlerContext {
             BooleanSupplier activeContentSupplier,
             Supplier<String> contentTitleSupplier
     ) {
-        this(project, claudeSDKBridge, codexSDKBridge, null, settingsService, jsCallback,
+        this(project, claudeSDKBridge, codexSDKBridge, null, null, settingsService, jsCallback,
                 activeContentSupplier, contentTitleSupplier);
     }
 
@@ -73,6 +75,7 @@ public class HandlerContext {
             Project project,
             ClaudeSDKBridge claudeSDKBridge,
             CodexSDKBridge codexSDKBridge,
+            GeminiSDKBridge geminiSDKBridge,
             GrokSDKBridge grokSDKBridge,
             CodemossSettingsService settingsService,
             JsCallback jsCallback,
@@ -82,6 +85,7 @@ public class HandlerContext {
         this.project = project;
         this.claudeSDKBridge = claudeSDKBridge;
         this.codexSDKBridge = codexSDKBridge;
+        this.geminiSDKBridge = geminiSDKBridge;
         this.grokSDKBridge = grokSDKBridge;
         this.settingsService = settingsService;
         this.jsCallback = jsCallback;
@@ -100,6 +104,10 @@ public class HandlerContext {
 
     public CodexSDKBridge getCodexSDKBridge() {
         return codexSDKBridge;
+    }
+
+    public GeminiSDKBridge getGeminiSDKBridge() {
+        return geminiSDKBridge;
     }
 
     public GrokSDKBridge getGrokSDKBridge() {

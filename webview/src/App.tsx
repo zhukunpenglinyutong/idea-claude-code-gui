@@ -30,12 +30,14 @@ import {
 import { applyDiffTheme, getStoredDiffTheme } from './utils/diffTheme';
 import { collectTaskEventsFromMessages } from './utils/taskNotificationMessage';
 import type { ClaudeMessage } from './types';
-import type { Attachment, ChatInputBoxHandle } from './components/ChatInputBox/types';
+import type { Attachment, ChatInputBoxHandle, ReasoningEffort } from './components/ChatInputBox/types';
 import {
   apply1MContextSuffix,
   isValidPermissionMode,
   normalizeClaudeModelId,
+  splitGeminiAgyModelId,
   strip1MContextSuffix,
+  REASONING_EFFORTS,
 } from './components/ChatInputBox/types';
 import { ToastContainer } from './components/Toast';
 import { ChatHeader } from './components/ChatHeader';
@@ -163,10 +165,10 @@ const App = () => {
     activeProviderConfig, claudeSettingsAlwaysThinkingEnabled,
     reasoningEffort, codexFastMode, dshPreset, streamingEnabledSetting, sendShortcut, autoOpenFileEnabled,
     longContextEnabled,
-    usagePercentage, usageUsedTokens, usageMaxTokens,
+    usagePercentage, usageUsedTokens, usageMaxTokens, geminiFamilies, geminiModels,
     setPermissionMode, setCurrentProvider,
-    setClaudePermissionMode, setCodexPermissionMode,
-    setSelectedClaudeModel, setSelectedCodexModel,
+    setClaudePermissionMode, setCodexPermissionMode, setGeminiPermissionMode,
+    setSelectedClaudeModel, setSelectedCodexModel, setSelectedGeminiModel,
     setSelectedGrokModel, setSelectedKimiModel,
     setSelectedOpenCodeModel, setSelectedPiModel, setSelectedDshModel,
     setSelectedOmpModel, setOmpPermissionMode,
@@ -178,6 +180,7 @@ const App = () => {
     setUsagePercentage, setUsageUsedTokens, setUsageMaxTokens,
     syncActiveProviderModelMapping,
     handleModeSelect, handleModelSelect, handleProviderSelect,
+    resolveGeminiAgyModelId, resolveDefaultEffortForFamily,
     handleReasoningChange, handleCodexFastModeChange, handleDshPresetChange, handleAgentSelect, handleToggleThinking,
     handleStreamingEnabledChange, handleSendShortcutChange,
     handleAutoOpenFileEnabledChange, handleLongContextChange,
@@ -329,6 +332,32 @@ const App = () => {
         if (provider === 'codex') {
           setSelectedCodexModel(model);
           sendBridgeEvent('set_model', model);
+        } else if (provider === 'gemini') {
+          // History rows carry full agy slugs (gemini-3.5-flash-high): the
+          // selector tracks the family base; the shared effort slot mirrors
+          // the slug's tier — 'thinking' included, since REASONING_EFFORTS
+          // accepts it and the provider-switch clamp handles leaving gemini.
+          // Skipping it would desync the UI from what the backend runs.
+          const { baseId, effort } = splitGeminiAgyModelId(model);
+          setSelectedGeminiModel(baseId);
+          // ReasoningEffort (the type) excludes the gemini-only 'thinking'
+          // tier; REASONING_EFFORTS accepts it at runtime — same seam as
+          // isReasoningEffort in the persistence guard.
+          if (effort) {
+            if ((REASONING_EFFORTS as readonly string[]).includes(effort)) {
+              setReasoningEffort(effort as ReasoningEffort);
+              sendBridgeEvent('set_reasoning_effort', effort);
+            }
+            sendBridgeEvent('set_model', model);
+          } else {
+            // Bare family rows carry no tier — mirror the composed default
+            // into the shared slot too, else the selector keeps the previous
+            // tier while the backend runs the default (same mirror as above).
+            const defaultEffort = resolveDefaultEffortForFamily(baseId);
+            setReasoningEffort(defaultEffort as ReasoningEffort);
+            sendBridgeEvent('set_reasoning_effort', defaultEffort);
+            sendBridgeEvent('set_model', resolveGeminiAgyModelId(baseId, defaultEffort));
+          }
         } else if (provider === 'grok') {
           setSelectedGrokModel(model);
           sendBridgeEvent('set_model', model);
@@ -378,7 +407,9 @@ const App = () => {
     setIsThinking, setStreamingActive, setHistoryData,
     setCurrentSessionId, setUsagePercentage, setUsageUsedTokens, setUsageMaxTokens,
     setPermissionMode, setCurrentProvider, setClaudePermissionMode, setCodexPermissionMode,
-    setSelectedClaudeModel, setSelectedCodexModel,
+    setGeminiPermissionMode,
+    setSelectedClaudeModel, setSelectedCodexModel, setSelectedGeminiModel,
+    resolveDefaultEffort: resolveDefaultEffortForFamily,
     setLongContextEnabled, setReasoningEffort, setCodexFastMode,
     setProviderConfigVersion, setActiveProviderConfig,
     setClaudeSettingsAlwaysThinkingEnabled, setStreamingEnabledSetting,
@@ -657,6 +688,8 @@ const App = () => {
               usagePercentage={usagePercentage}
               usageUsedTokens={usageUsedTokens}
               usageMaxTokens={usageMaxTokens}
+              geminiFamilies={geminiFamilies}
+              geminiModels={geminiModels}
               onModeSelect={handleModeSelect}
               onModelSelect={handleModelSelect}
               onAgentSelect={handleAgentSelect}

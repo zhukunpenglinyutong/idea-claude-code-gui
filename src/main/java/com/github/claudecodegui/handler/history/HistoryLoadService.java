@@ -9,6 +9,7 @@ import com.github.claudecodegui.cache.SessionIndexManager;
 import com.github.claudecodegui.provider.claude.ClaudeHistoryReader;
 import com.github.claudecodegui.provider.codex.CodexHistoryReader;
 import com.github.claudecodegui.provider.dsh.DshHistoryReader;
+import com.github.claudecodegui.provider.gemini.GeminiHistoryReader;
 import com.github.claudecodegui.provider.grok.GrokHistoryReader;
 import com.github.claudecodegui.provider.kimi.KimiHistoryReader;
 import com.github.claudecodegui.provider.opencode.OpenCodeHistoryReader;
@@ -99,6 +100,11 @@ class HistoryLoadService {
                     KimiHistoryReader kimiReader = new KimiHistoryReader();
                     historyJson = kimiReader.getSessionsForProjectAsJson(projectPath);
                     LOG.info("[HistoryHandler] KimiHistoryReader 返回的 JSON 长度: " + historyJson.length());
+                } else if ("gemini".equals(provider)) {
+                    LOG.info("[HistoryHandler] 使用 GeminiHistoryReader 读取 Gemini 会话 (项目: " + projectPath + ")");
+                    GeminiHistoryReader geminiReader = new GeminiHistoryReader();
+                    historyJson = geminiReader.getSessionsForProjectAsJson(projectPath);
+                    LOG.info("[HistoryHandler] GeminiHistoryReader 返回的 JSON 长度: " + historyJson.length());
                 } else {
                     // Default: use ClaudeHistoryReader to read Claude sessions
                     LOG.info("[HistoryHandler] 使用 ClaudeHistoryReader 读取 Claude 会话");
@@ -179,7 +185,8 @@ class HistoryLoadService {
             } else if ("grok".equals(provider)) {
                 // Grok history is read live from disk; no dedicated index cache yet.
                 LOG.info("[HistoryHandler] Grok deep search: reloading from ~/.grok/sessions");
-            } else if ("pi".equals(provider) || "omp".equals(provider) || "opencode".equals(provider) || "kimi".equals(provider)) {
+            } else if ("pi".equals(provider) || "omp".equals(provider) || "opencode".equals(provider) || "kimi".equals(provider)
+                    || "gemini".equals(provider)) {
                 // Disk readers scan live filesystem; no dedicated index cache.
                 LOG.info("[HistoryHandler] " + provider + " deep search: reloading from disk");
             } else if (projectPath != null) {
