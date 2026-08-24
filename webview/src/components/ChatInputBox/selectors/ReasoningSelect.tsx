@@ -6,7 +6,10 @@ import {
   MAX_EFFORT_CLAUDE_MODELS,
   XHIGH_EFFORT_CLAUDE_MODELS,
   codexModelSupportsMaxEffort,
+  toGeminiFamilyId,
+  type GeminiModelFamily,
   type ReasoningEffort,
+  type ReasoningInfo,
 } from '../types';
 import { useDropdownPosition } from '../../../hooks/useDropdownPosition';
 
@@ -22,12 +25,23 @@ const DROPDOWN_STYLE: React.CSSProperties = {
 };
 const LEVEL_INFO_STYLE: React.CSSProperties = { display: 'flex', flexDirection: 'column', flex: 1 };
 
+const GEMINI_EFFORT_ICONS: Record<string, string> = {
+  low: 'codicon-circle-small',
+  medium: 'codicon-circle-filled',
+  high: 'codicon-circle-large-filled',
+  xhigh: 'codicon-flame',
+  thinking: 'codicon-lightbulb',
+  '': 'codicon-circle-outline',
+};
+
 interface ReasoningSelectProps {
   value: ReasoningEffort;
   onChange: (effort: ReasoningEffort) => void;
   disabled?: boolean;
   selectedModel?: string;
   currentProvider?: string;
+  /** Live Gemini/agy families — drives subordinate effort list for gemini provider. */
+  geminiFamilies?: GeminiModelFamily[];
 }
 
 /**
@@ -39,7 +53,14 @@ interface ReasoningSelectProps {
  * - Claude Sonnet 5, Sonnet 4.7, Opus 4.6, and Sonnet 4.6: low/medium/high/max
  * - Claude Haiku 4.5 and legacy models: hidden (no adaptive thinking support)
  */
-export const ReasoningSelect = ({ value, onChange, disabled, selectedModel, currentProvider }: ReasoningSelectProps) => {
+export const ReasoningSelect = ({
+  value,
+  onChange,
+  disabled,
+  selectedModel,
+  currentProvider,
+  geminiFamilies,
+}: ReasoningSelectProps) => {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -50,32 +71,60 @@ export const ReasoningSelect = ({ value, onChange, disabled, selectedModel, curr
     preferredAlignment: 'right',
   });
 
-  // Determine visibility: for Claude, hide if model doesn't support adaptive thinking
-  const isVisible = currentProvider !== 'claude' || !selectedModel || EFFORT_SUPPORTED_CLAUDE_MODELS.has(selectedModel);
+  const strippedSelectedModel = selectedModel?.replace(/:current$/, '');
+  const geminiFamily = currentProvider === 'gemini' && strippedSelectedModel && geminiFamilies?.length
+    ? geminiFamilies.find((f) => f.id === strippedSelectedModel || f.id === toGeminiFamilyId(strippedSelectedModel))
+    : undefined;
 
-  // Build the list of available levels for the current model
-  const availableLevels = REASONING_LEVELS.filter(level => {
-    // Grok CLI only accepts low|medium|high.
-    if (currentProvider === 'grok') {
-      return level.id === 'low' || level.id === 'medium' || level.id === 'high';
-    }
-    if (currentProvider === 'codex') {
-      return level.id !== 'max' || (selectedModel !== undefined && codexModelSupportsMaxEffort(selectedModel));
-    }
-    if (currentProvider !== 'claude') {
-      return level.id !== 'max';
-    }
-    if (!selectedModel) {
+  const geminiLevels: ReasoningInfo[] | null = geminiFamily
+    ? geminiFamily.efforts
+        .filter((e) => e.id) // hide empty "Default" row when only bare slug exists without efforts
+        .map((e) => ({
+          id: e.id as ReasoningEffort,
+          label: e.label,
+          icon: GEMINI_EFFORT_ICONS[e.id] || 'codicon-circle-outline',
+          description: e.modelId,
+        }))
+    : currentProvider === 'gemini'
+      // Fallback static efforts before catalog loads
+      ? REASONING_LEVELS.filter((l) => l.id === 'low' || l.id === 'medium' || l.id === 'high')
+      : null;
+
+  // Hide when: Claude model without adaptive thinking; Gemini family with no effort variants
+  const isVisible = (() => {
+    if (currentProvider === 'gemini') {
+      if (geminiFamily) {
+        return geminiFamily.efforts.some((e) => e.id);
+      }
       return true;
     }
-    if (level.id === 'xhigh') {
-      return XHIGH_EFFORT_CLAUDE_MODELS.has(selectedModel);
-    }
-    if (level.id === 'max') {
-      return MAX_EFFORT_CLAUDE_MODELS.has(selectedModel);
-    }
-    return true;
-  });
+    return currentProvider !== 'claude' || !strippedSelectedModel || EFFORT_SUPPORTED_CLAUDE_MODELS.has(strippedSelectedModel);
+  })();
+
+  // Build the list of available levels for the current model
+  const availableLevels: ReasoningInfo[] = geminiLevels
+    ?? REASONING_LEVELS.filter(level => {
+      // Grok CLI only accepts low|medium|high.
+      if (currentProvider === 'grok') {
+        return level.id === 'low' || level.id === 'medium' || level.id === 'high';
+      }
+      if (currentProvider === 'codex') {
+        return level.id !== 'max' || (strippedSelectedModel !== undefined && codexModelSupportsMaxEffort(strippedSelectedModel));
+      }
+      if (currentProvider !== 'claude') {
+        return level.id !== 'max';
+      }
+      if (!strippedSelectedModel) {
+        return true;
+      }
+      if (level.id === 'xhigh') {
+        return XHIGH_EFFORT_CLAUDE_MODELS.has(strippedSelectedModel);
+      }
+      if (level.id === 'max') {
+        return MAX_EFFORT_CLAUDE_MODELS.has(strippedSelectedModel);
+      }
+      return true;
+    });
 
   const currentLevel = availableLevels.find(l => l.id === value) || availableLevels[availableLevels.length - 2] || availableLevels[0];
 
@@ -91,9 +140,10 @@ export const ReasoningSelect = ({ value, onChange, disabled, selectedModel, curr
   /**
    * Get translated text for reasoning level
    */
-  const getReasoningText = (levelId: ReasoningEffort, field: 'label' | 'description') => {
+  const getReasoningText = (levelId: ReasoningEffort | string, field: 'label' | 'description') => {
     const key = `reasoning.${levelId}.${field}`;
-    const fallback = REASONING_LEVELS.find(l => l.id === levelId)?.[field] || levelId;
+    const fromGemini = availableLevels.find(l => l.id === levelId)?.[field];
+    const fallback = fromGemini || REASONING_LEVELS.find(l => l.id === levelId)?.[field] || levelId;
     return t(key, { defaultValue: fallback });
   };
 

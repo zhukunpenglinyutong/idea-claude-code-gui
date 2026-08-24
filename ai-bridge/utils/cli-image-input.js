@@ -115,6 +115,28 @@ export function parseAttachmentData(data) {
 }
 
 /**
+ * Whether an attachment is treated as an image by the materializer: a local
+ * path, or metadata/data that resolves to an image MIME type (mediaType hint,
+ * data-URL mime, or the png default when no hint says otherwise). Named after
+ * DSH's isImageAttachment. The materializer's skip and the callers' counters
+ * must agree on this predicate — a divergent counter misreports delivered
+ * attachments as "non-image … not delivered".
+ *
+ * @param {unknown} att
+ * @returns {boolean}
+ */
+export function isImageAttachment(att) {
+  if (!att || typeof att !== 'object') return false;
+  if (typeof att.path === 'string' && att.path.trim()) return true;
+  const mtHint = typeof att.mediaType === 'string'
+    ? att.mediaType
+    : (typeof att.mimeType === 'string' ? att.mimeType : '');
+  const parsed = parseAttachmentData(att.data);
+  if (!parsed) return false;
+  return resolveImageMimeType(mtHint, parsed.mimeType) !== null;
+}
+
+/**
  * Estimate decoded byte length of base64 without allocating the buffer.
  * @param {string} base64
  * @returns {number}
@@ -152,67 +174,80 @@ export async function materializeImageAttachments(attachments, options = {}) {
   await mkdir(tempDir, { recursive: true, mode: 0o700 });
 
   const paths = [];
-  for (const att of attachments) {
-    if (!att || typeof att !== 'object') continue;
+  // Files written by THIS call: on a mid-loop throw the caller never receives
+  // `paths` (its finally-cleanup has nothing), so the helper cleans up after
+  // itself before rethrowing.
+  const written = [];
+  try {
+    for (const att of attachments) {
+      if (!att || typeof att !== 'object') continue;
+      // Same acceptance predicate the counters use — the materializer's skip
+      // and the callers' reporting must not diverge.
+      if (!isImageAttachment(att)) continue;
 
-    // Already a local path (e.g. codex-style local_image)
-    if (typeof att.path === 'string' && att.path.trim()) {
-      paths.push(att.path.trim());
-      continue;
-    }
-
-    const mtHint = typeof att.mediaType === 'string'
-      ? att.mediaType
-      : (typeof att.mimeType === 'string' ? att.mimeType : '');
-    const parsed = parseAttachmentData(att.data);
-    const mimeType = resolveImageMimeType(mtHint, parsed?.mimeType);
-    if (!mimeType) continue;
-    if (!parsed) continue;
-
-    const decodedLen = estimateBase64DecodedBytes(parsed.base64);
-    if (decodedLen > maxBytes) {
-      console.error(
-        `[cli-image] skip oversized image (${decodedLen} > ${maxBytes}): ${att.fileName || att.name || 'attachment'}`
-      );
-      continue;
-    }
-
-    let buffer;
-    try {
-      buffer = Buffer.from(parsed.base64, 'base64');
-    } catch (err) {
-      console.error('[cli-image] invalid base64:', err?.message || err);
-      continue;
-    }
-    if (!buffer.length) continue;
-    if (buffer.length > maxBytes) {
-      console.error(
-        `[cli-image] skip oversized decoded image (${buffer.length} > ${maxBytes})`
-      );
-      continue;
-    }
-
-    const ext = extensionForMime(mimeType);
-    const uniqueId = crypto.randomUUID();
-    let safeName;
-    const fileName = att.fileName || att.name;
-    if (fileName && typeof fileName === 'string') {
-      const baseName = path.basename(fileName).replace(/[^a-zA-Z0-9._-]/g, '_');
-      safeName = `${uniqueId}-${baseName}`;
-      if (!path.extname(safeName)) {
-        safeName = `${safeName}.${ext}`;
+      // Already a local path (e.g. codex-style local_image)
+      if (typeof att.path === 'string' && att.path.trim()) {
+        paths.push(att.path.trim());
+        continue;
       }
-    } else {
-      safeName = `image-${uniqueId}.${ext}`;
-    }
 
-    const filePath = path.join(tempDir, safeName);
-    try {
-      await writeFile(filePath, buffer, { mode: 0o600 });
-      paths.push(filePath);
-    } catch (err) {
-      console.error('[cli-image] failed to write temp image:', err?.message || err);
+      const mtHint = typeof att.mediaType === 'string'
+        ? att.mediaType
+        : (typeof att.mimeType === 'string' ? att.mimeType : '');
+      const parsed = parseAttachmentData(att.data);
+      const mimeType = resolveImageMimeType(mtHint, parsed?.mimeType);
+      if (!mimeType) continue;
+      if (!parsed) continue;
+
+      const decodedLen = estimateBase64DecodedBytes(parsed.base64);
+      if (decodedLen > maxBytes) {
+        console.error(
+          `[cli-image] skip oversized image (${decodedLen} > ${maxBytes}): ${att.fileName || att.name || 'attachment'}`
+        );
+        continue;
+      }
+
+      let buffer;
+      try {
+        buffer = Buffer.from(parsed.base64, 'base64');
+      } catch (err) {
+        console.error('[cli-image] invalid base64:', err?.message || err);
+        continue;
+      }
+      if (!buffer.length) continue;
+      if (buffer.length > maxBytes) {
+        console.error(
+          `[cli-image] skip oversized decoded image (${buffer.length} > ${maxBytes})`
+        );
+        continue;
+      }
+
+      const ext = extensionForMime(mimeType);
+      const uniqueId = crypto.randomUUID();
+      let safeName;
+      const fileName = att.fileName || att.name;
+      if (fileName && typeof fileName === 'string') {
+        const baseName = path.basename(fileName).replace(/[^a-zA-Z0-9._-]/g, '_');
+        safeName = `${uniqueId}-${baseName}`;
+        if (!path.extname(safeName)) {
+          safeName = `${safeName}.${ext}`;
+        }
+      } else {
+        safeName = `image-${uniqueId}.${ext}`;
+      }
+
+      const filePath = path.join(tempDir, safeName);
+      try {
+        await writeFile(filePath, buffer, { mode: 0o600 });
+        paths.push(filePath);
+        written.push(filePath);
+      } catch (err) {
+        console.error('[cli-image] failed to write temp image:', err?.message || err);
+      }
     }
+  } catch (err) {
+    await cleanupMaterializedImagePaths(written);
+    throw err;
   }
 
   return paths;

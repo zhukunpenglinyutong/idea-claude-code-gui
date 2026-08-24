@@ -4,8 +4,11 @@ import com.github.claudecodegui.i18n.ClaudeCodeGuiBundle;
 import com.github.claudecodegui.settings.CodemossSettingsService;
 import com.github.claudecodegui.settings.CodexSettingsManager;
 import com.github.claudecodegui.notifications.ClaudeNotifier;
+import com.github.claudecodegui.bridge.BridgeDirectoryResolver;
+import com.github.claudecodegui.startup.BridgePreloader;
 import com.github.claudecodegui.provider.claude.ClaudeSDKBridge;
 import com.github.claudecodegui.provider.codex.CodexSDKBridge;
+import com.github.claudecodegui.provider.gemini.GeminiSDKBridge;
 import com.github.claudecodegui.provider.grok.GrokSDKBridge;
 import com.github.claudecodegui.provider.common.MarkerCliBridge;
 import com.github.claudecodegui.provider.common.MessageCallback;
@@ -14,6 +17,7 @@ import com.google.gson.JsonObject;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 
+import java.io.File;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +40,7 @@ public class SessionSendService {
     private final ClaudeSDKBridge claudeSDKBridge;
     private final CodexSDKBridge codexSDKBridge;
     private final GrokSDKBridge grokSDKBridge;
+    private final GeminiSDKBridge geminiSDKBridge;
     private final Map<String, MarkerCliBridge> cliBridges;
     private final SessionContextService contextService;
 
@@ -52,7 +57,7 @@ public class SessionSendService {
             SessionContextService contextService
     ) {
         this(project, state, callbackFacade, messageParser, messageMerger, gson,
-                claudeSDKBridge, codexSDKBridge, cliBridges, contextService, null);
+                claudeSDKBridge, codexSDKBridge, cliBridges, contextService, null, null);
     }
 
     public SessionSendService(
@@ -66,7 +71,8 @@ public class SessionSendService {
             CodexSDKBridge codexSDKBridge,
             Map<String, MarkerCliBridge> cliBridges,
             SessionContextService contextService,
-            GrokSDKBridge grokSDKBridge
+            GrokSDKBridge grokSDKBridge,
+            GeminiSDKBridge geminiSDKBridge
     ) {
         this.project = project;
         this.state = state;
@@ -79,6 +85,24 @@ public class SessionSendService {
         this.grokSDKBridge = grokSDKBridge;
         this.cliBridges = cliBridges != null ? cliBridges : Collections.emptyMap();
         this.contextService = contextService;
+        this.geminiSDKBridge = geminiSDKBridge;
+    }
+
+    /**
+     * Bridge install dir for the cwd guard (the tree the daemon itself runs
+     * from — same resolver result {@code DaemonBridge} spawns node with).
+     * Null when resolution is unavailable (no shared resolver yet, extraction
+     * in progress, headless test context): the guard then applies only its
+     * name-based literals. The catch is Throwable on purpose — IntelliJ's
+     * {@code Logger.error} escalates to AssertionError outside a running IDE.
+     */
+    private static File resolveBridgeDirForCwdGuard() {
+        try {
+            BridgeDirectoryResolver resolver = BridgePreloader.getSharedResolver();
+            return resolver != null ? resolver.findSdkDir() : null;
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     public void prepareContextCollector(EditorContextCollector contextCollector) {
@@ -165,6 +189,19 @@ public class SessionSendService {
 
         if ("grok".equals(currentProvider) && grokSDKBridge != null) {
             return sendToGrok(
+                    channelId,
+                    input,
+                    attachments,
+                    openedFilesJson,
+                    agentPrompt,
+                    fileTagPaths,
+                    effectivePermissionMode,
+                    normalizedRequestedEffort
+            );
+        }
+
+        if ("gemini".equals(currentProvider) && geminiSDKBridge != null) {
+            return sendToGemini(
                     channelId,
                     input,
                     attachments,
@@ -366,11 +403,18 @@ public class SessionSendService {
         final String runtimeSessionEpoch = state.getRuntimeSessionEpoch();
         final String currentModel = state.getModel();
         String projectBase = project != null ? project.getBasePath() : null;
-        String guardedCwd = com.github.claudecodegui.util.PathUtils.guardWorkingDirectory(
-                state.getCwd(), projectBase);
+        // Non-clamping guard (same policy as gemini/CLI providers): a cwd
+        // outside the project can be a legitimate custom working directory
+        // (handleSetWorkingDirectory accepts any existing dir). When neither
+        // it nor the project base is acceptable, pass null onward — the JS
+        // side applies its own safe default, never the value just rejected.
+        File bridgeDir = resolveBridgeDirForCwdGuard();
+        String guardedCwd = com.github.claudecodegui.util.PathUtils.selectSafeWorkingDirectory(
+                state.getCwd(), projectBase, bridgeDir);
         if (guardedCwd == null) {
-            guardedCwd = state.getCwd();
-        } else if (state.getCwd() == null || !guardedCwd.equals(state.getCwd())) {
+            LOG.warn("[Lifecycle] sendToGrok cwd guard rejected unsafe cwd: " + state.getCwd()
+                    + " — sending without explicit cwd (JS-side default applies)");
+        } else if (!guardedCwd.equals(state.getCwd())) {
             LOG.warn("[Lifecycle] sendToGrok cwd guard: " + state.getCwd() + " -> " + guardedCwd);
             state.setCwd(guardedCwd);
         }
@@ -394,6 +438,70 @@ public class SessionSendService {
                 streaming,
                 false,
                 requestedReasoningEffort != null ? requestedReasoningEffort : state.getReasoningEffort(),
+                handler
+        ).thenApply(result -> null);
+    }
+
+    private CompletableFuture<Void> sendToGemini(
+            String channelId,
+            String input,
+            List<ClaudeSession.Attachment> attachments,
+            JsonObject openedFilesJson,
+            String agentPrompt,
+            List<String> fileTagPaths,
+            String effectivePermissionMode,
+            String requestedReasoningEffort
+    ) {
+        if (geminiSDKBridge == null) {
+            LOG.error("[Lifecycle] sendToGemini called but GeminiSDKBridge is null");
+            callbackFacade.notifyStateChange(false, false, "Gemini bridge not available");
+            return CompletableFuture.completedFuture(null);
+        }
+        GeminiMessageHandler handler = new GeminiMessageHandler(state, callbackFacade.getCallbackHandler(), project);
+        Boolean streaming = readStreamingEnabled();
+        final String runtimeSessionEpoch = state.getRuntimeSessionEpoch();
+        final String currentModel = state.getModel();
+        String effort = requestedReasoningEffort;
+        if (effort == null) {
+            effort = state.getReasoningEffort();
+        }
+        String projectBase = project != null ? project.getBasePath() : null;
+        // Non-clamping guard: a cwd outside the project can be a legitimate
+        // custom working directory (handleSetWorkingDirectory accepts any
+        // existing dir). When neither it nor the project base is acceptable,
+        // pass null onward — the JS side applies its own safe default, never
+        // the value just rejected.
+        File bridgeDir = resolveBridgeDirForCwdGuard();
+        String guardedCwd = com.github.claudecodegui.util.PathUtils.selectSafeWorkingDirectory(
+                state.getCwd(), projectBase, bridgeDir);
+        if (guardedCwd == null) {
+            LOG.warn("[Lifecycle] sendToGemini cwd guard rejected unsafe cwd: " + state.getCwd()
+                    + " — sending without explicit cwd (JS-side default applies)");
+        } else if (!guardedCwd.equals(state.getCwd())) {
+            LOG.warn("[Lifecycle] sendToGemini cwd guard: " + state.getCwd() + " -> " + guardedCwd);
+            state.setCwd(guardedCwd);
+        }
+        LOG.info("[Lifecycle] sendToGemini model=" + currentModel
+                + ", sessionId=" + (state.getSessionId() != null ? state.getSessionId() : "(new)")
+                + ", cwd=" + guardedCwd);
+
+        String contextAppend = contextService.buildCodexContextAppend(openedFilesJson, fileTagPaths);
+        String finalInput = (input != null ? input : "") + contextAppend;
+
+        return geminiSDKBridge.sendMessage(
+                channelId,
+                finalInput,
+                state.getSessionId(),
+                runtimeSessionEpoch,
+                guardedCwd,
+                attachments,
+                effectivePermissionMode,
+                currentModel,
+                openedFilesJson,
+                agentPrompt,
+                streaming,
+                false,
+                effort,
                 handler
         ).thenApply(result -> null);
     }
@@ -437,9 +545,24 @@ public class SessionSendService {
                 : "default";
         int attachmentCount = attachments != null ? attachments.size() : 0;
 
+        String projectBase = project != null ? project.getBasePath() : null;
+        // Same non-clamping guard as gemini/grok: a clamping guard would
+        // silently break the custom-working-directory feature for CLI
+        // providers (handleSetWorkingDirectory accepts existing dirs outside
+        // the project). null falls through to the JS-side safe default.
+        File bridgeDir = resolveBridgeDirForCwdGuard();
+        String guardedCwd = com.github.claudecodegui.util.PathUtils.selectSafeWorkingDirectory(
+                state.getCwd(), projectBase, bridgeDir);
+        if (guardedCwd == null) {
+            LOG.warn("[Lifecycle] sendToCli (" + provider + ") cwd guard rejected unsafe cwd: "
+                    + state.getCwd() + " — sending without explicit cwd (JS-side default applies)");
+        } else if (!guardedCwd.equals(state.getCwd())) {
+            state.setCwd(guardedCwd);
+        }
+
         LOG.info("[Lifecycle] sendToCli provider=" + provider
                 + " sessionId=" + (state.getSessionId() != null ? state.getSessionId() : "(new)")
-                + ", cwd=" + state.getCwd()
+                + ", cwd=" + guardedCwd
                 + ", modelRaw=" + state.getModel()
                 + ", modelCli=" + (modelForCli != null ? modelForCli : "(config-default)")
                 + ", effort=" + effort
@@ -450,7 +573,7 @@ public class SessionSendService {
                 channelId,
                 finalInput,
                 state.getSessionId(),
-                state.getCwd(),
+                guardedCwd,
                 modelForCli != null ? modelForCli : "",
                 effort,
                 attachments,

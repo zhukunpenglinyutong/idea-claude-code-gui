@@ -48,8 +48,17 @@ export interface UseWindowCallbacksOptions {
   setCurrentProvider: React.Dispatch<React.SetStateAction<string>>;
   setClaudePermissionMode: React.Dispatch<React.SetStateAction<PermissionMode>>;
   setCodexPermissionMode: React.Dispatch<React.SetStateAction<PermissionMode>>;
+  // Required: without the gemini setters every Java→UI mode/model push for a
+  // gemini tab silently no-ops, and the stale gemini slice later clobbers
+  // Java's value via set_mode on the next provider switch.
+  setGeminiPermissionMode: React.Dispatch<React.SetStateAction<PermissionMode>>;
   setSelectedClaudeModel: React.Dispatch<React.SetStateAction<string>>;
   setSelectedCodexModel: React.Dispatch<React.SetStateAction<string>>;
+  setSelectedGeminiModel: React.Dispatch<React.SetStateAction<string>>;
+  // Bare gemini family ids (legacy persisted tab state) mirror the family's
+  // default tier into the shared effort slot — same shape as the App.tsx
+  // history path's bare-row branch.
+  resolveDefaultEffort?: (familyId: string) => ReasoningEffort;
   setLongContextEnabled: React.Dispatch<React.SetStateAction<boolean>>;
   setReasoningEffort: React.Dispatch<React.SetStateAction<ReasoningEffort>>;
   setCodexFastMode: React.Dispatch<React.SetStateAction<CodexFastMode>>;

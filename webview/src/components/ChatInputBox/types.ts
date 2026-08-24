@@ -586,6 +586,122 @@ export const isValidDshPreset = (value: unknown): value is DshPreset =>
 /**
  * Available models (backward compatibility)
  */
+/**
+ * Gemini / Antigravity CLI model families (base ids).
+ * Live catalog is loaded via `agy models` → get_gemini_models.
+ * Effort (high/medium/low/thinking) is a subordinate ReasoningSelect list;
+ * full agy slugs are composed at send time (e.g. gemini-3.5-flash-medium).
+ */
+export const DEFAULT_GEMINI_MODEL_ID = 'gemini-3.5-flash';
+
+/** Fallback when agy is offline / listModels has not returned yet. */
+export const GEMINI_MODELS: ModelInfo[] = [
+  {
+    id: 'gemini-3.6-flash',
+    label: 'Gemini 3.6 Flash',
+    description: 'Newest Flash',
+  },
+  {
+    id: 'gemini-3.5-flash',
+    label: 'Gemini 3.5 Flash',
+    description: 'Flash 3.5 · default',
+  },
+  {
+    id: 'gemini-3.1-pro',
+    label: 'Gemini 3.1 Pro',
+    description: 'Pro 3.1',
+  },
+  {
+    id: 'claude-sonnet-4-6',
+    label: 'Claude Sonnet 4.6',
+    description: 'Sonnet via Antigravity',
+  },
+  {
+    id: 'claude-opus-4-6',
+    label: 'Claude Opus 4.6',
+    description: 'Opus via Antigravity',
+  },
+  {
+    id: 'gpt-oss-120b',
+    label: 'GPT-OSS 120B',
+    description: 'Open-weight GPT via Antigravity',
+  },
+];
+
+/** Effort option under a Gemini/agy model family. */
+export interface GeminiEffortOption {
+  id: string;
+  label: string;
+  /** Full agy model slug to send as --model */
+  modelId: string;
+}
+
+/** Family row from live `agy models` grouping. */
+export interface GeminiModelFamily {
+  id: string;
+  label: string;
+  description?: string;
+  efforts: GeminiEffortOption[];
+  defaultEffort: string;
+  defaultModelId: string;
+}
+
+export type GeminiAgyEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'thinking' | '';
+
+const AGY_EFFORT_SUFFIXES = ['thinking', 'max', 'xhigh', 'medium', 'high', 'low'] as const;
+
+/** Split full agy slug into family base + effort suffix. */
+export function splitGeminiAgyModelId(modelId: string): { baseId: string; effort: string } {
+  const id = (modelId || '').trim();
+  if (!id) return { baseId: '', effort: '' };
+  for (const effort of AGY_EFFORT_SUFFIXES) {
+    const suffix = `-${effort}`;
+    if (id.endsWith(suffix) && id.length > suffix.length) {
+      return { baseId: id.slice(0, -suffix.length), effort };
+    }
+  }
+  return { baseId: id, effort: '' };
+}
+
+/** Compose full agy slug from family + effort (effort may be empty). */
+export function composeGeminiAgyModelId(baseId: string, effort: string): string {
+  const base = (baseId || '').trim();
+  if (!base) return '';
+  const { baseId: stripped } = splitGeminiAgyModelId(base);
+  const family = stripped || base;
+  const e = (effort || '').trim().toLowerCase();
+  if (!e) return family;
+  return `${family}-${e}`;
+}
+
+/** Normalize a stored/full slug or family id to the family base used in ModelSelect. */
+export function toGeminiFamilyId(modelId: string): string {
+  const { baseId } = splitGeminiAgyModelId(modelId);
+  return baseId || modelId;
+}
+
+/**
+ * True for ids in the LIVE claude catalog. Gemini/agy restore paths use this
+ * as a cross-provider guard: the JCEF boot snapshot and tab-state pushes are
+ * shared across chat tabs, so a claude-era tab's model (e.g. claude-sonnet-5,
+ * the claude default) can surface as a gemini tab's saved model — accepting
+ * it poisons the slot and the catalog re-push relays set_model('claude-…')
+ * to agy, which rejects it at spawn. Retired claude ids that agy still ships
+ * (claude-sonnet-4-6, claude-opus-4-6) are aliased out of CLAUDE_MODELS and
+ * are NOT live — they pass, as do unknown dynamic agy ids (same
+ * accept-unknown policy as the codex restore path).
+ */
+export function isLiveClaudeModelId(modelId: string | undefined | null): boolean {
+  if (!modelId) return false;
+  // A claude tab with the 1M-context toggle on carries the [1m] suffix on its
+  // model id (claude-sonnet-5[1m] — the exact value seen in IDE logs). Strip it
+  // before matching, mirroring normalizeClaudeModelId, or the suffix makes a
+  // live claude id miss the catalog and slip the guard.
+  const baseId = strip1MContextSuffix(modelId);
+  if (GEMINI_MODELS.some((m) => m.id === baseId)) return false;
+  return CLAUDE_MODELS.some((m) => m.id === baseId);
+}
+
 export const AVAILABLE_MODELS = CLAUDE_MODELS;
 
 /**
@@ -606,6 +722,7 @@ export interface ProviderInfo {
 export const AVAILABLE_PROVIDERS: ProviderInfo[] = [
   { id: 'claude', label: 'Claude Code', icon: 'codicon-terminal', enabled: true },
   { id: 'codex', label: 'Codex', icon: 'codicon-terminal', enabled: true },
+  { id: 'gemini', label: 'Gemini Cli', icon: 'codicon-terminal', enabled: true, beta: true },
   { id: 'grok', label: 'Grok CLI', icon: 'codicon-terminal', enabled: true, beta: true },
   { id: 'kimi', label: 'Kimi CLI', icon: 'codicon-terminal', enabled: true, beta: true },
   { id: 'opencode', label: 'OpenCode', icon: 'codicon-terminal', enabled: true, beta: true },
@@ -663,6 +780,21 @@ export function codexModelSupportsMaxEffort(modelId: string): boolean {
  * Codex API values: low, medium, high, xhigh; GPT-5.6 also supports max
  */
 export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
+/**
+ * Every effort tier the runtime accepts, including the gemini/agy-only
+ * 'thinking' tier (valid only inside gemini model slugs — gemini-3.5-flash
+ * -thinking — and the shared slot while the gemini provider is active).
+ * The single source of truth for runtime allowlists: duplicated literals
+ * drift and reopen the 'thinking' seam.
+ */
+export const REASONING_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max', 'thinking'] as const;
+
+/**
+ * Tiers valid in the shared cross-provider reasoning slot — the gemini-only
+ * 'thinking' excluded (Java rejects it for claude/codex/CLI providers).
+ */
+export const REASONING_EFFORTS_SHARED = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 
 /**
  * Codex execution speed mode.
@@ -888,6 +1020,11 @@ export interface ChatInputBoxProps {
   longContextEnabled?: boolean;
   /** Toggle long context callback */
   onLongContextChange?: (enabled: boolean) => void;
+  /** Live Gemini/agy families for subordinate effort list. */
+  geminiFamilies?: GeminiModelFamily[];
+  /** Live Gemini family rows for ModelSelect. */
+  geminiModels?: ModelInfo[];
+
 }
 
 /**
@@ -951,6 +1088,11 @@ export interface ButtonAreaProps {
   longContextEnabled?: boolean;
   /** Toggle long context callback */
   onLongContextChange?: (enabled: boolean) => void;
+  /** Live Gemini/agy model families (effort subordinates). */
+  geminiFamilies?: GeminiModelFamily[];
+  /** Live Gemini family list for ModelSelect (fallback: GEMINI_MODELS). */
+  geminiModels?: ModelInfo[];
+
 }
 
 /**

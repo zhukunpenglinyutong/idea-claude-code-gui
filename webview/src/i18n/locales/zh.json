@@ -636,6 +636,10 @@
       "copied": "已复制到剪贴板",
       "copyFailed": "复制失败",
       "tools": {
+        "agy": {
+          "name": "Antigravity CLI (Gemini)",
+          "description": "Google Antigravity CLI (Gemini) 终端 AI 编程 Agent"
+        },
         "grok": {
           "name": "Grok CLI",
           "description": "xAI Grok 终端编码助手"

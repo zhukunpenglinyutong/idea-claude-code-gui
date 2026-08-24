@@ -33,6 +33,32 @@ public class TokenUsageUtilsTest {
      * Verifies Codex context usage uses the provider's cache-inclusive input count only.
      */
     @Test
+    public void geminiContextTokensPreferInputAndAgyCacheFieldsNotTotal() {
+        JsonObject usage = new JsonObject();
+        usage.addProperty("input_tokens", 27793);
+        usage.addProperty("output_tokens", 18);
+        usage.addProperty("thinking_tokens", 0);
+        usage.addProperty("cache_read_tokens", 100);
+        usage.addProperty("total_tokens", 27911);
+
+        // Must NOT use total_tokens; must NOT sum input+cache (double-count)
+        assertEquals(27793, TokenUsageUtils.extractContextTokens(usage, "gemini"));
+    }
+
+    @Test
+    public void geminiDoesNotInflateWhenCacheEqualsInput() {
+        JsonObject usage = new JsonObject();
+        usage.addProperty("input_tokens", 900000);
+        usage.addProperty("cache_read_tokens", 900000);
+        usage.addProperty("cache_creation_input_tokens", 150000);
+        usage.addProperty("output_tokens", 10);
+        usage.addProperty("total_tokens", 1950010);
+
+        // Would be ~1.95M if we summed input+cache+creation; occupancy is input.
+        assertEquals(900000, TokenUsageUtils.extractContextTokens(usage, "gemini"));
+    }
+
+    @Test
     public void codexContextTokensUseInputOnly() {
         JsonObject usage = new JsonObject();
         usage.addProperty("input_tokens", 180000);

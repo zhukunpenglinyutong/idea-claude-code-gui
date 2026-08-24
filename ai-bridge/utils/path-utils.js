@@ -151,12 +151,19 @@ export function getTempPathPrefixes() {
 /**
  * Normalize a path for comparison purposes.
  * On Windows: converts to lowercase and uses forward slashes.
+ * @param {string} pathValue
+ * @param {string} [platformId] injectable platform for cross-platform unit
+ *   tests (defaults to process.platform) — same convention as cli-path's
+ *   forceWindows flag, so darwin/win32 behavior is testable on linux CI.
  * @internal Exposed for unit testing; not part of the public API.
  */
-export function normalizePathForComparison(pathValue) {
+export function normalizePathForComparison(pathValue, platformId = process.platform) {
   if (!pathValue) return '';
   let normalized = pathValue.replace(/\\/g, '/');
-  if (process.platform === 'win32') {
+  // Windows is case-insensitive by design, and macOS filesystems are
+  // case-insensitive by default — "/application support/…" must match
+  // "/Application Support/…" or the guards below never fire on macOS.
+  if (platformId === 'win32' || platformId === 'darwin') {
     normalized = normalized.toLowerCase();
   }
   return normalized;
@@ -224,19 +231,53 @@ function getBridgeDir() {
 }
 
 /**
- * Check whether a path points at the ai-bridge install directory itself.
+ * Paths that must never become agy workspaceDirs / process cwd.
+ * Plugin install trees, ai-bridge, and ~/.gemini were observed as wrong
+ * workspace roots and inflate tool context with unrelated trees.
  *
- * The daemon launches with process.cwd() === the bridge dir, and a per-process
- * worker falls back to it when no valid cwd is supplied. Resolving the working
- * directory to it makes the Claude SDK persist sessions under
- * ~/.claude/projects/<sanitized-bridge-dir>/, scattering every project's history
- * into one bogus folder (issue #1343). Such a candidate must always be rejected.
- * @param {string} pathValue - The path to check
+ * Note: darwin/win32 fold case (normalizePathForComparison), so the
+ * lowercase literals match there. Linux does not fold — and must not
+ * blanket-fold, case-sensitive Linux filesystems legitimately distinguish
+ * `jetbrains` from `JetBrains` — so both the folded (darwin) and the
+ * real-case (Linux) spellings are listed. On case-sensitive APFS volumes
+ * the darwin folding can over-match; that is accepted — these guards
+ * reject known unsafe trees, never auto-select one.
+ * @param {string} pathValue
  * @returns {boolean}
  */
-export function isBridgeDirectory(pathValue) {
-  if (!pathValue) return false;
-  return normalizePathForComparison(pathValue) === normalizePathForComparison(getBridgeDir());
+export function isUnsafeWorkingDirectory(pathValue, platformId = process.platform) {
+  if (!pathValue || typeof pathValue !== 'string') return true;
+  const trimmed = pathValue.trim();
+  if (!trimmed || trimmed === 'undefined' || trimmed === 'null') return true;
+
+  const n = normalizePathForComparison(trimmed, platformId);
+  if (!n) return true;
+
+  // Inside the actual ai-bridge install tree — anchored to this module's own
+  // root (getBridgeDir). The old generic name check rejected ANY project
+  // merely living in a directory named "ai-bridge", silently redirecting
+  // its cwd for all providers.
+  const bridgeDir = normalizePathForComparison(getBridgeDir(), platformId);
+  if (bridgeDir && (n === bridgeDir || n.startsWith(`${bridgeDir}/`))) return true;
+
+  // JetBrains plugin / config trees (embedded ai-bridge). Both spellings:
+  // folded for darwin/win32, real-case for case-sensitive Linux.
+  if (n.includes('/application support/jetbrains/') || n.includes('/Application Support/JetBrains/')) return true;
+  if (n.includes('/plugins/idea-claude-code-gui')) return true;
+  if (n.includes('/.local/share/jetbrains/') || n.includes('/.local/share/JetBrains/')) return true;
+  // Windows JetBrains roots — win32 normalization folds case and slashes, so
+  // one lowercase spelling each covers Roaming and Local.
+  if (n.includes('/appdata/roaming/jetbrains/') || n.includes('/appdata/local/jetbrains/')) return true;
+  // Linux config root — both spellings, like .local/share above.
+  if (n.includes('/.config/jetbrains/') || n.includes('/.config/JetBrains/')) return true;
+
+  // Antigravity CLI home — wrong workspaceDirs=[~/.gemini] in production logs.
+  if (n.endsWith('/.gemini') || n.includes('/.gemini/')) return true;
+  if (n.endsWith('/.gemini/antigravity-cli') || n.includes('/.gemini/antigravity-cli/')) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -270,8 +311,9 @@ export function selectWorkingDirectory(requestedCwd) {
     // so an empty requestedCwd + missing IDEA_PROJECT_PATH would otherwise land
     // here and make the SDK persist sessions under
     // ~/.claude/projects/<sanitized-bridge-dir>/, hiding every project's history.
-    if (isBridgeDirectory(normalized)) {
-      console.log('[DEBUG] Skipping ai-bridge directory candidate:', normalized);
+    // Also reject JetBrains plugin trees and ~/.gemini (agy workspaceDirs bugs).
+    if (isUnsafeWorkingDirectory(normalized)) {
+      console.log('[DEBUG] Skipping unsafe working-directory candidate:', normalized);
       continue;
     }
 
@@ -293,11 +335,11 @@ export function selectWorkingDirectory(requestedCwd) {
   }
 
   console.log('[DEBUG] selectWorkingDirectory fallback triggered');
-  // Guard: reject the bridge dir even from IDEA_PROJECT_PATH (e.g. when the user
+  // Guard: reject unsafe dirs even from IDEA_PROJECT_PATH (e.g. when the user
   // is developing the bridge itself). The home dir is always a safe fallback.
   const fallback = envProjectPath || getRealHomeDir();
-  if (isBridgeDirectory(fallback)) {
-    console.log('[DEBUG] Fallback env path is bridge dir, using home dir instead');
+  if (isUnsafeWorkingDirectory(fallback)) {
+    console.log('[DEBUG] Fallback env path is unsafe, using home dir instead');
     return getRealHomeDir();
   }
   return fallback;

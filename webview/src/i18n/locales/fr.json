@@ -843,6 +843,10 @@
       "copied": "Copied to clipboard",
       "copyFailed": "Failed to copy",
       "tools": {
+        "agy": {
+          "name": "Antigravity CLI (Gemini)",
+          "description": "Agent de code en terminal Google Antigravity CLI (Gemini)"
+        },
         "grok": {
           "name": "Grok CLI",
           "description": "xAI Grok terminal coding agent"

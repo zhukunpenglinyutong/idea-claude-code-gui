@@ -9,6 +9,7 @@ import { readClaudeModelMapping } from '../../utils/claudeModelMapping';
 import { useCliModels, useOmpRoles } from '../../hooks/providers/useCliModels';
 import { useToolbarSelectorCompact } from './hooks/useToolbarSelectorCompact';
 import { resolveProviderModels } from './resolveProviderModels';
+import { toGeminiFamilyId } from './types';
 
 /**
  * Get custom Codex model list from localStorage
@@ -70,6 +71,8 @@ function getCustomClaudeModels(): ModelInfo[] {
  * Contains mode selector, model selector, attachment button, prompt enhancer button, send/stop button
  */
 export const ButtonArea = ({
+  geminiFamilies,
+  geminiModels,
   disabled = false,
   hasInputContent = false,
   isLoading = false,
@@ -102,7 +105,7 @@ export const ButtonArea = ({
 }: ButtonAreaProps) => {
   const { t } = useTranslation();
   // const fileInputRef = useRef<HTMLInputElement>(null);
-  const { cliModels, cliModelsLoading, cliModelsError, cliDefaultModel, cliCatalogHasEntries, refreshCliModels } = useCliModels(currentProvider);
+  const { cliModels, cliModelsLoading, cliModelsError, refreshCliModels, cliDefaultModel, cliCatalogHasEntries } = useCliModels(currentProvider);
   // Dynamic omp roles (static smol/slow/plan fallback until loaded).
   const ompRoles = useOmpRoles();
 
@@ -152,29 +155,49 @@ export const ButtonArea = ({
       claudeCustomModels: getCustomClaudeModels(),
       codexCustomModels: getCustomCodexModels(),
       claudeMapping,
+      geminiModels,
     });
     // customModelsVersion intentionally forces re-read of localStorage customs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentProvider, customModelsVersion, cliModels, cliCatalogHasEntries, ompRoles]);
+  }, [currentProvider, customModelsVersion, cliModels, cliCatalogHasEntries, geminiModels, ompRoles]);
 
-  // When a dynamic model catalog arrives, ensure selection is a real entry.
+  // When CLI model catalog arrives, ensure selection is a real entry.
   useEffect(() => {
-    const isDynamicProvider = currentProvider === 'kimi' || currentProvider === 'opencode'
+    const isGemini = currentProvider === 'gemini';
+    const isDynamicProvider = isGemini || currentProvider === 'kimi' || currentProvider === 'opencode'
       || currentProvider === 'pi' || currentProvider === 'codex'
       || currentProvider === 'grok' || currentProvider === 'omp'
       || currentProvider === 'dsh';
     if (!isDynamicProvider) return;
+    // Gemini uses family list from get_gemini_models (geminiModels), not flat cliModels.
     // Only correct once a *real* catalog arrived. Static fallback lists
-    // (OPENCODE_MODELS = just "opencode-default", CODEX built-ins, …) must not
-    // clobber the user's choice — especially when ChatScreen remounts after
-    // leaving history and briefly shows the fallback before the cache/fetch
-    // lands.
-    if (!cliCatalogHasEntries) return;
-    if (cliModelsLoading) return;
+    // (geminiModels seeds from GEMINI_MODELS, OPENCODE_MODELS = just
+    // "opencode-default", CODEX built-ins, …) must not clobber the user's
+    // choice — especially when ChatScreen remounts after leaving history and
+    // briefly shows the fallback before the cache/fetch lands. geminiFamilies
+    // is empty until the live catalog lands, so it is the loaded gate.
+    if (isGemini) {
+      if (!geminiFamilies || geminiFamilies.length === 0) return;
+    } else {
+      if (!cliCatalogHasEntries) return;
+      if (cliModelsLoading) return;
+    }
     if (!availableModels.length || !onModelSelect) return;
-    const exists = availableModels.some((model) => model.id === selectedModel);
+    const selectedFamily = isGemini
+      ? (toGeminiFamilyId(selectedModel) || selectedModel)
+      : selectedModel;
+    const exists = availableModels.some((model: ModelInfo) =>
+      model.id === selectedModel || model.id === selectedFamily);
     if (!exists) {
-      onModelSelect(cliDefaultModel ?? availableModels[0].id);
+      // Gemini takes the positional first family; honoring the family's
+      // defaultModelId stays deferred (product refinement). CLI providers
+      // prefer their reported default even when the fetched catalog does not
+      // list it — catalogs are dynamic (config.toml entries, backend-reported
+      // models), the CLI still accepts its own default, and persistence
+      // stores the raw id (makeCliModelApplier accepts any non-empty id).
+      // The first catalog entry is only the last resort.
+      const fallback = availableModels[0].id;
+      onModelSelect(isGemini ? fallback : (cliDefaultModel ?? fallback));
     }
   }, [
     availableModels,
@@ -184,6 +207,7 @@ export const ButtonArea = ({
     cliDefaultModel,
     cliCatalogHasEntries,
     cliModelsLoading,
+    geminiFamilies,
   ]);
 
   /**
@@ -306,7 +330,13 @@ export const ButtonArea = ({
           longContextEnabled={longContextEnabled}
           onLongContextChange={onLongContextChange}
         />
-        <ReasoningSelect value={reasoningEffort} onChange={handleReasoningChange} selectedModel={selectedModel} currentProvider={currentProvider} />
+        <ReasoningSelect
+          value={reasoningEffort}
+          onChange={handleReasoningChange}
+          selectedModel={selectedModel}
+          currentProvider={currentProvider}
+          geminiFamilies={geminiFamilies}
+        />
         {currentProvider === 'codex' && (
           <CodexFastModeSelect value={codexFastMode} onChange={handleCodexFastModeChange} />
         )}

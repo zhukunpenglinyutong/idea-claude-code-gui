@@ -29,7 +29,7 @@ public final class TokenUsageUtils {
             return 0;
         }
         int input = usage.has("input_tokens") ? usage.get("input_tokens").getAsInt() : 0;
-        if ("codex".equals(provider)) {
+        if ("codex".equals(provider) || "gemini".equals(provider)) {
             return input;
         }
         int cacheCreation = usage.has("cache_creation_input_tokens")

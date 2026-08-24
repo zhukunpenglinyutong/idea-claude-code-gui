@@ -45,6 +45,10 @@ public class SessionLifecycleManager {
             return null;
         }
 
+        default com.github.claudecodegui.provider.gemini.GeminiSDKBridge getGeminiSDKBridge() {
+            return null;
+        }
+
         Map<String, MarkerCliBridge> getCliBridges();
 
         ClaudeSession getSession();
@@ -468,7 +472,8 @@ public class SessionLifecycleManager {
                 host.getClaudeSDKBridge(),
                 host.getCodexSDKBridge(),
                 host.getCliBridges(),
-                host.getGrokSDKBridge());
+                host.getGrokSDKBridge(),
+                host.getGeminiSDKBridge());
     }
 
     private void completeNewSessionBootstrap(ClaudeSession newSession, String workingDirectory, String successLogPrefix) {

@@ -35,6 +35,21 @@ public enum SdkDefinition {
         Arrays.asList("0.117.0", "0.116.0", "0.115.0"),
         "Codex AI 提供商所需。",
         null // minRequiredVersion — no enforced minimum
+    ),
+
+    /**
+     * Gemini uses Antigravity CLI ({@code agy}) headless stream-json — not an npm SDK.
+     * Install externally; path via AGY_PATH / AGY_CLI_PATH or PATH.
+     */
+    GEMINI_CLI(
+        "gemini-cli",
+        "Antigravity CLI (Gemini)",
+        "agy-cli-binary",
+        "latest",
+        Collections.emptyList(),
+        Collections.emptyList(),
+        "Gemini provider requires Antigravity CLI (agy). Install from https://antigravity.google/docs/cli/install and sign in once via agy.",
+        null
     );
 
     private final String id;
@@ -137,6 +152,8 @@ public enum SdkDefinition {
             return CLAUDE_SDK;
         } else if ("codex".equalsIgnoreCase(provider)) {
             return CODEX_SDK;
+        } else if ("gemini".equalsIgnoreCase(provider)) {
+            return GEMINI_CLI;
         }
         return null;
     }

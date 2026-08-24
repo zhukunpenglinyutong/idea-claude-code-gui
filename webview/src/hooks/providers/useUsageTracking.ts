@@ -12,6 +12,7 @@ const PROVIDER_TO_SDK: Record<string, string> = {
   bedrock: 'claude-sdk',
   codex: 'codex-sdk',
   openai: 'codex-sdk',
+  gemini: 'gemini-cli',
   // CLI providers have no npm SDK — markers are only for lookups.
   grok: 'grok-cli',
   kimi: 'kimi-cli',

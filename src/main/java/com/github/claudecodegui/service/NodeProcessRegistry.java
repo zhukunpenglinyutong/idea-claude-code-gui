@@ -3,6 +3,7 @@ package com.github.claudecodegui.service;
 import com.github.claudecodegui.provider.claude.ClaudeSDKBridge;
 import com.github.claudecodegui.provider.codex.CodexSDKBridge;
 import com.github.claudecodegui.provider.common.DaemonBridge;
+import com.github.claudecodegui.provider.gemini.GeminiSDKBridge;
 import com.github.claudecodegui.provider.grok.GrokSDKBridge;
 import com.github.claudecodegui.ui.toolwindow.ClaudeChatWindow;
 import com.github.claudecodegui.ui.toolwindow.ClaudeSDKToolWindow;
@@ -108,6 +109,7 @@ public final class NodeProcessRegistry implements Disposable {
             // -- DAEMON + CHANNEL entries from Claude / Grok / Codex bridges --
             ClaudeSDKBridge claudeBridge = safeClaudeBridge(window);
             GrokSDKBridge grokBridge = safeGrokBridge(window);
+            GeminiSDKBridge geminiBridge = safeGeminiBridge(window);
             if (claudeBridge != null) {
                 collectDaemonEntry(
                         result,
@@ -162,6 +164,19 @@ public final class NodeProcessRegistry implements Disposable {
                         result,
                         knownPids,
                         codexBridge.getProcessManager().getActiveChannelSnapshot(),
+                        tabProvider,
+                        sessionId,
+                        tabName,
+                        now
+                );
+            }
+
+            // -- CHANNEL entries from gemini (per-message processes) --
+            if (geminiBridge != null) {
+                collectChannelEntries(
+                        result,
+                        knownPids,
+                        geminiBridge.getProcessManager().getActiveChannelSnapshot(),
                         tabProvider,
                         sessionId,
                         tabName,
@@ -551,6 +566,14 @@ public final class NodeProcessRegistry implements Disposable {
     private static @Nullable GrokSDKBridge safeGrokBridge(ClaudeChatWindow window) {
         try {
             return window != null ? window.getGrokSDKBridge() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static @Nullable GeminiSDKBridge safeGeminiBridge(ClaudeChatWindow window) {
+        try {
+            return window != null ? window.getGeminiSDKBridge() : null;
         } catch (Exception e) {
             return null;
         }

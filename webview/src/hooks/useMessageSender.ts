@@ -331,7 +331,7 @@ export function useMessageSender({
     }
     if (!currentSdkInstalled) {
       addToast(
-        t('chat.sdkNotInstalled', { provider: currentProvider === 'codex' ? 'Codex' : 'Claude Code' }) + ' ' + t('chat.goInstallSdk'),
+        t('chat.sdkNotInstalled', { provider: currentProvider === 'codex' ? 'Codex' : currentProvider === 'gemini' ? 'Gemini' : currentProvider === 'grok' ? 'Grok' : 'Claude Code' }) + ' ' + t('chat.goInstallSdk'),
         'warning'
       );
       setSettingsInitialTab('dependencies');

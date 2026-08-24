@@ -15,8 +15,10 @@ function makeOptions(overrides: Partial<UseModelStatePersistenceOptions> = {}): 
     setCurrentProvider: vi.fn(),
     setSelectedClaudeModel: vi.fn(),
     setSelectedCodexModel: vi.fn(),
+    setSelectedGeminiModel: vi.fn(),
     setClaudePermissionMode: vi.fn(),
     setCodexPermissionMode: vi.fn(),
+    setGeminiPermissionMode: vi.fn(),
     setSelectedGrokModel: vi.fn(),
     setSelectedKimiModel: vi.fn(),
     setSelectedOpenCodeModel: vi.fn(),
@@ -37,8 +39,10 @@ function makeOptions(overrides: Partial<UseModelStatePersistenceOptions> = {}): 
     currentProvider: 'claude',
     selectedClaudeModel: 'claude-sonnet-4-5',
     selectedCodexModel: 'gpt-5-codex',
+    selectedGeminiModel: 'gemini-3.5-flash',
     claudePermissionMode: 'default' as PermissionMode,
     codexPermissionMode: 'default' as PermissionMode,
+    geminiPermissionMode: 'default' as PermissionMode,
     selectedGrokModel: 'grok-4.6',
     selectedKimiModel: 'auto',
     selectedOpenCodeModel: 'opencode-default',
@@ -421,7 +425,6 @@ describe('useModelStatePersistence — CLI provider persistence', () => {
     expect(setOmpPermissionMode).toHaveBeenCalledWith('default');
   });
 });
-
 describe('useModelStatePersistence — codex dynamic catalog models', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -487,3 +490,204 @@ describe('useModelStatePersistence — codex dynamic catalog models', () => {
     expect(bridgeEventsFor('set_model')).toHaveLength(1);
   });
 });
+
+describe('useModelStatePersistence — gemini agy slug persistence', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sendBridgeEventMock.mockClear();
+    (window as unknown as { sendToJava?: unknown }).sendToJava = () => {};
+    window.__CCGUI_PAGE_CONTEXT_READY__ = true;
+    window.__CCGUI_PAGE_LOAD_KIND__ = 'initial_load';
+    window.__CCGUI_RECOVERY_RELOAD__ = false;
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    delete (window as unknown as { sendToJava?: unknown }).sendToJava;
+    delete window.__CCGUI_PAGE_CONTEXT_READY__;
+    delete window.__CCGUI_PAGE_LOAD_KIND__;
+    delete window.__CCGUI_RECOVERY_RELOAD__;
+    delete window.__CCGUI_RECOVERY_STATE_APPLIED__;
+    delete (window as unknown as { __INITIAL_TAB_PROVIDER__?: unknown }).__INITIAL_TAB_PROVIDER__;
+    delete (window as unknown as { __INITIAL_TAB_MODEL__?: unknown }).__INITIAL_TAB_MODEL__;
+  });
+
+  it('syncs the composed full agy slug on boot, not the bare family id (AC9)', () => {
+    // Java compares the boot set_model against the session's agy slug
+    // (gemini-3.5-flash-thinking). A bare family id would make
+    // shouldResetGeminiSessionOnModelChange wipe the --conversation resume id
+    // on every restart.
+    const setSelectedGeminiModel = vi.fn();
+    localStorage.setItem('model-selection-state', JSON.stringify({
+      provider: 'gemini',
+      geminiModel: 'gemini-3.5-flash-thinking',
+      reasoningEffort: 'thinking',
+    }));
+
+    renderHook(() => useModelStatePersistence(makeOptions({ setSelectedGeminiModel })));
+    vi.advanceTimersByTime(200);
+
+    // Family id for the dropdown, full slug for the backend.
+    expect(setSelectedGeminiModel).toHaveBeenCalledWith('gemini-3.5-flash');
+    expect(bridgeEventsFor('set_model')).toEqual([['set_model', 'gemini-3.5-flash-thinking']]);
+  });
+
+  it('restores a gemini-only thinking effort into the shared slot when gemini is active', () => {
+    const setReasoningEffort = vi.fn();
+    localStorage.setItem('model-selection-state', JSON.stringify({
+      provider: 'gemini',
+      geminiModel: 'gemini-3.5-flash',
+      reasoningEffort: 'thinking',
+    }));
+
+    renderHook(() => useModelStatePersistence(makeOptions({ setReasoningEffort })));
+    vi.advanceTimersByTime(200);
+
+    expect(setReasoningEffort).toHaveBeenCalledWith('thinking');
+    expect(bridgeEventsFor('set_model')).toEqual([['set_model', 'gemini-3.5-flash-thinking']]);
+  });
+
+  it('clamps a restored thinking effort to high on a non-gemini tab (P7)', () => {
+    // The shared reasoning slot feeds claude/codex too, and Java rejects
+    // 'thinking' there — the same clamp the provider switch applies.
+    const setReasoningEffort = vi.fn();
+    localStorage.setItem('model-selection-state', JSON.stringify({
+      provider: 'codex',
+      codexModel: 'gpt-5-codex',
+      reasoningEffort: 'thinking',
+    }));
+
+    renderHook(() => useModelStatePersistence(makeOptions({ setReasoningEffort })));
+    vi.advanceTimersByTime(200);
+
+    expect(setReasoningEffort).toHaveBeenCalledWith('high');
+    expect(setReasoningEffort).not.toHaveBeenCalledWith('thinking');
+  });
+
+  it('does not re-leak a gemini slug thinking tier into a non-gemini tab (P2)', () => {
+    // Boot order: the P7 clamp runs first ('thinking' → 'high'), then
+    // applyGeminiModel restores the saved gemini slug. Its effort sync used to
+    // call setReasoningEffort('thinking') unguarded, re-leaking the gemini-only
+    // tier into the shared slot of the active codex tab after the clamp.
+    const setReasoningEffort = vi.fn();
+    localStorage.setItem('model-selection-state', JSON.stringify({
+      provider: 'codex',
+      codexModel: 'gpt-5-codex',
+      reasoningEffort: 'thinking',
+      geminiModel: 'gemini-3.5-flash-thinking',
+    }));
+
+    renderHook(() => useModelStatePersistence(makeOptions({ setReasoningEffort })));
+    vi.advanceTimersByTime(200);
+
+    expect(setReasoningEffort).toHaveBeenCalledWith('high');
+    expect(setReasoningEffort).not.toHaveBeenCalledWith('thinking');
+    // The active tab's set_model stays codex; the gemini slug is only kept
+    // for the switch-back compose, never pushed while codex is active.
+    expect(bridgeEventsFor('set_model')).toEqual([['set_model', 'gpt-5-codex']]);
+  });
+
+  it('composes -high for a bare-family gemini model with no stored effort (T2)', () => {
+    // Boot default: a bare family id (gemini-3.5-flash, no tier suffix) with
+    // no effort stored anywhere must sync set_model with the -high default
+    // tier — pins the round-2 P13 webview mirror (no test took the
+    // restoredGeminiEffort='high' default path before).
+    localStorage.setItem('model-selection-state', JSON.stringify({
+      provider: 'gemini',
+      geminiModel: 'gemini-3.5-flash',
+    }));
+
+    renderHook(() => useModelStatePersistence(makeOptions()));
+    vi.advanceTimersByTime(200);
+
+    expect(bridgeEventsFor('set_model')).toEqual([['set_model', 'gemini-3.5-flash-high']]);
+  });
+});
+
+describe('useModelStatePersistence — gemini slot cross-provider guard', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sendBridgeEventMock.mockClear();
+    (window as unknown as { sendToJava?: unknown }).sendToJava = () => {};
+    window.__CCGUI_PAGE_CONTEXT_READY__ = true;
+    window.__CCGUI_PAGE_LOAD_KIND__ = 'initial_load';
+    window.__CCGUI_RECOVERY_RELOAD__ = false;
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    delete (window as unknown as { sendToJava?: unknown }).sendToJava;
+    delete window.__CCGUI_PAGE_CONTEXT_READY__;
+    delete window.__CCGUI_PAGE_LOAD_KIND__;
+    delete window.__CCGUI_RECOVERY_RELOAD__;
+    delete window.__CCGUI_RECOVERY_STATE_APPLIED__;
+    delete (window as unknown as { __INITIAL_TAB_PROVIDER__?: unknown }).__INITIAL_TAB_PROVIDER__;
+    delete (window as unknown as { __INITIAL_TAB_MODEL__?: unknown }).__INITIAL_TAB_MODEL__;
+  });
+
+  it('rejects a claude-catalog id injected as the gemini tab model (__INITIAL_TAB_MODEL__)', () => {
+    // Regression: JCEF tab state is shared across chat tabs, so a claude-era
+    // tab's model can boot as the gemini tab's saved model. claude-sonnet-5
+    // (the claude default) is not an agy model — the boot sync would relay it
+    // as set_model('claude-sonnet-5') and agy rejects it at spawn
+    // (--model "claude-sonnet-5" --effort "").
+    const setSelectedGeminiModel = vi.fn();
+    (window as unknown as { __INITIAL_TAB_PROVIDER__?: unknown }).__INITIAL_TAB_PROVIDER__ = 'gemini';
+    (window as unknown as { __INITIAL_TAB_MODEL__?: unknown }).__INITIAL_TAB_MODEL__ = 'claude-sonnet-5';
+
+    renderHook(() => useModelStatePersistence(makeOptions({ setSelectedGeminiModel })));
+    vi.advanceTimersByTime(200);
+
+    expect(setSelectedGeminiModel).not.toHaveBeenCalledWith('claude-sonnet-5');
+    // The slot keeps the default family, and the boot set_model stays agy-valid.
+    expect(bridgeEventsFor('set_model')).toEqual([['set_model', 'gemini-3.5-flash-high']]);
+  });
+
+  it('rejects a claude-catalog id saved in the localStorage gemini slot', () => {
+    const setSelectedGeminiModel = vi.fn();
+    localStorage.setItem('model-selection-state', JSON.stringify({
+      provider: 'gemini',
+      geminiModel: 'claude-sonnet-5',
+    }));
+
+    renderHook(() => useModelStatePersistence(makeOptions({ setSelectedGeminiModel })));
+    vi.advanceTimersByTime(200);
+
+    expect(setSelectedGeminiModel).not.toHaveBeenCalledWith('claude-sonnet-5');
+    expect(bridgeEventsFor('set_model')).toEqual([['set_model', 'gemini-3.5-flash-high']]);
+  });
+
+  it('rejects a claude id carrying the [1m] context suffix (claude-sonnet-5[1m])', () => {
+    // Regression from IDE logs: the poisoning tab had the 1M-context toggle on,
+    // so the shared tab state carried claude-sonnet-5[1m]. The [1m] suffix made
+    // the id miss the live-claude catalog and slip the guard, relaying
+    // set_model('claude-sonnet-5[1m]') to agy.
+    const setSelectedGeminiModel = vi.fn();
+    (window as unknown as { __INITIAL_TAB_PROVIDER__?: unknown }).__INITIAL_TAB_PROVIDER__ = 'gemini';
+    (window as unknown as { __INITIAL_TAB_MODEL__?: unknown }).__INITIAL_TAB_MODEL__ = 'claude-sonnet-5[1m]';
+
+    renderHook(() => useModelStatePersistence(makeOptions({ setSelectedGeminiModel })));
+    vi.advanceTimersByTime(200);
+
+    expect(setSelectedGeminiModel).not.toHaveBeenCalledWith('claude-sonnet-5[1m]');
+    expect(setSelectedGeminiModel).not.toHaveBeenCalledWith('claude-sonnet-5');
+    expect(bridgeEventsFor('set_model')).toEqual([['set_model', 'gemini-3.5-flash-high']]);
+  });
+
+  it('still applies retired claude ids that agy ships live (claude-sonnet-4-6)', () => {
+    // claude-sonnet-4-6 is retired in the claude catalog (aliased to
+    // claude-sonnet-5 there) but LIVE in agy — the guard must not reject it.
+    const setSelectedGeminiModel = vi.fn();
+    (window as unknown as { __INITIAL_TAB_PROVIDER__?: unknown }).__INITIAL_TAB_PROVIDER__ = 'gemini';
+    (window as unknown as { __INITIAL_TAB_MODEL__?: unknown }).__INITIAL_TAB_MODEL__ = 'claude-sonnet-4-6';
+
+    renderHook(() => useModelStatePersistence(makeOptions({ setSelectedGeminiModel })));
+    vi.advanceTimersByTime(200);
+
+    expect(setSelectedGeminiModel).toHaveBeenCalledWith('claude-sonnet-4-6');
+    expect(bridgeEventsFor('set_model')).toEqual([['set_model', 'claude-sonnet-4-6-high']]);
+  });
+});
+

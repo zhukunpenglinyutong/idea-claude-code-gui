@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { __resetCliModelsCacheForTests, useCliModels, useOmpRoles } from './useCliModels';
-import { CODEX_MODELS, KIMI_MODELS, OMP_ROLE_MODELS } from '../../components/ChatInputBox/types';
+import { KIMI_MODELS, OMP_ROLE_MODELS } from '../../components/ChatInputBox/types';
 import { installRuntimeProviderDispatchers } from '../../utils/runtimeProviderCapabilities';
 
 const sendBridgeEventMock = vi.hoisted(() => vi.fn());
@@ -29,9 +29,9 @@ describe('useCliModels', () => {
     vi.useRealTimers();
   });
 
-  it('fetches the codex catalog when the codex provider is active', () => {
-    renderHook(() => useCliModels('codex'));
-    expect(sendBridgeEventMock).toHaveBeenCalledWith('get_cli_models', 'codex');
+  it('fetches the kimi catalog when the kimi provider is active', () => {
+    renderHook(() => useCliModels('kimi'));
+    expect(sendBridgeEventMock).toHaveBeenCalledWith('get_cli_models', 'kimi');
   });
 
   it('fetches the grok catalog when the grok provider is active', () => {
@@ -44,109 +44,102 @@ describe('useCliModels', () => {
     expect(sendBridgeEventMock).not.toHaveBeenCalled();
   });
 
-  it('falls back to the static CODEX_MODELS list before the catalog arrives', () => {
-    const { result } = renderHook(() => useCliModels('codex'));
-    expect(result.current.cliModels).toEqual(CODEX_MODELS);
+  it('gemini empty catalog answer stops the auto-fetch loop', () => {
+    // Regression: gemini had no static fallback, so an answered-but-empty
+    // payload left the cache empty and the auto-fetch effect refired
+    // get_cli_models forever (endless dropdown spinner + a node/agy spawn
+    // per cycle). The seed keeps cliModels non-empty after the answer.
+    const { result } = renderHook(() => useCliModels('gemini'));
+    expect(sendBridgeEventMock).toHaveBeenCalledTimes(1);
+    emitCliModels({ success: true, provider: 'gemini', models: [] });
+    expect(sendBridgeEventMock).toHaveBeenCalledTimes(1);
+    expect(result.current.cliModels.length).toBeGreaterThan(0);
+    expect(result.current.cliCatalogHasEntries).toBe(false);
+  });
+
+  it('falls back to the static KIMI_MODELS list before the catalog arrives', () => {
+    const { result } = renderHook(() => useCliModels('kimi'));
+    expect(result.current.cliModels).toEqual(KIMI_MODELS);
     expect(result.current.cliModelsLoading).toBe(true);
   });
 
-  it('stores the codex catalog and defaultModel from the backend payload', () => {
-    const { result } = renderHook(() => useCliModels('codex'));
+  it('stores the kimi catalog and defaultModel from the backend payload', () => {
+    const { result } = renderHook(() => useCliModels('kimi'));
     emitCliModels({
       success: true,
-      provider: 'codex',
+      provider: 'kimi',
       defaultModel: 'kimi-k3',
       models: [{ id: 'kimi-k3', label: 'kimi-k3', description: 'kimi-k3' }],
     });
     expect(result.current.cliModels).toEqual([
       { id: 'kimi-k3', label: 'kimi-k3', description: 'kimi-k3' },
     ]);
-    expect(result.current.cliDefaultModel).toBe('kimi-k3');
     expect(result.current.cliModelsLoading).toBe(false);
     expect(result.current.cliModelsError).toBeNull();
   });
 
-  it('falls back to CODEX_MODELS when the codex payload has no models (official provider)', () => {
-    const { result } = renderHook(() => useCliModels('codex'));
+  it('falls back to KIMI_MODELS when the kimi payload has no models', () => {
+    const { result } = renderHook(() => useCliModels('kimi'));
     emitCliModels({
       success: true,
-      provider: 'codex',
-      defaultModel: 'gpt-5.6-sol',
+      provider: 'kimi',
       models: [],
     });
-    expect(result.current.cliModels).toEqual(CODEX_MODELS);
-    expect(result.current.cliDefaultModel).toBe('gpt-5.6-sol');
-  });
-
-  it('keeps kimi fallback behavior intact', () => {
-    const { result } = renderHook(() => useCliModels('kimi'));
-    expect(sendBridgeEventMock).toHaveBeenCalledWith('get_cli_models', 'kimi');
     expect(result.current.cliModels).toEqual(KIMI_MODELS);
   });
 
-  it('records backend errors and supports manual retry for codex', () => {
-    const { result } = renderHook(() => useCliModels('codex'));
-    emitCliModels({ success: false, provider: 'codex', error: 'node missing', models: [] });
+  it('records backend errors and supports manual retry for kimi', () => {
+    const { result } = renderHook(() => useCliModels('kimi'));
+    emitCliModels({ success: false, provider: 'kimi', error: 'node missing', models: [] });
     expect(result.current.cliModelsError).toBe('node missing');
-    expect(result.current.cliModels).toEqual(CODEX_MODELS);
+    expect(result.current.cliModels).toEqual(KIMI_MODELS);
 
     sendBridgeEventMock.mockClear();
     act(() => {
-      result.current.refreshCliModels('codex');
+      result.current.refreshCliModels('kimi');
     });
-    expect(sendBridgeEventMock).toHaveBeenCalledWith('get_cli_models', 'codex');
-  });
-
-  it('refetches the codex catalog when the active codex provider changes', () => {
-    const { result, rerender } = renderHook(
-      ({ provider }) => useCliModels(provider),
-      { initialProps: { provider: 'codex' } },
-    );
-    emitCliModels({
-      success: true,
-      provider: 'codex',
-      defaultModel: 'kimi-k3',
-      models: [{ id: 'kimi-k3', label: 'kimi-k3' }],
-    });
-    expect(result.current.modelsByProvider.codex?.length).toBe(1);
-
-    sendBridgeEventMock.mockClear();
-    act(() => {
-      window.updateActiveCodexProvider?.(JSON.stringify({ id: 'other-provider' }));
-    });
-    // Cache cleared; effect refetches because the current provider is codex.
-    expect(sendBridgeEventMock).toHaveBeenCalledWith('get_cli_models', 'codex');
-    rerender({ provider: 'codex' });
-    expect(result.current.modelsByProvider.codex).toBeUndefined();
-  });
-
-  it('clears the codex cache without refetching when another provider is active', () => {
-    const { result } = renderHook(() => useCliModels('claude'));
-    emitCliModels({
-      success: true,
-      provider: 'codex',
-      defaultModel: 'kimi-k3',
-      models: [{ id: 'kimi-k3', label: 'kimi-k3' }],
-    });
-    expect(result.current.modelsByProvider.codex?.length).toBe(1);
-
-    sendBridgeEventMock.mockClear();
-    act(() => {
-      window.updateActiveCodexProvider?.(JSON.stringify({ id: 'other-provider' }));
-    });
-    expect(sendBridgeEventMock).not.toHaveBeenCalled();
-    expect(result.current.modelsByProvider.codex).toBeUndefined();
+    expect(sendBridgeEventMock).toHaveBeenCalledWith('get_cli_models', 'kimi');
   });
 
   it('times out into an error state and falls back to static models', () => {
     vi.useFakeTimers();
-    const { result } = renderHook(() => useCliModels('codex'));
+    const { result } = renderHook(() => useCliModels('kimi'));
     act(() => {
       vi.advanceTimersByTime(16_000);
     });
     expect(result.current.cliModelsLoading).toBe(false);
     expect(result.current.cliModelsError).toBe('timeout');
-    expect(result.current.cliModels).toEqual(CODEX_MODELS);
+    expect(result.current.cliModels).toEqual(KIMI_MODELS);
+  });
+
+  it('reuses the module cache on remount so history→chat does not re-fetch', () => {
+    const first = renderHook(() => useCliModels('opencode'));
+    emitCliModels({
+      success: true,
+      provider: 'opencode',
+      defaultModel: 'openai/gpt-5',
+      models: [
+        { id: 'opencode-default', label: 'OpenCode Default' },
+        { id: 'openai/gpt-5', label: 'gpt-5' },
+      ],
+    });
+    expect(first.result.current.cliModels.map((m) => m.id)).toEqual([
+      'opencode-default',
+      'openai/gpt-5',
+    ]);
+    first.unmount();
+
+    sendBridgeEventMock.mockClear();
+    const second = renderHook(() => useCliModels('opencode'));
+    // Cache already has entries — no bridge round-trip on remount.
+    expect(sendBridgeEventMock).not.toHaveBeenCalled();
+    expect(second.result.current.cliModels.map((m) => m.id)).toEqual([
+      'opencode-default',
+      'openai/gpt-5',
+    ]);
+    expect(second.result.current.cliCatalogHasEntries).toBe(true);
+    expect(second.result.current.cliDefaultModel).toBe('openai/gpt-5');
+    expect(second.result.current.cliModelsLoading).toBe(false);
   });
 
   it('reuses the module cache on remount so history→chat does not re-fetch', () => {

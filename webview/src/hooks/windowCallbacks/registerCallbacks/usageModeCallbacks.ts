@@ -12,8 +12,13 @@ import type { CodexFastMode, PermissionMode, ReasoningEffort } from '../../../co
 import {
   has1MContextSuffix,
   isValidPermissionMode,
+  isLiveClaudeModelId,
   normalizeClaudeModelId,
+  splitGeminiAgyModelId,
   strip1MContextSuffix,
+  toGeminiFamilyId,
+  REASONING_EFFORTS,
+  REASONING_EFFORTS_SHARED,
 } from '../../../components/ChatInputBox/types';
 import { drainPendingSettings, startInitialSettingsRequest } from '../settingsBootstrap';
 import { clampPermissionDialogTimeoutSeconds } from '../../../utils/permissionDialogTimeout';
@@ -27,8 +32,11 @@ export function registerUsageModeCallbacks(options: UseWindowCallbacksOptions): 
     setCurrentProvider,
     setClaudePermissionMode,
     setCodexPermissionMode,
+    setGeminiPermissionMode,
     setSelectedClaudeModel,
     setSelectedCodexModel,
+    setSelectedGeminiModel,
+    resolveDefaultEffort,
     setLongContextEnabled,
     setReasoningEffort,
     setCodexFastMode,
@@ -90,6 +98,8 @@ export function registerUsageModeCallbacks(options: UseWindowCallbacksOptions): 
       setPermissionMode((prev) => (prev === nextMode ? prev : nextMode));
       if (activeProvider === 'codex') {
         setCodexPermissionMode((prev) => (prev === nextMode ? prev : nextMode));
+      } else if (activeProvider === 'gemini') {
+        setGeminiPermissionMode((prev) => (prev === nextMode ? prev : nextMode));
       } else {
         setClaudePermissionMode((prev) => (prev === nextMode ? prev : nextMode));
       }
@@ -99,12 +109,42 @@ export function registerUsageModeCallbacks(options: UseWindowCallbacksOptions): 
   window.onModeChanged = (mode) => updateMode(mode as PermissionMode);
   window.onModeReceived = (mode) => updateMode(mode as PermissionMode);
 
+  const applyGeminiModelFromBackend = (modelId: string) => {
+    // Backend stores full agy slugs (...-high / ...-thinking). UI selection is family base only.
+    const family = toGeminiFamilyId(modelId) || modelId;
+    // Cross-provider guard: applyBackendTabState / onModelConfirmed can carry
+    // a claude-era tab model with provider 'gemini' (JCEF tab state is shared
+    // across chat tabs). A live claude id is not an agy model — accepting it
+    // poisons the slot and the catalog re-push relays it to agy, which
+    // rejects it at spawn. Same guard as the persistence restore path.
+    if (isLiveClaudeModelId(family)) return;
+    setSelectedGeminiModel(family);
+    // Mirror the slug's effort tier into the shared slot — the separate
+    // reasoningEffort field excludes gemini-only tiers (...-thinking), so
+    // without this the slot stays stale while the backend runs -thinking.
+    const { effort } = splitGeminiAgyModelId(modelId);
+    // ReasoningEffort (the type) excludes the gemini-only 'thinking' tier;
+    // the runtime slot accepts it — REASONING_EFFORTS is that seam's
+    // single source of truth.
+    if (effort && (REASONING_EFFORTS as readonly string[]).includes(effort)) {
+      setReasoningEffort(effort as ReasoningEffort);
+    } else if (resolveDefaultEffort) {
+      // Bare family id (legacy persisted tab state): mirror the family
+      // default into the shared slot — the same shape as the App.tsx
+      // history path's bare-row branch; without it the slot keeps the
+      // previous tab's tier while the backend runs the default.
+      setReasoningEffort(resolveDefaultEffort(family));
+    }
+  };
+
   window.onModelChanged = (modelId) => {
     const provider = currentProviderRef.current;
     if (provider === 'claude') {
       setSelectedClaudeModel(normalizeClaudeModelId(modelId));
     } else if (provider === 'codex') {
       setSelectedCodexModel(modelId);
+    } else if (provider === 'gemini') {
+      applyGeminiModelFromBackend(modelId);
     }
   };
 
@@ -113,6 +153,8 @@ export function registerUsageModeCallbacks(options: UseWindowCallbacksOptions): 
       setSelectedClaudeModel(normalizeClaudeModelId(modelId));
     } else if (provider === 'codex') {
       setSelectedCodexModel(modelId);
+    } else if (provider === 'gemini') {
+      applyGeminiModelFromBackend(modelId);
     }
   };
 
@@ -120,7 +162,10 @@ export function registerUsageModeCallbacks(options: UseWindowCallbacksOptions): 
     try {
       const state = JSON.parse(json) as Record<string, unknown>;
       const provider = state.provider;
-      if (provider !== 'claude' && provider !== 'codex') {
+      // Rejecting gemini here would skip __CCGUI_RECOVERY_STATE_APPLIED__,
+      // leaving recoveryStatePending true — the persistence save effect then
+      // reschedules at 1s intervals forever.
+      if (provider !== 'claude' && provider !== 'codex' && provider !== 'gemini') {
         throw new Error('invalid provider');
       }
 
@@ -133,6 +178,8 @@ export function registerUsageModeCallbacks(options: UseWindowCallbacksOptions): 
         if (provider === 'claude') {
           setSelectedClaudeModel(normalizeClaudeModelId(strip1MContextSuffix(state.model)));
           setLongContextEnabled(has1MContextSuffix(state.model));
+        } else if (provider === 'gemini') {
+          applyGeminiModelFromBackend(state.model);
         } else {
           setSelectedCodexModel(state.model);
         }
@@ -140,8 +187,10 @@ export function registerUsageModeCallbacks(options: UseWindowCallbacksOptions): 
 
       updateMode(state.permissionMode as PermissionMode | undefined, provider);
 
-      const reasoningValues: ReasoningEffort[] = ['low', 'medium', 'high', 'xhigh', 'max'];
-      if (reasoningValues.includes(state.reasoningEffort as ReasoningEffort)) {
+      // Gemini effort comes from the model slug (applyGeminiModelFromBackend
+      // above already synced it); the plain field lacks gemini-only tiers
+      // and would clobber the slug-derived value.
+      if (provider !== 'gemini' && (REASONING_EFFORTS_SHARED as readonly string[]).includes(state.reasoningEffort as string)) {
         setReasoningEffort(state.reasoningEffort as ReasoningEffort);
       }
       if (state.codexFastMode === 'normal' || state.codexFastMode === 'fast') {
@@ -150,6 +199,11 @@ export function registerUsageModeCallbacks(options: UseWindowCallbacksOptions): 
       window.__CCGUI_RECOVERY_STATE_APPLIED__ = true;
     } catch (error) {
       console.error('[Frontend] Failed to apply backend tab state:', error);
+      // The flag means "the recovery payload was processed", not "it was
+      // applicable": CLI-provider tabs and corrupt payloads land here, and
+      // an unset flag leaves the persistence save effect retrying at 1s
+      // intervals forever (recoveryStatePending never clears).
+      window.__CCGUI_RECOVERY_STATE_APPLIED__ = true;
     }
   };
 

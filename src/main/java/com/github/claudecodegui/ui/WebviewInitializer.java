@@ -285,9 +285,15 @@ public class WebviewInitializer {
         // Prewarm daemon in background so first user message starts faster.
         // Bind the warm runtime to the current logical session epoch so future new-session
         // transitions cannot accidentally reuse stale anonymous runtime ownership.
-        claudeSDKBridge.prewarmDaemonAsync(host.getProject().getBasePath(), host.getHandlerContext().getSession() != null
-                ? host.getHandlerContext().getSession().getRuntimeSessionEpoch()
-                : null);
+        com.github.claudecodegui.session.ClaudeSession currentSession = host.getHandlerContext().getSession();
+        if (currentSession != null) {
+            if ("claude".equals(currentSession.getProvider())) {
+                claudeSDKBridge.prewarmDaemonAsync(host.getProject().getBasePath(), currentSession.getRuntimeSessionEpoch());
+            }
+        } else {
+            // Default to prewarming Claude if no session exists yet (e.g., first startup before session is loaded)
+            claudeSDKBridge.prewarmDaemonAsync(host.getProject().getBasePath(), null);
+        }
 
         // Check JCEF support before creating browser. Keep the precise status
         // so the fallback panel can distinguish a disabled registry flag from
