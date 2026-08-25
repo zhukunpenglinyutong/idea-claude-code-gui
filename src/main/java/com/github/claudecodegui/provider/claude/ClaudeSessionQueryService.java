@@ -89,6 +89,41 @@ class ClaudeSessionQueryService {
         }
     }
 
+    /**
+     * Load a page of session history messages (turn-based pagination).
+     *
+     * @param sessionId the session to load
+     * @param cwd the working directory
+     * @param beforeTurn null for the latest page, or the turn index to load before
+     * @param limit max turns per page
+     * @return the page payload, or null on failure (caller should fall back to getSessionMessages)
+     */
+    JsonObject getSessionMessagesPage(String sessionId, String cwd, Integer beforeTurn, int limit) {
+        try {
+            JsonObject jsonResult = runSessionQuery("getSessionPage", sessionId, cwd, "getSessionMessagesPage");
+
+            if (jsonResult.has("success") && jsonResult.get("success").getAsBoolean()) {
+                // Normalize messages in-place
+                if (jsonResult.has("messages")) {
+                    JsonArray messagesArray = jsonResult.getAsJsonArray("messages");
+                    for (int i = 0; i < messagesArray.size(); i++) {
+                        messagesArray.set(i, normalizeClaudeHistoryMessage(messagesArray.get(i).getAsJsonObject()));
+                    }
+                }
+                return jsonResult;
+            }
+
+            String errorMsg = (jsonResult.has("error") && !jsonResult.get("error").isJsonNull())
+                    ? jsonResult.get("error").getAsString()
+                    : "Unknown error";
+            log.warn("[getSessionMessagesPage] Page query failed: " + errorMsg);
+            return null;
+        } catch (Exception e) {
+            log.warn("[getSessionMessagesPage] Page query error: " + e.getMessage(), e);
+            return null;
+        }
+    }
+
     JsonObject getLatestUserMessage(String sessionId, String cwd) {
         try {
             JsonObject jsonResult = runSessionQuery("getLatestUserMessage", sessionId, cwd, "getLatestUserMessage");

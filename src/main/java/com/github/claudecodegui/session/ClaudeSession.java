@@ -223,6 +223,11 @@ public class ClaudeSession {
                     public JsonObject getLatestClaudeUserMessage(String sessionId, String cwd) {
                         return claudeSDKBridge.getLatestClaudeUserMessage(sessionId, cwd);
                     }
+
+                    @Override
+                    public JsonObject getProviderSessionMessagesPage(String sessionId, String cwd, Integer beforeTurn, int limit) {
+                        return claudeSDKBridge.getSessionMessagesPage(sessionId, cwd, beforeTurn, limit);
+                    }
                 }
         );
 

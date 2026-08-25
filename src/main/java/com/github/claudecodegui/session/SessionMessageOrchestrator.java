@@ -9,6 +9,7 @@ import com.google.gson.JsonObject;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -24,6 +25,15 @@ public class SessionMessageOrchestrator {
         List<JsonObject> getProviderSessionMessages(String provider, String sessionId, String cwd);
 
         JsonObject getLatestClaudeUserMessage(String sessionId, String cwd);
+
+        /**
+         * Load a page of Claude session history (turn-based pagination).
+         * Returns null when the provider does not support pagination or the
+         * query fails; the caller should fall back to getProviderSessionMessages.
+         */
+        default JsonObject getProviderSessionMessagesPage(String sessionId, String cwd, Integer beforeTurn, int limit) {
+            return null;
+        }
     }
 
     @FunctionalInterface
@@ -153,8 +163,14 @@ public class SessionMessageOrchestrator {
                 String currentProvider = state.getProvider();
 
                 LOG.info("Loading session from server: sessionId=" + currentSessionId + ", cwd=" + currentCwd);
-                List<JsonObject> serverMessages =
-                        historyAccess.getProviderSessionMessages(currentProvider, currentSessionId, currentCwd);
+
+                List<JsonObject> serverMessages;
+                if ("claude".equals(currentProvider)) {
+                    serverMessages = loadClaudeSessionWithPagination(currentSessionId, currentCwd);
+                } else {
+                    serverMessages = historyAccess.getProviderSessionMessages(currentProvider, currentSessionId, currentCwd);
+                }
+
                 if (serverMessages == null) {
                     serverMessages = List.of();
                 }
@@ -179,6 +195,41 @@ public class SessionMessageOrchestrator {
                 callbackFacade.notifyStateChange(state.isBusy(), state.isLoading(), state.getError());
             }
         });
+    }
+
+    /**
+     * Load Claude session history with turn-based pagination.
+     * Falls back to the legacy full-history load when the paginated query
+     * fails or returns invalid data, so a broken cursor never leaves the
+     * user with an empty chat.
+     */
+    private List<JsonObject> loadClaudeSessionWithPagination(String sessionId, String cwd) {
+        // Try the paginated path first: latest page only, then prepend earlier
+        // pages as the user scrolls up.
+        try {
+            JsonObject page = historyAccess.getProviderSessionMessagesPage(sessionId, cwd, null, 30);
+            if (page != null && page.has("success") && page.get("success").getAsBoolean()) {
+                List<JsonObject> messages = new ArrayList<>();
+                if (page.has("messages")) {
+                    JsonArray messagesArray = page.getAsJsonArray("messages");
+                    for (JsonElement msg : messagesArray) {
+                        messages.add(msg.getAsJsonObject());
+                    }
+                }
+                LOG.info("Loaded Claude session page: " + messages.size() + " messages"
+                        + ", fromTurn=" + page.get("fromTurn").getAsInt()
+                        + ", toTurn=" + page.get("toTurn").getAsInt()
+                        + ", totalTurns=" + page.get("totalTurns").getAsInt()
+                        + ", hasMore=" + page.get("hasMore").getAsBoolean());
+                return messages;
+            }
+        } catch (Exception e) {
+            LOG.warn("Paginated session load failed, falling back to full history: " + e.getMessage());
+        }
+
+        // Fallback: full history load (legacy behavior)
+        LOG.info("Using full-history fallback for Claude session: " + sessionId);
+        return historyAccess.getProviderSessionMessages("claude", sessionId, cwd);
     }
 
     private ClaudeSession.Message patchMatchingUserMessage(JsonObject historyMessage) {
