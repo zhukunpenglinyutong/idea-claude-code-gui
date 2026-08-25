@@ -219,3 +219,48 @@ test('isInterruptionMarker matches only the synthetic markers', () => {
   assert.equal(isInterruptionMarker({ type: 'assistant', message: { role: 'assistant', content: '[Request interrupted by user]' } }), false);
   assert.equal(isInterruptionMarker(null), false);
 });
+
+test('buildSessionMessagesPayload trims long histories to the most recent messages', () => {
+  // Regression for #610: a 500+ message session must not hydrate the full
+  // transcript into JVM/JCEF/React memory. Only the tail is returned.
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-gui-claude-session-'));
+  try {
+    const file = path.join(tempDir, 'session.jsonl');
+    const lines = [];
+    // Build a 250-message session: alternating user/assistant pairs.
+    for (let i = 0; i < 125; i++) {
+      lines.push(JSON.stringify({ type: 'user', message: { role: 'user', content: `q${i}` } }));
+      lines.push(JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: `a${i}` } }));
+    }
+    fs.writeFileSync(file, lines.join('\n') + '\n');
+
+    const { success, messages } = buildSessionMessagesPayload(file);
+    assert.equal(success, true);
+    // 250 messages > MAX_HISTORY_MESSAGES (200), so trimmed to 200.
+    assert.equal(messages.length, 200);
+    // The tail is the most recent 200 messages.
+    assert.equal(messages[0].message.content, 'q25');
+    assert.equal(messages[messages.length - 1].message.content, 'a124');
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('buildSessionMessagesPayload keeps short histories intact', () => {
+  // Sessions under the limit must not be truncated.
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-gui-claude-session-'));
+  try {
+    const file = path.join(tempDir, 'session.jsonl');
+    const lines = [
+      JSON.stringify({ type: 'user', message: { role: 'user', content: 'hello' } }),
+      JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: 'hi' } }),
+    ];
+    fs.writeFileSync(file, lines.join('\n') + '\n');
+
+    const { success, messages } = buildSessionMessagesPayload(file);
+    assert.equal(success, true);
+    assert.equal(messages.length, 2);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});

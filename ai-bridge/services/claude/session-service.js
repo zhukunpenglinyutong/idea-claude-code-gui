@@ -114,18 +114,36 @@ export function loadSessionHistory(sessionId, cwd) {
 }
 
 /**
+ * Maximum number of messages to return when loading a session's history.
+ * Long sessions (500+ messages) consume excessive memory in the Java plugin
+ * (each message is parsed into a JVM object, serialized to JSON for JCEF,
+ * and held in React state). The frontend already collapses older turns for
+ * rendering, so there is no need to hydrate the full transcript into memory.
+ *
+ * The limit is generous enough to cover the visible window plus several
+ * pages of scroll-back, while keeping memory usage bounded. (#610)
+ */
+const MAX_HISTORY_MESSAGES = 200;
+
+/**
  * Build the getSessionMessages response payload by reading a JSONL session
  * file. Exported (not just inlined) so the parse + carrier-rewrite logic is
  * unit-testable without going through process.stdout: the test only needs a
  * temp file, not an stdout spy. Returns { success, messages } - empty messages
  * when the file is missing.
+ *
+ * For long sessions, only the most recent MAX_HISTORY_MESSAGES messages are
+ * returned. This prevents the Java plugin from parsing and holding hundreds
+ * of message objects in memory when the frontend only renders a subset.
+ * In a typical alternating user/assistant conversation the tail window always
+ * contains assistant messages, so token-usage restore is unaffected.
  */
 export function buildSessionMessagesPayload(sessionFile) {
   if (!existsSync(sessionFile)) {
     return { success: true, messages: [] };
   }
   const content = readFileSync(sessionFile, 'utf8');
-  const messages = selectConversationChain(parseJsonlContent(content))
+  let messages = selectConversationChain(parseJsonlContent(content))
     // Drop the CLI's synthetic "[Request interrupted by user]" user rows.
     // They are turn-abort bookkeeping the CLI persists into the transcript,
     // not real user input: rendered in the chat they read as a phantom
@@ -153,6 +171,13 @@ export function buildSessionMessagesPayload(sessionFile) {
       }
       return [msg];
     });
+
+  // Trim to the most recent messages to bound memory usage on long sessions.
+  // The frontend already paginates rendering (INITIAL_VISIBLE_TURNS), so
+  // hydrating the full transcript serves no purpose and wastes memory.
+  if (messages.length > MAX_HISTORY_MESSAGES) {
+    messages = messages.slice(-MAX_HISTORY_MESSAGES);
+  }
 
   return { success: true, messages };
 }
