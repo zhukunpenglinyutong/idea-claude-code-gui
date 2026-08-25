@@ -33,6 +33,7 @@ export const SETTINGS_BOOTSTRAP_BRIDGE_MESSAGES = [
   // Environment + permissions (visible / used early on basic tab)
   'get_node_path:',
   'get_claude_cli_path:',
+  'get_codex_cli_path:',
   'get_working_directory:',
   'get_streaming_enabled:',
   'get_codex_sandbox_mode:',
@@ -63,6 +64,8 @@ export interface SettingsWindowCallbacksDeps {
   setSavingNodePath: (saving: boolean) => void;
   setClaudeCliPath: (path: string) => void;
   setSavingClaudeCliPath: (saving: boolean) => void;
+  setCodexCliPath: (path: string) => void;
+  setSavingCodexCliPath: (saving: boolean) => void;
   setWorkingDirectory: (dir: string) => void;
   setSavingWorkingDirectory: (saving: boolean) => void;
   setCommitPrompt: (prompt: string) => void;
@@ -170,6 +173,7 @@ export function useSettingsWindowCallbacks(deps: SettingsWindowCallbacksDeps) {
       d().setLoading(false);
       d().setSavingNodePath(false);
       d().setSavingClaudeCliPath(false);
+      d().setSavingCodexCliPath(false);
       d().setSavingWorkingDirectory(false);
       d().setSavingCommitPrompt(false);
       d().setSavingProjectCommitPrompt(false);
@@ -204,6 +208,17 @@ export function useSettingsWindowCallbacks(deps: SettingsWindowCallbacksDeps) {
         d().setClaudeCliPath(jsonStr || '');
       }
       d().setSavingClaudeCliPath(false);
+    };
+
+    window.updateCodexCliPath = (jsonStr: string) => {
+      try {
+        const data = JSON.parse(jsonStr);
+        d().setCodexCliPath(data.path || '');
+      } catch (e) {
+        console.warn('[SettingsView] Failed to parse updateCodexCliPath JSON, fallback to legacy format:', e);
+        d().setCodexCliPath(jsonStr || '');
+      }
+      d().setSavingCodexCliPath(false);
     };
 
     window.updateWorkingDirectory = (jsonStr: string) => {
@@ -595,6 +610,7 @@ export function useSettingsWindowCallbacks(deps: SettingsWindowCallbacksDeps) {
       window.showSwitchSuccess = undefined;
       window.updateNodePath = undefined;
       window.updateClaudeCliPath = undefined;
+      window.updateCodexCliPath = undefined;
       window.updateWorkingDirectory = undefined;
       window.showSuccess = undefined;
       window.showSuccessI18n = undefined;

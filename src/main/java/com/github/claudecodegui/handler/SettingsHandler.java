@@ -27,6 +27,7 @@ public class SettingsHandler extends BaseMessageHandler {
     private final ModelProviderHandler modelProviderHandler;
     private final NodePathHandler nodePathHandler;
     private final ClaudeCliPathHandler claudeCliPathHandler;
+    private final CodexCliPathHandler codexCliPathHandler;
     private final ProjectConfigHandler projectConfigHandler;
     // Handle for the theme-change callback registered with ThemeConfigService.
     // Kept so it can be cleanly unregistered when the owning window is disposed,
@@ -48,6 +49,8 @@ public class SettingsHandler extends BaseMessageHandler {
         "set_node_path",
         "get_claude_cli_path",
         "set_claude_cli_path",
+        "get_codex_cli_path",
+        "set_codex_cli_path",
         // TokenTracker local usage dashboard (vendored tokentracker-cli server)
         "tt_detect_cli",
         "tt_install_cli",
@@ -122,6 +125,7 @@ public class SettingsHandler extends BaseMessageHandler {
         this.modelProviderHandler = new ModelProviderHandler(context, usagePushService);
         this.nodePathHandler = new NodePathHandler(context);
         this.claudeCliPathHandler = new ClaudeCliPathHandler(context);
+        this.codexCliPathHandler = new CodexCliPathHandler(context);
         this.projectConfigHandler = new ProjectConfigHandler(context);
         this.codexSubscriptionQuotaHandler = new CodexSubscriptionQuotaHandler(context);
         this.tokenTrackerHandler = new TokenTrackerHandler(context);
@@ -199,6 +203,13 @@ public class SettingsHandler extends BaseMessageHandler {
                 return true;
             case "set_claude_cli_path":
                 claudeCliPathHandler.handleSetClaudeCliPath(content);
+                return true;
+            // Codex CLI path
+            case "get_codex_cli_path":
+                codexCliPathHandler.handleGetCodexCliPath();
+                return true;
+            case "set_codex_cli_path":
+                codexCliPathHandler.handleSetCodexCliPath(content);
                 return true;
             // TokenTracker local usage dashboard
             case "tt_detect_cli":

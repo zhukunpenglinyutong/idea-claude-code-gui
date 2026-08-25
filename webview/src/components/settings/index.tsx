@@ -124,6 +124,10 @@ const SettingsView = ({
     setClaudeCliPath,
     savingClaudeCliPath,
     setSavingClaudeCliPath,
+    codexCliPath,
+    setCodexCliPath,
+    savingCodexCliPath,
+    setSavingCodexCliPath,
     workingDirectory,
     setWorkingDirectory,
     savingWorkingDirectory,
@@ -163,6 +167,7 @@ const SettingsView = ({
     setSkipNewSessionConfirm,
     handleSaveNodePath,
     handleSaveClaudeCliPath,
+    handleSaveCodexCliPath,
     handleSaveWorkingDirectory,
     handleUiFontSelectionChange,
     handleSaveUiFontCustomPath,
@@ -346,6 +351,8 @@ const SettingsView = ({
     setSavingNodePath,
     setClaudeCliPath,
     setSavingClaudeCliPath,
+    setCodexCliPath,
+    setSavingCodexCliPath,
     setWorkingDirectory,
     setSavingWorkingDirectory,
     setCommitPrompt,
@@ -520,6 +527,10 @@ const SettingsView = ({
               onClaudeCliPathChange={setClaudeCliPath}
               onSaveClaudeCliPath={handleSaveClaudeCliPath}
               savingClaudeCliPath={savingClaudeCliPath}
+              codexCliPath={codexCliPath}
+              onCodexCliPathChange={setCodexCliPath}
+              onSaveCodexCliPath={handleSaveCodexCliPath}
+              savingCodexCliPath={savingCodexCliPath}
               workingDirectory={workingDirectory}
               onWorkingDirectoryChange={setWorkingDirectory}
               onSaveWorkingDirectory={handleSaveWorkingDirectory}

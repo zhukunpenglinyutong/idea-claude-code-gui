@@ -417,6 +417,11 @@
         "placeholder": "e.g. /usr/local/bin/claude — leave empty to use the bundled SDK",
         "hint": "Optional. When set, the plugin spawns this binary instead of the bundled @anthropic-ai/claude-agent-sdk. Daemon restarts on save."
       },
+      "codexCliPath": {
+        "label": "Codex CLI Path (override)",
+        "placeholder": "e.g. /usr/local/bin/codex — leave empty to use the bundled SDK",
+        "hint": "Optional. When set, the plugin uses this binary instead of the bundled @openai/codex-sdk."
+      },
       "workingDirectory": {
         "label": "Working Directory",
         "placeholder": "e.g. project1 or leave empty to use project root",
