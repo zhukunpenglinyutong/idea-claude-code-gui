@@ -122,8 +122,15 @@ export function loadSessionHistory(sessionId, cwd) {
  *
  * The limit is generous enough to cover the visible window plus several
  * pages of scroll-back, while keeping memory usage bounded. (#610)
+ *
+ * Default: 0 = unlimited (no truncation). Set CCGUI_MAX_HISTORY_MESSAGES
+ * to a positive integer to enable the cap. This opt-in approach avoids
+ * breaking the "load earlier" UX until a proper Claude-side pagination
+ * protocol (similar to load_codex_history_page) is implemented.
  */
-const MAX_HISTORY_MESSAGES = 200;
+function getMaxHistoryMessages() {
+  return parseInt(process.env.CCGUI_MAX_HISTORY_MESSAGES || '0', 10);
+}
 
 /**
  * Build the getSessionMessages response payload by reading a JSONL session
@@ -175,8 +182,10 @@ export function buildSessionMessagesPayload(sessionFile) {
   // Trim to the most recent messages to bound memory usage on long sessions.
   // The frontend already paginates rendering (INITIAL_VISIBLE_TURNS), so
   // hydrating the full transcript serves no purpose and wastes memory.
-  if (messages.length > MAX_HISTORY_MESSAGES) {
-    messages = messages.slice(-MAX_HISTORY_MESSAGES);
+  // NOTE: This is opt-in via CCGUI_MAX_HISTORY_MESSAGES. A proper pagination
+  // protocol (load_claude_history_page, similar to Codex) is planned.
+  if (getMaxHistoryMessages() > 0 && messages.length > getMaxHistoryMessages()) {
+    messages = messages.slice(-getMaxHistoryMessages());
   }
 
   return { success: true, messages };

@@ -220,9 +220,11 @@ test('isInterruptionMarker matches only the synthetic markers', () => {
   assert.equal(isInterruptionMarker(null), false);
 });
 
-test('buildSessionMessagesPayload trims long histories to the most recent messages', () => {
+test('buildSessionMessagesPayload trims long histories to the most recent messages when CCGUI_MAX_HISTORY_MESSAGES is set', () => {
   // Regression for #610: a 500+ message session must not hydrate the full
-  // transcript into JVM/JCEF/React memory. Only the tail is returned.
+  // transcript into JVM/JCEF/React memory. The cap is opt-in via env var.
+  const original = process.env.CCGUI_MAX_HISTORY_MESSAGES;
+  process.env.CCGUI_MAX_HISTORY_MESSAGES = '200';
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-gui-claude-session-'));
   try {
     const file = path.join(tempDir, 'session.jsonl');
@@ -242,6 +244,36 @@ test('buildSessionMessagesPayload trims long histories to the most recent messag
     assert.equal(messages[0].message.content, 'q25');
     assert.equal(messages[messages.length - 1].message.content, 'a124');
   } finally {
+    if (original === undefined) {
+      delete process.env.CCGUI_MAX_HISTORY_MESSAGES;
+    } else {
+      process.env.CCGUI_MAX_HISTORY_MESSAGES = original;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('buildSessionMessagesPayload does not trim when CCGUI_MAX_HISTORY_MESSAGES is unset', () => {
+  // Default behavior: no truncation, full history returned.
+  const original = process.env.CCGUI_MAX_HISTORY_MESSAGES;
+  delete process.env.CCGUI_MAX_HISTORY_MESSAGES;
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-gui-claude-session-'));
+  try {
+    const file = path.join(tempDir, 'session.jsonl');
+    const lines = [];
+    for (let i = 0; i < 125; i++) {
+      lines.push(JSON.stringify({ type: 'user', message: { role: 'user', content: `q${i}` } }));
+      lines.push(JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: `a${i}` } }));
+    }
+    fs.writeFileSync(file, lines.join('\n') + '\n');
+
+    const { success, messages } = buildSessionMessagesPayload(file);
+    assert.equal(success, true);
+    assert.equal(messages.length, 250);
+  } finally {
+    if (original !== undefined) {
+      process.env.CCGUI_MAX_HISTORY_MESSAGES = original;
+    }
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
