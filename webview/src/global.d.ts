@@ -123,6 +123,10 @@ interface Window {
     cursorReset?: boolean;
   };
 
+  // Claude history pagination callbacks
+  claudeHistoryPageInfo?: (json: string) => void;
+  claudeHistoryPageError?: (json: string) => void;
+
   /**
    * History load complete callback - invoked when history messages finish loading.
    * Triggers Markdown re-rendering to fix incorrect rendering on first history load.

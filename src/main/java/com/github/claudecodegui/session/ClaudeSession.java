@@ -165,6 +165,16 @@ public class ClaudeSession {
          */
         default void onTaskEvent(String eventJson) {
         }
+
+        /**
+         * Called when Claude history page metadata is available (for pagination).
+         * @param sessionId the session ID
+         * @param fromTurn the first turn index in the current page
+         * @param totalTurns total number of turns in the session
+         * @param hasMore whether there are more pages to load
+         */
+        default void onClaudeHistoryPageInfo(String sessionId, int fromTurn, int totalTurns, boolean hasMore) {
+        }
     }
 
     public ClaudeSession(
@@ -243,6 +253,10 @@ public class ClaudeSession {
 
     public com.github.claudecodegui.session.EditorContextCollector getContextCollector() {
         return contextCollector;
+    }
+
+    public SessionMessageOrchestrator getOrchestrator() {
+        return messageOrchestrator;
     }
 
     // Getters - delegated to SessionState

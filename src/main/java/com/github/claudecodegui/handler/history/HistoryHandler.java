@@ -18,6 +18,7 @@ public class HistoryHandler extends BaseMessageHandler {
             "load_history_data",
             "load_session",
             "load_codex_history_page",
+            "load_claude_history_page",
             "delete_session",  // Delete session
             "delete_sessions", // Batch delete sessions
             "export_session",  // Export session
@@ -85,6 +86,10 @@ public class HistoryHandler extends BaseMessageHandler {
             case "load_codex_history_page":
                 LOG.debug("[HistoryHandler] Processing: load_codex_history_page");
                 historyMessageInjector.loadEarlierCodexHistoryPage(content);
+                return true;
+            case "load_claude_history_page":
+                LOG.debug("[HistoryHandler] Processing: load_claude_history_page");
+                historyMessageInjector.loadEarlierClaudeHistoryPage(content);
                 return true;
             case "delete_session":
                 LOG.info("[HistoryHandler] 处理: delete_session, sessionId=" + content);
