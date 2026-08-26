@@ -586,6 +586,53 @@
     background: rgba(255, 255, 255, 0.15);
 }
 
+/* Deny feedback textarea */
+.permission-dialog-v3-deny-feedback {
+    margin-top: 8px;
+    animation: denyFeedbackSlideIn 0.2s ease-out;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+@keyframes denyFeedbackSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+        max-height: 0;
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 80px;
+    }
+}
+
+.permission-dialog-v3-deny-feedback-input {
+    width: 100%;
+    min-height: 50px;
+    padding: 8px 12px;
+    border: 1px solid var(--border-secondary);
+    border-radius: 6px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.4;
+    resize: vertical;
+    box-sizing: border-box;
+    transition: border-color 0.15s;
+}
+
+.permission-dialog-v3-deny-feedback-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 1px var(--accent-primary);
+}
+
+.permission-dialog-v3-deny-feedback-input::placeholder {
+    color: var(--text-placeholder);
+}
+
 @media (max-width: 450px) {
     .permission-dialog-v3 {
         padding: 10px 12px;

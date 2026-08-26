@@ -70,36 +70,36 @@ test('log metadata helpers do not include raw permission payload values', () => 
 // can never escalate into an accidental permission grant.
 
 test('parsePermissionAllowResponse allows only when allow === true (boolean)', () => {
-  assert.equal(parsePermissionAllowResponse('{"allow":true}'), true);
+  assert.equal(parsePermissionAllowResponse('{"allow":true}').allowed, true);
 });
 
 test('parsePermissionAllowResponse rejects truthy-but-non-boolean allow values', () => {
-  assert.equal(parsePermissionAllowResponse('{"allow":"true"}'), false);
-  assert.equal(parsePermissionAllowResponse('{"allow":1}'), false);
-  assert.equal(parsePermissionAllowResponse('{"allow":"yes"}'), false);
-  assert.equal(parsePermissionAllowResponse('{"allow":[true]}'), false);
-  assert.equal(parsePermissionAllowResponse('{"allow":{"value":true}}'), false);
+  assert.equal(parsePermissionAllowResponse('{"allow":"true"}').allowed, false);
+  assert.equal(parsePermissionAllowResponse('{"allow":1}').allowed, false);
+  assert.equal(parsePermissionAllowResponse('{"allow":"yes"}').allowed, false);
+  assert.equal(parsePermissionAllowResponse('{"allow":[true]}').allowed, false);
+  assert.equal(parsePermissionAllowResponse('{"allow":{"value":true}}').allowed, false);
   // Regression guard: a prototype-pollution payload sets `__proto__` as an own
   // key on the parsed object (JSON.parse does not promote it to actual prototype),
   // so `responseData?.allow === true` still resolves against the own `allow` slot.
   // Pin the behavior so a refactor cannot reintroduce the gap.
-  assert.equal(parsePermissionAllowResponse('{"__proto__":{"allow":true}}'), false);
+  assert.equal(parsePermissionAllowResponse('{"__proto__":{"allow":true}}').allowed, false);
 });
 
 test('parsePermissionAllowResponse rejects explicit deny and missing field', () => {
-  assert.equal(parsePermissionAllowResponse('{"allow":false}'), false);
-  assert.equal(parsePermissionAllowResponse('{"allow":null}'), false);
-  assert.equal(parsePermissionAllowResponse('{}'), false);
-  assert.equal(parsePermissionAllowResponse('{"remember":true}'), false);
+  assert.equal(parsePermissionAllowResponse('{"allow":false}').allowed, false);
+  assert.equal(parsePermissionAllowResponse('{"allow":null}').allowed, false);
+  assert.equal(parsePermissionAllowResponse('{}').allowed, false);
+  assert.equal(parsePermissionAllowResponse('{"remember":true}').allowed, false);
 });
 
 test('parsePermissionAllowResponse rejects malformed and empty payloads', () => {
   // A partially-written response file shows up as truncated JSON — must deny,
   // not throw, so the polling caller can continue waiting for a valid write.
-  assert.equal(parsePermissionAllowResponse(''), false);
-  assert.equal(parsePermissionAllowResponse('not json'), false);
-  assert.equal(parsePermissionAllowResponse('{"allow":tru'), false);
-  assert.equal(parsePermissionAllowResponse('null'), false);
+  assert.equal(parsePermissionAllowResponse('').allowed, false);
+  assert.equal(parsePermissionAllowResponse('not json').allowed, false);
+  assert.equal(parsePermissionAllowResponse('{"allow":tru').allowed, false);
+  assert.equal(parsePermissionAllowResponse('null').allowed, false);
 });
 
 // Regression: AskUserQuestion / permission IPC routes by the stable tab routing

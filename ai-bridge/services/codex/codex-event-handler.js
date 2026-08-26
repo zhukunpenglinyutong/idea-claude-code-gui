@@ -683,9 +683,9 @@ async function requestPatchApprovalsViaBridge(patchBatches) {
     if (!requestPayload) continue;
     try {
       logInfo('PERM_DEBUG', `Patch approval request: callId=${batch.callId}, tool=${requestPayload.toolName}, file=${previewOp?.filePath || ''}`);
-      const allowed = await requestPermissionFromJava(requestPayload.toolName, requestPayload.input);
-      logInfo('PERM_DEBUG', `Patch approval decision: callId=${batch.callId}, allowed=${allowed ? 'true' : 'false'}`);
-      if (!allowed) deniedCallIds.add(batch.callId);
+      const result = await requestPermissionFromJava(requestPayload.toolName, requestPayload.input);
+      logInfo('PERM_DEBUG', `Patch approval decision: callId=${batch.callId}, allowed=${result.allowed ? 'true' : 'false'}`);
+      if (!result.allowed) deniedCallIds.add(batch.callId);
     } catch (error) {
       logWarn('PERM_DEBUG', `Patch approval bridge failed (callId=${batch.callId}): ${error?.message || error}`);
       deniedCallIds.add(batch.callId);
@@ -779,9 +779,9 @@ async function maybeRequestCommandApprovalViaBridge(state, config, { toolUseId, 
   const requestInput = { command, description, source: 'codex_command_execution' };
   try {
     logInfo('PERM_DEBUG', `Command approval request: toolUseId=${toolUseId}, tool=${permissionToolName}, command=${command}`);
-    const allowed = await requestPermissionFromJava(permissionToolName, requestInput);
-    logInfo('PERM_DEBUG', `Command approval decision: toolUseId=${toolUseId}, allowed=${allowed ? 'true' : 'false'}`);
-    if (allowed) return true;
+    const result = await requestPermissionFromJava(permissionToolName, requestInput);
+    logInfo('PERM_DEBUG', `Command approval decision: toolUseId=${toolUseId}, allowed=${result.allowed ? 'true' : 'false'}`);
+    if (result.allowed) return true;
   } catch (error) {
     logWarn('PERM_DEBUG', `Command approval bridge failed, deny by default: toolUseId=${toolUseId}, error=${error?.message || error}`);
   }

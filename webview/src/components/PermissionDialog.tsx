@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatCountdown } from '../utils/helpers';
 import { useDialogCountdownTimeout } from '../hooks/useDialogCountdownTimeout';
@@ -18,7 +18,7 @@ interface PermissionDialogProps {
   isOpen: boolean;
   request: PermissionRequest | null;
   onApprove: (channelId: string) => void;
-  onSkip: (channelId: string) => void;
+  onSkip: (channelId: string, rejectMessage?: string) => void;
   onApproveAlways: (channelId: string) => void;
   timeoutSeconds?: number;
 }
@@ -95,6 +95,8 @@ const PermissionDialog = ({
 }: PermissionDialogProps) => {
   const [showCommand, setShowCommand] = useState(true);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [denyFeedback, setDenyFeedback] = useState('');
+  const denyFeedbackRef = useRef<HTMLTextAreaElement>(null);
   const { t } = useTranslation();
   const { dialogRef, dialogHeight, setDialogHeight, handleResizeStart } = useDialogResize({ minHeight: 150 });
 
@@ -123,13 +125,14 @@ const PermissionDialog = ({
 
   const handleSkip = useCallback(() => {
     if (!request || !markSubmitted()) return;
-    onSkip(request.channelId);
-  }, [request, markSubmitted, onSkip]);
+    onSkip(request.channelId, denyFeedback.trim() || undefined);
+  }, [request, markSubmitted, onSkip, denyFeedback]);
 
   useEffect(() => {
     if (isOpen && request) {
       setShowCommand(true);
       setSelectedIndex(0);
+      setDenyFeedback('');
       setDialogHeight(null);
     }
   }, [isOpen, request?.channelId, setDialogHeight]);
@@ -276,6 +279,20 @@ const PermissionDialog = ({
             <span className="option-key">3</span>
           </button>
         </div>
+
+        {/* Deny feedback textarea — shown when Deny is selected */}
+        {selectedIndex === 2 && (
+          <div className="permission-dialog-v3-deny-feedback">
+            <textarea
+              ref={denyFeedbackRef}
+              className="permission-dialog-v3-deny-feedback-input"
+              value={denyFeedback}
+              onChange={(e) => setDenyFeedback(e.target.value.slice(0, 2000))}
+              placeholder={t('permission.denyFeedbackPlaceholder', 'Optional: tell Claude why and what to do instead...')}
+              rows={2}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

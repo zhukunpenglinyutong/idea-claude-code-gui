@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatCountdown } from '../utils/helpers';
 import { useDialogCountdownTimeout } from '../hooks/useDialogCountdownTimeout';
@@ -25,7 +25,7 @@ interface PlanApprovalDialogProps {
   isOpen: boolean;
   request: PlanApprovalRequest | null;
   onApprove: (requestId: string, targetMode: string) => void;
-  onReject: (requestId: string) => void;
+  onReject: (requestId: string, message?: string) => void;
   timeoutSeconds?: number;
 }
 
@@ -46,6 +46,9 @@ const PlanApprovalDialog = ({
   const { t } = useTranslation();
   const [selectedMode, setSelectedMode] = useState('default');
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+  const [rejectFeedback, setRejectFeedback] = useState('');
+  const rejectFeedbackRef = useRef<HTMLTextAreaElement>(null);
   const { dialogRef, dialogHeight, setDialogHeight, handleResizeStart } = useDialogResize({ minHeight: 200 });
 
   const handleTimeout = useCallback(() => {
@@ -61,20 +64,26 @@ const PlanApprovalDialog = ({
     onTimeout: handleTimeout,
   });
 
-  const handleApprove = useCallback(() => {
+  const handleApproveClick = useCallback(() => {
+    setIsApproving(true);
+  }, []);
+
+  const handleApproveConfirm = useCallback(() => {
     if (!request || !markSubmitted()) return;
     onApprove(request.requestId, selectedMode);
   }, [request, selectedMode, markSubmitted, onApprove]);
 
   const handleReject = useCallback(() => {
     if (!request || !markSubmitted()) return;
-    onReject(request.requestId);
-  }, [request, markSubmitted, onReject]);
+    onReject(request.requestId, rejectFeedback.trim() || undefined);
+  }, [request, markSubmitted, onReject, rejectFeedback]);
 
   useEffect(() => {
     if (isOpen && request) {
       setSelectedMode('default');
       setIsCollapsed(false);
+      setIsApproving(false);
+      setRejectFeedback('');
       setDialogHeight(null);
     }
   }, [isOpen, request?.requestId, setDialogHeight]);
@@ -90,13 +99,17 @@ const PlanApprovalDialog = ({
         if (e.key === 'Escape') {
           handleReject();
         } else if (e.key === 'Enter') {
-          handleApprove();
+          if (isApproving) {
+            handleApproveConfirm();
+          } else {
+            handleApproveClick();
+          }
         }
       };
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
-  }, [isOpen, request, handleApprove, handleReject]);
+  }, [isOpen, request, isApproving, handleApproveClick, handleApproveConfirm, handleReject]);
 
   if (!isOpen || !request) {
     return null;
@@ -183,31 +196,45 @@ const PlanApprovalDialog = ({
           </div>
         )}
 
-        {/* Execution Mode Selection */}
-        <div className="plan-approval-mode-section">
-          <h4 className="mode-header">
-            {t('planApproval.executionMode', '执行模式')}
-          </h4>
-          <p className="mode-description">
-            {t('planApproval.executionModeDescription', '选择 Claude 执行计划的方式：')}
-          </p>
-          <div className="mode-options">
-            {EXECUTION_MODES.map((mode) => (
-              <button
-                key={mode.id}
-                className={`mode-option ${selectedMode === mode.id ? 'selected' : ''}`}
-                onClick={() => handleModeChange(mode.id)}
-              >
-                <div className="mode-radio">
-                  <span className={`codicon codicon-${selectedMode === mode.id ? 'circle-filled' : 'circle-outline'}`} />
-                </div>
-                <div className="mode-content">
-                  <div className="mode-label">{t(mode.labelKey, mode.id)}</div>
-                  <div className="mode-option-description">{t(mode.descriptionKey, '')}</div>
-                </div>
-              </button>
-            ))}
+        {/* Execution Mode Selection — only shown after clicking Approve */}
+        {isApproving && (
+          <div className="plan-approval-mode-section">
+            <h4 className="mode-header">
+              {t('planApproval.executionMode', '执行模式')}
+            </h4>
+            <p className="mode-description">
+              {t('planApproval.executionModeDescription', '选择 Claude 执行计划的方式：')}
+            </p>
+            <div className="mode-options">
+              {EXECUTION_MODES.map((mode) => (
+                <button
+                  key={mode.id}
+                  className={`mode-option ${selectedMode === mode.id ? 'selected' : ''}`}
+                  onClick={() => handleModeChange(mode.id)}
+                >
+                  <div className="mode-radio">
+                    <span className={`codicon codicon-${selectedMode === mode.id ? 'circle-filled' : 'circle-outline'}`} />
+                  </div>
+                  <div className="mode-content">
+                    <div className="mode-label">{t(mode.labelKey, mode.id)}</div>
+                    <div className="mode-option-description">{t(mode.descriptionKey, '')}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
+        )}
+
+        {/* Reject feedback textarea */}
+        <div className="plan-approval-reject-feedback">
+          <textarea
+            ref={rejectFeedbackRef}
+            className="plan-approval-reject-feedback-input"
+            value={rejectFeedback}
+            onChange={(e) => setRejectFeedback(e.target.value.slice(0, 2000))}
+            placeholder={t('planApproval.rejectFeedbackPlaceholder', '可选：告诉 Claude 计划有什么问题，应该如何修改...')}
+            rows={2}
+          />
         </div>
 
         {/* Actions */}
@@ -220,20 +247,36 @@ const PlanApprovalDialog = ({
           </button>
 
           <div className="action-buttons-right">
-            <button
-              className="action-button primary"
-              onClick={handleApprove}
-            >
-              {t('planApproval.approve', '批准并执行')}
-            </button>
+            {isApproving && (
+              <button
+                className="action-button primary"
+                onClick={handleApproveConfirm}
+              >
+                {t('planApproval.confirm', '确认执行')}
+              </button>
+            )}
+            {!isApproving && (
+              <button
+                className="action-button primary"
+                onClick={handleApproveClick}
+              >
+                {t('planApproval.approve', '批准')}
+              </button>
+            )}
           </div>
         </div>
 
         {/* Keyboard hints */}
         <div className="plan-approval-hints">
-          <span className="hint">
-            <kbd>Enter</kbd> {t('planApproval.toApprove', '批准')}
-          </span>
+          {isApproving ? (
+            <span className="hint">
+              <kbd>Enter</kbd> {t('planApproval.toConfirm', '确认执行')}
+            </span>
+          ) : (
+            <span className="hint">
+              <kbd>Enter</kbd> {t('planApproval.toApprove', '批准')}
+            </span>
+          )}
           <span className="hint">
             <kbd>Esc</kbd> {t('planApproval.toReject', '拒绝')}
           </span>

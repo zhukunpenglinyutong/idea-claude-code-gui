@@ -48,9 +48,12 @@ export function describeContentForLog(content) {
 export function parsePermissionAllowResponse(content) {
   try {
     const responseData = JSON.parse(content);
-    return responseData?.allow === true;
+    return {
+      allowed: responseData?.allow === true,
+      rejectMessage: responseData?.rejectMessage || undefined,
+    };
   } catch {
-    return false;
+    return { allowed: false, rejectMessage: undefined };
   }
 }
 
@@ -312,7 +315,7 @@ export async function requestPlanApproval(input) {
  * Request permission via file system communication with Java process.
  * @param {string} toolName - Tool name
  * @param {Object} input - Tool parameters
- * @returns {Promise<boolean>} - Whether allowed
+ * @returns {Promise<{allowed: boolean, rejectMessage?: string}>} - Permission result
  */
 export async function requestPermissionFromJava(toolName, input) {
   const requestStartTime = Date.now();
@@ -353,7 +356,7 @@ export async function requestPermissionFromJava(toolName, input) {
       }
     } catch (writeError) {
       debugLog('FILE_WRITE_ERROR', `Failed to write request file: ${errorClass(writeError)}`);
-      return false;
+      return { allowed: false, rejectMessage: undefined };
     }
 
     const timeout = PERMISSION_REQUEST_SAFETY_NET_MS;
@@ -385,7 +388,7 @@ export async function requestPermissionFromJava(toolName, input) {
           debugLog('RESPONSE_CONTENT', 'Response content read', describeContentForLog(responseContent));
 
           const result = parsePermissionAllowResponse(responseContent);
-          debugLog('RESPONSE_PARSED', `Parsed response`, { allow: result, elapsed: `${Date.now() - requestStartTime}ms` });
+          debugLog('RESPONSE_PARSED', `Parsed response`, { allowed: result.allowed, elapsed: `${Date.now() - requestStartTime}ms` });
 
           try {
             unlinkSync(responseFile);
@@ -397,7 +400,7 @@ export async function requestPermissionFromJava(toolName, input) {
           return result;
         } catch (e) {
           debugLog('RESPONSE_ERROR', `Error reading/parsing response: ${errorClass(e)}`);
-          return false;
+          return { allowed: false, rejectMessage: undefined };
         }
       }
     }
@@ -412,10 +415,10 @@ export async function requestPermissionFromJava(toolName, input) {
       responseFileExists: respFileExists
     });
 
-    return false;
+    return { allowed: false, rejectMessage: undefined };
 
   } catch (error) {
     debugLog('FATAL_ERROR', `Unexpected error in requestPermissionFromJava: ${errorClass(error)}`);
-    return false;
+    return { allowed: false, rejectMessage: undefined };
   }
 }

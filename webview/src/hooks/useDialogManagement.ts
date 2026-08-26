@@ -18,7 +18,7 @@ interface UseDialogManagementReturn {
   openPermissionDialog: (request: PermissionRequest) => void;
   handlePermissionApprove: (channelId: string) => void;
   handlePermissionApproveAlways: (channelId: string) => void;
-  handlePermissionSkip: (channelId: string) => void;
+  handlePermissionSkip: (channelId: string, rejectMessage?: string) => void;
   forceClosePermissionDialog: (channelId?: string | null) => void;
 
   // AskUserQuestion dialog
@@ -34,7 +34,7 @@ interface UseDialogManagementReturn {
   currentPlanApprovalRequest: PlanApprovalRequest | null;
   openPlanApprovalDialog: (request: PlanApprovalRequest) => void;
   handlePlanApprovalApprove: (requestId: string, targetMode: string) => void;
-  handlePlanApprovalReject: (requestId: string) => void;
+  handlePlanApprovalReject: (requestId: string, rejectMessage?: string) => void;
   forceClosePlanApprovalDialog: (requestId?: string | null) => void;
 
   // Rewind dialog
@@ -241,12 +241,12 @@ export function useDialogManagement({ t }: UseDialogManagementOptions): UseDialo
     setCurrentPermissionRequest(null);
   }, []);
 
-  const handlePermissionSkip = useCallback((channelId: string) => {
+  const handlePermissionSkip = useCallback((channelId: string, rejectMessage?: string) => {
     const payload = JSON.stringify({
       channelId,
       allow: false,
       remember: false,
-      rejectMessage: t('permission.userDenied'),
+      rejectMessage: rejectMessage || t('permission.userDenied'),
     });
     sendBridgeEvent('permission_decision', payload);
     pendingPermissionRequestsRef.current = pendingPermissionRequestsRef.current.filter(
@@ -297,11 +297,12 @@ export function useDialogManagement({ t }: UseDialogManagementOptions): UseDialo
     setCurrentPlanApprovalRequest(null);
   }, []);
 
-  const handlePlanApprovalReject = useCallback((requestId: string) => {
+  const handlePlanApprovalReject = useCallback((requestId: string, rejectMessage?: string) => {
     const payload = JSON.stringify({
       requestId,
       approved: false,
       targetMode: 'default',
+      message: rejectMessage || null,
     });
     sendBridgeEvent('plan_approval_response', payload);
     planApprovalDialogOpenRef.current = false;

@@ -331,6 +331,10 @@
   box-sizing: border-box;
 }
 
+.custom-input.inactive {
+  border-color: var(--border-secondary, rgba(128, 128, 128, 0.3));
+}
+
 .custom-input:focus {
   outline: none;
   border-color: var(--accent-primary);

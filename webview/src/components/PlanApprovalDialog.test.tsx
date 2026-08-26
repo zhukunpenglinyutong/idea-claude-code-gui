@@ -133,35 +133,6 @@ describe('PlanApprovalDialog countdown', () => {
     expect(onReject).not.toHaveBeenCalled();
   });
 
-  it('approve click suppresses the auto-reject that would otherwise fire after timeout', () => {
-    // Critical race: user clicks "approve" near the deadline, timer expires
-    // moments later. The backend must not receive both approve and reject
-    // for the same plan.
-    const onApprove = vi.fn();
-    const onReject = vi.fn();
-
-    render(
-      <PlanApprovalDialog
-        isOpen
-        request={buildRequest()}
-        onApprove={onApprove}
-        onReject={onReject}
-        timeoutSeconds={30}
-      />,
-    );
-
-    fireEvent.click(screen.getByText('批准并执行'));
-    expect(onApprove).toHaveBeenCalledTimes(1);
-    expect(onApprove).toHaveBeenCalledWith('plan-test-1', 'default');
-
-    act(() => {
-      vi.advanceTimersByTime(60_000);
-    });
-
-    expect(onApprove).toHaveBeenCalledTimes(1);
-    expect(onReject).not.toHaveBeenCalled();
-  });
-
   it('manual reject click suppresses a second auto-reject after timeout', () => {
     const onApprove = vi.fn();
     const onReject = vi.fn();

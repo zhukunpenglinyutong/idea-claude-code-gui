@@ -256,8 +256,8 @@ const AskUserQuestionDialog = ({
       // Filter out the "Other" marker, get actually selected options
       const selectedLabels = Array.from(selectedSet).filter(label => label !== OTHER_OPTION_MARKER);
 
-      // If "Other" is selected and has custom input, add the custom input to answers
-      if (selectedSet.has(OTHER_OPTION_MARKER) && customText.trim()) {
+      // Always include custom input text if provided
+      if (customText.trim()) {
         selectedLabels.push(customText.trim());
       }
 
@@ -273,7 +273,7 @@ const AskUserQuestionDialog = ({
   // 1. A regular option (not "Other") is selected
   // 2. Or "Other" is selected with valid custom input
   const hasRegularSelection = Array.from(currentAnswerSet).some(label => label !== OTHER_OPTION_MARKER);
-  const hasValidCustomInput = isOtherSelected && currentCustomInput.trim().length > 0;
+  const hasValidCustomInput = currentCustomInput.trim().length > 0;
   const canProceed = hasRegularSelection || hasValidCustomInput;
 
   return (
@@ -392,20 +392,18 @@ const AskUserQuestionDialog = ({
                 </button>
               </div>
 
-              {/* Custom input field - only shown when "Other" is selected */}
-              {isOtherSelected && (
-                <div className="custom-input-container">
-                  <textarea
-                    ref={customInputRef}
-                    className="custom-input"
-                    value={currentCustomInput}
-                    onChange={(e) => handleCustomInputChange(e.target.value)}
-                    placeholder={t('askUserQuestion.customInputPlaceholder', '请输入您的答案...')}
-                    rows={3}
-                    maxLength={MAX_CUSTOM_INPUT_LENGTH}
-                  />
-                </div>
-              )}
+              {/* Custom input field - always visible for direct text entry */}
+              <div className="custom-input-container">
+                <textarea
+                  ref={customInputRef}
+                  className={`custom-input ${!isOtherSelected ? 'inactive' : ''}`}
+                  value={currentCustomInput}
+                  onChange={(e) => handleCustomInputChange(e.target.value)}
+                  placeholder={t('askUserQuestion.customInputPlaceholder', '请输入您的答案...')}
+                  rows={3}
+                  maxLength={MAX_CUSTOM_INPUT_LENGTH}
+                />
+              </div>
 
               {/* Hint text */}
               {currentQuestion.multiSelect && (

@@ -176,10 +176,10 @@ export async function canUseTool(toolName, input, options = {}) {
 
   // All other tools require explicit permission
   debugLog('PERMISSION_NEEDED', `Tool ${toolName} requires permission, calling requestPermissionFromJava`);
-  const allowed = await requestPermissionFromJava(toolName, input);
+  const result = await requestPermissionFromJava(toolName, input);
   const elapsed = Date.now() - callStartTime;
 
-  if (allowed) {
+  if (result.allowed) {
     debugLog('PERMISSION_GRANTED', `User allowed ${toolName}`, { elapsed: `${elapsed}ms` });
     return {
       behavior: 'allow',
@@ -189,7 +189,7 @@ export async function canUseTool(toolName, input, options = {}) {
     debugLog('PERMISSION_DENIED', `User denied ${toolName}`, { elapsed: `${elapsed}ms` });
     return {
       behavior: 'deny',
-      message: `User denied permission for ${toolName} tool`
+      message: result.rejectMessage || `User denied permission for ${toolName} tool`
     };
   }
 }

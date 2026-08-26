@@ -80,27 +80,27 @@ public class PermissionHandlerTest {
 
     @Test
     public void handleDispatchesPermissionDecisionAndCompletesAllowFuture() throws Exception {
-        CompletableFuture<Integer> future = new CompletableFuture<>();
+        CompletableFuture<PermissionService.DialogResult> future = new CompletableFuture<>();
         injectPermissionFuture("ch-allow", future);
 
         String content = "{\"channelId\":\"ch-allow\",\"allow\":true,\"remember\":false}";
         assertTrue(handler.handle("permission_decision", content));
 
-        Integer result = future.get(2, TimeUnit.SECONDS);
-        assertEquals(PermissionService.PermissionResponse.ALLOW.getValue(), result.intValue());
+        PermissionService.DialogResult result = future.get(2, TimeUnit.SECONDS);
+        assertEquals(PermissionService.PermissionResponse.ALLOW.getValue(), result.getResponseValue());
         assertTrue("future should be removed from map after dispatch", getPermissionMap().isEmpty());
     }
 
     @Test
     public void handleDispatchesPermissionDecisionAndCompletesAllowAlwaysFuture() throws Exception {
-        CompletableFuture<Integer> future = new CompletableFuture<>();
+        CompletableFuture<PermissionService.DialogResult> future = new CompletableFuture<>();
         injectPermissionFuture("ch-allow-always", future);
 
         String content = "{\"channelId\":\"ch-allow-always\",\"allow\":true,\"remember\":true}";
         assertTrue(handler.handle("permission_decision", content));
 
-        Integer result = future.get(2, TimeUnit.SECONDS);
-        assertEquals(PermissionService.PermissionResponse.ALLOW_ALWAYS.getValue(), result.intValue());
+        PermissionService.DialogResult result = future.get(2, TimeUnit.SECONDS);
+        assertEquals(PermissionService.PermissionResponse.ALLOW_ALWAYS.getValue(), result.getResponseValue());
     }
 
     @Test
@@ -137,17 +137,17 @@ public class PermissionHandlerTest {
 
     @Test
     public void clearPendingRequestsCompletesAllPermissionFuturesWithDeny() throws Exception {
-        CompletableFuture<Integer> f1 = new CompletableFuture<>();
-        CompletableFuture<Integer> f2 = new CompletableFuture<>();
+        CompletableFuture<PermissionService.DialogResult> f1 = new CompletableFuture<>();
+        CompletableFuture<PermissionService.DialogResult> f2 = new CompletableFuture<>();
         injectPermissionFuture("ch-1", f1);
         injectPermissionFuture("ch-2", f2);
 
         handler.clearPendingRequests();
 
         assertEquals(PermissionService.PermissionResponse.DENY.getValue(),
-                f1.get(1, TimeUnit.SECONDS).intValue());
+                f1.get(1, TimeUnit.SECONDS).getResponseValue());
         assertEquals(PermissionService.PermissionResponse.DENY.getValue(),
-                f2.get(1, TimeUnit.SECONDS).intValue());
+                f2.get(1, TimeUnit.SECONDS).getResponseValue());
         assertTrue("permission map must be drained after clear", getPermissionMap().isEmpty());
     }
 
@@ -199,15 +199,15 @@ public class PermissionHandlerTest {
     @Test
     public void completableFutureCompleteIsAtomic_winnerGetsTrue_loserGetsFalse()
             throws ExecutionException, InterruptedException, TimeoutException {
-        CompletableFuture<Integer> future = new CompletableFuture<>();
+        CompletableFuture<PermissionService.DialogResult> future = new CompletableFuture<>();
 
-        boolean firstWon = future.complete(1);
-        boolean secondWon = future.complete(2);
+        boolean firstWon = future.complete(new PermissionService.DialogResult(1, null));
+        boolean secondWon = future.complete(new PermissionService.DialogResult(2, null));
 
         assertTrue("first complete() must win the race", firstWon);
         assertFalse("second complete() must be a no-op", secondWon);
-        assertEquals("winner's value must survive the race", Integer.valueOf(1),
-                future.get(1, TimeUnit.SECONDS));
+        assertEquals("winner's value must survive the race", 1,
+                future.get(1, TimeUnit.SECONDS).getResponseValue());
     }
 
     @Test
@@ -243,29 +243,29 @@ public class PermissionHandlerTest {
     public void safetyNetScheduleIsCancelledWhenFutureCompletesBeforeTimeout() {
         FakeSafetyNetScheduler scheduler = new FakeSafetyNetScheduler();
         PermissionHandler configuredHandler = new PermissionHandler(contextStub(new FakeSettingsService(120)), scheduler);
-        CompletableFuture<Integer> future = new CompletableFuture<>();
+        CompletableFuture<PermissionService.DialogResult> future = new CompletableFuture<>();
 
-        configuredHandler.scheduleSafetyNet(future, () -> future.complete(42));
+        configuredHandler.scheduleSafetyNet(future, () -> future.complete(new PermissionService.DialogResult(42, null)));
 
         assertEquals(180L, scheduler.lastDelaySeconds);
         assertFalse(scheduler.task.cancelled);
 
-        future.complete(7);
+        future.complete(new PermissionService.DialogResult(7, null));
 
         assertTrue(scheduler.task.cancelled);
-        assertEquals(Integer.valueOf(7), future.join());
+        assertEquals(7, future.join().getResponseValue());
     }
 
     @Test
     public void safetyNetTaskStillCompletesFutureWhenItWinsRace() {
         FakeSafetyNetScheduler scheduler = new FakeSafetyNetScheduler();
         PermissionHandler configuredHandler = new PermissionHandler(contextStub(new FakeSettingsService(30)), scheduler);
-        CompletableFuture<Integer> future = new CompletableFuture<>();
+        CompletableFuture<PermissionService.DialogResult> future = new CompletableFuture<>();
 
-        configuredHandler.scheduleSafetyNet(future, () -> future.complete(42));
+        configuredHandler.scheduleSafetyNet(future, () -> future.complete(new PermissionService.DialogResult(42, null)));
         scheduler.runnable.run();
 
-        assertEquals(Integer.valueOf(42), future.join());
+        assertEquals(42, future.join().getResponseValue());
         assertTrue(scheduler.task.cancelled);
     }
 
@@ -287,11 +287,11 @@ public class PermissionHandlerTest {
     // --- reflection helpers (the three pending-request maps are private) ---
 
     @SuppressWarnings("unchecked")
-    private Map<String, CompletableFuture<Integer>> getPermissionMap()
+    private Map<String, CompletableFuture<PermissionService.DialogResult>> getPermissionMap()
             throws NoSuchFieldException, IllegalAccessException {
         Field f = PermissionHandler.class.getDeclaredField("pendingPermissionRequests");
         f.setAccessible(true);
-        return (Map<String, CompletableFuture<Integer>>) f.get(handler);
+        return (Map<String, CompletableFuture<PermissionService.DialogResult>>) f.get(handler);
     }
 
     @SuppressWarnings("unchecked")
@@ -310,7 +310,7 @@ public class PermissionHandlerTest {
         return (Map<String, CompletableFuture<JsonObject>>) f.get(handler);
     }
 
-    private void injectPermissionFuture(String key, CompletableFuture<Integer> future)
+    private void injectPermissionFuture(String key, CompletableFuture<PermissionService.DialogResult> future)
             throws NoSuchFieldException, IllegalAccessException {
         getPermissionMap().put(key, future);
     }

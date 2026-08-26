@@ -131,9 +131,16 @@ class PermissionFileProtocol {
     }
 
     void writePermissionResponse(String requestId, boolean allow) {
+        writePermissionResponse(requestId, allow, null);
+    }
+
+    void writePermissionResponse(String requestId, boolean allow, String rejectMessage) {
         LOG.info("[PERM_WRITE] Writing response for requestId=" + requestId + ", allow=" + allow);
         JsonObject response = new JsonObject();
         response.addProperty("allow", allow);
+        if (rejectMessage != null && !rejectMessage.isEmpty()) {
+            response.addProperty("rejectMessage", rejectMessage);
+        }
         writeJson(resolveResponsePath(RESPONSE_FILE_PREFIX, requestId), response, "RESPONSE");
     }
 
@@ -144,9 +151,16 @@ class PermissionFileProtocol {
     }
 
     void writePlanApprovalResponse(String requestId, boolean approved, String targetMode) {
+        writePlanApprovalResponse(requestId, approved, targetMode, null);
+    }
+
+    void writePlanApprovalResponse(String requestId, boolean approved, String targetMode, String message) {
         JsonObject response = new JsonObject();
         response.addProperty("approved", approved);
         response.addProperty("targetMode", targetMode);
+        if (message != null && !message.isEmpty()) {
+            response.addProperty("message", message);
+        }
         writeJson(resolveResponsePath(PLAN_APPROVAL_RESPONSE_FILE_PREFIX, requestId), response, "PLAN_RESPONSE");
     }
 
