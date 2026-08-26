@@ -4,10 +4,12 @@ import com.github.claudecodegui.handler.core.BaseMessageHandler;
 import com.github.claudecodegui.handler.core.HandlerContext;
 import com.github.claudecodegui.handler.provider.ModelProviderHandler;
 
+import com.github.claudecodegui.provider.grok.GrokSDKBridge;
 import com.github.claudecodegui.util.LanguageConfigService;
 import com.github.claudecodegui.util.ThemeConfigService;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 
@@ -109,6 +111,8 @@ public class SettingsHandler extends BaseMessageHandler {
         "browse_sound_file",
         // User language preference
         "set_user_language",
+        "get_grok_auth_config",
+        "set_grok_auth_config",
         "get_user_language",
         "clear_user_language"
     };
@@ -388,6 +392,12 @@ public class SettingsHandler extends BaseMessageHandler {
             case "clear_user_language":
                 handleClearUserLanguage();
                 return true;
+            case "get_grok_auth_config":
+                handleGetGrokAuthConfig();
+                return true;
+            case "set_grok_auth_config":
+                handleSetGrokAuthConfig(content);
+                return true;
             default:
                 return false;
         }
@@ -447,6 +457,57 @@ public class SettingsHandler extends BaseMessageHandler {
     private void pushLanguageConfig() {
         JsonObject languageConfig = LanguageConfigService.getLanguageConfig(context.getSettingsService());
         callJavaScript("window.applyIdeaLanguageConfig", escapeJs(languageConfig.toString()));
+    }
+
+    private void handleGetGrokAuthConfig() {
+        try {
+            JsonObject config = new JsonObject();
+            config.addProperty("authMethod", context.getSettingsService().getGrokAuthMethod());
+            config.addProperty("apiKey", context.getSettingsService().getGrokApiKey());
+            config.addProperty("apiBaseUrl", context.getSettingsService().getGrokApiBaseUrl());
+            config.addProperty("oauthBaseUrl", context.getSettingsService().getGrokOauthBaseUrl());
+            config.add("env", context.getSettingsService().getGrokEnv());
+            callJavaScript("window.updateGrokAuthConfig", escapeJs(config.toString()));
+        } catch (Exception e) {
+            LOG.error("[SettingsHandler] Error getting Grok config", e);
+        }
+    }
+
+    private void handleSetGrokAuthConfig(String content) {
+        try {
+            JsonObject json = JsonParser.parseString(content).getAsJsonObject();
+            if (json.has("authMethod")) {
+                context.getSettingsService().setGrokAuthMethod(json.get("authMethod").getAsString());
+            }
+            if (json.has("apiKey")) {
+                context.getSettingsService().setGrokApiKey(json.get("apiKey").getAsString());
+            }
+            if (json.has("apiBaseUrl")) {
+                context.getSettingsService().setGrokApiBaseUrl(json.get("apiBaseUrl").getAsString());
+            }
+            if (json.has("oauthBaseUrl")) {
+                context.getSettingsService().setGrokOauthBaseUrl(json.get("oauthBaseUrl").getAsString());
+            }
+            if (json.has("env") && json.get("env").isJsonObject()) {
+                context.getSettingsService().setGrokEnv(json.getAsJsonObject("env"));
+            }
+            try {
+                GrokSDKBridge grokSDKBridge = context.getGrokSDKBridge();
+                if (grokSDKBridge != null) {
+                    grokSDKBridge.shutdownDaemon();
+                }
+            } catch (Exception e) {
+                LOG.warn("[SettingsHandler] Failed to restart Grok daemon: " + e.getMessage());
+            }
+            LOG.info("[SettingsHandler] Saved Grok Auth Config");
+        } catch (Exception e) {
+            LOG.error("[SettingsHandler] Error setting Grok config", e);
+        } finally {
+            // Push the persisted config back on success AND failure so the
+            // editor always reflects what is actually stored (a failed write
+            // visibly reverts, and the webview releases its saving state).
+            handleGetGrokAuthConfig();
+        }
     }
 
     /**

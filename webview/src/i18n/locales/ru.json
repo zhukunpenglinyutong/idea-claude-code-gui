@@ -349,7 +349,17 @@
     "providerTab": {
       "claude": "Claude Code",
       "codex": "Codex",
-      "cli": "CLI"
+      "cli": "CLI",
+      "grok": "Grok"
+    },
+    "grok": {
+      "title": "JSON-конфигурация Grok",
+      "desc": "Настройки Grok в формате JSON.",
+      "editorHint": "Отредактируйте конфигурацию ниже.",
+      "save": "Сохранить конфигурацию",
+      "saving": "Сохранение...",
+      "invalidJson": "Неверный формат JSON",
+      "saveHint": "Сохранение перезапускает рантайм Grok — идущий диалог Grok будет прерван."
     },
     "pluginModels": {
       "title": "Пользовательские модели",

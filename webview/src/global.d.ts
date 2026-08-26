@@ -6,6 +6,7 @@ interface Window {
    * Send message to Java backend
    */
   sendToJava?: (message: string) => void;
+  updateGrokAuthConfig?: (config: any) => void;
 
   /** Legacy windowed-JCEF repaint requested after its IntelliJ content tab is activated. */
   onTabActivated?: () => void;

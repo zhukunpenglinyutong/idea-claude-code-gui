@@ -618,7 +618,17 @@
     "providerTab": {
       "claude": "Claude Code",
       "codex": "Codex",
-      "cli": "CLI"
+      "cli": "CLI",
+      "grok": "Grok"
+    },
+    "grok": {
+      "title": "Grok JSON 配置",
+      "desc": "使用 JSON 格式配置 Grok 设置。",
+      "editorHint": "在下方编辑你的配置。",
+      "save": "保存配置",
+      "saving": "保存中...",
+      "invalidJson": "无效的 JSON 格式",
+      "saveHint": "保存会重启 Grok 运行时——正在进行的 Grok 对话将被中断。"
     },
     "cli": {
       "hint": "以下 CLI 需在系统终端自行安装并完成配置。插件只负责检测是否已安装及版本号，不会替你自动安装。请先在终端确认可正常使用，再回到此处使用。",

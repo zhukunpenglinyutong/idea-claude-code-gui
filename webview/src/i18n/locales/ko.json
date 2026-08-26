@@ -349,7 +349,17 @@
     "providerTab": {
       "claude": "Claude Code",
       "codex": "Codex",
-      "cli": "CLI"
+      "cli": "CLI",
+      "grok": "Grok"
+    },
+    "grok": {
+      "title": "Grok JSON 구성",
+      "desc": "JSON 형식으로 Grok 설정을 구성합니다.",
+      "editorHint": "아래에서 구성을 편집하세요.",
+      "save": "구성 저장",
+      "saving": "저장 중...",
+      "invalidJson": "잘못된 JSON 형식",
+      "saveHint": "저장하면 Grok 런타임이 재시작되며 진행 중인 Grok 대화는 중단됩니다."
     },
     "pluginModels": {
       "title": "사용자 지정 모델",

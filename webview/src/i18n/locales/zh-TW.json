@@ -349,7 +349,17 @@
     "providerTab": {
       "claude": "Claude Code",
       "codex": "Codex",
-      "cli": "CLI"
+      "cli": "CLI",
+      "grok": "Grok"
+    },
+    "grok": {
+      "title": "Grok JSON 設定",
+      "desc": "使用 JSON 格式設定 Grok。",
+      "editorHint": "在下方編輯你的設定。",
+      "save": "儲存設定",
+      "saving": "儲存中...",
+      "invalidJson": "無效的 JSON 格式",
+      "saveHint": "儲存會重新啟動 Grok 執行時——正在進行的 Grok 對話將被中斷。"
     },
     "pluginModels": {
       "title": "自訂模型",
