@@ -221,6 +221,21 @@ async function buildRequestContext(params, withAttachments, overrides = {}) {
   const modelId = params.model || null;
   const { sdkModelName, resolvedModelId } = resolveRequestModelState(modelId, settings?.env);
   setModelEnvironmentVariables(resolvedModelId, modelId);
+  // Fix: 同步 settings.json 中配置的所有模型层级映射到进程环境，
+  // 否则 opus/haiku/fable 子代理请求时对应 env 为空，会 fallback 到错误的模型。
+  for (const key of [
+    'ANTHROPIC_DEFAULT_OPUS_MODEL',
+    'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+    'ANTHROPIC_DEFAULT_FABLE_MODEL',
+    'ANTHROPIC_DEFAULT_SONNET_MODEL',
+    'CLAUDE_CODE_SUBAGENT_MODEL',
+  ]) {
+    const value = settings?.env?.[key];
+    if (value) {
+      process.env[key] = String(value).trim();
+    }
+  }
+
 
   const permissionMode = normalizePermissionMode(params.permissionMode);
   const streamingEnabled = resolveStreamingEnabled(params, settings);
