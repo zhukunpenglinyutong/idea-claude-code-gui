@@ -154,11 +154,11 @@ const WEBVIEW_CONTROLLED_ENV_VAR_SET = new Set(
   WEBVIEW_CONTROLLED_ENV_VARS.map((varName) => varName.toUpperCase())
 );
 
-// Subset stripped from the SDK child env: the reasoning/context controls must
-// reach the CLI only via SDK options + the inline settings override, never
-// inherited from process.env.
+// Subset stripped from the SDK child env: the reasoning/context controls and
+// model routing vars must reach the CLI only via SDK options + the inline
+// settings override, never inherited from process.env.
 const CLI_ENV_OVERRIDE_VAR_SET = new Set(
-  REASONING_CONTROL_ENV_VARS.map((varName) => varName.toUpperCase())
+  [...REASONING_CONTROL_ENV_VARS, ...MODEL_ROUTING_ENV_VARS].map((varName) => varName.toUpperCase())
 );
 
 export function isWebviewControlledEnvVar(varName) {
