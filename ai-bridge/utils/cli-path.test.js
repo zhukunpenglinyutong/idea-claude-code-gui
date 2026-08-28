@@ -139,8 +139,10 @@ test('resolveOmpCliPath honors OMP_BIN env override', () => {
 
 test('commonCliBinDirs includes the OMP bin dir after the PI entry', () => {
   const dirs = commonCliBinDirs('/home/tester');
-  const piIndex = dirs.indexOf('/home/tester/.pi/bin');
-  const ompIndex = dirs.indexOf('/home/tester/.omp/bin');
+  // Normalize backslashes to forward slashes for cross-platform assertions
+  const normalized = dirs.map(d => d.replace(/\\/g, '/'));
+  const piIndex = normalized.indexOf('/home/tester/.pi/bin');
+  const ompIndex = normalized.indexOf('/home/tester/.omp/bin');
   assert.ok(piIndex !== -1, 'expected .pi/bin entry');
   assert.ok(ompIndex !== -1, 'expected .omp/bin entry');
   assert.equal(ompIndex, piIndex + 1);
