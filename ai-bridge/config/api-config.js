@@ -154,11 +154,15 @@ const WEBVIEW_CONTROLLED_ENV_VAR_SET = new Set(
   WEBVIEW_CONTROLLED_ENV_VARS.map((varName) => varName.toUpperCase())
 );
 
-// Subset stripped from the SDK child env: the reasoning/context controls and
-// model routing vars must reach the CLI only via SDK options + the inline
-// settings override, never inherited from process.env.
+// Subset stripped from the SDK child env: the reasoning/context controls must
+// reach the CLI only via SDK options + the inline settings override, never
+// inherited from process.env. Model routing vars are intentionally NOT
+// stripped: the CLI child env is the frozen per-request snapshot written by
+// setModelEnvironmentVariables() right before buildQueryOptions(), and the
+// [1m] context-window suffix must survive into the spawned runtime (see
+// runtime-lifecycle.1m-toggle.child.mjs).
 const CLI_ENV_OVERRIDE_VAR_SET = new Set(
-  [...REASONING_CONTROL_ENV_VARS, ...MODEL_ROUTING_ENV_VARS].map((varName) => varName.toUpperCase())
+  REASONING_CONTROL_ENV_VARS.map((varName) => varName.toUpperCase())
 );
 
 export function isWebviewControlledEnvVar(varName) {
@@ -203,13 +207,21 @@ export function buildWebviewControlledSettingsOverride(modelId) {
     MAX_THINKING_TOKENS: '',
   };
 
-  // Clear model routing vars from settings.json so the per-request values
-  // set by setModelEnvironmentVariables() (via process.env) are the single
-  // source of truth. Without this, a stale ANTHROPIC_MODEL in settings.json
-  // overrides the webview-selected model, causing all model families to
-  // resolve to the same value (issue #1509).
+  // Neutralize stale settings.json model routing vars so they cannot override
+  // the webview-selected model (issue #1509), BUT mirror the per-request
+  // values written by setModelEnvironmentVariables() into process.env when
+  // they exist. Empty-string neutralization alone regressed third-party relay
+  // setups (issue #1741): the inline settings override has HIGHER precedence
+  // than the child env, so blanking ANTHROPIC_DEFAULT_*_MODEL here made the
+  // CLI unable to resolve the SDK alias ('sonnet') to the relay's custom
+  // model name, falling back to official claude-* models and failing.
+  // Callers invoke setModelEnvironmentVariables() BEFORE building options,
+  // so process.env is the authoritative per-request snapshot here.
   for (const varName of MODEL_ROUTING_ENV_VARS) {
-    env[varName] = '';
+    const perRequestValue = process.env[varName];
+    env[varName] = perRequestValue !== undefined && String(perRequestValue) !== ''
+      ? String(perRequestValue)
+      : '';
   }
 
   const normalizedModel = typeof modelId === 'string' ? modelId.trim() : '';

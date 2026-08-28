@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { __testing, getContextUsagePersistent } from './persistent-query-service.js';
+import { loadClaudeSettings } from '../../config/api-config.js';
 
 /**
  * Make a mock query.next() idle like a real SDK stream: block while idle,
@@ -99,13 +100,22 @@ test('buildRequestContext preserves resolved model mapping for context usage run
     assert.equal(requestContext.resolvedModelId, 'custom-sonnet-model');
     assert.equal(requestContext.options.env.ANTHROPIC_MODEL, 'custom-sonnet-model');
     assert.equal(requestContext.options.env.ANTHROPIC_DEFAULT_SONNET_MODEL, 'custom-sonnet-model');
-    assert.deepEqual(requestContext.options.settings, {
-      env: {
-        CLAUDE_CODE_EFFORT_LEVEL: '',
-        MAX_THINKING_TOKENS: '',
-        CLAUDE_CODE_DISABLE_1M_CONTEXT: '1',
-      },
-    });
+    // The inline settings override must MIRROR the per-request model routing
+    // values (written to process.env by setModelEnvironmentVariables() just
+    // before buildQueryOptions), not blank them: blanking regressed
+    // third-party relays where the CLI could no longer resolve the SDK alias
+    // to the relay's custom model name (issue #1741). Vars without a
+    // per-request value stay neutralized ('') so stale settings.json values
+    // cannot leak through (issue #1509 semantics preserved).
+    assert.equal(requestContext.options.settings.env.ANTHROPIC_MODEL, 'custom-sonnet-model');
+    assert.equal(
+      requestContext.options.settings.env.ANTHROPIC_DEFAULT_SONNET_MODEL,
+      'custom-sonnet-model',
+    );
+    assert.equal(requestContext.options.settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL, '');
+    assert.equal(requestContext.options.settings.env.CLAUDE_CODE_EFFORT_LEVEL, '');
+    assert.equal(requestContext.options.settings.env.MAX_THINKING_TOKENS, '');
+    assert.equal(requestContext.options.settings.env.CLAUDE_CODE_DISABLE_1M_CONTEXT, '1');
     assert.equal(process.env.ANTHROPIC_MODEL, 'custom-sonnet-model');
     assert.equal(process.env.ANTHROPIC_DEFAULT_SONNET_MODEL, 'custom-sonnet-model');
     assert.equal(exactContext.options.model, 'custom-sonnet-model');
@@ -188,12 +198,21 @@ test('getContextUsagePersistent reuses runtime and calls setModel when model cha
       cwd: process.cwd(),
     });
 
+    // Compute the expected model the same way production does - via
+    // resolveRequestModelState(loadClaudeSettings().env) - so the assertion
+    // holds both on CI (no settings.json -> literal model ID) and on a
+    // developer machine whose settings.json maps sonnet to another model.
+    const { resolvedModelId: expectedSonnet } = __testing.resolveRequestModelState(
+      'claude-sonnet-4-6',
+      loadClaudeSettings()?.env,
+    );
+
     // Should still be 1 runtime (reused), not recreated
     assert.equal(factory.runtimes.length, 1,
       `expected 1 runtime (reused), got ${factory.runtimes.length}`);
 
     // The runtime's model should be updated with the exact model ID.
-    assert.equal(factory.runtimes[0].currentModel, 'claude-sonnet-4-6',
+    assert.equal(factory.runtimes[0].currentModel, expectedSonnet,
       'runtime model should have been updated via setModel');
   } finally {
     console.log = origConsoleLog;
@@ -215,11 +234,18 @@ test('getContextUsagePersistent acquires new runtime when none exists', async ()
       cwd: process.cwd(),
     });
 
+    // Same dynamic expectation as the reuse test above: production resolves
+    // the model through loadClaudeSettings(), so mirror that here.
+    const { resolvedModelId: expectedSonnet } = __testing.resolveRequestModelState(
+      'claude-sonnet-4-6',
+      loadClaudeSettings()?.env,
+    );
+
     // Should have created a runtime via acquireRuntime
     assert.equal(factory.runtimes.length, 1, 'should create 1 runtime via acquireRuntime');
     assert.equal(
       factory.runtimes[0].options.model,
-      'claude-sonnet-4-6',
+      expectedSonnet,
       'context runtime should be created with exact model ID',
     );
   } finally {
