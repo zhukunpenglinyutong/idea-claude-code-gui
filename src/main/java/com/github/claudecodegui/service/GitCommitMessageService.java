@@ -16,6 +16,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vcs.changes.Change;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -113,30 +114,46 @@ public class GitCommitMessageService {
      * so we can re-dispatch. Headless/unit-test environments without an
      * Application keep the synchronous path for deterministic assertions.
      *
-     * <p>Both {@link Application#isDispatchThread()} and
-     * {@link java.awt.EventQueue#isDispatchThread()} are checked. The AWT
-     * fallback catches edge cases where an action's {@code actionPerformed}
-     * runs on the EDT via {@code WriteIntentReadAction} or {@code InvokeLater}
-     * but the IntelliJ Application reports the thread as non-dispatch (observed
-     * on some 2026.2 builds). Without this, {@code CommitDiffProvider} would
-     * call {@code GitRepositoryManager.getRepositoryForFile} synchronously on
-     * the EDT, triggering the "Do not call synchronous repository update in EDT"
-     * assertion.
+     * <p>This is defensive hardening: the primary check is
+     * {@link Application#isDispatchThread()}. The secondary
+     * {@link java.awt.EventQueue#isDispatchThread()} fallback guards a
+     * hypothetical edge case where a caller reaches this code on the AWT EDT
+     * while the IntelliJ Application does not report the thread as its
+     * dispatch thread. The fallback is harmless and cheap, but it is not a
+     * verified fix for any reported crash (see the PR discussion: the
+     * #1642 report predates the EDT offload entirely and was most likely
+     * already fixed by the v0.5.1 offload change).
      */
     private static boolean shouldOffloadToBackground() {
         try {
-            Application app = ApplicationManager.getApplication();
-            if (app == null) {
-                return false;
-            }
+            return shouldOffloadToBackground(ApplicationManager.getApplication());
+        } catch (Throwable t) {
+            // No Application (headless/unit tests) or lookup failure: stay inline.
+            return false;
+        }
+    }
+
+    /**
+     * Testable core of {@link #shouldOffloadToBackground()}: decides whether
+     * the caller must be re-dispatched to a pooled thread.
+     *
+     * @param app the current IntelliJ Application (null in headless tests)
+     * @return true when the caller runs on a dispatch thread (IntelliJ's own
+     *         EDT, or the AWT EDT via the defensive fallback)
+     */
+    @VisibleForTesting
+    static boolean shouldOffloadToBackground(@Nullable Application app) {
+        if (app == null) {
+            return false;
+        }
+        try {
             // Primary: IntelliJ's own EDT detection.
             if (app.isDispatchThread()) {
                 return true;
             }
-            // Fallback: AWT EventQueue detection. This covers the edge case
-            // where the IntelliJ Application does not recognise the thread as
-            // its dispatch thread but AWT does (the action pipeline still runs
-            // on the AWT EDT).
+            // Defensive fallback: AWT EventQueue detection, in case a caller
+            // runs on the AWT EDT that the IntelliJ Application does not
+            // recognise as its dispatch thread.
             return java.awt.EventQueue.isDispatchThread();
         } catch (Throwable t) {
             return false;
