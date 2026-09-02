@@ -16,6 +16,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vcs.changes.Change;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -112,11 +113,48 @@ public class GitCommitMessageService {
      * True when the current thread is the EDT and a real Application is available
      * so we can re-dispatch. Headless/unit-test environments without an
      * Application keep the synchronous path for deterministic assertions.
+     *
+     * <p>This is defensive hardening: the primary check is
+     * {@link Application#isDispatchThread()}. The secondary
+     * {@link java.awt.EventQueue#isDispatchThread()} fallback guards a
+     * hypothetical edge case where a caller reaches this code on the AWT EDT
+     * while the IntelliJ Application does not report the thread as its
+     * dispatch thread. The fallback is harmless and cheap, but it is not a
+     * verified fix for any reported crash (see the PR discussion: the
+     * #1642 report predates the EDT offload entirely and was most likely
+     * already fixed by the v0.5.1 offload change).
      */
     private static boolean shouldOffloadToBackground() {
         try {
-            Application app = ApplicationManager.getApplication();
-            return app != null && app.isDispatchThread();
+            return shouldOffloadToBackground(ApplicationManager.getApplication());
+        } catch (Throwable t) {
+            // No Application (headless/unit tests) or lookup failure: stay inline.
+            return false;
+        }
+    }
+
+    /**
+     * Testable core of {@link #shouldOffloadToBackground()}: decides whether
+     * the caller must be re-dispatched to a pooled thread.
+     *
+     * @param app the current IntelliJ Application (null in headless tests)
+     * @return true when the caller runs on a dispatch thread (IntelliJ's own
+     *         EDT, or the AWT EDT via the defensive fallback)
+     */
+    @VisibleForTesting
+    static boolean shouldOffloadToBackground(@Nullable Application app) {
+        if (app == null) {
+            return false;
+        }
+        try {
+            // Primary: IntelliJ's own EDT detection.
+            if (app.isDispatchThread()) {
+                return true;
+            }
+            // Defensive fallback: AWT EventQueue detection, in case a caller
+            // runs on the AWT EDT that the IntelliJ Application does not
+            // recognise as its dispatch thread.
+            return java.awt.EventQueue.isDispatchThread();
         } catch (Throwable t) {
             return false;
         }
