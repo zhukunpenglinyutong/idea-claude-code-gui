@@ -14,6 +14,12 @@ import { sendBridgeEvent } from '../../../utils/bridge';
 import { THROTTLE_INTERVAL } from '../../useStreamingMessages';
 import { parseSequence } from '../parseSequence';
 import { getStreamEndHandlingMode } from '../messageSync';
+import {
+  MESSAGE_QUEUE_STREAM_COMPLETED_EVENT,
+  MESSAGE_QUEUE_STREAM_STARTED_EVENT,
+  type MessageQueueStreamCompletedDetail,
+  type MessageQueueStreamStartedDetail,
+} from '../../../constants/messageQueueEvents';
 
 /**
  * Pour every tool_use_id carried by tool_result blocks inside one message's raw
@@ -213,6 +219,40 @@ export function registerStreamingCallbacks(options: UseWindowCallbacksOptions): 
     patchAssistantForStreaming,
   } = options;
 
+  let unsequencedCompletionCounter = 0;
+  window.__streamEndProcessedSequence = undefined;
+
+  const dispatchQueueStreamStarted = (turnId: number) => {
+    const detail: MessageQueueStreamStartedDetail = { turnId };
+    window.dispatchEvent(new CustomEvent(MESSAGE_QUEUE_STREAM_STARTED_EVENT, { detail }));
+  };
+
+  const dispatchQueueStreamCompleted = (turnId: number, sequence: number | null) => {
+    const normalizedTurnId = turnId > 0 ? turnId : null;
+    const normalizedSequence = sequence != null && sequence >= 0 ? sequence : null;
+    const completionId = normalizedSequence != null
+      ? `sequence:${normalizedSequence}`
+      : normalizedTurnId != null
+        ? `turn:${normalizedTurnId}`
+        : `unsequenced:${++unsequencedCompletionCounter}`;
+    const detail: MessageQueueStreamCompletedDetail = {
+      completionId,
+      turnId: normalizedTurnId,
+      sequence: normalizedSequence,
+    };
+    window.dispatchEvent(new CustomEvent(MESSAGE_QUEUE_STREAM_COMPLETED_EVENT, { detail }));
+  };
+
+  const markStreamEndProcessed = (turnId: number, sequence: number | null) => {
+    window.__streamEndProcessedTurnId = turnId > 0 ? turnId : undefined;
+    if (sequence != null && sequence >= 0) {
+      window.__streamEndProcessedSequence = Math.max(
+        window.__streamEndProcessedSequence ?? -1,
+        sequence,
+      );
+    }
+  };
+
   // ── Stream stall watchdog ──
   // Tracks the last time we received any streaming activity (delta or
   // updateMessages during streaming).  A periodic check auto-recovers
@@ -356,6 +396,7 @@ export function registerStreamingCallbacks(options: UseWindowCallbacksOptions): 
         },
       ];
     });
+    dispatchQueueStreamStarted(streamingTurnIdRef.current);
   };
 
   // rAF-scheduled streaming update: frame-aligned, avoids setTimeout jank.
@@ -470,18 +511,25 @@ export function registerStreamingCallbacks(options: UseWindowCallbacksOptions): 
     // fallback via Alarm) may send onStreamEnd twice for the same turn.
     // Only the first arrival takes effect; the second is a no-op.
     //
-    // After the first onStreamEnd processes, streamingTurnIdRef is cleared to -1
-    // and isStreamingRef is set to false. The second arrival sees these cleared
-    // refs and should bail out. We check both conditions:
-    // 1. If the current turn ID was already processed (before refs were cleared)
-    // 2. If streaming is already inactive (refs were already cleared by first call)
+    // After the first onStreamEnd processes, streamingTurnIdRef is cleared to -1.
+    // The turn-id guard covers callbacks that arrive before that clear becomes
+    // observable, while the backend sequence guard covers the later skip/minimal
+    // branch and any out-of-order duplicate delivery.
     const currentTurnId = streamingTurnIdRef.current;
     const handlingMode = getStreamEndHandlingMode(
       options.currentProviderRef.current,
       isStreamingRef.current,
       currentTurnId,
     );
+    const parsedSequence = parseSequence(sequence);
     if (currentTurnId > 0 && window.__streamEndProcessedTurnId === currentTurnId) {
+      return;
+    }
+    if (
+      parsedSequence != null
+      && parsedSequence >= 0
+      && parsedSequence <= (window.__streamEndProcessedSequence ?? -1)
+    ) {
       return;
     }
     if (handlingMode === 'skip') {
@@ -492,11 +540,12 @@ export function registerStreamingCallbacks(options: UseWindowCallbacksOptions): 
       // arrives, and without this the last tool card spins forever. Idempotent
       // (a no-op when everything is already resolved or already denied).
       finalizeUnresolvedToolUses();
+      markStreamEndProcessed(currentTurnId, parsedSequence);
+      dispatchQueueStreamCompleted(currentTurnId, parsedSequence);
       return;
     }
 
     clearStallWatchdog();
-    const parsedSequence = parseSequence(sequence);
     // Only update minAcceptedUpdateSequence for valid positive sequences.
     // The fallback path sends sequence=-1 which means "no sequence info" —
     // it should not participate in sequence tracking.
@@ -514,7 +563,8 @@ export function registerStreamingCallbacks(options: UseWindowCallbacksOptions): 
       setLoading(false);
       setLoadingStartTime(null);
       setIsThinking(false);
-      window.__streamEndProcessedTurnId = currentTurnId > 0 ? currentTurnId : undefined;
+      markStreamEndProcessed(currentTurnId, parsedSequence);
+      dispatchQueueStreamCompleted(currentTurnId, parsedSequence);
       return;
     }
 
@@ -809,7 +859,8 @@ export function registerStreamingCallbacks(options: UseWindowCallbacksOptions): 
     setIsThinking(false);
 
     // Mark this turn as processed — idempotency guard for dual-path delivery
-    window.__streamEndProcessedTurnId = endedStreamingTurnId;
+    markStreamEndProcessed(endedStreamingTurnId, parsedSequence);
+    dispatchQueueStreamCompleted(endedStreamingTurnId, parsedSequence);
   };
 
   // Streaming heartbeat — lightweight signal from backend during tool execution

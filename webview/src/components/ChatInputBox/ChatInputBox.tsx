@@ -125,10 +125,17 @@ export const ChatInputBox = memo(forwardRef<ChatInputBoxHandle, ChatInputBoxProp
       sdkStatusError = false,
       onRetrySdkStatus,
       onInstallSdk,
-      addToast,
-      messageQueue,
-      onRemoveFromQueue,
-      autoOpenFileEnabled,
+       addToast,
+       messageQueue,
+       onRemoveFromQueue,
+       onUpdateQueue,
+       onMoveUpQueue,
+       onMoveDownQueue,
+       onMoveToFrontQueue,
+       onMoveToBackQueue,
+       onInsertQueue,
+       onInterruptQueue,
+       autoOpenFileEnabled,
       onAutoOpenFileEnabledChange,
       longContextEnabled = true,
       onLongContextChange,
@@ -682,9 +689,16 @@ export const ChatInputBox = memo(forwardRef<ChatInputBoxHandle, ChatInputBoxProp
           onRewind={onRewind}
           statusPanelExpanded={statusPanelExpanded}
           onToggleStatusPanel={onToggleStatusPanel}
-          messageQueue={messageQueue}
-          onRemoveFromQueue={onRemoveFromQueue}
-          showOpenSourceBanner={showOpenSourceBanner}
+           messageQueue={messageQueue}
+           onRemoveFromQueue={onRemoveFromQueue}
+           onUpdateQueue={onUpdateQueue}
+           onMoveUpQueue={onMoveUpQueue}
+           onMoveDownQueue={onMoveDownQueue}
+           onMoveToFrontQueue={onMoveToFrontQueue}
+           onMoveToBackQueue={onMoveToBackQueue}
+           onInsertQueue={onInsertQueue}
+           onInterruptQueue={onInterruptQueue}
+           showOpenSourceBanner={showOpenSourceBanner}
           onDismissOpenSourceBanner={handleDismissOpenSourceBanner}
           autoOpenFileEnabled={autoOpenFileEnabled}
           onRequestEnableFileContext={handleRequestEnableFileContext}

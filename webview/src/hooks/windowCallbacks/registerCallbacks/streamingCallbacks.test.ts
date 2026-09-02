@@ -13,6 +13,10 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { registerStreamingCallbacks } from './streamingCallbacks';
 import type { UseWindowCallbacksOptions } from '../../useWindowCallbacks';
 import type { ClaudeMessage } from '../../../types';
+import {
+  MESSAGE_QUEUE_STREAM_COMPLETED_EVENT,
+  type MessageQueueStreamCompletedDetail,
+} from '../../../constants/messageQueueEvents';
 
 type Ref<T> = { current: T };
 const ref = <T,>(value: T): Ref<T> => ({ current: value });
@@ -255,5 +259,45 @@ describe('onStreamEnd finalizes dangling tool_use when the turn never streamed',
     // Nothing dangling → no id denied, and the list reference is unchanged.
     expect(window.__deniedToolIds?.has('tool-2') ?? false).toBe(false);
     expect(getMessages()).toBe(before);
+  });
+});
+
+describe('onStreamEnd queue scheduling signal', () => {
+  beforeEach(() => {
+    window.__sessionTransitioning = false;
+    window.__streamEndProcessedTurnId = undefined;
+    window.__streamEndProcessedSequence = undefined;
+  });
+
+  afterEach(() => {
+    if (window.__stallWatchdogInterval != null) {
+      clearInterval(window.__stallWatchdogInterval);
+      window.__stallWatchdogInterval = null;
+    }
+  });
+
+  it('dispatches only one completion event when the same stream end is delivered twice', () => {
+    const received: MessageQueueStreamCompletedDetail[] = [];
+    const listener = (event: Event) => {
+      received.push((event as CustomEvent<MessageQueueStreamCompletedDetail>).detail);
+    };
+    window.addEventListener(MESSAGE_QUEUE_STREAM_COMPLETED_EVENT, listener);
+
+    try {
+      const { refs } = createHarness([{ type: 'user', content: 'question' }], 0);
+      window.onStreamStart!();
+      const turnId = refs.streamingTurnIdRef.current;
+
+      window.onStreamEnd!('100');
+      window.onStreamEnd!('100');
+
+      expect(received).toEqual([{
+        completionId: 'sequence:100',
+        turnId,
+        sequence: 100,
+      }]);
+    } finally {
+      window.removeEventListener(MESSAGE_QUEUE_STREAM_COMPLETED_EVENT, listener);
+    }
   });
 });

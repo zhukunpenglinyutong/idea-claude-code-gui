@@ -447,7 +447,18 @@ const App = () => {
     queue: messageQueue,
     enqueue: enqueueMessage,
     dequeue: dequeueMessage,
-  } = useMessageQueue({ isLoading: loading, onExecute: executeMessage });
+    update: updateQueuedMessage,
+    moveUp: moveUpQueuedMessage,
+    moveDown: moveDownQueuedMessage,
+    moveToFront: moveQueuedMessageToFront,
+    moveToBack: moveQueuedMessageToBack,
+    insert: insertQueuedMessage,
+    interruptAndSendNow: interruptQueuedMessage,
+  } = useMessageQueue({
+    isLoading: loading,
+    onExecute: executeMessage,
+    onInterrupt: interruptSession,
+  });
 
   // handleSubmit with queue support (new session and local commands bypass loading check)
   const handleSubmit = useCallback((content: string, attachments?: Attachment[]) => {
@@ -672,6 +683,13 @@ const App = () => {
               onLongContextChange={handleLongContextChange}
               messageQueue={messageQueue}
               onRemoveFromQueue={dequeueMessage}
+              onUpdateQueue={updateQueuedMessage}
+              onMoveUpQueue={moveUpQueuedMessage}
+              onMoveDownQueue={moveDownQueuedMessage}
+              onMoveToFrontQueue={moveQueuedMessageToFront}
+              onMoveToBackQueue={moveQueuedMessageToBack}
+              onInsertQueue={insertQueuedMessage}
+              onInterruptQueue={interruptQueuedMessage}
             />
           </div>
           {currentView === 'history' && (

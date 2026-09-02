@@ -205,6 +205,54 @@
   font-size: 12px;
   color: var(--text-primary);
   min-height: 28px;
+  flex-shrink: 0;
+}
+
+.message-queue-order-actions,
+.message-queue-item-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.message-queue-icon-button {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.message-queue-icon-button:hover:not(:disabled) {
+  background: var(--input-border);
+  color: var(--text-primary);
+}
+
+.message-queue-icon-button:focus-visible {
+  outline: 2px solid var(--button-primary);
+  outline-offset: 1px;
+}
+
+.message-queue-icon-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.message-queue-icon-button .codicon {
+  font-size: 12px;
+}
+
+.message-queue-icon-button svg {
+  display: block;
 }
 
 .message-queue-number {
@@ -230,29 +278,44 @@
   color: var(--text-secondary);
 }
 
-.message-queue-remove {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 4px;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.message-queue-remove:hover {
+.message-queue-remove:hover:not(:disabled) {
   background: var(--error-color);
   color: white;
 }
 
-.message-queue-remove .codicon {
-  font-size: 12px;
+.message-queue-insert:hover:not(:disabled) {
+  background: rgba(33, 150, 243, 0.2);
+  color: #64b5f6;
+}
+
+.message-queue-interrupt:hover:not(:disabled) {
+  background: var(--error-color);
+  color: white;
+}
+
+.message-queue-item.is-editing {
+  position: relative;
+  z-index: 1;
+  align-items: flex-start;
+}
+
+.message-queue-editor {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  resize: vertical;
+  padding: 4px 6px;
+  color: var(--text-primary);
+  background: var(--input-bg, var(--dropdown-bg));
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  font: inherit;
+  line-height: 1.4;
+}
+
+.message-queue-editor:focus {
+  outline: none;
+  border-color: var(--button-primary);
 }
 
 /* Light theme adaptation */

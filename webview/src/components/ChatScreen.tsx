@@ -120,6 +120,13 @@ export interface ChatScreenProps {
   // Message queue
   messageQueue: MessageQueueValue;
   onRemoveFromQueue: (id: string) => void;
+  onUpdateQueue: ReturnType<typeof useMessageQueue>['update'];
+  onMoveUpQueue: ReturnType<typeof useMessageQueue>['moveUp'];
+  onMoveDownQueue: ReturnType<typeof useMessageQueue>['moveDown'];
+  onMoveToFrontQueue: ReturnType<typeof useMessageQueue>['moveToFront'];
+  onMoveToBackQueue: ReturnType<typeof useMessageQueue>['moveToBack'];
+  onInsertQueue: ReturnType<typeof useMessageQueue>['insert'];
+  onInterruptQueue: ReturnType<typeof useMessageQueue>['interruptAndSendNow'];
 }
 
 /**
@@ -149,7 +156,8 @@ export const ChatScreen = ({
   onModeSelect, onModelSelect, onAgentSelect, onReasoningChange, onCodexFastModeChange, onDshPresetChange, onToggleThinking,
   onStreamingEnabledChange,
   onAutoOpenFileEnabledChange, onLongContextChange,
-  messageQueue, onRemoveFromQueue,
+  messageQueue, onRemoveFromQueue, onUpdateQueue, onMoveUpQueue, onMoveDownQueue,
+  onMoveToFrontQueue, onMoveToBackQueue, onInsertQueue, onInterruptQueue,
 }: ChatScreenProps) => {
   const { t } = useTranslation();
   const { messages, status, loading, isThinking, streamingActive, loadingStartTime, subagentHistories } = useMessages();
@@ -404,6 +412,13 @@ export const ChatScreen = ({
           addToast={addToast}
           messageQueue={messageQueue}
           onRemoveFromQueue={onRemoveFromQueue}
+          onUpdateQueue={onUpdateQueue}
+          onMoveUpQueue={onMoveUpQueue}
+          onMoveDownQueue={onMoveDownQueue}
+          onMoveToFrontQueue={onMoveToFrontQueue}
+          onMoveToBackQueue={onMoveToBackQueue}
+          onInsertQueue={onInsertQueue}
+          onInterruptQueue={onInterruptQueue}
           autoOpenFileEnabled={autoOpenFileEnabled}
           onAutoOpenFileEnabledChange={onAutoOpenFileEnabledChange}
           longContextEnabled={longContextEnabled}

@@ -57,6 +57,7 @@ export const buildResetTransientUiState = (opts: ResetTransientUiStateOptions) =
     opts.streamingTurnIdRef.current = -1;
     // Clear stream-end idempotency guard to avoid stale state across sessions.
     window.__streamEndProcessedTurnId = undefined;
+    window.__streamEndProcessedSequence = undefined;
     if (opts.contentUpdateTimeoutRef.current != null) {
       cancelAnimationFrame(opts.contentUpdateTimeoutRef.current);
       opts.contentUpdateTimeoutRef.current = null;

@@ -882,6 +882,13 @@ interface Window {
     */
    __streamEndProcessedTurnId?: number;
 
+    /**
+    * Latest non-negative backend sequence whose onStreamEnd was processed.
+    * Duplicate or out-of-order stream-end callbacks at or below this sequence
+    * must not trigger queue scheduling again.
+    */
+    __streamEndProcessedSequence?: number;
+
    /**
    * Timestamp when the current streaming turn started.
    * Used to calculate durationMs on the assistant message when the stream ends.
