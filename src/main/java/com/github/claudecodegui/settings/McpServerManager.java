@@ -1,6 +1,7 @@
 package com.github.claudecodegui.settings;
 
 import com.github.claudecodegui.bridge.NodeDetector;
+import com.github.claudecodegui.util.SafeJsonFileOps;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -29,6 +30,13 @@ import java.util.function.Function;
  */
 public class McpServerManager {
     private static final Logger LOG = Logger.getInstance(McpServerManager.class);
+
+    /** Lock wait before proceeding without the cross-process lock (ms). */
+    private static final long LOCK_TIMEOUT_MS = 2_000;
+    /** Read attempts when another process may be mid-write. */
+    private static final int READ_ATTEMPTS = 3;
+    /** Delay between read attempts (ms). */
+    private static final long READ_RETRY_DELAY_MS = 100;
 
     private final Gson gson;
     private final Function<Void, JsonObject> configReader;
@@ -73,8 +81,11 @@ public class McpServerManager {
             File claudeJsonFile = claudeJsonPath.toFile();
 
             if (claudeJsonFile.exists()) {
-                try (FileReader reader = new FileReader(claudeJsonFile, StandardCharsets.UTF_8)) {
-                    JsonObject claudeJson = JsonParser.parseReader(reader).getAsJsonObject();
+                // Self-healing read: tolerate a torn write left by a crashed
+                // process by falling back to the plugin's backup copy.
+                JsonObject claudeJson = SafeJsonFileOps.readJsonOrBackup(
+                        claudeJsonPath, READ_ATTEMPTS, READ_RETRY_DELAY_MS);
+                if (claudeJson != null) {
 
                     if (claudeJson.has("mcpServers") && claudeJson.get("mcpServers").isJsonObject()) {
                         JsonObject globalMcpServers = claudeJson.getAsJsonObject("mcpServers");
@@ -176,8 +187,6 @@ public class McpServerManager {
                                          + " MCP servers from ~/.claude.json (disabled: " + disabledServers.size() + ")");
                         return result;
                     }
-                } catch (Exception e) {
-                    LOG.warn("[McpServerManager] Failed to read ~/.claude.json: " + e.getMessage());
                 }
             }
         } catch (Exception e) {
@@ -222,20 +231,37 @@ public class McpServerManager {
         boolean isEnabled = !server.has("enabled") || server.get("enabled").getAsBoolean();
 
         // 1. Try to update ~/.claude.json
+        // ~/.claude.json is shared with the Claude CLI process, which rewrites
+        // the whole file from its own in-memory snapshot. The read-modify-write
+        // below must therefore be (a) serialised against concurrent plugin
+        // writers via an advisory lock and (b) crash-safe via an atomic
+        // replace, or the plugin's update gets silently reverted (configured
+        // MCP servers "vanish") or the file is left truncated.
         try {
             String homeDir = NodeDetector.resolveHomeForFileOps();
             Path claudeJsonPath = Paths.get(homeDir, ".claude.json");
             File claudeJsonFile = claudeJsonPath.toFile();
 
             if (claudeJsonFile.exists()) {
-                try (FileReader reader = new FileReader(claudeJsonFile, StandardCharsets.UTF_8)) {
-                    JsonObject claudeJson = JsonParser.parseReader(reader).getAsJsonObject();
+                SafeJsonFileOps.withLock(
+                        SafeJsonFileOps.sibling(claudeJsonPath, ".ccgui-lock"),
+                        LOCK_TIMEOUT_MS,
+                        () -> {
+                            // Self-healing read: if another process left the file
+                            // truncated/corrupt, fall back to our last known good
+                            // backup instead of "successfully" writing a config
+                            // that starts from an empty object.
+                            JsonObject claudeJson = SafeJsonFileOps.readJsonOrBackup(
+                                    claudeJsonPath, READ_ATTEMPTS, READ_RETRY_DELAY_MS);
+                            if (claudeJson == null) {
+                                throw new IOException("~/.claude.json is unreadable and no backup exists");
+                            }
 
-                    // Ensure mcpServers object exists
-                    if (!claudeJson.has("mcpServers") || !claudeJson.get("mcpServers").isJsonObject()) {
-                        claudeJson.add("mcpServers", new JsonObject());
-                    }
-                    JsonObject mcpServers = claudeJson.getAsJsonObject("mcpServers");
+                            // Ensure mcpServers object exists
+                            if (!claudeJson.has("mcpServers") || !claudeJson.get("mcpServers").isJsonObject()) {
+                                claudeJson.add("mcpServers", new JsonObject());
+                            }
+                            JsonObject mcpServers = claudeJson.getAsJsonObject("mcpServers");
 
                     // Extract server spec
                     JsonObject serverSpec;
@@ -311,11 +337,9 @@ public class McpServerManager {
                         projectConfig.add("disabledMcpServers", newProjectDisabled);
                     }
 
-                    // Write back to file
-                    try (FileWriter writer = new FileWriter(claudeJsonFile, StandardCharsets.UTF_8)) {
-                        gson.toJson(claudeJson, writer);
-                        writer.flush();  // Ensure data is fully flushed to disk
-                    }
+                    // Write back to file — atomic replace (crash-safe) instead of a
+                    // truncating FileWriter that can leave a half-written config.
+                    SafeJsonFileOps.writeAtomically(claudeJsonPath, writer -> gson.toJson(claudeJson, writer));
 
                     LOG.info("[McpServerManager] Upserted MCP server in ~/.claude.json: " + serverId
                                      + " (enabled: " + isEnabled + ", projectPath: " + (projectPath != null ? projectPath : "(global)") + ")");
@@ -327,9 +351,8 @@ public class McpServerManager {
                         LOG.warn("[McpServerManager] Failed to sync MCP to settings.json: " + syncError.getMessage());
                         // Sync failure should not affect the main operation
                     }
-
+                        });
                     return;
-                }
             }
         } catch (Exception e) {
             LOG.warn("[McpServerManager] Error updating ~/.claude.json: " + e.getMessage());
@@ -372,56 +395,65 @@ public class McpServerManager {
      * falling back to ~/.codemoss/config.json.
      */
     public boolean deleteMcpServer(String serverId) throws IOException {
-        boolean removed = false;
+        // Single-element flag: mutated inside the lock lambda, read after it.
+        boolean[] removed = {false};
 
         // 1. Try to delete from ~/.claude.json
+        // Same shared-file discipline as upsertMcpServer: lock + self-healing
+        // read + atomic write (see the comment there for the race analysis).
         try {
             String homeDir = NodeDetector.resolveHomeForFileOps();
             Path claudeJsonPath = Paths.get(homeDir, ".claude.json");
             File claudeJsonFile = claudeJsonPath.toFile();
 
             if (claudeJsonFile.exists()) {
-                try (FileReader reader = new FileReader(claudeJsonFile, StandardCharsets.UTF_8)) {
-                    JsonObject claudeJson = JsonParser.parseReader(reader).getAsJsonObject();
+                SafeJsonFileOps.withLock(
+                        SafeJsonFileOps.sibling(claudeJsonPath, ".ccgui-lock"),
+                        LOCK_TIMEOUT_MS,
+                        () -> {
+                            JsonObject claudeJson = SafeJsonFileOps.readJsonOrBackup(
+                                    claudeJsonPath, READ_ATTEMPTS, READ_RETRY_DELAY_MS);
+                            if (claudeJson == null) {
+                                throw new IOException("~/.claude.json is unreadable and no backup exists");
+                            }
 
-                    if (claudeJson.has("mcpServers") && claudeJson.get("mcpServers").isJsonObject()) {
-                        JsonObject mcpServers = claudeJson.getAsJsonObject("mcpServers");
+                            if (claudeJson.has("mcpServers") && claudeJson.get("mcpServers").isJsonObject()) {
+                                JsonObject mcpServers = claudeJson.getAsJsonObject("mcpServers");
 
-                        if (mcpServers.has(serverId)) {
-                            // Delete the server
-                            mcpServers.remove(serverId);
+                                if (mcpServers.has(serverId)) {
+                                    // Delete the server
+                                    mcpServers.remove(serverId);
 
-                            // Also remove from disabledMcpServers (if present)
-                            if (claudeJson.has("disabledMcpServers") && claudeJson.get("disabledMcpServers").isJsonArray()) {
-                                JsonArray disabledServers = claudeJson.getAsJsonArray("disabledMcpServers");
-                                JsonArray newDisabled = new JsonArray();
-                                for (JsonElement elem : disabledServers) {
-                                    if (!elem.getAsString().equals(serverId)) {
-                                        newDisabled.add(elem);
+                                    // Also remove from disabledMcpServers (if present)
+                                    if (claudeJson.has("disabledMcpServers") && claudeJson.get("disabledMcpServers").isJsonArray()) {
+                                        JsonArray disabledServers = claudeJson.getAsJsonArray("disabledMcpServers");
+                                        JsonArray newDisabled = new JsonArray();
+                                        for (JsonElement elem : disabledServers) {
+                                            if (!elem.getAsString().equals(serverId)) {
+                                                newDisabled.add(elem);
+                                            }
+                                        }
+                                        claudeJson.add("disabledMcpServers", newDisabled);
                                     }
+
+                                    // Write back to file — atomic replace (crash-safe)
+                                    SafeJsonFileOps.writeAtomically(claudeJsonPath, writer -> gson.toJson(claudeJson, writer));
+
+                                    LOG.info("[McpServerManager] Deleted MCP server from ~/.claude.json: " + serverId);
+
+                                    // Sync to settings.json (after file write is complete)
+                                    try {
+                                        claudeSettingsManager.syncMcpToClaudeSettings();
+                                    } catch (Exception syncError) {
+                                        LOG.warn("[McpServerManager] Failed to sync MCP to settings.json: " + syncError.getMessage());
+                                    }
+
+                                    removed[0] = true;
                                 }
-                                claudeJson.add("disabledMcpServers", newDisabled);
                             }
-
-                            // Write back to file
-                            try (FileWriter writer = new FileWriter(claudeJsonFile, StandardCharsets.UTF_8)) {
-                                gson.toJson(claudeJson, writer);
-                                writer.flush();  // Ensure data is fully flushed to disk
-                            }
-
-                            LOG.info("[McpServerManager] Deleted MCP server from ~/.claude.json: " + serverId);
-
-                            // Sync to settings.json (after file write is complete)
-                            try {
-                                claudeSettingsManager.syncMcpToClaudeSettings();
-                            } catch (Exception syncError) {
-                                LOG.warn("[McpServerManager] Failed to sync MCP to settings.json: " + syncError.getMessage());
-                            }
-
-                            removed = true;
-                            return true;
-                        }
-                    }
+                        });
+                if (removed[0]) {
+                    return true;
                 }
             }
         } catch (Exception e) {
@@ -437,20 +469,20 @@ public class McpServerManager {
             for (JsonElement elem : servers) {
                 JsonObject s = elem.getAsJsonObject();
                 if (s.has("id") && s.get("id").getAsString().equals(serverId)) {
-                    removed = true;
+                    removed[0] = true;
                 } else {
                     newServers.add(s);
                 }
             }
 
-            if (removed) {
+            if (removed[0]) {
                 config.add("mcpServers", newServers);
                 configWriter.accept(config);
                 LOG.info("[McpServerManager] Deleted MCP server from ~/.codemoss/config.json: " + serverId);
             }
         }
 
-        return removed;
+        return removed[0];
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.github.claudecodegui.settings;
 
 import com.github.claudecodegui.bridge.NodeDetector;
+import com.github.claudecodegui.util.SafeJsonFileOps;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -25,6 +26,11 @@ import java.util.Set;
  */
 public class ClaudeSettingsManager {
     private static final Logger LOG = Logger.getInstance(ClaudeSettingsManager.class);
+
+    /** Read attempts when another process may be mid-write of a shared config. */
+    private static final int READ_ATTEMPTS = 3;
+    /** Delay between read attempts (ms). */
+    private static final long READ_RETRY_DELAY_MS = 100;
 
     /**
      * System-protected fields - these should never be overridden by provider configs
@@ -73,6 +79,10 @@ public class ClaudeSettingsManager {
 
     /**
      * Read Claude Settings.
+     * Self-healing: when the file is unreadable/corrupt (e.g. a torn write
+     * from an older plugin version), fall back to the plugin's backup copy
+     * instead of returning an empty default — an empty default here used to be
+     * the seed for "all my MCP servers vanished".
      */
     public JsonObject readClaudeSettings() throws IOException {
         Path settingsPath = pathManager.getClaudeSettingsPath();
@@ -82,12 +92,9 @@ public class ClaudeSettingsManager {
             return createDefaultClaudeSettings();
         }
 
-        try (FileReader reader = new FileReader(settingsFile, StandardCharsets.UTF_8)) {
-            return JsonParser.parseReader(reader).getAsJsonObject();
-        } catch (Exception e) {
-            LOG.warn("[ClaudeSettingsManager] Failed to read ~/.claude/settings.json: " + e.getMessage());
-            return createDefaultClaudeSettings();
-        }
+        JsonObject healed = SafeJsonFileOps.readJsonOrBackup(
+                settingsPath, READ_ATTEMPTS, READ_RETRY_DELAY_MS);
+        return healed != null ? healed : createDefaultClaudeSettings();
     }
 
     /**
@@ -130,10 +137,11 @@ public class ClaudeSettingsManager {
         // Force-set to string value "1"
         env.addProperty("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1");
 
-        try (FileWriter writer = new FileWriter(settingsPath.toFile(), StandardCharsets.UTF_8)) {
-            gson.toJson(settings, writer);
-            LOG.info("[ClaudeSettingsManager] Synced settings to: " + settingsPath);
-        }
+        // Atomic replace: never leave a truncated settings.json behind if the
+        // IDE crashes or is killed mid-write (SafeJsonFileOps also keeps a
+        // .ccgui-backup copy for self-healing reads).
+        SafeJsonFileOps.writeAtomically(settingsPath, writer -> gson.toJson(settings, writer));
+        LOG.info("[ClaudeSettingsManager] Synced settings to: " + settingsPath);
         // Security (J): settings.json may hold ANTHROPIC_AUTH_TOKEN; restrict to 0600.
         hardenFilePermissions(settingsPath);
     }
@@ -167,28 +175,44 @@ public class ClaudeSettingsManager {
                 return;
             }
 
-            JsonObject claudeJson;
-            try (FileReader reader = new FileReader(claudeJsonFile, StandardCharsets.UTF_8)) {
-                claudeJson = JsonParser.parseReader(reader).getAsJsonObject();
-            } catch (Exception e) {
-                LOG.error("[ClaudeSettingsManager] Failed to parse ~/.claude.json: " + e.getMessage(), e);
-                LOG.error("[ClaudeSettingsManager] This may indicate a corrupted JSON file. Please check ~/.claude.json");
-
-                // Try to read the most recent backup
-                File backup = new File(claudeJsonFile.getParent(), ".claude.json.backup");
-                if (backup.exists()) {
-                    LOG.info("[ClaudeSettingsManager] Found backup file, you may need to restore it manually");
-                }
+            // Self-healing read of ~/.claude.json: retry transient parse
+            // failures (another process mid-write), then fall back to the
+            // plugin's own backup copy and restore it over the damaged file.
+            JsonObject claudeJson = SafeJsonFileOps.readJsonOrBackup(
+                    claudeJsonPath, READ_ATTEMPTS, READ_RETRY_DELAY_MS);
+            if (claudeJson == null) {
+                LOG.error("[ClaudeSettingsManager] Failed to parse ~/.claude.json and no usable backup exists — "
+                        + "skipping MCP sync (settings.json left untouched)");
                 return;
             }
 
-            // Read ~/.claude/settings.json
+            // Read ~/.claude/settings.json (self-healing: fall back to the
+            // plugin's backup when the live file is truncated/corrupt)
             JsonObject settings = readClaudeSettings();
 
-            // Sync mcpServers
-            if (claudeJson.has("mcpServers")) {
-                settings.add("mcpServers", claudeJson.get("mcpServers"));
-                LOG.info("[ClaudeSettingsManager] Synced mcpServers to settings.json");
+            // Sync mcpServers — but never let an EMPTY .claude.json mcpServers
+            // wipe a non-empty mcpServers in settings.json. .claude.json is
+            // rewritten by the Claude CLI from its in-memory snapshot; if the
+            // CLI's snapshot briefly had no servers (e.g. it started before the
+            // user configured them, or a torn write was restored from a backup
+            // taken earlier), blindly copying the empty object here used to
+            // propagate the loss into settings.json (#<issue>: "configured MCP
+            // servers vanish"). Only overwrite when the source actually has
+            // servers, or when the source is non-empty and the target is empty.
+            if (claudeJson.has("mcpServers") && claudeJson.get("mcpServers").isJsonObject()) {
+                JsonObject sourceServers = claudeJson.getAsJsonObject("mcpServers");
+                boolean sourceEmpty = sourceServers.keySet().isEmpty();
+                boolean targetHasServers = settings.has("mcpServers")
+                        && settings.get("mcpServers").isJsonObject()
+                        && !settings.getAsJsonObject("mcpServers").keySet().isEmpty();
+                if (!sourceEmpty || !targetHasServers) {
+                    settings.add("mcpServers", sourceServers);
+                    LOG.info("[ClaudeSettingsManager] Synced mcpServers to settings.json (source servers: "
+                            + sourceServers.keySet().size() + ")");
+                } else {
+                    LOG.warn("[ClaudeSettingsManager] Skipped syncing an empty mcpServers from ~/.claude.json "
+                            + "over the non-empty mcpServers in settings.json (loss guard)");
+                }
             }
 
             // Sync disabledMcpServers
