@@ -973,6 +973,30 @@ export function registerMessageCallbacks(
     }
   };
 
+  // Claude history pagination callbacks
+  window.claudeHistoryPageInfo = (json: string) => {
+    try {
+      const info = JSON.parse(json) as CodexHistoryPageInfo;
+      if (currentSessionIdRef.current !== info.sessionId) return;
+      window.dispatchEvent(new CustomEvent<CodexHistoryPageInfo>('claude-history-page-info', {
+        detail: info,
+      }));
+    } catch (error) {
+      console.error('[Frontend] Failed to parse Claude history page info:', error);
+    }
+  };
+
+  window.claudeHistoryPageError = (json: string) => {
+    try {
+      const error = JSON.parse(json) as { sessionId?: string; message?: string };
+      if (error.sessionId && currentSessionIdRef.current !== error.sessionId) return;
+      window.dispatchEvent(new CustomEvent('claude-history-page-error', { detail: error }));
+      addToast(error.message || 'Failed to load earlier Claude history', 'error');
+    } catch (parseError) {
+      console.error('[Frontend] Failed to parse Claude history page error:', parseError);
+    }
+  };
+
   // History load complete callback — triggers Markdown re-rendering
   // Use full shallow copy to ensure all messages trigger re-render regardless of batching timing
   // Also clear stream-ended markers since history messages don't have __turnId

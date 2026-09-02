@@ -167,4 +167,13 @@ public class CallbackHandler {
             callback.onTaskEvent(eventJson);
         }
     }
+
+    /**
+     * Notify of Claude history page metadata (for pagination).
+     */
+    public void notifyClaudeHistoryPageInfo(String sessionId, int fromTurn, int totalTurns, boolean hasMore) {
+        if (callback != null) {
+            callback.onClaudeHistoryPageInfo(sessionId, fromTurn, totalTurns, hasMore);
+        }
+    }
 }

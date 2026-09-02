@@ -14,6 +14,7 @@ import {
 } from '../services/claude/persistent-query-service.js';
 import {
   getSessionMessages as claudeGetSessionMessages,
+  getSessionMessagesPage as claudeGetSessionMessagesPage,
   getLatestUserMessage as claudeGetLatestUserMessage
 } from '../services/claude/session-service.js';
 
@@ -68,6 +69,18 @@ export async function handleClaudeCommand(command, args, stdinData) {
     case 'getSession':
       await claudeGetSessionMessages(args[0], args[1]);
       break;
+
+    case 'getSessionPage': {
+      // Paginated history load. Falls back to the full-history getSession
+      // path on the Java side when the page request fails, so a malformed
+      // cursor never leaves the user with an empty chat.
+      const sessionId = stdinData?.sessionId || args[0];
+      const cwd = stdinData?.cwd || args[1] || null;
+      const beforeTurn = stdinData?.beforeTurn !== undefined ? stdinData.beforeTurn : null;
+      const limit = stdinData?.limit || 30;
+      await claudeGetSessionMessagesPage(sessionId, cwd, beforeTurn, limit);
+      break;
+    }
 
     case 'getLatestUserMessage':
       await claudeGetLatestUserMessage(args[0], args[1]);

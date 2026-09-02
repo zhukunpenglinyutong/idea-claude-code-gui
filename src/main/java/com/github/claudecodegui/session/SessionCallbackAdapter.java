@@ -381,6 +381,23 @@ public class SessionCallbackAdapter implements ClaudeSession.SessionCallback {
         jsTarget.callJavaScript("onTaskEvent", JsUtils.escapeJs(eventJson));
     }
 
+    @Override
+    public void onClaudeHistoryPageInfo(String sessionId, int fromTurn, int totalTurns, boolean hasMore) {
+        if (isInactive()) {
+            return;
+        }
+        ApplicationManager.getApplication().invokeLater(() -> {
+            if (isInactive()) {
+                return;
+            }
+            String json = String.format(
+                "{\"sessionId\":\"%s\",\"fromTurn\":%d,\"totalTurns\":%d,\"hasMore\":%b}",
+                JsUtils.escapeJs(sessionId), fromTurn, totalTurns, hasMore
+            );
+            jsTarget.callJavaScript("claudeHistoryPageInfo", JsUtils.escapeJs(json));
+        });
+    }
+
     /**
      * Dispose internal resources. Call when the parent window is disposed.
      */

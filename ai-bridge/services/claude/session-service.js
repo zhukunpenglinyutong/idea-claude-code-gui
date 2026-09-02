@@ -271,8 +271,144 @@ function extractTextContent(message) {
 }
 
 function resolveSessionFile(sessionId, cwd = null) {
-  if (!sessionId || /[\/\\]/.test(sessionId)) {
+  if (!sessionId || /[\\/\\\\]/.test(sessionId)) {
     throw new Error('Invalid session ID');
   }
   return getClaudeProjectSessionFilePath(sessionId, cwd);
+}
+
+/**
+ * A Claude "turn" is a contiguous block of messages starting with a user
+ * message (the prompt) followed by any assistant/tool messages until the
+ * next user message. Pagination is turn-based so a page boundary never
+ * splits an assistant reply from its tool calls or a tool result from its
+ * originating call.
+ */
+function isTurnStart(message) {
+  return Boolean(
+    message &&
+    message.type === 'user' &&
+    typeof message.uuid === 'string' &&
+    !isInterruptionMarker(message)
+  );
+}
+
+/**
+ * Build a paginated getSessionMessages response.
+ *
+ * Returns the most recent `limit` turns when `beforeTurn` is omitted, or
+ * the `limit` turns ending just before `beforeTurn` when provided. Turn
+ * indices are 0-based over the *filtered* message list (interruption
+ * markers removed).
+ *
+ * Response shape:
+ *   { success, messages, fromTurn, toTurn, totalTurns, hasMore, cursorReset }
+ *
+ * cursorReset=true means the requested beforeTurn exceeds the current
+ * history length (e.g. new messages arrived since the client computed its
+ * cursor); the client should discard its cached history and reload from
+ * scratch.
+ *
+ * On any unexpected error the caller falls back to buildSessionMessagesPayload
+ * (full history) so the user never sees an empty chat.
+ */
+export function buildSessionMessagesPagePayload(sessionFile, beforeTurn = null, limit = 30) {
+  if (!existsSync(sessionFile)) {
+    return {
+      success: true,
+      messages: [],
+      fromTurn: 0,
+      toTurn: 0,
+      totalTurns: 0,
+      hasMore: false,
+      cursorReset: false,
+    };
+  }
+
+  const content = readFileSync(sessionFile, 'utf8');
+  const messages = selectConversationChain(parseJsonlContent(content))
+    .filter(msg => !(msg.type === 'user' && isInterruptionMarker(msg)))
+    .flatMap(msg => {
+      if (msg.type === 'attachment' && extractTaskNotificationXml(msg) !== null) {
+        return [{
+          type: 'user',
+          message: { role: 'user', content: extractTaskNotificationXml(msg) },
+        }];
+      }
+      return [msg];
+    });
+
+  // Group messages into turns. A turn starts at a user message and includes
+  // all following assistant/tool messages until the next user message.
+  const turns = [];
+  let currentTurn = null;
+  for (const msg of messages) {
+    if (isTurnStart(msg)) {
+      if (currentTurn !== null) {
+        turns.push(currentTurn);
+      }
+      currentTurn = [msg];
+    } else if (currentTurn !== null) {
+      currentTurn.push(msg);
+    } else {
+      // Messages before the first user message (e.g. system records) form
+      // their own implicit turn so they are not lost.
+      currentTurn = [msg];
+    }
+  }
+  if (currentTurn !== null) {
+    turns.push(currentTurn);
+  }
+
+  const totalTurns = turns.length;
+
+  // Validate cursor
+  let effectiveBeforeTurn = beforeTurn;
+  let cursorReset = false;
+  if (effectiveBeforeTurn !== null && (effectiveBeforeTurn < 0 || effectiveBeforeTurn > totalTurns)) {
+    cursorReset = true;
+    effectiveBeforeTurn = null; // fall back to latest page
+  }
+
+  let fromTurn;
+  let toTurn;
+  if (effectiveBeforeTurn === null) {
+    // Latest page
+    toTurn = totalTurns;
+    fromTurn = Math.max(0, toTurn - limit);
+  } else {
+    // Earlier page
+    toTurn = effectiveBeforeTurn;
+    fromTurn = Math.max(0, toTurn - limit);
+  }
+
+  const pageTurns = turns.slice(fromTurn, toTurn);
+  const pageMessages = pageTurns.flat();
+
+  return {
+    success: true,
+    messages: pageMessages,
+    fromTurn,
+    toTurn,
+    totalTurns,
+    hasMore: fromTurn > 0,
+    cursorReset,
+  };
+}
+
+/**
+ * Get a paginated slice of session history messages.
+ * Writes the result as a single NDJSON line to stdout.
+ */
+export async function getSessionMessagesPage(sessionId, cwd = null, beforeTurn = null, limit = 30) {
+  try {
+    const sessionFile = resolveSessionFile(sessionId, cwd);
+    await writeJsonResponse(buildSessionMessagesPagePayload(sessionFile, beforeTurn, limit));
+  } catch (error) {
+    console.error('[GET_SESSION_PAGE_ERROR]', error.message);
+    await writeJsonResponse({
+      success: false,
+      error: error.message
+    });
+  }
 }

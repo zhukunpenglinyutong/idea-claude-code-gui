@@ -215,6 +215,52 @@ public class HistoryMessageInjector {
         context.callJavaScript("codexHistoryPageRenderComplete");
     }
 
+    /**
+     * Load an earlier page of Claude history and prepend to the current session.
+     * Called when the user scrolls to the top of the message list.
+     */
+    void loadEarlierClaudeHistoryPage(String content) {
+        CompletableFuture.runAsync(() -> {
+            String sessionId = null;
+            Integer beforeTurn = null;
+            try {
+                JsonObject request = new Gson().fromJson(content, JsonObject.class);
+                if (request == null || !request.has("sessionId") || !request.has("beforeTurn")) {
+                    throw new IllegalArgumentException("Invalid Claude history page request");
+                }
+                sessionId = request.get("sessionId").getAsString();
+                beforeTurn = request.get("beforeTurn").getAsInt();
+                if (sessionId.isBlank() || sessionId.length() > 200 || beforeTurn < 0) {
+                    throw new IllegalArgumentException("Invalid Claude history page cursor");
+                }
+
+                // Delegate to the session orchestrator which handles the actual pagination
+                ClaudeSession session = context.getSession();
+                if (session != null && sessionId.equals(session.getSessionId())) {
+                    String cwd = context.getProject() != null ? context.getProject().getBasePath() : null;
+                    session.getOrchestrator().loadEarlierClaudeHistoryPage(sessionId, cwd, beforeTurn);
+                } else {
+                    LOG.warn("[HistoryHandler] Claude history page request for inactive session: " + sessionId);
+                }
+            } catch (Exception e) {
+                LOG.error("[HistoryHandler] Failed to load earlier Claude history page: " + e.getMessage(), e);
+                notifyClaudeHistoryPageError(sessionId, beforeTurn, e.getMessage());
+            }
+        });
+    }
+
+    private void notifyClaudeHistoryPageError(String sessionId, Integer beforeTurn, String errorMessage) {
+        JsonObject error = new JsonObject();
+        if (sessionId != null) {
+            error.addProperty("sessionId", sessionId);
+        }
+        if (beforeTurn != null) {
+            error.addProperty("beforeTurn", beforeTurn);
+        }
+        error.addProperty("message", errorMessage != null ? errorMessage : "Unknown error");
+        context.callJavaScript("claudeHistoryPageError", context.escapeJs(new Gson().toJson(error)));
+    }
+
     private void pushRestoredCodexUsage() {
         ClaudeSession session = context.getSession();
         if (session == null) {

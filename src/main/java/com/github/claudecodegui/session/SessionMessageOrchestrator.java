@@ -9,6 +9,7 @@ import com.google.gson.JsonObject;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -24,6 +25,15 @@ public class SessionMessageOrchestrator {
         List<JsonObject> getProviderSessionMessages(String provider, String sessionId, String cwd);
 
         JsonObject getLatestClaudeUserMessage(String sessionId, String cwd);
+
+        /**
+         * Load a page of Claude session history (turn-based pagination).
+         * Returns null when the provider does not support pagination or the
+         * query fails; the caller should fall back to getProviderSessionMessages.
+         */
+        default JsonObject getProviderSessionMessagesPage(String sessionId, String cwd, Integer beforeTurn, int limit) {
+            return null;
+        }
     }
 
     @FunctionalInterface
@@ -38,6 +48,11 @@ public class SessionMessageOrchestrator {
     private final UsageDisplay usageDisplay;
     private final long initialUuidSyncDelayMs;
     private final long uuidRetryDelayMs;
+
+    // Claude history pagination state
+    private volatile int claudeHistoryFromTurn = 0;
+    private volatile int claudeHistoryTotalTurns = 0;
+    private volatile boolean claudeHistoryHasMore = false;
 
     public SessionMessageOrchestrator(
             Project project,
@@ -153,8 +168,14 @@ public class SessionMessageOrchestrator {
                 String currentProvider = state.getProvider();
 
                 LOG.info("Loading session from server: sessionId=" + currentSessionId + ", cwd=" + currentCwd);
-                List<JsonObject> serverMessages =
-                        historyAccess.getProviderSessionMessages(currentProvider, currentSessionId, currentCwd);
+
+                List<JsonObject> serverMessages;
+                if ("claude".equals(currentProvider)) {
+                    serverMessages = loadClaudeSessionWithPagination(currentSessionId, currentCwd);
+                } else {
+                    serverMessages = historyAccess.getProviderSessionMessages(currentProvider, currentSessionId, currentCwd);
+                }
+
                 if (serverMessages == null) {
                     serverMessages = List.of();
                 }
@@ -177,6 +198,92 @@ public class SessionMessageOrchestrator {
             } finally {
                 state.setLoading(false);
                 callbackFacade.notifyStateChange(state.isBusy(), state.isLoading(), state.getError());
+            }
+        });
+    }
+
+    /**
+     * Load Claude session history with turn-based pagination.
+     * Falls back to the legacy full-history load when the paginated query
+     * fails or returns invalid data, so a broken cursor never leaves the
+     * user with an empty chat.
+     */
+    private List<JsonObject> loadClaudeSessionWithPagination(String sessionId, String cwd) {
+        // Try the paginated path first: latest page only, then prepend earlier
+        // pages as the user scrolls up.
+        try {
+            JsonObject page = historyAccess.getProviderSessionMessagesPage(sessionId, cwd, null, 30);
+            if (page != null && page.has("success") && page.get("success").getAsBoolean()) {
+                List<JsonObject> messages = new ArrayList<>();
+                if (page.has("messages")) {
+                    JsonArray messagesArray = page.getAsJsonArray("messages");
+                    for (JsonElement msg : messagesArray) {
+                        messages.add(msg.getAsJsonObject());
+                    }
+                }
+                // Save pagination metadata for scroll-based loading
+                claudeHistoryFromTurn = page.get("fromTurn").getAsInt();
+                claudeHistoryTotalTurns = page.get("totalTurns").getAsInt();
+                claudeHistoryHasMore = page.get("hasMore").getAsBoolean();
+                LOG.info("Loaded Claude session page: " + messages.size() + " messages"
+                        + ", fromTurn=" + claudeHistoryFromTurn
+                        + ", toTurn=" + page.get("toTurn").getAsInt()
+                        + ", totalTurns=" + claudeHistoryTotalTurns
+                        + ", hasMore=" + claudeHistoryHasMore);
+                // Notify frontend of pagination metadata
+                callbackFacade.notifyClaudeHistoryPageInfo(sessionId, claudeHistoryFromTurn, claudeHistoryTotalTurns, claudeHistoryHasMore);
+                return messages;
+            }
+        } catch (Exception e) {
+            LOG.warn("Paginated session load failed, falling back to full history: " + e.getMessage());
+        }
+
+        // Fallback: full history load (legacy behavior)
+        LOG.info("Using full-history fallback for Claude session: " + sessionId);
+        claudeHistoryFromTurn = 0;
+        claudeHistoryTotalTurns = 0;
+        claudeHistoryHasMore = false;
+        return historyAccess.getProviderSessionMessages("claude", sessionId, cwd);
+    }
+
+    /**
+     * Load an earlier page of Claude history and prepend to the current session.
+     * Called when the user scrolls to the top of the message list.
+     */
+    public CompletableFuture<Void> loadEarlierClaudeHistoryPage(String sessionId, String cwd, int beforeTurn) {
+        return CompletableFuture.runAsync(() -> {
+            try {
+                JsonObject page = historyAccess.getProviderSessionMessagesPage(sessionId, cwd, beforeTurn, 30);
+                if (page != null && page.has("success") && page.get("success").getAsBoolean()) {
+                    List<JsonObject> messages = new ArrayList<>();
+                    if (page.has("messages")) {
+                        JsonArray messagesArray = page.getAsJsonArray("messages");
+                        for (JsonElement msg : messagesArray) {
+                            messages.add(msg.getAsJsonObject());
+                        }
+                    }
+                    claudeHistoryFromTurn = page.get("fromTurn").getAsInt();
+                    claudeHistoryHasMore = page.get("hasMore").getAsBoolean();
+
+                    // Prepend older messages to the beginning
+                    List<ClaudeSession.Message> newMessages = new ArrayList<>();
+                    for (JsonObject msg : messages) {
+                        ClaudeSession.Message message = messageParser.parseServerMessage(msg);
+                        if (message != null) {
+                            newMessages.add(message);
+                        }
+                    }
+                    // Insert at the beginning
+                    List<ClaudeSession.Message> currentMessages = state.getMessagesReference();
+                    currentMessages.addAll(0, newMessages);
+                    callbackFacade.notifyMessageUpdate(state.getMessages());
+                    callbackFacade.notifyClaudeHistoryPageInfo(sessionId, claudeHistoryFromTurn, claudeHistoryTotalTurns, claudeHistoryHasMore);
+                    LOG.info("Prepended Claude history page: " + newMessages.size() + " messages"
+                            + ", fromTurn=" + claudeHistoryFromTurn
+                            + ", hasMore=" + claudeHistoryHasMore);
+                }
+            } catch (Exception e) {
+                LOG.error("Failed to load earlier Claude history page: " + e.getMessage(), e);
             }
         });
     }

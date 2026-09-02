@@ -440,6 +440,14 @@ public class ClaudeSDKBridge extends BaseSDKBridge {
         return sessionQueryService.getSessionMessages(sessionId, cwd);
     }
 
+    /**
+     * Get a paginated page of session history messages.
+     * Returns null on failure; the caller should fall back to getSessionMessages.
+     */
+    public JsonObject getSessionMessagesPage(String sessionId, String cwd, Integer beforeTurn, int limit) {
+        return sessionQueryService.getSessionMessagesPage(sessionId, cwd, beforeTurn, limit);
+    }
+
     public JsonObject getLatestClaudeUserMessage(String sessionId, String cwd) {
         return sessionQueryService.getLatestUserMessage(sessionId, cwd);
     }
