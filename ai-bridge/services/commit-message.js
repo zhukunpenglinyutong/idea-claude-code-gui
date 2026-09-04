@@ -37,6 +37,7 @@ import { getRealHomeDir } from '../utils/path-utils.js';
 import { getClaudeCliPathOverride } from '../utils/claude-cli-path.js';
 import { ensureAnthropicSdk } from './claude/message-utils.js';
 import { buildCodexCliEnvironment } from './codex/codex-utils.js';
+import { getCodexCliPathOverride } from '../utils/codex-cli-path.js';
 import { askCliProvider, isCliAskProvider } from './cli-ask.js';
 
 let claudeSdk = null;
@@ -295,7 +296,11 @@ async function generateWithCodex(prompt, model) {
   const sdk = await ensureCodexSdk();
   const Codex = sdk.Codex || sdk.default || sdk;
   const { cliEnv } = buildCodexCliEnvironment(process.env);
-  const codex = new Codex({ env: cliEnv });
+  const codexCliOverride = getCodexCliPathOverride();
+  const codex = new Codex({
+    env: cliEnv,
+    ...(codexCliOverride && { codexPathOverride: codexCliOverride }),
+  });
 
   const workingDirectory = getRealHomeDir();
   const fullPrompt = [

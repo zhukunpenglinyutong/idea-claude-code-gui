@@ -417,6 +417,11 @@
         "placeholder": "例如 /usr/local/bin/claude — 留空则使用内置 SDK",
         "hint": "可选。设置后，插件将启动此二进制文件，而非内置的 @anthropic-ai/claude-agent-sdk。保存时会重启守护进程。"
       },
+      "codexCliPath": {
+        "label": "Codex CLI 路径（覆盖）",
+        "placeholder": "例如 /usr/local/bin/codex — 留空则使用内置 SDK",
+        "hint": "可选。设置后，插件将使用此二进制文件，而非内置的 @openai/codex-sdk。"
+      },
       "workingDirectory": {
         "label": "工作目录",
         "placeholder": "例如 project1 或留空使用项目根目录",

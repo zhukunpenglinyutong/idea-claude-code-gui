@@ -174,6 +174,11 @@
         "placeholder": "例: /usr/local/bin/claude — 空欄の場合は内蔵 SDK を使用",
         "hint": "任意。設定すると、内蔵の @anthropic-ai/claude-agent-sdk の代わりにこのバイナリを起動します。保存時にデーモンが再起動されます。"
       },
+      "codexCliPath": {
+        "label": "Codex CLI パス（オーバーライド）",
+        "placeholder": "例: /usr/local/bin/codex — 空欄の場合は内蔵 SDK を使用",
+        "hint": "任意。設定すると、内蔵の @openai/codex-sdk の代わりにこのバイナリを使用します。"
+      },
       "workingDirectory": {
         "label": "作業ディレクトリ",
         "placeholder": "例: project1 または空欄でプロジェクトルートを使用",

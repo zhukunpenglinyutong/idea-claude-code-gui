@@ -174,6 +174,11 @@
         "placeholder": "ex. /usr/local/bin/claude — deixe vazio para usar o SDK integrado",
         "hint": "Opcional. Quando definido, o plugin executa este binário em vez do @anthropic-ai/claude-agent-sdk integrado. O daemon reinicia ao salvar."
       },
+      "codexCliPath": {
+        "label": "Caminho do CLI do Codex (substituição)",
+        "placeholder": "ex. /usr/local/bin/codex — deixe vazio para usar o SDK integrado",
+        "hint": "Opcional. Quando definido, o plugin usa este binário em vez do @openai/codex-sdk integrado."
+      },
       "workingDirectory": {
         "label": "Diretório de Trabalho",
         "placeholder": "ex: projeto1 ou deixe vazio para usar a raiz do projeto",
