@@ -53,7 +53,17 @@ public class CodexSettingsManager {
     public CodexSettingsManager(Gson gson) {
         this.gson = gson;
         String userHome = NodeDetector.resolveHomeForFileOps();
-        this.codexDir = Paths.get(userHome, ".codex");
+        // Respect CODEX_HOME so the plugin can operate on an isolated Codex home
+        // (e.g. when the IDE is launched with CODEX_HOME set), keeping the
+        // default ~/.codex untouched for other clients such as the Codex app.
+        // EnvironmentConfigurator already propagates CODEX_HOME to the bridge
+        // daemon and SDK child processes; this keeps file operations consistent.
+        String codexHome = System.getenv("CODEX_HOME");
+        if (codexHome == null || codexHome.isBlank()) {
+            this.codexDir = Paths.get(userHome, ".codex");
+        } else {
+            this.codexDir = Paths.get(codexHome);
+        }
     }
 
     /**
