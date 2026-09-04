@@ -19,6 +19,7 @@ import CommitSection from './CommitSection';
 import PromptEnhancerSection from './PromptEnhancerSection';
 import OtherSettingsSection from './OtherSettingsSection';
 import PetSettingsSection from './PetSettingsSection';
+import AiDataStorageSection from './AiDataStorageSection';
 import { SkillsSettingsSection } from '../skills';
 import SettingsDialogs from './SettingsDialogs';
 import { setNewSessionConfirmEnabled as persistNewSessionConfirmEnabled } from '../../utils/skipNewSessionConfirm';
@@ -687,6 +688,8 @@ const SettingsView = ({
           )}
 
           {currentTab === 'pet' && <PetSettingsSection addToast={addToast} />}
+
+          {currentTab === 'storage' && <AiDataStorageSection addToast={addToast} />}
 
           {currentTab === 'other' && (
             <OtherSettingsSection

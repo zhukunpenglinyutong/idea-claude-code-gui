@@ -198,8 +198,7 @@ public class InputHistoryHandler {
         String channelId = ProcessManager.newChannelId("input-history");
         Process process = null;
         try {
-            process = pb.start();
-            processManager.registerProcess(channelId, process);
+            process = processManager.startManagedProcess(channelId, pb);
 
             if (stdinData != null) {
                 try (BufferedWriter writer = new BufferedWriter(

@@ -35,6 +35,7 @@ public class SettingsHandler extends BaseMessageHandler {
     private final CodexSubscriptionQuotaHandler codexSubscriptionQuotaHandler;
     private final TokenTrackerHandler tokenTrackerHandler;
     private final DshPresetHandler dshPresetHandler;
+    private final AiDataDirectoryHandler aiDataDirectoryHandler;
 
     private static final String[] SUPPORTED_TYPES = {
         "get_mode",
@@ -48,6 +49,10 @@ public class SettingsHandler extends BaseMessageHandler {
         "set_node_path",
         "get_claude_cli_path",
         "set_claude_cli_path",
+        "get_ai_data_directory_status",
+        "choose_ai_data_directory_root",
+        "migrate_ai_data_directories",
+        "cleanup_ai_data_directory_backups",
         // TokenTracker local usage dashboard (vendored tokentracker-cli server)
         "tt_detect_cli",
         "tt_install_cli",
@@ -126,6 +131,7 @@ public class SettingsHandler extends BaseMessageHandler {
         this.codexSubscriptionQuotaHandler = new CodexSubscriptionQuotaHandler(context);
         this.tokenTrackerHandler = new TokenTrackerHandler(context);
         this.dshPresetHandler = new DshPresetHandler(context);
+        this.aiDataDirectoryHandler = new AiDataDirectoryHandler(context);
         // Register theme change listener to automatically notify frontend when IDE theme changes
         registerThemeChangeListener();
     }
@@ -199,6 +205,18 @@ public class SettingsHandler extends BaseMessageHandler {
                 return true;
             case "set_claude_cli_path":
                 claudeCliPathHandler.handleSetClaudeCliPath(content);
+                return true;
+            case "get_ai_data_directory_status":
+                aiDataDirectoryHandler.handleGetStatus();
+                return true;
+            case "choose_ai_data_directory_root":
+                aiDataDirectoryHandler.handleChooseTargetRoot();
+                return true;
+            case "migrate_ai_data_directories":
+                aiDataDirectoryHandler.handleMigrate(content);
+                return true;
+            case "cleanup_ai_data_directory_backups":
+                aiDataDirectoryHandler.handleCleanupBackups();
                 return true;
             // TokenTracker local usage dashboard
             case "tt_detect_cli":

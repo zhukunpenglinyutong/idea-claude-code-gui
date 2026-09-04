@@ -146,8 +146,7 @@ class ClaudeSessionQueryService {
         Process process = null;
         StringBuilder output = new StringBuilder();
         try {
-            process = pb.start();
-            processManager.registerProcess(channelId, process);
+            process = processManager.startManagedProcess(channelId, pb);
 
             try (BufferedReader reader = new BufferedReader(
                     new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {

@@ -85,8 +85,7 @@ class ClaudeQueryExecutor {
             String channelId = ProcessManager.newChannelId("claude-query-sync");
             Process process = null;
             try {
-                process = pb.start();
-                processManager.registerProcess(channelId, process);
+                process = processManager.startManagedProcess(channelId, pb);
                 ClaudeBridgeUtils.writeStdin(stdinJson, process);
 
                 try (BufferedReader reader = new BufferedReader(
@@ -213,8 +212,7 @@ class ClaudeQueryExecutor {
                 String channelId = ProcessManager.newChannelId("claude-query-stream");
                 Process process = null;
                 try {
-                    process = pb.start();
-                    processManager.registerProcess(channelId, process);
+                    process = processManager.startManagedProcess(channelId, pb);
                     ClaudeBridgeUtils.writeStdin(stdinJson, process);
 
                     try (BufferedReader reader = new BufferedReader(

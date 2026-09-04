@@ -167,8 +167,7 @@ public class NodeJsServiceCaller {
         String channelId = ProcessManager.newChannelId("node-service");
         Process process = null;
         try {
-            process = pb.start();
-            processManager.registerProcess(channelId, process);
+            process = processManager.startManagedProcess(channelId, pb);
 
             StringBuilder output = new StringBuilder();
             try (BufferedReader reader = new BufferedReader(

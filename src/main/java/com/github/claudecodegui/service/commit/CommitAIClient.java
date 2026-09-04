@@ -153,9 +153,8 @@ public class CommitAIClient {
         LOG.info("[CommitAIClient] Starting commit-message.js: provider=" + provider + ", model=" + model);
 
         try {
-            process = pb.start();
+            process = processManager.startManagedProcess(channelId, pb);
             currentProcess = process;
-            processManager.registerProcess(channelId, process);
 
             try (OutputStreamWriter writer = new OutputStreamWriter(
                     process.getOutputStream(), StandardCharsets.UTF_8)) {
