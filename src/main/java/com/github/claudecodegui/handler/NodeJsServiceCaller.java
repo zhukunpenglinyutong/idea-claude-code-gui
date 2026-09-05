@@ -31,9 +31,15 @@ public class NodeJsServiceCaller {
     );
 
     private final HandlerContext context;
+    private final int processTimeoutSeconds;
 
     public NodeJsServiceCaller(HandlerContext context) {
+        this(context, PROCESS_TIMEOUT_SECONDS);
+    }
+
+    NodeJsServiceCaller(HandlerContext context, int processTimeoutSeconds) {
         this.context = context;
+        this.processTimeoutSeconds = processTimeoutSeconds;
     }
 
     /**
@@ -158,10 +164,14 @@ public class NodeJsServiceCaller {
     }
 
     /**
-     * Execute a Node.js script via ProcessBuilder, read its output, enforce a timeout,
-     * and return the last line of stdout (expected to be JSON).
+     * Execute a Node.js script via ProcessBuilder, enforce a timeout, and
+     * return the last line of stdout (expected to be JSON).
+     *
+     * <p>Stdout is drained on a daemon thread so the timeout below is the real
+     * deadline: the previous read-to-EOF-then-wait ordering let a hung child
+     * holding the pipe open block forever with the timeout never reached.
      */
-    private String executeNodeScript(ProcessBuilder pb) throws Exception {
+    String executeNodeScript(ProcessBuilder pb) throws Exception {
         // L8 fix: register with ProcessManager so cleanupAllProcesses sees this child.
         ProcessManager processManager = context.getClaudeSDKBridge().getProcessManager();
         String channelId = ProcessManager.newChannelId("node-service");
@@ -170,27 +180,41 @@ public class NodeJsServiceCaller {
             process = pb.start();
             processManager.registerProcess(channelId, process);
 
+            final Process started = process;
             StringBuilder output = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    output.append(line).append("\n");
+            Thread readerThread = new Thread(() -> {
+                try (BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(started.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        synchronized (output) {
+                            output.append(line).append("\n");
+                        }
+                    }
+                } catch (Exception ignored) {
                 }
-            }
+            });
+            readerThread.setDaemon(true);
+            readerThread.start();
 
-            boolean finished = process.waitFor(PROCESS_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            boolean finished = process.waitFor(processTimeoutSeconds, TimeUnit.SECONDS);
             if (!finished) {
                 PlatformUtils.terminateProcess(process);
-                throw new Exception("Node.js process timed out after " + PROCESS_TIMEOUT_SECONDS + " seconds");
+                throw new Exception("Node.js process timed out after " + processTimeoutSeconds + " seconds");
             }
+            // Process exited; the reader hits EOF promptly — join for the final lines.
+            readerThread.join(2000L);
 
             int exitCode = process.exitValue();
+            String outputText;
+            synchronized (output) {
+                outputText = output.toString();
+            }
             if (exitCode != 0) {
-                throw new Exception("Node.js process exited with code " + exitCode + ": " + output);
+                throw new Exception("Node.js process exited with code " + exitCode + ": " + outputText);
             }
 
-            String[] lines = output.toString().split("\n");
+            String[] lines = outputText.split("\n");
             return lines.length > 0 ? lines[lines.length - 1] : "{}";
         } finally {
             if (process != null) {
