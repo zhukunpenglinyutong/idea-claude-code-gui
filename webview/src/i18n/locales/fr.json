@@ -188,6 +188,10 @@
         "level5": "Grande (120%)",
         "level6": "Maximale (140%)"
       },
+      "chatFontSize": {
+        "label": "Taille de police du chat",
+        "followEditor": "Suivre la police de l'éditeur"
+      },
       "editorFont": {
         "label": "Police UI",
         "hint": "Ici vous changez la police de l'interface du plugin ; le code peut utiliser une police séparée.",

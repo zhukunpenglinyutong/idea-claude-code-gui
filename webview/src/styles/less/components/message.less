@@ -601,7 +601,7 @@
 
 /* Message Content */
 .message-content {
-    font-size: var(--idea-editor-font-size, 13.5px);
+    font-size: var(--cc-gui-chat-font-size, var(--idea-editor-font-size, 13.5px));
     line-height: 1.6;
     color: var(--text-primary);
     min-width: 0; /* Allow flex items to shrink below content size */
@@ -624,7 +624,7 @@
 
 /* Markdown Content */
 .markdown-content {
-    font-size: var(--idea-editor-font-size, 13.5px);
+    font-size: var(--cc-gui-chat-font-size, var(--idea-editor-font-size, 13.5px));
     line-height: 1.6;
     color: var(--text-primary);
     word-wrap: break-word;
@@ -676,7 +676,7 @@
     overflow-x: auto;
     margin: 10px 0;
     font-family: var(--cc-gui-code-font-family, var(--idea-editor-font-family, 'JetBrains Mono', 'Consolas', monospace));
-    font-size: var(--idea-editor-font-size, 12.5px);
+    font-size: var(--cc-gui-chat-font-size, var(--idea-editor-font-size, 12.5px));
     line-height: var(--idea-editor-line-spacing, 1.5);
     max-width: 100%; /* 防止超出容器 */
     box-sizing: border-box; /* 包含 padding 在宽度内 */

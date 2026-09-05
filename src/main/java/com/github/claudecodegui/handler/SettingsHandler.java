@@ -69,6 +69,8 @@ public class SettingsHandler extends BaseMessageHandler {
         "set_codex_sandbox_mode",
         "get_send_shortcut",
         "set_send_shortcut",
+        "get_chat_font_size",
+        "set_chat_font_size",
         "get_auto_open_file_enabled",
         "set_auto_open_file_enabled",
         "get_permission_dialog_timeout",
@@ -260,6 +262,12 @@ public class SettingsHandler extends BaseMessageHandler {
                 return true;
             case "set_send_shortcut":
                 projectConfigHandler.handleSetSendShortcut(content);
+                return true;
+            case "get_chat_font_size":
+                projectConfigHandler.handleGetChatFontSize();
+                return true;
+            case "set_chat_font_size":
+                projectConfigHandler.handleSetChatFontSize(content);
                 return true;
             case "get_auto_open_file_enabled":
                 projectConfigHandler.handleGetAutoOpenFileEnabled();

@@ -26,6 +26,10 @@ public class ProjectConfigHandler {
 
     private static final Logger LOG = Logger.getInstance(ProjectConfigHandler.class);
     static final String SEND_SHORTCUT_PROPERTY_KEY = "claude.code.send.shortcut";
+    static final String CHAT_FONT_SIZE_PROPERTY_KEY = "claude.code.chat.font.size";
+    static final String CHAT_FONT_SIZE_FOLLOW_EDITOR = "followEditor";
+    static final int CHAT_FONT_SIZE_MIN_PX = 10;
+    static final int CHAT_FONT_SIZE_MAX_PX = 24;
 
     private final HandlerContext context;
     private final CodemossSettingsService settingsService;
@@ -314,6 +318,53 @@ public class ProjectConfigHandler {
             LOG.error("[ProjectConfigHandler] Failed to set send shortcut: " + e.getMessage(), e);
             showError("Failed to save send shortcut setting: " + e.getMessage());
         }
+    }
+
+    public void handleGetChatFontSize() {
+        try {
+            String chatFontSize = readStoredChatFontSize();
+            pushJson("window.updateChatFontSize", jsonOf("chatFontSize", chatFontSize));
+        } catch (Exception e) {
+            LOG.error("[ProjectConfigHandler] Failed to get chat font size: " + e.getMessage(), e);
+        }
+    }
+
+    public void handleSetChatFontSize(String content) {
+        try {
+            JsonObject json = gson.fromJson(content, JsonObject.class);
+            String chatFontSize = normalizeChatFontSize(readString(json, "chatFontSize", CHAT_FONT_SIZE_FOLLOW_EDITOR));
+            PropertiesComponent.getInstance().setValue(CHAT_FONT_SIZE_PROPERTY_KEY, chatFontSize);
+            LOG.info("[ProjectConfigHandler] Set chat font size: " + chatFontSize);
+            pushJson("window.updateChatFontSize", jsonOf("chatFontSize", chatFontSize));
+        } catch (Exception e) {
+            LOG.error("[ProjectConfigHandler] Failed to set chat font size: " + e.getMessage(), e);
+            showError("Failed to save chat font size setting: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Read the persisted chat content font size ("followEditor" or a px number as string).
+     * Stored at application level (PropertiesComponent) so every project window
+     * shares one value instead of racing on per-webview localStorage.
+     */
+    private String readStoredChatFontSize() {
+        return normalizeChatFontSize(
+                PropertiesComponent.getInstance().getValue(CHAT_FONT_SIZE_PROPERTY_KEY, CHAT_FONT_SIZE_FOLLOW_EDITOR));
+    }
+
+    private String normalizeChatFontSize(String value) {
+        if (value == null || CHAT_FONT_SIZE_FOLLOW_EDITOR.equals(value)) {
+            return CHAT_FONT_SIZE_FOLLOW_EDITOR;
+        }
+        try {
+            int px = Integer.parseInt(value.trim());
+            if (px >= CHAT_FONT_SIZE_MIN_PX && px <= CHAT_FONT_SIZE_MAX_PX) {
+                return String.valueOf(px);
+            }
+        } catch (NumberFormatException ignored) {
+            // fall through to default
+        }
+        return CHAT_FONT_SIZE_FOLLOW_EDITOR;
     }
 
     public void handleGetCommitPrompt() {

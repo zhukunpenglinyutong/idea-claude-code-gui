@@ -188,6 +188,10 @@
         "level5": "크게 (120%)",
         "level6": "매우 크게 (140%)"
       },
+      "chatFontSize": {
+        "label": "채팅 본문 글자 크기",
+        "followEditor": "편집기 글꼴 따르기"
+      },
       "editorFont": {
         "label": "UI 글꼴",
         "hint": "여기서는 플러그인 UI 글꼴을 변경합니다. 코드용 글꼴은 별도로 설정할 수 있습니다.",

@@ -188,6 +188,10 @@
         "level5": "大（120%）",
         "level6": "最大（140%）"
       },
+      "chatFontSize": {
+        "label": "聊天內文字號",
+        "followEditor": "跟隨編輯器字體"
+      },
       "editorFont": {
         "label": "UI 字體",
         "hint": "這裡修改的是外掛介面字體。程式碼可以使用獨立的程式碼字體。",

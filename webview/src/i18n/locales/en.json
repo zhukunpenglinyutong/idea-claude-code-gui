@@ -430,6 +430,10 @@
         "level5": "Large (120%)",
         "level6": "Largest (140%)"
       },
+      "chatFontSize": {
+        "label": "Chat Content Font Size",
+        "followEditor": "Follow editor font"
+      },
       "editorFont": {
         "label": "UI Font",
         "hint": "This controls the plugin UI font only. Code can use a separate code font.",

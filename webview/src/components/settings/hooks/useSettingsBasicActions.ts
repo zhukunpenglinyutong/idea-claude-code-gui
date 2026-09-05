@@ -8,6 +8,7 @@ import {
   pickAutoAiFeatureProvider,
 } from '../../../types/aiFeatureConfig';
 import type { PromptEnhancerConfig, PromptEnhancerProvider } from '../../../types/promptEnhancer';
+import type { ChatFontSizeValue } from '../../../utils/chatFontSize';
 import { DEFAULT_PROMPT_ENHANCER_CONFIG } from '../../../types/promptEnhancer';
 import {
   DEFAULT_PERMISSION_DIALOG_TIMEOUT_SECONDS,
@@ -36,6 +37,7 @@ export interface UseSettingsBasicActionsProps {
   onStreamingEnabledChangeProp?: (enabled: boolean) => void;
   sendShortcutProp?: 'enter' | 'cmdEnter';
   onSendShortcutChangeProp?: (shortcut: 'enter' | 'cmdEnter') => void;
+  chatFontSizeProp?: ChatFontSizeValue;
   autoOpenFileEnabledProp?: boolean;
   onAutoOpenFileEnabledChangeProp?: (enabled: boolean) => void;
   permissionDialogTimeoutSecondsProp?: number;
@@ -72,6 +74,9 @@ export interface UseSettingsBasicActionsReturn {
   /** Send shortcut state (prefers prop over local state) */
   sendShortcut: 'enter' | 'cmdEnter';
   localSendShortcut: 'enter' | 'cmdEnter';
+  /** Chat content font size (prefers prop over local state) */
+  chatFontSize: ChatFontSizeValue;
+  localChatFontSize: ChatFontSizeValue;
   /** Auto open file state (prefers prop over local state) */
   autoOpenFileEnabled: boolean;
   localAutoOpenFileEnabled: boolean;
@@ -113,6 +118,7 @@ export interface UseSettingsBasicActionsReturn {
   handleStreamingEnabledChange: (enabled: boolean) => void;
   handleCodexSandboxModeChange: (mode: 'workspace-write' | 'danger-full-access') => void;
   handleSendShortcutChange: (shortcut: 'enter' | 'cmdEnter') => void;
+  handleChatFontSizeChange: (size: ChatFontSizeValue) => void;
   handleAutoOpenFileEnabledChange: (enabled: boolean) => void;
   handleSoundNotificationEnabledChange: (enabled: boolean) => void;
   handleSoundOnlyWhenUnfocusedChange: (enabled: boolean) => void;
@@ -166,6 +172,7 @@ export interface UseSettingsBasicActionsReturn {
   /** @internal */ setLocalStreamingEnabled: (enabled: boolean) => void;
   /** @internal */ setCodexSandboxMode: (mode: 'workspace-write' | 'danger-full-access') => void;
   /** @internal */ setLocalSendShortcut: (shortcut: 'enter' | 'cmdEnter') => void;
+  /** @internal */ setLocalChatFontSize: (size: ChatFontSizeValue) => void;
   /** @internal */ setLocalAutoOpenFileEnabled: (enabled: boolean) => void;
   /** @internal */ setCommitPrompt: (prompt: string) => void;
   /** @internal */ setSavingCommitPrompt: (saving: boolean) => void;
@@ -194,6 +201,7 @@ export function useSettingsBasicActions({
   onStreamingEnabledChangeProp,
   sendShortcutProp,
   onSendShortcutChangeProp,
+  chatFontSizeProp,
   autoOpenFileEnabledProp,
   onAutoOpenFileEnabledChangeProp,
   permissionDialogTimeoutSecondsProp,
@@ -237,6 +245,10 @@ export function useSettingsBasicActions({
   // Send shortcut configuration - prefer props, fallback to local state
   const [localSendShortcut, setLocalSendShortcut] = useState<'enter' | 'cmdEnter'>('enter');
   const sendShortcut = sendShortcutProp ?? localSendShortcut;
+
+  // Chat content font size ("followEditor" or a px string) - pushed from Java
+  const [localChatFontSize, setLocalChatFontSize] = useState<ChatFontSizeValue>('followEditor');
+  const chatFontSize = chatFontSizeProp ?? localChatFontSize;
 
   // Auto open file configuration - prefer props, fallback to local state
   const [localAutoOpenFileEnabled, setLocalAutoOpenFileEnabled] = useState<boolean>(false);
@@ -445,6 +457,14 @@ export function useSettingsBasicActions({
       sendToJava(`set_send_shortcut:${JSON.stringify(payload)}`);
     }
   }, [onSendShortcutChangeProp]);
+
+  // Chat content font size change handler - persisted on the Java side
+  // (application-level) and broadcast back via window.updateChatFontSize.
+  const handleChatFontSizeChange = useCallback((size: ChatFontSizeValue) => {
+    setLocalChatFontSize(size);
+    const payload = { chatFontSize: size };
+    sendToJava(`set_chat_font_size:${JSON.stringify(payload)}`);
+  }, []);
 
   // Auto open file toggle change handler
   const handleAutoOpenFileEnabledChange = useCallback((enabled: boolean) => {
@@ -774,6 +794,9 @@ export function useSettingsBasicActions({
     localSendShortcut,
     setLocalSendShortcut,
     sendShortcut,
+    localChatFontSize,
+    setLocalChatFontSize,
+    chatFontSize,
     localAutoOpenFileEnabled,
     setLocalAutoOpenFileEnabled,
     autoOpenFileEnabled,
@@ -807,6 +830,7 @@ export function useSettingsBasicActions({
     handleStreamingEnabledChange,
     handleCodexSandboxModeChange,
     handleSendShortcutChange,
+    handleChatFontSizeChange,
     handleAutoOpenFileEnabledChange,
     handleSoundNotificationEnabledChange,
     handleSoundOnlyWhenUnfocusedChange,
