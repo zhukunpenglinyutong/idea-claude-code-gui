@@ -7,6 +7,7 @@ import { STORAGE_KEYS, validateCodexCustomModels } from '../../types/provider';
 import type { CodexCustomModel } from '../../types/provider';
 import { readClaudeModelMapping } from '../../utils/claudeModelMapping';
 import { useCliModels, useOmpRoles } from '../../hooks/providers/useCliModels';
+import { useCodeBuddyModelsConfig } from '../settings/hooks/useCodeBuddyModelsConfig';
 import { useToolbarSelectorCompact } from './hooks/useToolbarSelectorCompact';
 import { resolveProviderModels } from './resolveProviderModels';
 
@@ -99,12 +100,14 @@ export const ButtonArea = ({
   onOpenAgentSettings,
   onAddModel,
   onOpenCliSettings,
+  onOpenCodeBuddySettings,
   longContextEnabled = true,
   onLongContextChange,
 }: ButtonAreaProps) => {
   const { t } = useTranslation();
   // const fileInputRef = useRef<HTMLInputElement>(null);
-  const { cliModels, cliModelsLoading, cliModelsError, cliDefaultModel, cliCatalogHasEntries, refreshCliModels } = useCliModels(currentProvider);
+  const { cliModels, cliModelsLoading, cliModelsError, cliModelsErrorCode, cliDefaultModel, cliCatalogHasEntries, refreshCliModels } = useCliModels(currentProvider);
+  const codeBuddyModels = useCodeBuddyModelsConfig(currentProvider === 'codebuddy');
   // Dynamic omp roles (static smol/slow/plan fallback until loaded).
   const ompRoles = useOmpRoles();
 
@@ -152,11 +155,26 @@ export const ButtonArea = ({
       cliCatalogHasEntries,
       claudeCustomModels: getCustomClaudeModels(),
       codexCustomModels: getCustomCodexModels(),
+      codeBuddyCustomModels: codeBuddyModels.models.map((model) => ({
+        id: model.id,
+        label: model.label || model.id,
+        description: model.description,
+        ...(model.supportsReasoning !== undefined
+          ? { reasoningSupported: model.supportsReasoning }
+          : {}),
+      })),
       claudeMapping,
     });
     // customModelsVersion intentionally forces re-read of localStorage customs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentProvider, customModelsVersion, cliModels, cliCatalogHasEntries]);
+  }, [codeBuddyModels.models, currentProvider, customModelsVersion, cliModels, cliCatalogHasEntries]);
+
+  // Catalog entry for the current selection — CodeBuddy's per-model effort
+  // filtering (supportedEfforts / reasoningSupported) reads this.
+  const selectedModelInfo = useMemo(
+    () => availableModels.find((model) => model.id === selectedModel),
+    [availableModels, selectedModel],
+  );
 
   // When a dynamic model catalog arrives, ensure selection is a real entry.
   useEffect(() => {
@@ -164,13 +182,26 @@ export const ButtonArea = ({
       || currentProvider === 'opencode'
       || currentProvider === 'pi' || currentProvider === 'codex'
       || currentProvider === 'grok' || currentProvider === 'omp'
-      || currentProvider === 'dsh';
+      || currentProvider === 'dsh' || currentProvider === 'codebuddy';
     if (!isDynamicProvider) return;
     // Only correct once a *real* catalog arrived. Static fallback lists
     // (OPENCODE_MODELS = just "opencode-default", CODEX built-ins, …) must not
     // clobber the user's choice — especially when ChatScreen remounts after
     // leaving history and briefly shows the fallback before the cache/fetch
     // lands.
+    if (!availableModels.length || !onModelSelect) return;
+    if (currentProvider === 'codebuddy') {
+      // CodeBuddy's catalog comes from models.json (useCodeBuddyModelsConfig),
+      // not from the CLI dynamic discovery. Until the config has loaded (or is
+      // genuinely empty) we must not clobber a restored selection with the
+      // empty default id. Once models exist, auto-correct a stale/empty choice.
+      if (!codeBuddyModels.models.length) return;
+      const exists = availableModels.some((model) => model.id === selectedModel);
+      if (!exists) {
+        onModelSelect(availableModels[0].id);
+      }
+      return;
+    }
     if (!cliCatalogHasEntries) return;
     if (cliModelsLoading) return;
     if (!availableModels.length || !onModelSelect) return;
@@ -191,6 +222,7 @@ export const ButtonArea = ({
     cliDefaultModel,
     cliCatalogHasEntries,
     cliModelsLoading,
+    codeBuddyModels.models,
     ompRoles,
   ]);
 
@@ -315,8 +347,11 @@ export const ButtonArea = ({
           currentProvider={currentProvider}
           loading={cliModelsLoading}
           error={cliModelsError}
+          errorCode={cliModelsErrorCode}
+          onAuthorize={onOpenCodeBuddySettings}
           onRetry={() => refreshCliModels(currentProvider)}
           onAddModel={onAddModel}
+          selectedModelInfo={selectedModelInfo}
           longContextEnabled={longContextEnabled}
           onLongContextChange={onLongContextChange}
           reasoningEffort={reasoningEffort}
@@ -326,6 +361,7 @@ export const ButtonArea = ({
           dshPreset={dshPreset}
           onDshPresetChange={handleDshPresetChange}
         />
+
       </div>
 
       {/* Right side: tool buttons */}

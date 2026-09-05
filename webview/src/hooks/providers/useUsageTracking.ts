@@ -12,6 +12,9 @@ const PROVIDER_TO_SDK: Record<string, string> = {
   bedrock: 'claude-sdk',
   codex: 'codex-sdk',
   openai: 'codex-sdk',
+  // CodeBuddy streams over the CLI marker protocol but still requires the
+  // npm Agent SDK (@tencent-ai/agent-sdk) — it must stay gated on SDK status.
+  codebuddy: 'codebuddy-sdk',
   // CLI providers have no npm SDK — markers are only for lookups.
   grok: 'grok-cli',
   kimi: 'kimi-cli',
@@ -20,6 +23,9 @@ const PROVIDER_TO_SDK: Record<string, string> = {
   pi: 'pi-cli',
   omp: 'omp-cli',
 };
+
+/** Providers that stream via the marker protocol yet need a bundled npm SDK. */
+const SDK_GATED_CLI_PROVIDERS = new Set(['codebuddy']);
 
 type SdkStatus = Record<string, {
   installed?: boolean;
@@ -58,7 +64,8 @@ export function useUsageTracking() {
   const isSdkInstalled = useCallback(
     (providerId: string): boolean => {
       // Grok CLI is system-installed; do not gate on Claude/Codex SDK status.
-      if (CLI_ONLY_PROVIDERS.has(providerId)) return true;
+      // SDK-backed CLI providers (CodeBuddy) still require the npm SDK.
+      if (CLI_ONLY_PROVIDERS.has(providerId) && !SDK_GATED_CLI_PROVIDERS.has(providerId)) return true;
       const sdkId = PROVIDER_TO_SDK[providerId] || 'claude-sdk';
       const status = sdkStatus[sdkId];
       if (status?.status === 'installed' || status?.installed === true) return true;
@@ -73,7 +80,7 @@ export function useUsageTracking() {
   );
 
   const isSdkStatusKnown = useCallback((providerId: string): boolean => {
-    if (CLI_ONLY_PROVIDERS.has(providerId)) return true;
+    if (CLI_ONLY_PROVIDERS.has(providerId) && !SDK_GATED_CLI_PROVIDERS.has(providerId)) return true;
     const sdkId = PROVIDER_TO_SDK[providerId] || 'claude-sdk';
     const status = sdkStatus[sdkId];
     return status?.status === 'installed'

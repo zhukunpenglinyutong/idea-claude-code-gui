@@ -37,13 +37,20 @@ public class ProviderHandler extends BaseMessageHandler {
             "sort_codex_providers",
             "preview_codex_cc_switch_import",
             "open_file_chooser_for_codex_cc_switch",
-            "save_imported_codex_providers"
+            "save_imported_codex_providers",
+            // CodeBuddy local configuration consent
+            "get_codebuddy_local_config_status",
+            "authorize_codebuddy_local_config",
+            "revoke_codebuddy_local_config",
+            "get_codebuddy_models_config",
+            "save_codebuddy_models_config"
     };
 
     private final ClaudeProviderOperations claudeOps;
     private final CodexProviderOperations codexOps;
     private final ProviderImportExportSupport importExportSupport;
     private final ProviderOrderingService orderingService;
+    private final CodeBuddyProviderOperations codeBuddyOps;
 
     public ProviderHandler(HandlerContext context) {
         super(context);
@@ -51,6 +58,7 @@ public class ProviderHandler extends BaseMessageHandler {
         this.codexOps = new CodexProviderOperations(context);
         this.importExportSupport = new ProviderImportExportSupport(context, claudeOps, codexOps);
         this.orderingService = new ProviderOrderingService(context, claudeOps, codexOps);
+        this.codeBuddyOps = new CodeBuddyProviderOperations(context);
     }
 
     @Override
@@ -138,6 +146,21 @@ public class ProviderHandler extends BaseMessageHandler {
                 return true;
             case "save_imported_codex_providers":
                 importExportSupport.handleSaveImportedCodexProviders(content);
+                return true;
+            case "get_codebuddy_local_config_status":
+                codeBuddyOps.handleGetLocalConfigStatus();
+                return true;
+            case "authorize_codebuddy_local_config":
+                codeBuddyOps.handleAuthorizeLocalConfig();
+                return true;
+            case "revoke_codebuddy_local_config":
+                codeBuddyOps.handleRevokeLocalConfig();
+                return true;
+            case "get_codebuddy_models_config":
+                codeBuddyOps.handleGetModelsConfig();
+                return true;
+            case "save_codebuddy_models_config":
+                codeBuddyOps.handleSaveModelsConfig(content);
                 return true;
             default:
                 return false;

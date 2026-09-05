@@ -5,6 +5,7 @@ import com.github.claudecodegui.bridge.EnvironmentConfigurator;
 import com.github.claudecodegui.bridge.NodeDetector;
 import com.github.claudecodegui.handler.core.BaseMessageHandler;
 import com.github.claudecodegui.handler.core.HandlerContext;
+import com.github.claudecodegui.i18n.ClaudeCodeGuiBundle;
 import com.github.claudecodegui.provider.dsh.DshEnvSupport;
 import com.github.claudecodegui.settings.CodemossSettingsService;
 import com.github.claudecodegui.startup.BridgePreloader;
@@ -23,6 +24,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -39,12 +41,36 @@ public class CliModelsHandler extends BaseMessageHandler {
     /** Cap on captured stdout — a model list is small; this stops memory exhaustion. */
     private static final int MAX_OUTPUT_CHARS = 64_000;
 
+    /**
+     * Collapses concurrent get_cli_models for the same provider + cache
+     * generation into one cold start: webview remounts and reloads can fire
+     * several requests before the first uncached listModels lands, and each
+     * duplicate would otherwise spawn its own node + SDK process (~2s).
+     * Keyed by generation so a request after an invalidation never joins a
+     * pre-invalidation flight.
+     */
+    private static final ConcurrentHashMap<String, CompletableFuture<Void>> IN_FLIGHT = new ConcurrentHashMap<>();
+
+    /**
+     * Dedicated pool for cold-start fetches. Followers block in
+     * {@link CompletableFuture#join}/{@code get} on the app executor while
+     * waiting for the leader, so running the leader on that same bounded pool
+     * could starve it of threads entirely; this pool guarantees the leader
+     * always gets a thread no matter how many followers are parked.
+     */
+    private static final java.util.concurrent.ExecutorService FETCH_EXECUTOR =
+            java.util.concurrent.Executors.newCachedThreadPool(r -> {
+                Thread thread = new Thread(r, "cli-models-fetch");
+                thread.setDaemon(true);
+                return thread;
+            });
+
     private static final String[] SUPPORTED_TYPES = {
             "get_cli_models",
     };
 
     private static final Set<String> SUPPORTED_PROVIDERS = Set.of(
-            "opencode", "kimi", "pi", "omp", "codex", "grok", "dsh", "minimax"
+            "opencode", "kimi", "pi", "omp", "codex", "grok", "dsh", "codebuddy", "minimax"
     );
 
     private final Gson gson = new Gson();
@@ -70,11 +96,94 @@ public class CliModelsHandler extends BaseMessageHandler {
             pushError(provider, "Unsupported CLI provider for model list: " + provider);
             return true;
         }
-        CompletableFuture.runAsync(() -> listModels(provider), AppExecutorUtil.getAppExecutorService());
+        CompletableFuture.runAsync(() -> listModels(provider, 0), AppExecutorUtil.getAppExecutorService());
         return true;
     }
 
-    private void listModels(String provider) {
+    private void listModels(String provider, int retryDepth) {
+        try {
+            if ("codebuddy".equals(provider)
+                    && !new CodemossSettingsService().isCodeBuddyLocalConfigAuthorized()) {
+                pushError(provider, ClaudeCodeGuiBundle.message("error.codebuddyLocalConfigRequired"),
+                        "CODEBUDDY_LOCAL_CONFIG_REQUIRED");
+                return;
+            }
+            // A fresh cached catalog saves the 2-5s node + SDK cold start on
+            // repeat requests; the authorization check above still runs first.
+            String cachedPayload = CliModelsCache.get(provider);
+            if (cachedPayload != null) {
+                LOG.debug("[CliModels] Serving cached catalog for " + provider);
+                callJavaScript("window.setCliModels", escapeJs(cachedPayload));
+                return;
+            }
+            long generation = CliModelsCache.generation(provider);
+            // Stale-while-revalidate: an expired entry still beats a blank
+            // picker — serve it now; the refresh below replaces it when the
+            // fresh payload lands. The entry is at most one TTL old.
+            String stalePayload = CliModelsCache.getStale(provider);
+            if (stalePayload != null) {
+                LOG.debug("[CliModels] Serving stale catalog while refreshing " + provider);
+                callJavaScript("window.setCliModels", escapeJs(stalePayload));
+            }
+            CompletableFuture<Void> created = new CompletableFuture<>();
+            String flightKey = provider + "#" + generation;
+            CompletableFuture<Void> flight = IN_FLIGHT.computeIfAbsent(flightKey, k -> {
+                FETCH_EXECUTOR.execute(() -> {
+                    try {
+                        fetchAndPushModels(provider, generation);
+                    } catch (Exception e) {
+                        LOG.warn("[CliModels] Failed for " + provider + ": " + e.getMessage(), e);
+                    } finally {
+                        created.complete(null);
+                    }
+                });
+                created.whenComplete((v, t) -> IN_FLIGHT.remove(flightKey, created));
+                return created;
+            });
+            if (flight != created) {
+                // A sibling request for the same provider is already
+                // cold-starting — wait for it instead of spawning a duplicate
+                // node process, then forward the cached result (the leader's
+                // direct push may have landed before this surface registered
+                // its listener). Bounded so a wedged leader fails this surface
+                // instead of hanging it past the webview's own timeout.
+                try {
+                    flight.get(TIMEOUT_SECONDS + 10L, TimeUnit.SECONDS);
+                } catch (java.util.concurrent.TimeoutException timeout) {
+                    pushError(provider, "list models timed out");
+                    return;
+                }
+                String refreshed = CliModelsCache.get(provider);
+                if (refreshed != null) {
+                    LOG.debug("[CliModels] Forwarding catalog refreshed by a concurrent request for " + provider);
+                    callJavaScript("window.setCliModels", escapeJs(refreshed));
+                } else if (retryDepth == 0) {
+                    // The leader finished without caching (error path) — this
+                    // surface still needs its own outcome; retry once as a
+                    // fresh leader.
+                    listModels(provider, retryDepth + 1);
+                } else {
+                    // Retried once and still no cached outcome (e.g. landed as
+                    // a follower of another failed flight) — push a terminal
+                    // error so the dropdown stops spinning instead of waiting
+                    // for the webview's own timeout.
+                    pushError(provider, "list models failed");
+                }
+            }
+        } catch (Exception e) {
+            LOG.warn("[CliModels] Failed for " + provider + ": " + e.getMessage(), e);
+            pushError(provider, e.getMessage() != null ? e.getMessage() : "list models failed");
+        }
+    }
+
+    /**
+     * Runs the real channel-manager listModels and pushes the result. The
+     * generation captured when the request started guards both the cache put
+     * and the push: if models.json was saved (or consent revoked) while this
+     * cold start ran, the invalidation-triggering request owns the answer and
+     * this pre-edit payload is dropped instead of flickering stale data.
+     */
+    private void fetchAndPushModels(String provider, long generation) {
         try {
             String node = nodeDetector.findNodeExecutable();
             BridgeDirectoryResolver resolver = BridgePreloader.getSharedResolver();
@@ -150,7 +259,19 @@ public class CliModelsHandler extends BaseMessageHandler {
             if (!payload.has("provider") || payload.get("provider").isJsonNull()) {
                 payload.addProperty("provider", provider);
             }
-            callJavaScript("window.setCliModels", escapeJs(gson.toJson(payload)));
+            String payloadJson = gson.toJson(payload);
+            if (CliModelsCache.generation(provider) != generation) {
+                LOG.debug("[CliModels] Dropping superseded catalog for " + provider
+                        + " — an invalidation landed during the cold start");
+                return;
+            }
+            if (payload.has("success") && payload.get("success").isJsonPrimitive()
+                    && payload.get("success").getAsBoolean()) {
+                // Only success payloads are cached — error pushes must always
+                // reflect the next real attempt.
+                CliModelsCache.put(provider, payloadJson, generation);
+            }
+            callJavaScript("window.setCliModels", escapeJs(payloadJson));
         } catch (Exception e) {
             LOG.warn("[CliModels] Failed for " + provider + ": " + e.getMessage(), e);
             pushError(provider, e.getMessage() != null ? e.getMessage() : "list models failed");
@@ -189,10 +310,17 @@ public class CliModelsHandler extends BaseMessageHandler {
     }
 
     private void pushError(String provider, String message) {
+        pushError(provider, message, null);
+    }
+
+    private void pushError(String provider, String message, String errorCode) {
         JsonObject error = new JsonObject();
         error.addProperty("success", false);
         error.addProperty("provider", provider != null ? provider : "");
         error.addProperty("error", message != null ? message : "unknown error");
+        if (errorCode != null && !errorCode.isBlank()) {
+            error.addProperty("errorCode", errorCode);
+        }
         error.add("models", gson.toJsonTree(new ArrayList<>()));
         callJavaScript("window.setCliModels", escapeJs(gson.toJson(error)));
     }

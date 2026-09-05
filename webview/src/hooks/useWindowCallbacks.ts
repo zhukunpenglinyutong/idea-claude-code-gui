@@ -48,8 +48,10 @@ export interface UseWindowCallbacksOptions {
   setCurrentProvider: React.Dispatch<React.SetStateAction<string>>;
   setClaudePermissionMode: React.Dispatch<React.SetStateAction<PermissionMode>>;
   setCodexPermissionMode: React.Dispatch<React.SetStateAction<PermissionMode>>;
+  setCodeBuddyPermissionMode: React.Dispatch<React.SetStateAction<PermissionMode>>;
   setSelectedClaudeModel: React.Dispatch<React.SetStateAction<string>>;
   setSelectedCodexModel: React.Dispatch<React.SetStateAction<string>>;
+  setSelectedCodeBuddyModel: React.Dispatch<React.SetStateAction<string>>;
   setLongContextEnabled: React.Dispatch<React.SetStateAction<boolean>>;
   setReasoningEffort: React.Dispatch<React.SetStateAction<ReasoningEffort>>;
   setCodexFastMode: React.Dispatch<React.SetStateAction<CodexFastMode>>;

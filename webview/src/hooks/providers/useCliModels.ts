@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { sendBridgeEvent } from '../../utils/bridge';
-import type { ModelInfo } from '../../components/ChatInputBox/types';
+import type { ModelInfo, ReasoningEffort } from '../../components/ChatInputBox/types';
 import {
+  CODEBUDDY_MODELS,
   CODEX_MODELS,
   DSH_MODELS,
   GROK_MODELS,
@@ -28,6 +29,8 @@ const CLI_MODELS_TIMEOUT_MS = 15_000;
 const modelsCache: CliModelsByProvider = {};
 const defaultModelCache: Record<string, string> = {};
 const catalogHasEntriesCache: Record<string, boolean> = {};
+/** Last error *code* per provider (e.g. CODEBUDDY_LOCAL_CONFIG_REQUIRED) for actionable error UI. */
+const errorCodeCache: Record<string, string> = {};
 
 /**
  * Dynamic model roles from the listModels payload (`roles: [{id,label,description}]`,
@@ -50,11 +53,24 @@ function subscribeRoles(listener: () => void): () => void {
   };
 }
 
+/**
+ * Drop the cached catalog for a provider at the module level (usable even when
+ * no chat surface is mounted — e.g. Settings edits models.json while
+ * ChatScreen is unmounted). The next useCliModels mount refetches.
+ */
+export function invalidateCliModelsCache(providerId: string) {
+  delete modelsCache[providerId];
+  delete defaultModelCache[providerId];
+  delete catalogHasEntriesCache[providerId];
+  delete errorCodeCache[providerId];
+}
+
 /** Test-only: clear module caches between cases. */
 export function __resetCliModelsCacheForTests() {
   for (const key of Object.keys(modelsCache)) delete modelsCache[key];
   for (const key of Object.keys(defaultModelCache)) delete defaultModelCache[key];
   for (const key of Object.keys(catalogHasEntriesCache)) delete catalogHasEntriesCache[key];
+  for (const key of Object.keys(errorCodeCache)) delete errorCodeCache[key];
   for (const key of Object.keys(rolesCache)) delete rolesCache[key];
 }
 
@@ -66,6 +82,7 @@ function fallbackModels(providerId: string): ModelInfo[] {
   if (providerId === 'pi') return PI_MODELS;
   if (providerId === 'omp') return OMP_MODELS;
   if (providerId === 'dsh') return DSH_MODELS;
+  if (providerId === 'codebuddy') return CODEBUDDY_MODELS;
   if (providerId === 'codex') return CODEX_MODELS;
   return [];
 }
@@ -76,7 +93,7 @@ function fallbackModels(providerId: string): ModelInfo[] {
  * from ~/.codex/config.toml + model_catalog_json, same as the codex CLI picker.
  */
 function supportsDynamicModels(providerId: string): boolean {
-  if (providerId === 'codex') return true;
+  if (providerId === 'codex' || providerId === 'codebuddy') return true;
   return isCliOnlyProvider(providerId);
 }
 
@@ -94,7 +111,25 @@ function normalizeModels(raw: unknown): ModelInfo[] {
       ? row.label.trim()
       : id;
     const description = typeof row.description === 'string' ? row.description : undefined;
-    out.push({ id, label, description });
+    const credits = typeof row.credits === 'string' && row.credits.trim()
+      ? row.credits.trim()
+      : undefined;
+    const supportedEfforts = Array.isArray(row.supportedEfforts)
+      ? row.supportedEfforts.filter((effort): effort is ReasoningEffort =>
+        typeof effort === 'string'
+        && ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(effort))
+      : undefined;
+    const reasoningSupported = typeof row.reasoningSupported === 'boolean'
+      ? row.reasoningSupported
+      : undefined;
+    out.push({
+      id,
+      label,
+      description,
+      credits,
+      ...(supportedEfforts?.length ? { supportedEfforts } : {}),
+      ...(reasoningSupported !== undefined ? { reasoningSupported } : {}),
+    });
   }
   return out;
 }
@@ -113,6 +148,9 @@ export function useCliModels(currentProvider: string) {
   const [catalogHasEntriesByProvider, setCatalogHasEntriesByProvider] = useState<Record<string, boolean>>(
     () => ({ ...catalogHasEntriesCache }),
   );
+  const [errorCodeByProvider, setErrorCodeByProvider] = useState<Record<string, string>>(
+    () => ({ ...errorCodeCache }),
+  );
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
   const [errorByProvider, setErrorByProvider] = useState<Record<string, string>>({});
   const pendingLoadRef = useRef<{ provider: string; timer: ReturnType<typeof setTimeout> } | null>(null);
@@ -125,6 +163,11 @@ export function useCliModels(currentProvider: string) {
   }, []);
 
   const beginLoad = useCallback((providerId: string) => {
+    // A request for this provider is already in flight — Java collapses
+    // concurrent get_cli_models anyway; don't pile on duplicate spawns. The
+    // invalidate paths below clear pendingLoadRef first, so a forced refetch
+    // after a settings edit always gets through.
+    if (pendingLoadRef.current?.provider === providerId) return;
     clearPendingLoad();
     setLoadingProvider(providerId);
     setErrorByProvider((prev) => {
@@ -147,8 +190,8 @@ export function useCliModels(currentProvider: string) {
   }, [clearPendingLoad]);
 
   useEffect(() => {
-    const handler = (dataOrStr: string | { provider?: string; models?: unknown; roles?: unknown; success?: boolean; error?: string; defaultModel?: unknown }) => {
-      let payload: { provider?: string; models?: unknown; roles?: unknown; success?: boolean; error?: string; defaultModel?: unknown } | null = null;
+    const handler = (dataOrStr: string | { provider?: string; models?: unknown; roles?: unknown; success?: boolean; error?: string; errorCode?: unknown; defaultModel?: unknown }) => {
+      let payload: { provider?: string; models?: unknown; roles?: unknown; success?: boolean; error?: string; errorCode?: unknown; defaultModel?: unknown } | null = null;
       if (typeof dataOrStr === 'string') {
         try {
           payload = JSON.parse(dataOrStr);
@@ -164,6 +207,11 @@ export function useCliModels(currentProvider: string) {
       const resolvedModels = models.length > 0 ? models : fallbackModels(provider);
       modelsCache[provider] = resolvedModels;
       catalogHasEntriesCache[provider] = models.length > 0;
+      if (typeof payload.errorCode === 'string' && payload.errorCode.trim()) {
+        errorCodeCache[provider] = payload.errorCode.trim();
+      } else {
+        delete errorCodeCache[provider];
+      }
       // Dynamic model roles (omp listModels ≥ roles support). Missing/invalid
       // roles → [] so consumers keep their static fallback.
       rolesCache[provider] = normalizeModels(payload.roles);
@@ -173,6 +221,16 @@ export function useCliModels(currentProvider: string) {
         [provider]: resolvedModels,
       }));
       setCatalogHasEntriesByProvider((prev) => ({ ...prev, [provider]: models.length > 0 }));
+      setErrorCodeByProvider((prev) => {
+        const code = typeof payload.errorCode === 'string' && payload.errorCode.trim()
+          ? payload.errorCode.trim()
+          : undefined;
+        if (code) return { ...prev, [provider]: code };
+        if (!(provider in prev)) return prev;
+        const next = { ...prev };
+        delete next[provider];
+        return next;
+      });
       const defaultModel = typeof payload.defaultModel === 'string' && payload.defaultModel.trim()
         ? payload.defaultModel.trim()
         : null;
@@ -235,6 +293,7 @@ export function useCliModels(currentProvider: string) {
       delete modelsCache.codex;
       delete defaultModelCache.codex;
       delete catalogHasEntriesCache.codex;
+      delete errorCodeCache.codex;
       setModelsByProvider((prev) => {
         if (!('codex' in prev)) return prev;
         const next = { ...prev };
@@ -254,10 +313,48 @@ export function useCliModels(currentProvider: string) {
         return next;
       });
       if (currentProvider === 'codex') {
+        // Clear an in-flight request so the post-switch refetch is never
+        // swallowed by the beginLoad pending guard.
+        clearPendingLoad();
         beginLoad('codex');
       }
     });
-  }, [currentProvider, beginLoad]);
+  }, [currentProvider, beginLoad, clearPendingLoad]);
+
+  // Editing models.json in Settings changes what the CodeBuddy SDK serves, so
+  // the cached catalog must be dropped when the user returns to chat —
+  // otherwise deleted models stay selectable.
+  useEffect(() => {
+    const invalidate = () => {
+      invalidateCliModelsCache('codebuddy');
+      setModelsByProvider((prev) => {
+        if (!('codebuddy' in prev)) return prev;
+        const next = { ...prev };
+        delete next.codebuddy;
+        return next;
+      });
+      setDefaultModelByProvider((prev) => {
+        if (!('codebuddy' in prev)) return prev;
+        const next = { ...prev };
+        delete next.codebuddy;
+        return next;
+      });
+      setCatalogHasEntriesByProvider((prev) => {
+        if (!('codebuddy' in prev)) return prev;
+        const next = { ...prev };
+        delete next.codebuddy;
+        return next;
+      });
+      if (currentProvider === 'codebuddy') {
+        // A pre-save request may still be pending — drop it so the refetch
+        // forced by this invalidation isn't swallowed by the pending guard.
+        clearPendingLoad();
+        beginLoad('codebuddy');
+      }
+    };
+    window.addEventListener('codebuddy-models-config-changed', invalidate);
+    return () => window.removeEventListener('codebuddy-models-config-changed', invalidate);
+  }, [currentProvider, beginLoad, clearPendingLoad]);
 
   const refreshCliModels = useCallback((providerId: string) => {
     if (!supportsDynamicModels(providerId)) return;
@@ -272,6 +369,7 @@ export function useCliModels(currentProvider: string) {
     cliModels,
     cliModelsLoading: loadingProvider === currentProvider,
     cliModelsError: errorByProvider[currentProvider] ?? null,
+    cliModelsErrorCode: errorCodeByProvider[currentProvider] ?? null,
     cliDefaultModel: defaultModelByProvider[currentProvider] ?? null,
     cliCatalogHasEntries: catalogHasEntriesByProvider[currentProvider] ?? false,
     refreshCliModels,

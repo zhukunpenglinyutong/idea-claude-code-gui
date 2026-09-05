@@ -9,6 +9,7 @@ import com.github.claudecodegui.model.DeleteResult;
 import com.github.claudecodegui.model.PromptScope;
 import com.github.claudecodegui.session.SessionState;
 import com.github.claudecodegui.dependency.DependencyManager;
+import com.github.claudecodegui.bridge.NodeDetector;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
@@ -2569,6 +2570,43 @@ public class CodemossSettingsService {
 
     public void setCodexLocalConfigAuthorized(boolean authorized) throws IOException {
         codexProviderManager.setLocalConfigAuthorized(authorized);
+    }
+
+    /** Whether the user explicitly allowed the plugin to use CodeBuddy's local configuration. */
+    public boolean isCodeBuddyLocalConfigAuthorized() throws IOException {
+        JsonObject config = readConfig();
+        if (!config.has("codebuddy") || !config.get("codebuddy").isJsonObject()) {
+            return false;
+        }
+        JsonObject codeBuddy = config.getAsJsonObject("codebuddy");
+        return codeBuddy.has("localConfigAuthorized")
+                && !codeBuddy.get("localConfigAuthorized").isJsonNull()
+                && codeBuddy.get("localConfigAuthorized").getAsBoolean()
+                && hasCodeBuddyLocalConfig();
+    }
+
+    /** Check for the local CodeBuddy state without reading any credential contents. */
+    public boolean hasCodeBuddyLocalConfig() {
+        String configured = System.getenv("CODEBUDDY_HOME");
+        String home = configured != null && !configured.isBlank()
+                ? configured.trim()
+                : NodeDetector.resolveHomeForFileOps() + File.separator + ".codebuddy";
+        Path root = Paths.get(home);
+        return Files.isDirectory(root)
+                && (Files.isRegularFile(root.resolve("settings.json"))
+                || Files.isRegularFile(root.resolve("models.json"))
+                || Files.isDirectory(root.resolve("sessions")));
+    }
+
+    /** Persist the CodeBuddy local configuration consent without touching ~/.codebuddy. */
+    public void setCodeBuddyLocalConfigAuthorized(boolean authorized) throws IOException {
+        JsonObject config = readConfig();
+        JsonObject codeBuddy = config.has("codebuddy") && config.get("codebuddy").isJsonObject()
+                ? config.getAsJsonObject("codebuddy")
+                : new JsonObject();
+        codeBuddy.addProperty("localConfigAuthorized", authorized);
+        config.add("codebuddy", codeBuddy);
+        writeConfig(config);
     }
 
     public String getCodexRuntimeAccessMode() throws IOException {

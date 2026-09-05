@@ -149,6 +149,50 @@ describe('ReasoningSelect', () => {
     expect(onChange).toHaveBeenCalledWith('high');
   });
 
+  it('filters CodeBuddy efforts from the discovered model capabilities', () => {
+    render(
+      <ReasoningSelect
+        value="high"
+        onChange={vi.fn()}
+        currentProvider="codebuddy"
+        selectedModel="codebuddy-model"
+        selectedModelInfo={{
+          id: 'codebuddy-model',
+          label: 'CodeBuddy model',
+          reasoningSupported: true,
+          supportedEfforts: ['low', 'high', 'max'],
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button'));
+
+    expect(screen.getByText('Low')).toBeTruthy();
+    expect(screen.getAllByText('High').length).toBeGreaterThan(0);
+    expect(screen.getByText('Max')).toBeTruthy();
+    expect(screen.queryByText('Minimal')).toBeNull();
+    expect(screen.queryByText('Medium')).toBeNull();
+    expect(screen.queryByText('XHigh')).toBeNull();
+  });
+
+  it('hides CodeBuddy reasoning when the model reports no support', () => {
+    render(
+      <ReasoningSelect
+        value="high"
+        onChange={vi.fn()}
+        currentProvider="codebuddy"
+        selectedModel="codebuddy-model"
+        selectedModelInfo={{
+          id: 'codebuddy-model',
+          label: 'CodeBuddy model',
+          reasoningSupported: false,
+        }}
+      />,
+    );
+
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
   it('hides for Claude models without effort support', () => {
     render(
       <ReasoningSelect

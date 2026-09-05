@@ -125,6 +125,19 @@ describe('ModelSelect', () => {
     expect(screen.getByText('chat.loadingDropdown')).toBeTruthy();
   });
 
+  it('CodeBuddy 目录为空时仍显示占位模型，不应崩溃', () => {
+    expect(() => render(
+      <ModelSelect
+        value=""
+        onChange={vi.fn()}
+        models={[]}
+        currentProvider="codebuddy"
+      />,
+    )).not.toThrow();
+
+    expect(screen.getByRole('button').textContent).toContain('models.selectModel');
+  });
+
   it('error 时应显示失败状态并支持点击重试', () => {
     const onRetry = vi.fn();
     render(

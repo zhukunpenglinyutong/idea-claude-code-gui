@@ -11,6 +11,7 @@ const ADD_ICON_STYLE: React.CSSProperties = { marginRight: '4px' };
 const CONTEXT_WINDOW_TOKENS_PER_K = 1_000;
 const MAX_CONTEXT_WINDOW_TOKENS = 2_147_483_647;
 const MAX_CONTEXT_WINDOW_K = Math.floor(MAX_CONTEXT_WINDOW_TOKENS / CONTEXT_WINDOW_TOKENS_PER_K);
+const CODEBUDDY_MODEL_TOKEN_MAX = 2_147_483_647;
 
 type PricingFieldKey = keyof ModelPricing;
 
@@ -65,6 +66,8 @@ interface CustomModelDialogProps {
   onClose: () => void;
   /** Enables Codex-only context-window metadata editing. */
   contextWindowEnabled?: boolean;
+  /** Enables CodeBuddy models.json LanguageModel fields. */
+  codeBuddyConfigEnabled?: boolean;
   /** If provided, opens in add-model mode directly */
   initialAddMode?: boolean;
 }
@@ -138,6 +141,15 @@ function buildPricing(inputs: Record<PricingFieldKey, string>): ModelPricing | u
   return hasPricing(pricing) ? pricing : undefined;
 }
 
+function parseOptionalInteger(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  return Number.isSafeInteger(parsed) && parsed >= 1 && parsed <= CODEBUDDY_MODEL_TOKEN_MAX
+    ? parsed
+    : undefined;
+}
+
 /**
  * Custom Model Management Dialog
  * Full CRUD for plugin-level custom models in a modal dialog
@@ -150,6 +162,7 @@ export function CustomModelDialog({
   onConfiguredModelPricingChange,
   onClose,
   contextWindowEnabled = false,
+  codeBuddyConfigEnabled = false,
   initialAddMode = false,
 }: CustomModelDialogProps) {
   const { t } = useTranslation();
@@ -161,11 +174,20 @@ export function CustomModelDialog({
   const [newModelId, setNewModelId] = useState('');
   const [newModelLabel, setNewModelLabel] = useState('');
   const [newModelDesc, setNewModelDesc] = useState('');
+  const [newVendor, setNewVendor] = useState('');
+  const [newApiKey, setNewApiKey] = useState('');
+  const [newMaxInputTokens, setNewMaxInputTokens] = useState('');
+  const [newMaxOutputTokens, setNewMaxOutputTokens] = useState('');
+  const [newUrl, setNewUrl] = useState('');
+  const [newSupportsToolCall, setNewSupportsToolCall] = useState(false);
+  const [newSupportsImages, setNewSupportsImages] = useState(false);
+  const [newSupportsReasoning, setNewSupportsReasoning] = useState(false);
   const [newContextWindowK, setNewContextWindowK] = useState('');
   const [newPricingInputs, setNewPricingInputs] = useState<Record<PricingFieldKey, string>>({ ...EMPTY_PRICING_INPUTS });
   const [modelIdError, setModelIdError] = useState<string | null>(null);
   const [contextWindowError, setContextWindowError] = useState<string | null>(null);
   const [pricingError, setPricingError] = useState<string | null>(null);
+  const [codeBuddyConfigError, setCodeBuddyConfigError] = useState<string | null>(null);
   // Pricing is optional — collapsed by default to keep the form lightweight.
   const [pricingCollapsed, setPricingCollapsed] = useState(true);
 
@@ -176,11 +198,20 @@ export function CustomModelDialog({
     setNewModelId('');
     setNewModelLabel('');
     setNewModelDesc('');
+    setNewVendor('');
+    setNewApiKey('');
+    setNewMaxInputTokens('');
+    setNewMaxOutputTokens('');
+    setNewUrl('');
+    setNewSupportsToolCall(false);
+    setNewSupportsImages(false);
+    setNewSupportsReasoning(false);
     setNewContextWindowK('');
     setNewPricingInputs({ ...EMPTY_PRICING_INPUTS });
     setModelIdError(null);
     setContextWindowError(null);
     setPricingError(null);
+    setCodeBuddyConfigError(null);
     setPricingCollapsed(true);
   }, []);
 
@@ -252,6 +283,18 @@ export function CustomModelDialog({
     });
   }, [newContextWindowK, t]);
 
+  const validateCodeBuddyConfig = useCallback((): string | null => {
+    if (!codeBuddyConfigEnabled) return null;
+    const invalidInteger = [newMaxInputTokens, newMaxOutputTokens].some((value) =>
+      value.trim() !== '' && parseOptionalInteger(value) === undefined);
+    if (invalidInteger) {
+      return t('settings.codebuddyProvider.invalidModelConfig', {
+        defaultValue: 'Check token limits.',
+      });
+    }
+    return null;
+  }, [codeBuddyConfigEnabled, newMaxInputTokens, newMaxOutputTokens, t]);
+
   const buildModelFromForm = useCallback((): CodexCustomModel => {
     const sanitizedId = sanitizeInput(newModelId).trim();
     const sanitizedLabel = sanitizeInput(newModelLabel).trim();
@@ -264,12 +307,27 @@ export function CustomModelDialog({
       description: sanitizedDescription || undefined,
     };
 
+    if (codeBuddyConfigEnabled) {
+      const maxInputTokens = parseOptionalInteger(newMaxInputTokens);
+      const maxOutputTokens = parseOptionalInteger(newMaxOutputTokens);
+      Object.assign(model, {
+        vendor: newVendor.trim() || undefined,
+        apiKey: newApiKey.trim() || undefined,
+        maxInputTokens,
+        maxOutputTokens,
+        url: newUrl.trim() || undefined,
+        supportsToolCall: newSupportsToolCall,
+        supportsImages: newSupportsImages,
+        supportsReasoning: newSupportsReasoning,
+      });
+    }
+
     if (contextWindowEnabled && contextWindowTokens !== undefined) {
       model.contextWindowTokens = contextWindowTokens;
     }
 
     return pricing ? { ...model, pricing } : model;
-  }, [contextWindowEnabled, newModelId, newModelLabel, newModelDesc, newContextWindowK, newPricingInputs]);
+  }, [codeBuddyConfigEnabled, contextWindowEnabled, newApiKey, newContextWindowK, newMaxInputTokens, newMaxOutputTokens, newModelDesc, newModelId, newModelLabel, newPricingInputs, newSupportsImages, newSupportsReasoning, newSupportsToolCall, newUrl, newVendor]);
 
   const validateForm = useCallback((): boolean => {
     if (editingConfiguredModel) {
@@ -278,11 +336,13 @@ export function CustomModelDialog({
         setModelIdError(null);
         setContextWindowError(null);
         setPricingError(priceError);
+        setCodeBuddyConfigError(null);
         return false;
       }
       setModelIdError(null);
       setContextWindowError(null);
       setPricingError(null);
+      setCodeBuddyConfigError(null);
       return true;
     }
 
@@ -291,6 +351,7 @@ export function CustomModelDialog({
       setModelIdError(idError);
       setContextWindowError(null);
       setPricingError(null);
+      setCodeBuddyConfigError(null);
       return false;
     }
 
@@ -299,6 +360,16 @@ export function CustomModelDialog({
       setModelIdError(null);
       setContextWindowError(contextError);
       setPricingError(null);
+      setCodeBuddyConfigError(null);
+      return false;
+    }
+
+    const codeBuddyError = validateCodeBuddyConfig();
+    if (codeBuddyError) {
+      setModelIdError(null);
+      setContextWindowError(null);
+      setPricingError(null);
+      setCodeBuddyConfigError(codeBuddyError);
       return false;
     }
 
@@ -307,14 +378,16 @@ export function CustomModelDialog({
       setModelIdError(null);
       setContextWindowError(null);
       setPricingError(priceError);
+      setCodeBuddyConfigError(null);
       return false;
     }
 
     setModelIdError(null);
     setContextWindowError(null);
     setPricingError(null);
+    setCodeBuddyConfigError(null);
     return true;
-  }, [contextWindowEnabled, editingConfiguredModel, newModelId, validateContextWindowInput, validateModelId, validatePricingInputs]);
+  }, [contextWindowEnabled, editingConfiguredModel, newModelId, validateCodeBuddyConfig, validateContextWindowInput, validateModelId, validatePricingInputs]);
 
   const handleAddModel = useCallback(() => {
     if (!validateForm()) {
@@ -328,7 +401,13 @@ export function CustomModelDialog({
   const handleSaveEdit = useCallback(() => {
     if (!editingModel || !validateForm()) return;
 
-    const updatedModel = buildModelFromForm();
+    // Preserve the original scope when renaming: buildModelFromForm() produces a
+    // fresh object without __ccguiScope, so without copying it here a renamed
+    // project-scope model would fall back to 'user' in useCodeBuddyModelsConfig.
+    const updatedModel = {
+      ...buildModelFromForm(),
+      __ccguiScope: editingModel.__ccguiScope,
+    };
     const updatedModels = models.map(m => (m.id === editingModel.id ? updatedModel : m));
     onModelsChange(updatedModels);
     resetForm();
@@ -347,6 +426,14 @@ export function CustomModelDialog({
     setNewModelId(model.id);
     setNewModelLabel(model.label);
     setNewModelDesc(model.description || '');
+    setNewVendor(model.vendor || '');
+    setNewApiKey(model.apiKey || '');
+    setNewMaxInputTokens(model.maxInputTokens === undefined ? '' : String(model.maxInputTokens));
+    setNewMaxOutputTokens(model.maxOutputTokens === undefined ? '' : String(model.maxOutputTokens));
+    setNewUrl(model.url || '');
+    setNewSupportsToolCall(model.supportsToolCall ?? false);
+    setNewSupportsImages(model.supportsImages ?? false);
+    setNewSupportsReasoning(model.supportsReasoning ?? false);
     setNewContextWindowK(!contextWindowEnabled || model.contextWindowTokens === undefined
       ? ''
       : String(model.contextWindowTokens / CONTEXT_WINDOW_TOKENS_PER_K));
@@ -362,6 +449,7 @@ export function CustomModelDialog({
     setModelIdError(null);
     setContextWindowError(null);
     setPricingError(null);
+    setCodeBuddyConfigError(null);
   }, [contextWindowEnabled]);
 
   const handleEditConfiguredModelPricing = useCallback((model: CodexCustomModel) => {
@@ -444,6 +532,11 @@ export function CustomModelDialog({
                       {model.description && (
                         <div className={styles.modelItemDesc}>
                           {model.description}
+                        </div>
+                      )}
+                      {codeBuddyConfigEnabled && (model.vendor || model.url) && (
+                        <div className={styles.modelItemMetadata}>
+                          {[model.vendor, model.url].filter(Boolean).join(' · ')}
                         </div>
                       )}
                       <div className={styles.modelItemPricing}>
@@ -590,6 +683,61 @@ export function CustomModelDialog({
                 style={DESC_INPUT_STYLE}
                 disabled={isEditingConfiguredModel}
               />
+
+              {codeBuddyConfigEnabled && !isEditingConfiguredModel && (
+                <div className={styles.codeBuddyConfigSection}>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder={t('settings.codebuddyProvider.vendorPlaceholder', { defaultValue: '供应商' })}
+                    value={newVendor}
+                    onChange={(e) => setNewVendor(e.target.value)}
+                  />
+                  <input
+                    type="url"
+                    className="form-input"
+                    placeholder={t('settings.codebuddyProvider.urlPlaceholder', { defaultValue: 'BASE URL (OpenAI 兼容)' })}
+                    value={newUrl}
+                    onChange={(e) => setNewUrl(e.target.value)}
+                  />
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder={t('settings.codebuddyProvider.apiKeyPlaceholder', { defaultValue: 'API KEY' })}
+                    value={newApiKey}
+                    onChange={(e) => setNewApiKey(e.target.value)}
+                  />
+                  <div className={styles.checkboxGrid}>
+                    <label><input type="checkbox" checked={newSupportsToolCall} onChange={(e) => setNewSupportsToolCall(e.target.checked)} /> {t('settings.codebuddyProvider.supportsToolCall', { defaultValue: '工具调用' })}</label>
+                    <label><input type="checkbox" checked={newSupportsImages} onChange={(e) => setNewSupportsImages(e.target.checked)} /> {t('settings.codebuddyProvider.supportsImages', { defaultValue: '图片输入' })}</label>
+                    <label><input type="checkbox" checked={newSupportsReasoning} onChange={(e) => setNewSupportsReasoning(e.target.checked)} /> {t('settings.codebuddyProvider.supportsReasoning', { defaultValue: '推理' })}</label>
+                  </div>
+                  <div className={styles.formRow}>
+                    <input
+                      type="number"
+                      min="1"
+                      className="form-input"
+                      placeholder={t('settings.codebuddyProvider.maxInputTokensPlaceholder', { defaultValue: '输入（context）' })}
+                      value={newMaxInputTokens}
+                      onChange={(e) => setNewMaxInputTokens(e.target.value)}
+                    />
+                    <input
+                      type="number"
+                      min="1"
+                      className="form-input"
+                      placeholder={t('settings.codebuddyProvider.maxOutputTokensPlaceholder', { defaultValue: '输出（max output）' })}
+                      value={newMaxOutputTokens}
+                      onChange={(e) => setNewMaxOutputTokens(e.target.value)}
+                    />
+                  </div>
+                  <p className={styles.fieldHint}>
+                    {t('settings.codebuddyProvider.modelsJsonHint', { defaultValue: 'Saved directly to CodeBuddy models.json. API key may use ${ENV_VAR}.' })}
+                  </p>
+                  {codeBuddyConfigError && (
+                    <div className={styles.validationError} role="alert">{codeBuddyConfigError}</div>
+                  )}
+                </div>
+              )}
 
               {contextWindowEnabled && !isEditingConfiguredModel && (
                 <div className={styles.contextWindowField}>

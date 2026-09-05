@@ -390,6 +390,11 @@ export const ChatScreen = ({
             setSettingsProviderSubTab('cli');
             setCurrentView('settings');
           }}
+          onOpenCodeBuddySettings={() => {
+            setSettingsInitialTab('providers');
+            setSettingsProviderSubTab('codebuddy');
+            setCurrentView('settings');
+          }}
           onOpenPromptSettings={() => {
             setSettingsInitialTab('prompts');
             setCurrentView('settings');

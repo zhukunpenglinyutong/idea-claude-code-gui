@@ -76,8 +76,14 @@ interface ModelConfigSelectProps {
   currentProvider?: string;
   loading?: boolean;
   error?: string | null;
+  /** Machine-readable error code from the bridge (e.g. CODEBUDDY_LOCAL_CONFIG_REQUIRED). */
+  errorCode?: string | null;
+  /** Actionable fix for the error — e.g. open the CodeBuddy authorize page. */
+  onAuthorize?: () => void;
   onRetry?: () => void;
   onAddModel?: () => void;
+  /** Catalog entry for the selected model — drives per-model effort filtering. */
+  selectedModelInfo?: ModelInfo;
   longContextEnabled?: boolean;
   onLongContextChange?: (enabled: boolean) => void;
   reasoningEffort?: ReasoningEffort;
@@ -109,8 +115,11 @@ export const ModelConfigSelect = ({
   currentProvider = 'claude',
   loading = false,
   error = null,
+  errorCode,
+  onAuthorize,
   onRetry,
   onAddModel,
+  selectedModelInfo,
   longContextEnabled = true,
   onLongContextChange,
   reasoningEffort = 'high',
@@ -197,6 +206,7 @@ export const ModelConfigSelect = ({
     handleReasoningChange,
     selectedModel,
     currentProvider,
+    selectedModelInfo,
   );
 
   const strippedValue = strip1MContextSuffix(selectedModel);
@@ -342,6 +352,8 @@ export const ModelConfigSelect = ({
               currentProvider={currentProvider}
               loading={loading}
               error={error}
+              errorCode={errorCode}
+              onAuthorize={onAuthorize}
               onRetry={onRetry}
               onAddModel={onAddModel}
               longContextEnabled={longContextEnabled}
@@ -463,6 +475,7 @@ export const ModelConfigSelect = ({
                   onChange={handleReasoningChange}
                   selectedModel={selectedModel}
                   currentProvider={currentProvider}
+                  selectedModelInfo={selectedModelInfo}
                   embedded
                   triggerRef={effortTriggerRef}
                   onClose={closeMenu}

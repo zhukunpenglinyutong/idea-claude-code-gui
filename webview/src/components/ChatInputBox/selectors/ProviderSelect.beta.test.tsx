@@ -14,6 +14,7 @@ vi.mock('react-i18next', () => ({
       const map: Record<string, string> = {
         'providers.claude.label': 'Claude Code',
         'providers.codex.label': 'Codex',
+        'providers.codebuddy.label': 'CodeBuddy',
         'providers.grok.label': 'Grok CLI',
         'providers.kimi.label': 'Kimi CLI',
         'providers.minimax.label': 'MiniMax Code',
@@ -44,14 +45,14 @@ describe('ProviderSelect Beta badge and first-click notice', () => {
     window.updateCodexSubscriptionQuota = undefined;
   });
 
-  it('renders Beta badges on Grok, Kimi, MiniMax, OpenCode, PI, OMP and DSH', () => {
+  it('renders Beta badges on CodeBuddy, Grok, Kimi, MiniMax, OpenCode, PI, OMP and DSH', () => {
     render(<ProviderSelect value="claude" />);
     fireEvent.click(screen.getByRole('button'));
 
     const badges = screen.getAllByText('Beta');
-    expect(badges).toHaveLength(7);
+    expect(badges).toHaveLength(8);
 
-    for (const id of ['grok', 'kimi', 'minimax', 'opencode', 'pi', 'omp', 'dsh']) {
+    for (const id of ['codebuddy', 'grok', 'kimi', 'minimax', 'opencode', 'pi', 'omp', 'dsh']) {
       const row = document.querySelector(`[data-provider-id="${id}"]`);
       expect(row?.querySelector('.provider-beta-badge')).toBeTruthy();
     }

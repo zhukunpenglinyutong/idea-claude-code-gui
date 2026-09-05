@@ -3,9 +3,17 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const bridgeDir = dirname(fileURLToPath(import.meta.url));
 const channelManager = join(bridgeDir, 'channel-manager.js');
+
+test('dispatcher registers every supported provider handler', async () => {
+  const { providerHandlers } = await import(pathToFileURL(channelManager).href);
+  for (const provider of ['claude', 'codex', 'codebuddy', 'grok', 'kimi', 'opencode', 'pi', 'omp', 'dsh', 'system']) {
+    assert.equal(typeof providerHandlers[provider], 'function', `missing handler for ${provider}`);
+  }
+});
 
 test('system command keeps stdout reserved for its JSON response', () => {
   const result = spawnSync(process.execPath, [channelManager, 'system', 'checkCodexSdk'], {

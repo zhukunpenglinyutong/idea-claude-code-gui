@@ -33,6 +33,7 @@ export type ModelVendor =
   | 'meta'
   | 'cohere'
   | 'grok'
+  | 'codebuddy'
   | 'openrouter'
   | 'yi';
 
@@ -122,6 +123,7 @@ const PROVIDER_TO_VENDOR: Record<string, ModelVendor> = {
   // DeepSeek Harness — brand follows DeepSeek.
   dsh: 'deepseek',
   openrouter: 'openrouter',
+  codebuddy: 'codebuddy',
 };
 
 /**

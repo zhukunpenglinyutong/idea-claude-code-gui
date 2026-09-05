@@ -92,7 +92,7 @@ export const ModeSelect = ({
         && mode.id !== 'slow'
       );
     }
-    if (provider === 'grok' || provider === 'kimi' || provider === 'minimax' || provider === 'opencode' || provider === 'pi' || provider === 'dsh') {
+    if (provider === 'grok' || provider === 'kimi' || provider === 'minimax' || provider === 'opencode' || provider === 'pi' || provider === 'dsh' || provider === 'codebuddy') {
       // Headless CLI providers do not expose Claude/Codex native automatic reviewers.
       return AVAILABLE_MODES.filter((mode) => mode.id !== 'auto' && mode.id !== 'plan' && mode.id !== 'smol' && mode.id !== 'slow');
     }
@@ -124,6 +124,11 @@ export const ModeSelect = ({
       const info = modeOptions.find((mode) => mode.id === modeId);
       if (field === 'label' || field === 'shortLabel') return info?.label ?? modeId;
       return info?.[field] ?? info?.description ?? '';
+    }
+    if (provider === 'codebuddy' && modeId === 'bypassPermissions') {
+      const codeBuddyKey = `codebuddyModes.${modeId}.${field}`;
+      const fallbackKey = `modes.${modeId}.${field}`;
+      return t(codeBuddyKey, { defaultValue: t(fallbackKey) });
     }
 
     if (field === 'shortLabel') {

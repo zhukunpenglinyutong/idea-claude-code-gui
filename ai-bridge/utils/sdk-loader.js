@@ -27,6 +27,10 @@ const SDK_DEFINITIONS = {
     CODEX: {
         id: 'codex-sdk',
         npmPackage: '@openai/codex-sdk'
+    },
+    CODEBUDDY: {
+        id: 'codebuddy-sdk',
+        npmPackage: '@tencent-ai/agent-sdk'
     }
 };
 
@@ -133,6 +137,14 @@ export function isCodexSdkAvailable() {
         exists: exists
     });
     return exists;
+}
+
+/** Check whether the CodeBuddy Agent SDK is installed. */
+export function isCodeBuddySdkAvailable() {
+    const sdkId = 'codebuddy-sdk';
+    const npmPackage = '@tencent-ai/agent-sdk';
+    const sdkPath = getPackageDirFromRoot(getSdkRootDir(sdkId), npmPackage);
+    return existsSync(sdkPath);
 }
 
 /**
@@ -315,18 +327,40 @@ export async function loadBedrockSdk() {
             loadingPromises.delete('bedrock');
         }
     })();
-
     loadingPromises.set('bedrock', loadPromise);
     return loadPromise;
 }
 
-/**
- * Get the installation status of all SDKs
- */
+/** Dynamically load the CodeBuddy Agent SDK. */
+export async function loadCodeBuddySdk() {
+    if (sdkCache.has('codebuddy')) return sdkCache.get('codebuddy');
+    if (loadingPromises.has('codebuddy')) return loadingPromises.get('codebuddy');
+
+    const sdkRootDir = getSdkRootDir('codebuddy-sdk');
+    const npmPackage = '@tencent-ai/agent-sdk';
+    const sdkPath = getPackageDirFromRoot(sdkRootDir, npmPackage);
+    if (!existsSync(sdkPath)) throw new Error('SDK_NOT_INSTALLED:codebuddy');
+
+    const loadPromise = (async () => {
+        try {
+            const sdk = await import(resolveExternalPackageUrl(npmPackage, sdkRootDir));
+            sdkCache.set('codebuddy', sdk);
+            return sdk;
+        } catch (error) {
+            throw new Error(`Failed to load CodeBuddy SDK: ${error.message}`);
+        } finally {
+            loadingPromises.delete('codebuddy');
+        }
+    })();
+    loadingPromises.set('codebuddy', loadPromise);
+    return loadPromise;
+}
+
 export function getSdkStatus() {
     // Uses the same path resolution logic as DependencyManager
     const claudeInstalled = isClaudeSdkAvailable();
     const codexInstalled = isCodexSdkAvailable();
+    const codebuddyInstalled = isCodeBuddySdkAvailable();
 
     return {
         claude: {
@@ -336,6 +370,10 @@ export function getSdkStatus() {
         codex: {
             installed: codexInstalled,
             path: getPackageDirFromRoot(getSdkRootDir('codex-sdk'), '@openai/codex-sdk')
+        },
+        codebuddy: {
+            installed: codebuddyInstalled,
+            path: getPackageDirFromRoot(getSdkRootDir('codebuddy-sdk'), '@tencent-ai/agent-sdk')
         }
     };
 }
@@ -377,7 +415,7 @@ export function clearSdkCache() {
 
 /**
  * Verify that the SDK is installed, throwing a user-friendly error if not
- * @param {string} provider - 'claude' or 'codex'
+ * @param {string} provider - 'claude', 'codex' or 'codebuddy'
  * @throws {Error} If the SDK is not installed
  */
 export function requireSdk(provider) {
@@ -392,6 +430,13 @@ export function requireSdk(provider) {
         const error = new Error('Codex SDK not installed. Please install via Settings > Dependencies.');
         error.code = 'SDK_NOT_INSTALLED';
         error.provider = 'codex';
+        throw error;
+    }
+
+    if (provider === 'codebuddy' && !isCodeBuddySdkAvailable()) {
+        const error = new Error('CodeBuddy Agent SDK not installed. Please install via Settings > Dependencies.');
+        error.code = 'SDK_NOT_INSTALLED';
+        error.provider = 'codebuddy';
         throw error;
     }
 }

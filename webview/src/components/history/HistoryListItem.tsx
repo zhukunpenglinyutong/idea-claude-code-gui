@@ -230,7 +230,13 @@ export const HistoryListItem = memo(({
             <span
               className="history-provider-badge"
               style={PROVIDER_BADGE_STYLE}
-              title={session.provider === 'claude' ? 'Claude' : 'Codex'}
+              title={session.provider === 'claude'
+                ? 'Claude'
+                : session.provider === 'codex'
+                  ? 'Codex'
+                  : session.provider === 'codebuddy'
+                    ? 'CodeBuddy'
+                    : session.provider}
             >
               <ProviderModelIcon providerId={session.provider} size={20} colored />
             </span>

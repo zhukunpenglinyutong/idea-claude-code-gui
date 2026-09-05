@@ -9,6 +9,7 @@ import RewindSelectDialog, { type RewindableMessage } from './RewindSelectDialog
 import ChangelogDialog from './ChangelogDialog';
 import CustomModelDialog from './settings/CustomModelDialog';
 import { usePluginModels } from './settings/hooks/usePluginModels';
+import { useCodeBuddyModelsConfig } from './settings/hooks/useCodeBuddyModelsConfig';
 import { STORAGE_KEYS } from '../types/provider';
 import { CHANGELOG_DATA } from '../version/changelog';
 import { useDialogs } from '../contexts/DialogContext';
@@ -33,7 +34,17 @@ const AddModelDialogWrapper = ({
   const storageKey = currentProvider === 'codex'
     ? STORAGE_KEYS.CODEX_CUSTOM_MODELS
     : STORAGE_KEYS.CLAUDE_CUSTOM_MODELS;
-  const { models, updateModels } = usePluginModels(storageKey);
+  const pluginModels = usePluginModels(storageKey);
+  const codeBuddyModels = useCodeBuddyModelsConfig(currentProvider === 'codebuddy');
+  const models = currentProvider === 'codebuddy' ? codeBuddyModels.models : pluginModels.models;
+  const updateModels = currentProvider === 'codebuddy' ? codeBuddyModels.updateModels : pluginModels.updateModels;
+
+  useEffect(() => {
+    if (isOpen && currentProvider === 'codebuddy') {
+      codeBuddyModels.refresh();
+    }
+  }, [codeBuddyModels.refresh, currentProvider, isOpen]);
+
   return (
     <CustomModelDialog
       isOpen={isOpen}
@@ -41,6 +52,7 @@ const AddModelDialogWrapper = ({
       onModelsChange={updateModels}
       onClose={onClose}
       contextWindowEnabled={currentProvider === 'codex'}
+      codeBuddyConfigEnabled={currentProvider === 'codebuddy'}
       initialAddMode
     />
   );

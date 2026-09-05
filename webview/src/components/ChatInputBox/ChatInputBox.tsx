@@ -117,6 +117,7 @@ export const ChatInputBox = memo(forwardRef<ChatInputBoxHandle, ChatInputBoxProp
       onOpenPromptSettings,
       onOpenModelSettings,
       onOpenCliSettings,
+      onOpenCodeBuddySettings,
       hasMessages = false,
       onRewind,
       statusPanelExpanded = true,
@@ -802,6 +803,7 @@ export const ChatInputBox = memo(forwardRef<ChatInputBoxHandle, ChatInputBoxProp
           onAddModel={onOpenModelSettings}
           onClearAgent={() => onAgentSelect?.(null)}
           onOpenCliSettings={onOpenCliSettings}
+          onOpenCodeBuddySettings={onOpenCodeBuddySettings}
           longContextEnabled={longContextEnabled}
           onLongContextChange={onLongContextChange}
           fileCompletion={fileCompletion}

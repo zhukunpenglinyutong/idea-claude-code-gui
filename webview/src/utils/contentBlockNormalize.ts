@@ -286,7 +286,9 @@ export function normalizeBlocks(
       }
       const candidate = entry as Record<string, unknown>;
       const type = candidate.type as string | undefined;
-      if (type === 'text') {
+      // CodeBuddy transcripts use "input_text" / "output_text" for plain-text
+      // blocks; treat them like the canonical "text" type so they render.
+      if (type === 'text' || type === 'input_text' || type === 'output_text') {
         const rawText = typeof candidate.text === 'string' ? candidate.text : '';
         // Some replies contain placeholder text "(no content)", skip to avoid rendering empty content
         if (rawText.trim() === '(no content)') {

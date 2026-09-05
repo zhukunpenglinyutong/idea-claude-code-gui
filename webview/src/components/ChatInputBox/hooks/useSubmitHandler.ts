@@ -80,7 +80,7 @@ export function useSubmitHandler({
     if (!sdkInstalled) {
       addToast?.(
         t('chat.sdkNotInstalled', {
-          provider: currentProvider === 'codex' ? 'Codex' : 'Claude Code',
+          provider: currentProvider === 'codex' ? 'Codex' : currentProvider === 'codebuddy' ? 'CodeBuddy' : 'Claude Code',
         }) +
           ' ' +
           t('chat.goInstallSdk'),

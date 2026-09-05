@@ -611,7 +611,7 @@
       }
     },
     "providers": "Provider Management",
-    "providersDesc": "Manage Claude and Codex API provider configurations, switch API service providers, and check local CLI tool installation status",
+    "providersDesc": "Manage Claude, Codex, and CodeBuddy providers, switch AI services, and check local CLI tool installation status",
     "promptEnhancer": {
       "title": "Prompt Enhancer",
       "description": "Choose which provider and model should be used when enhancing prompts before sending them."
@@ -619,7 +619,33 @@
     "providerTab": {
       "claude": "Claude Code",
       "codex": "Codex",
-      "cli": "CLI"
+      "cli": "CLI",
+      "codebuddy": "CodeBuddy"
+    },
+    "codebuddyProvider": {
+      "title": "CodeBuddy Provider Management",
+      "description": "Authorize access to CodeBuddy CLI's local configuration before using it.",
+      "localConfig": "Use local CodeBuddy configuration",
+      "authorized": "Local configuration access is authorized; CodeBuddy can be called",
+      "notAuthorized": "Not authorized; CodeBuddy calls are disabled",
+      "authorizationRequired": "Authorize local configuration access before calling CodeBuddy.",
+      "loginRequired": "Run codebuddy cli and log in first, then authorize the plugin to use the local configuration.",
+      "refreshModels": "Refresh",
+      "modelsTitle": "CodeBuddy Custom Models",
+      "modelsDescription": "Models from the authorized configuration; configure new models using CodeBuddy's models.json format, then refresh.",
+      "noModels": "No CodeBuddy custom models found",
+      "deleteModel": "Delete model {{name}}",
+      "modelDeleted": "Deleted model {{name}}",
+      "vendorPlaceholder": "Vendor",
+      "apiKeyPlaceholder": "API KEY",
+      "urlPlaceholder": "BASE URL (OpenAI compatible)",
+      "maxInputTokensPlaceholder": "Input (context)",
+      "maxOutputTokensPlaceholder": "Output (max output)",
+      "supportsToolCall": "Tool calls",
+      "supportsImages": "Images",
+      "supportsReasoning": "Reasoning",
+      "modelsJsonHint": "Saved directly to CodeBuddy models.json. API key may use ${ENV_VAR}.",
+      "invalidModelConfig": "Check token limits."
     },
     "cli": {
       "hint": "These CLIs must be installed and configured in your system terminal. The plugin only detects installation status and version — it will never install them for you. Confirm each CLI works in the terminal before coming back here to use it.",
@@ -751,6 +777,8 @@
       "codexSdkName": "Codex SDK",
       "codexSdkDescription": "Required for Codex AI features. Includes OpenAI Codex SDK.",
       "loading": "Loading dependency status...",
+      "codeBuddySdkName": "CodeBuddy Agent SDK",
+      "codeBuddySdkDescription": "Required for CodeBuddy AI features. Includes @tencent-ai/agent-sdk.",
       "install": "Install",
       "installing": "Installing...",
       "uninstall": "Uninstall",
@@ -2084,7 +2112,8 @@
         "label": "Grok 4.6",
         "description": "xAI Grok 4.6"
       }
-    }
+    },
+    "codebuddyAuthorize": "Authorize CodeBuddy"
   },
   "modelConfig": {
     "title": "Model settings",
@@ -2125,6 +2154,13 @@
       "shortLabel": "Full Auto",
       "tooltip": "Bypass all permission checks",
       "description": "Fully automated, bypassing all permission checks [Use with caution]"
+    }
+  },
+  "codebuddyModes": {
+    "bypassPermissions": {
+      "label": "Full Auto",
+      "tooltip": "CodeBuddy can edit files and execute shell commands without prompts",
+      "description": "Fully automated CodeBuddy mode: file edits and shell commands run without confirmation."
     }
   },
   "codexModes": {
@@ -2184,6 +2220,9 @@
     },
     "codex": {
       "label": "Codex"
+    },
+    "codebuddy": {
+      "label": "CodeBuddy"
     },
     "grok": {
       "label": "Grok CLI"
@@ -2305,6 +2344,10 @@
   },
   "reasoning": {
     "title": "Select reasoning depth",
+    "minimal": {
+      "label": "Minimal",
+      "description": "Minimal reasoning for the fastest responses"
+    },
     "low": {
       "label": "Low",
       "description": "Quick responses with basic reasoning"
@@ -2393,12 +2436,29 @@
   },
   "dshPresets": {
     "title": "Select DeepSeek Harness agent preset",
-    "none": { "label": "Default", "description": "dsh default headless composition (full toolset)" },
-    "standard": { "label": "Standard", "description": "Full coding agent with the standard toolset" },
-    "code": { "label": "PTC", "description": "Standard capabilities with Code Mode" },
-    "minimal": { "label": "Minimal", "description": "Bash and str_replace_editor only" },
-    "cordis": { "label": "Creator", "description": "Standard capabilities plus composition authoring" },
-    "user": { "description": "Custom preset installed under the DSH home" }
+    "none": {
+      "label": "Default",
+      "description": "dsh default headless composition (full toolset)"
+    },
+    "standard": {
+      "label": "Standard",
+      "description": "Full coding agent with the standard toolset"
+    },
+    "code": {
+      "label": "PTC",
+      "description": "Standard capabilities with Code Mode"
+    },
+    "minimal": {
+      "label": "Minimal",
+      "description": "Bash and str_replace_editor only"
+    },
+    "cordis": {
+      "label": "Creator",
+      "description": "Standard capabilities plus composition authoring"
+    },
+    "user": {
+      "description": "Custom preset installed under the DSH home"
+    }
   },
   "error": {
     "providerNotConfigured": "Provider Not Configured",

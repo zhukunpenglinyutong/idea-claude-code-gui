@@ -276,6 +276,17 @@
   margin-top: 2px;
 }
 
+.selector-option .model-credits {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 1px 5px;
+  border: 1px solid var(--dropdown-border);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
 .selector-search-row {
   padding: 4px 8px;
 }

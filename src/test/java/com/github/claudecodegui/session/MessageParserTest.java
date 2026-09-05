@@ -119,4 +119,45 @@ public class MessageParserTest {
 
         assertNull(parser.parseServerMessage(raw));
     }
+
+    @Test
+    public void parseServerMessageExtractsCodeBuddyInputOutputTextBlocks() {
+        MessageParser parser = new MessageParser();
+
+        JsonArray userContent = new JsonArray();
+        JsonObject userText = new JsonObject();
+        userText.addProperty("type", "input_text");
+        userText.addProperty("text", "你好");
+        userContent.add(userText);
+
+        JsonObject userMessage = new JsonObject();
+        userMessage.add("content", userContent);
+
+        JsonObject userRaw = new JsonObject();
+        userRaw.addProperty("type", "user");
+        userRaw.add("message", userMessage);
+
+        ClaudeSession.Message userParsed = parser.parseServerMessage(userRaw);
+        assertNotNull(userParsed);
+        assertEquals(ClaudeSession.Message.Type.USER, userParsed.type);
+        assertEquals("你好", userParsed.content);
+
+        JsonArray assistantContent = new JsonArray();
+        JsonObject assistantText = new JsonObject();
+        assistantText.addProperty("type", "output_text");
+        assistantText.addProperty("text", "你好！有什么我可以帮你的吗？");
+        assistantContent.add(assistantText);
+
+        JsonObject assistantMessage = new JsonObject();
+        assistantMessage.add("content", assistantContent);
+
+        JsonObject assistantRaw = new JsonObject();
+        assistantRaw.addProperty("type", "assistant");
+        assistantRaw.add("message", assistantMessage);
+
+        ClaudeSession.Message assistantParsed = parser.parseServerMessage(assistantRaw);
+        assertNotNull(assistantParsed);
+        assertEquals(ClaudeSession.Message.Type.ASSISTANT, assistantParsed.type);
+        assertEquals("你好！有什么我可以帮你的吗？", assistantParsed.content);
+    }
 }

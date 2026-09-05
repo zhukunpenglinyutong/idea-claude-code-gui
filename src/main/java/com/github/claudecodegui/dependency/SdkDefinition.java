@@ -35,6 +35,17 @@ public enum SdkDefinition {
         Arrays.asList("0.151.0", "0.150.0", "0.146.0"),
         "Codex AI 提供商所需。",
         "0.146.0" // minRequiredVersion — approvals_reviewer config is available in the verified SDK floor
+    ),
+
+    CODEBUDDY_SDK(
+        "codebuddy-sdk",
+        "CodeBuddy Agent SDK",
+        "@tencent-ai/agent-sdk",
+        "latest",
+        Collections.emptyList(),
+        Collections.emptyList(),
+        "CodeBuddy AI 提供商所需。",
+        null
     );
 
     private final String id;
@@ -137,6 +148,8 @@ public enum SdkDefinition {
             return CLAUDE_SDK;
         } else if ("codex".equalsIgnoreCase(provider)) {
             return CODEX_SDK;
+        } else if ("codebuddy".equalsIgnoreCase(provider)) {
+            return CODEBUDDY_SDK;
         }
         return null;
     }

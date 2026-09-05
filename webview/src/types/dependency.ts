@@ -14,7 +14,7 @@
 /**
  * SDK ID type
  */
-export type SdkId = 'claude-sdk' | 'codex-sdk';
+export type SdkId = 'claude-sdk' | 'codex-sdk' | 'codebuddy-sdk';
 
 /**
  * SDK installation status
@@ -177,5 +177,11 @@ export const SDK_DEFINITIONS: SdkDefinition[] = [
     name: 'Codex SDK',
     description: 'Codex AI 提供商所需。包含 @openai/codex-sdk。',
     relatedProviders: ['openai'],
+  },
+  {
+    id: 'codebuddy-sdk',
+    name: 'CodeBuddy Agent SDK',
+    description: 'CodeBuddy AI 提供商所需。包含 @tencent-ai/agent-sdk。',
+    relatedProviders: ['codebuddy'],
   },
 ];

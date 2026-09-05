@@ -120,6 +120,37 @@ export function isValidCodexCustomModel(model: unknown): model is CodexCustomMod
     if (!isValidModelPricing(obj.pricing)) return false;
   }
 
+  const stringFields = ['vendor', 'apiKey', 'url'] as const;
+  for (const field of stringFields) {
+    if (obj[field] !== undefined && typeof obj[field] !== 'string') return false;
+  }
+  const tokenFields = ['maxInputTokens', 'maxOutputTokens'] as const;
+  for (const field of tokenFields) {
+    if (obj[field] !== undefined && (
+      typeof obj[field] !== 'number'
+      || !Number.isSafeInteger(obj[field])
+      || obj[field] < 1
+    )) return false;
+  }
+  if (obj.temperature !== undefined && (
+    typeof obj.temperature !== 'number'
+    || !Number.isFinite(obj.temperature)
+    || obj.temperature < 0
+    || obj.temperature > 2
+  )) return false;
+  const booleanFields = ['supportsToolCall', 'supportsImages', 'supportsReasoning'] as const;
+  for (const field of booleanFields) {
+    if (obj[field] !== undefined && typeof obj[field] !== 'boolean') return false;
+  }
+  if (obj.relatedModels !== undefined) {
+    if (!obj.relatedModels || typeof obj.relatedModels !== 'object' || Array.isArray(obj.relatedModels)) return false;
+    if (!Object.values(obj.relatedModels as Record<string, unknown>)
+      .every((value) => typeof value === 'string' && value.trim().length > 0)) return false;
+  }
+  if (obj.__ccguiScope !== undefined && obj.__ccguiScope !== 'user' && obj.__ccguiScope !== 'project') {
+    return false;
+  }
+
   return true;
 }
 
@@ -232,6 +263,19 @@ export interface CodexCustomModel {
   contextWindowTokens?: number;
   /** Optional per-million-token pricing for cost calculation */
   pricing?: ModelPricing;
+  /** CodeBuddy models.json source file for provider-managed models. */
+  __ccguiScope?: 'user' | 'project';
+  /** CodeBuddy LanguageModel fields. */
+  vendor?: string;
+  apiKey?: string;
+  maxInputTokens?: number;
+  maxOutputTokens?: number;
+  url?: string;
+  temperature?: number;
+  supportsToolCall?: boolean;
+  supportsImages?: boolean;
+  supportsReasoning?: boolean;
+  relatedModels?: Record<string, string>;
 }
 
 /**

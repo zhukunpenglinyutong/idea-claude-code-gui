@@ -611,7 +611,7 @@
       }
     },
     "providers": "供应商管理",
-    "providersDesc": "管理 Claude 和 Codex API 供应商配置，切换不同的 API 服务提供商；以及检测本地 CLI 工具的安装状态",
+    "providersDesc": "管理 Claude、Codex 和 CodeBuddy 供应商配置，切换不同的 AI 服务，并检测本地 CLI 工具的安装状态",
     "promptEnhancer": {
       "title": "增强提示词",
       "description": "配置增强提示词功能使用的 provider 与模型，在消息发送前对输入内容进行重写增强。"
@@ -619,7 +619,33 @@
     "providerTab": {
       "claude": "Claude Code",
       "codex": "Codex",
-      "cli": "CLI"
+      "cli": "CLI",
+      "codebuddy": "CodeBuddy"
+    },
+    "codebuddyProvider": {
+      "title": "CodeBuddy 供应商管理",
+      "description": "使用前请先授权插件读取 CodeBuddy CLI 的本地配置。",
+      "localConfig": "使用本地 CodeBuddy 配置信息",
+      "authorized": "已授权读取本地配置，可调用 CodeBuddy",
+      "notAuthorized": "未授权，CodeBuddy 调用已禁用",
+      "authorizationRequired": "需要使用本地配置信息后才能调用 CodeBuddy。",
+      "loginRequired": "请先通过 codebuddy cli 登录后，再授权插件使用本地配置信息。",
+      "refreshModels": "刷新",
+      "modelsTitle": "CodeBuddy 自定义模型",
+      "modelsDescription": "已授权配置中的模型；新增模型请先按 CodeBuddy models.json 规则配置，再刷新列表。",
+      "noModels": "未发现可用的 CodeBuddy 自定义模型",
+      "deleteModel": "删除模型 {{name}}",
+      "modelDeleted": "已删除模型 {{name}}",
+      "vendorPlaceholder": "供应商",
+      "apiKeyPlaceholder": "API KEY",
+      "urlPlaceholder": "BASE URL (OpenAI 兼容)",
+      "maxInputTokensPlaceholder": "输入（context）",
+      "maxOutputTokensPlaceholder": "输出（max output）",
+      "supportsToolCall": "工具调用",
+      "supportsImages": "图片输入",
+      "supportsReasoning": "推理",
+      "modelsJsonHint": "将直接保存到 CodeBuddy models.json；API 密钥支持 ${ENV_VAR}。",
+      "invalidModelConfig": "请检查 Token 上限。"
     },
     "cli": {
       "hint": "以下 CLI 需在系统终端自行安装并完成配置。插件只负责检测是否已安装及版本号，不会替你自动安装。请先在终端确认可正常使用，再回到此处使用。",
@@ -751,6 +777,8 @@
       "codexSdkName": "Codex SDK",
       "codexSdkDescription": "Codex AI 功能所需。包含 OpenAI Codex SDK。",
       "loading": "正在加载依赖状态...",
+      "codeBuddySdkName": "CodeBuddy Agent SDK",
+      "codeBuddySdkDescription": "CodeBuddy AI 功能所需。包含 @tencent-ai/agent-sdk。",
       "install": "安装",
       "installing": "安装中...",
       "uninstall": "卸载",
@@ -2089,7 +2117,8 @@
         "label": "Grok 4.6",
         "description": "xAI Grok 4.6"
       }
-    }
+    },
+    "codebuddyAuthorize": "去授权 CodeBuddy"
   },
   "modelConfig": {
     "title": "模型设置",
@@ -2130,6 +2159,13 @@
       "shortLabel": "全自动",
       "tooltip": "绕过所有权限检查",
       "description": "完全自动化，绕过所有权限检查【谨慎使用】"
+    }
+  },
+  "codebuddyModes": {
+    "bypassPermissions": {
+      "label": "全自动",
+      "tooltip": "CodeBuddy 可以直接修改文件并执行 Shell 命令，无需逐次确认",
+      "description": "CodeBuddy 全自动模式：文件修改和 Shell 命令会直接执行，不再弹出确认。"
     }
   },
   "codexModes": {
@@ -2190,6 +2226,9 @@
     },
     "codex": {
       "label": "Codex"
+    },
+    "codebuddy": {
+      "label": "CodeBuddy"
     },
     "grok": {
       "label": "Grok CLI"
@@ -2311,6 +2350,10 @@
   },
   "reasoning": {
     "title": "选择思考深度",
+    "minimal": {
+      "label": "极简",
+      "description": "以最少推理换取最快响应"
+    },
     "low": {
       "label": "low",
       "description": "快速响应，基础推理"
@@ -2399,12 +2442,29 @@
   },
   "dshPresets": {
     "title": "选择 DeepSeek Harness Agent 预设",
-    "none": { "label": "默认", "description": "dsh 默认 headless 组合（完整工具集）" },
-    "standard": { "label": "标准模式", "description": "功能完整的标准编码工具集" },
-    "code": { "label": "PTC 模式", "description": "标准能力加 Code Mode" },
-    "minimal": { "label": "极简模式", "description": "仅提供 bash 与 str_replace_editor" },
-    "cordis": { "label": "创造模式", "description": "标准能力加组合编排能力" },
-    "user": { "description": "安装在 DSH 主目录中的自定义预设" }
+    "none": {
+      "label": "默认",
+      "description": "dsh 默认 headless 组合（完整工具集）"
+    },
+    "standard": {
+      "label": "标准模式",
+      "description": "功能完整的标准编码工具集"
+    },
+    "code": {
+      "label": "PTC 模式",
+      "description": "标准能力加 Code Mode"
+    },
+    "minimal": {
+      "label": "极简模式",
+      "description": "仅提供 bash 与 str_replace_editor"
+    },
+    "cordis": {
+      "label": "创造模式",
+      "description": "标准能力加组合编排能力"
+    },
+    "user": {
+      "description": "安装在 DSH 主目录中的自定义预设"
+    }
   },
   "error": {
     "providerNotConfigured": "供应商未配置",

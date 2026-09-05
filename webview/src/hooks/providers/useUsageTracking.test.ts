@@ -45,4 +45,27 @@ describe('useUsageTracking', () => {
     expect(result.current.isSdkStatusKnown('codex')).toBe(true);
     expect(result.current.isSdkInstalled('codex')).toBe(false);
   });
+
+  it('gates CodeBuddy on its npm SDK even though it streams over the CLI protocol', () => {
+    const { result } = renderHook(() => useUsageTracking());
+
+    act(() => {
+      result.current.setSdkStatus({
+        'codebuddy-sdk': { status: 'not_installed', installed: false },
+      });
+      result.current.setSdkStatusLoaded(true);
+    });
+
+    // Unlike grok/kimi/dsh, CodeBuddy cannot run without @tencent-ai/agent-sdk.
+    expect(result.current.isSdkStatusKnown('codebuddy')).toBe(true);
+    expect(result.current.isSdkInstalled('codebuddy')).toBe(false);
+
+    act(() => {
+      result.current.setSdkStatus({
+        'codebuddy-sdk': { status: 'installed', installed: true },
+      });
+    });
+
+    expect(result.current.isSdkInstalled('codebuddy')).toBe(true);
+  });
 });

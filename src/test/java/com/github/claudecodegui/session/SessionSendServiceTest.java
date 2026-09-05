@@ -148,6 +148,22 @@ public class SessionSendServiceTest {
     }
 
     @Test
+    public void normalizeCliModelForProviderKeepsGatewayModelsForCodeBuddy() {
+        // CodeBuddy is a multi-model gateway: gpt-*/claude-* ids are real
+        // catalog entries, not cross-provider leftovers, so they must pass
+        // through instead of being dropped to the CLI default.
+        assertEquals("gpt-5.5", SessionSendService.normalizeCliModelForProvider("codebuddy", "gpt-5.5"));
+        assertEquals("claude-sonnet-5", SessionSendService.normalizeCliModelForProvider("codebuddy", "claude-sonnet-5"));
+        assertEquals("glm-4.7", SessionSendService.normalizeCliModelForProvider("codebuddy", "glm-4.7"));
+        // Other CLI providers still drop the prefixes.
+        assertNull(SessionSendService.normalizeCliModelForProvider("kimi", "gpt-5.5"));
+        assertNull(SessionSendService.normalizeCliModelForProvider("kimi", "claude-sonnet-5"));
+        // Sentinels stay normalized for codebuddy too.
+        assertNull(SessionSendService.normalizeCliModelForProvider("codebuddy", "auto"));
+        assertNull(SessionSendService.normalizeCliModelForProvider("codebuddy", "default"));
+    }
+
+    @Test
     public void normalizeRequestedReasoningEffortRejectsBlankAndUnknownValues() {
         assertNull(SessionSendService.normalizeRequestedReasoningEffort(null));
         assertNull(SessionSendService.normalizeRequestedReasoningEffort(" "));

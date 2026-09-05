@@ -1,19 +1,23 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ProviderConfig, CodexProviderConfig } from '../../../types/provider';
 import { STORAGE_KEYS } from '../../../types/provider';
 import ProviderManageSection from '../ProviderManageSection';
 import CodexProviderSection from '../CodexProviderSection';
+import CodeBuddyProviderSection from '../CodeBuddyProviderSection';
 import CliSection from '../CliSection';
 import CustomModelDialog from '../CustomModelDialog';
+import { ProviderModelIcon } from '../../shared/ProviderModelIcon';
 import { usePluginModels } from '../hooks/usePluginModels';
+import { useCodeBuddyModelsConfig } from '../hooks/useCodeBuddyModelsConfig';
 import { useConfiguredClaudeModelPricing } from '../hooks/useConfiguredModelPricing';
 import styles from './style.module.less';
 
 const ICON_14_STYLE: React.CSSProperties = { fontSize: 14 };
 const FLEX_1_STYLE: React.CSSProperties = { flex: 1 };
 
-export type ProviderManageTab = 'claude' | 'codex' | 'cli';
+export type ProviderManageTab = 'claude' | 'codex' | 'codebuddy' | 'cli';
+type ModelDialogTarget = 'claude' | 'codex' | 'codebuddy';
 
 interface ProviderTabSectionProps {
   currentProvider: 'claude' | 'codex' | string;
@@ -61,6 +65,7 @@ const ProviderTabSection = ({
   const [activeTab, setActiveTab] = useState<ProviderManageTab>(() => {
     if (initialSubTab) return initialSubTab;
     if (currentProvider === 'codex') return 'codex';
+    if (currentProvider === 'codebuddy') return 'codebuddy';
     // Grok / Kimi / MiniMax / OpenCode / PI / OMP / DSH share the CLI management surface.
     if (currentProvider === 'grok' || currentProvider === 'kimi'
       || currentProvider === 'minimax'
@@ -74,15 +79,16 @@ const ProviderTabSection = ({
   // Plugin-level custom model management
   const claudeModels = usePluginModels(STORAGE_KEYS.CLAUDE_CUSTOM_MODELS);
   const codexModels = usePluginModels(STORAGE_KEYS.CODEX_CUSTOM_MODELS);
+  const codeBuddyModels = useCodeBuddyModelsConfig(activeTab === 'codebuddy');
   const claudeConfiguredModelPricing = useConfiguredClaudeModelPricing(claudeModels.models);
 
   // Dialog state
   const [modelDialogOpen, setModelDialogOpen] = useState(false);
   const [modelDialogAddMode, setModelDialogAddMode] = useState(false);
   // Which plugin's models the dialog is editing
-  const [dialogTarget, setDialogTarget] = useState<'claude' | 'codex'>('claude');
+  const [dialogTarget, setDialogTarget] = useState<ModelDialogTarget>('claude');
 
-  const openModelDialog = useCallback((target: 'claude' | 'codex', addMode = false) => {
+  const openModelDialog = useCallback((target: ModelDialogTarget, addMode = false) => {
     setDialogTarget(target);
     setModelDialogAddMode(addMode);
     setModelDialogOpen(true);
@@ -93,7 +99,17 @@ const ProviderTabSection = ({
     setModelDialogAddMode(false);
   }, []);
 
-  const activeModels = dialogTarget === 'claude' ? claudeModels : codexModels;
+  const activeModels = dialogTarget === 'claude'
+    ? claudeModels
+    : dialogTarget === 'codex'
+      ? codexModels
+      : codeBuddyModels;
+
+  useEffect(() => {
+    if (modelDialogOpen && dialogTarget === 'codebuddy') {
+      codeBuddyModels.refresh();
+    }
+  }, [codeBuddyModels.refresh, dialogTarget, modelDialogOpen]);
 
   return (
     <div className={styles.providerTabSection}>
@@ -120,6 +136,16 @@ const ProviderTabSection = ({
         >
           <span className="codicon codicon-terminal" aria-hidden="true" />
           {t('settings.providerTab.codex')}
+        </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === 'codebuddy'}
+          aria-controls="panel-codebuddy-providers"
+          className={`${styles.tabBtn} ${activeTab === 'codebuddy' ? styles.active : ''}`}
+          onClick={() => setActiveTab('codebuddy')}
+        >
+          <ProviderModelIcon providerId="codebuddy" size={16} colored />
+          {t('settings.providerTab.codebuddy')}
         </button>
         <button
           role="tab"
@@ -210,6 +236,45 @@ const ProviderTabSection = ({
         </div>
       )}
 
+      {activeTab === 'codebuddy' && (
+        <div id="panel-codebuddy-providers" role="tabpanel">
+          <div
+            className={styles.pluginModelsRow}
+            onClick={() => openModelDialog('codebuddy')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openModelDialog('codebuddy'); }}
+          >
+            <span className="codicon codicon-symbol-misc" style={ICON_14_STYLE} />
+            <span className={styles.pluginModelsLabel}>
+              {t('settings.codebuddyProvider.modelsTitle')}
+            </span>
+            {codeBuddyModels.models.length > 0 && (
+              <span className={styles.pluginModelsBadge}>{codeBuddyModels.models.length}</span>
+            )}
+            <span style={FLEX_1_STYLE} />
+            <button
+              type="button"
+              className={styles.pluginModelsManageBtn}
+              onClick={(e) => { e.stopPropagation(); codeBuddyModels.refresh(); }}
+            >
+              {t('settings.codebuddyProvider.refreshModels')}
+            </button>
+            <button
+              type="button"
+              className={styles.pluginModelsManageBtn}
+              onClick={(e) => { e.stopPropagation(); openModelDialog('codebuddy'); }}
+            >
+              {t('settings.pluginModels.manage')}
+            </button>
+          </div>
+          <p className={styles.pluginModelsDescription}>
+            {t('settings.codebuddyProvider.modelsDescription')}
+          </p>
+          <CodeBuddyProviderSection addToast={addToast} showHeader={false} />
+        </div>
+      )}
+
       {activeTab === 'cli' && (
         <div id="panel-cli-tools" role="tabpanel">
           <CliSection addToast={addToast} />
@@ -229,6 +294,7 @@ const ProviderTabSection = ({
         }
         onClose={closeModelDialog}
         contextWindowEnabled={dialogTarget === 'codex'}
+        codeBuddyConfigEnabled={dialogTarget === 'codebuddy'}
         initialAddMode={modelDialogAddMode}
       />
     </div>

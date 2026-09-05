@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { REASONING_LEVELS, type ReasoningEffort } from '../types';
+import { REASONING_LEVELS, type ReasoningEffort, type ModelInfo } from '../types';
 import { useReasoningEffortGuard } from '../reasoningUtils';
 import { useDropdownPosition } from '../../../hooks/useDropdownPosition';
 
@@ -24,6 +24,7 @@ interface ReasoningSelectProps {
   disabled?: boolean;
   selectedModel?: string;
   currentProvider?: string;
+  selectedModelInfo?: ModelInfo;
   embedded?: boolean;
   triggerRef?: React.RefObject<HTMLElement | null>;
   onClose?: () => void;
@@ -44,6 +45,7 @@ export const ReasoningSelect = ({
   disabled,
   selectedModel,
   currentProvider,
+  selectedModelInfo,
   embedded = false,
   triggerRef,
   onClose,
@@ -67,6 +69,7 @@ export const ReasoningSelect = ({
     onChange,
     selectedModel,
     currentProvider,
+    selectedModelInfo,
   );
 
   /**

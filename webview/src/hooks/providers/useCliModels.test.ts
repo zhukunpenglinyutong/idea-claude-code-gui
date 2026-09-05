@@ -39,6 +39,13 @@ describe('useCliModels', () => {
     expect(sendBridgeEventMock).toHaveBeenCalledWith('get_cli_models', 'grok');
   });
 
+  it('fetches the CodeBuddy SDK catalog when CodeBuddy is active', () => {
+    const { result } = renderHook(() => useCliModels('codebuddy'));
+    expect(result.current.cliModels).toEqual([]);
+    expect(result.current.cliModelsLoading).toBe(true);
+    expect(sendBridgeEventMock).toHaveBeenCalledWith('get_cli_models', 'codebuddy');
+  });
+
   it('does not fetch for claude', () => {
     renderHook(() => useCliModels('claude'));
     expect(sendBridgeEventMock).not.toHaveBeenCalled();
@@ -95,6 +102,30 @@ describe('useCliModels', () => {
       result.current.refreshCliModels('codex');
     });
     expect(sendBridgeEventMock).toHaveBeenCalledWith('get_cli_models', 'codex');
+  });
+
+  it('does not re-send get_cli_models while a request is already in flight', () => {
+    renderHook(() => useCliModels('codebuddy'));
+    expect(sendBridgeEventMock).toHaveBeenCalledTimes(1);
+
+    // A payload for another provider updates modelsByProvider, which re-runs
+    // the fetch effect — the in-flight guard must swallow the duplicate.
+    emitCliModels({ success: true, provider: 'codex', models: [{ id: 'x', label: 'x' }] });
+
+    expect(sendBridgeEventMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('refetches codebuddy on models-config change even while a request is in flight', () => {
+    renderHook(() => useCliModels('codebuddy'));
+    expect(sendBridgeEventMock).toHaveBeenCalledTimes(1);
+
+    // The invalidation path clears the pending request before refetching, so
+    // the forced refetch is never swallowed by the in-flight guard.
+    act(() => {
+      window.dispatchEvent(new Event('codebuddy-models-config-changed'));
+    });
+
+    expect(sendBridgeEventMock).toHaveBeenCalledTimes(2);
   });
 
   it('refetches the codex catalog when the active codex provider changes', () => {

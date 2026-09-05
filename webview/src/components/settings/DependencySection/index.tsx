@@ -83,6 +83,12 @@ const SDK_DEFINITIONS = [
     description: 'settings.dependency.codexSdkDescription',
     relatedProviders: ['openai'],
   },
+  {
+    id: 'codebuddy-sdk' as SdkId,
+    nameKey: 'settings.dependency.codeBuddySdkName',
+    description: 'settings.dependency.codeBuddySdkDescription',
+    relatedProviders: ['codebuddy'],
+  },
 ];
 
 const VersionSelect = ({
@@ -178,6 +184,7 @@ const DependencySection = ({ addToast, isActive }: DependencySectionProps) => {
   const [loadingVersions, setLoadingVersions] = useState<Record<SdkId, boolean>>({
     'claude-sdk': false,
     'codex-sdk': false,
+    'codebuddy-sdk': false,
   });
   const logContainerRef = useRef<HTMLDivElement>(null);
   const isNodePathReadyRef = useRef(false);
@@ -455,6 +462,7 @@ const DependencySection = ({ addToast, isActive }: DependencySectionProps) => {
     setLoadingVersions({
       'claude-sdk': true,
       'codex-sdk': true,
+      'codebuddy-sdk': true,
     });
     setStatusError(false);
     setLoading(true);

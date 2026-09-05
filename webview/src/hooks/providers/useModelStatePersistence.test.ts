@@ -24,6 +24,7 @@ function makeOptions(overrides: Partial<UseModelStatePersistenceOptions> = {}): 
     setSelectedPiModel: vi.fn(),
     setSelectedOmpModel: vi.fn(),
     setSelectedDshModel: vi.fn(),
+    setSelectedCodeBuddyModel: vi.fn(),
     setGrokPermissionMode: vi.fn(),
     setKimiPermissionMode: vi.fn(),
     setMiniMaxPermissionMode: vi.fn(),
@@ -31,6 +32,7 @@ function makeOptions(overrides: Partial<UseModelStatePersistenceOptions> = {}): 
     setPiPermissionMode: vi.fn(),
     setOmpPermissionMode: vi.fn(),
     setDshPermissionMode: vi.fn(),
+    setCodeBuddyPermissionMode: vi.fn(),
     setPermissionMode: vi.fn(),
     setLongContextEnabled: vi.fn(),
     setReasoningEffort: vi.fn(),
@@ -48,6 +50,7 @@ function makeOptions(overrides: Partial<UseModelStatePersistenceOptions> = {}): 
     selectedPiModel: 'auto',
     selectedOmpModel: 'auto',
     selectedDshModel: 'auto',
+    selectedCodeBuddyModel: '',
     grokPermissionMode: 'default' as PermissionMode,
     kimiPermissionMode: 'default' as PermissionMode,
     miniMaxPermissionMode: 'default' as PermissionMode,
@@ -55,6 +58,7 @@ function makeOptions(overrides: Partial<UseModelStatePersistenceOptions> = {}): 
     piPermissionMode: 'default' as PermissionMode,
     ompPermissionMode: 'default' as PermissionMode,
     dshPermissionMode: 'default' as PermissionMode,
+    codeBuddyPermissionMode: 'default' as PermissionMode,
     longContextEnabled: false,
     reasoningEffort: 'medium',
     codexFastMode: 'normal',
@@ -501,5 +505,51 @@ describe('useModelStatePersistence — codex dynamic catalog models', () => {
 
     expect(setSelectedCodexModel).not.toHaveBeenCalled();
     expect(bridgeEventsFor('set_model')).toHaveLength(1);
+  });
+});
+
+describe('useModelStatePersistence — CodeBuddy restore', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sendBridgeEventMock.mockClear();
+    (window as unknown as { sendToJava?: unknown }).sendToJava = () => {};
+    window.__CCGUI_PAGE_CONTEXT_READY__ = true;
+    window.__CCGUI_RECOVERY_RELOAD__ = false;
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    delete (window as unknown as { sendToJava?: unknown }).sendToJava;
+    delete window.__CCGUI_PAGE_CONTEXT_READY__;
+    delete window.__CCGUI_RECOVERY_RELOAD__;
+  });
+
+  it('restores CodeBuddy provider, model and permission mode', () => {
+    const setCurrentProvider = vi.fn();
+    const setSelectedCodeBuddyModel = vi.fn();
+    const setCodeBuddyPermissionMode = vi.fn();
+    const setPermissionMode = vi.fn();
+    localStorage.setItem('model-selection-state', JSON.stringify({
+      provider: 'codebuddy',
+      codeBuddyModel: 'vendor/codebuddy-model',
+      codeBuddyPermissionMode: 'plan',
+      reasoningEffort: 'minimal',
+    }));
+
+    renderHook(() => useModelStatePersistence(makeOptions({
+      setCurrentProvider,
+      setSelectedCodeBuddyModel,
+      setCodeBuddyPermissionMode,
+      setPermissionMode,
+    })));
+    vi.advanceTimersByTime(200);
+
+    expect(setCurrentProvider).toHaveBeenCalledWith('codebuddy');
+    expect(setSelectedCodeBuddyModel).toHaveBeenCalledWith('vendor/codebuddy-model');
+    expect(setCodeBuddyPermissionMode).toHaveBeenCalledWith('default');
+    expect(setPermissionMode).toHaveBeenCalledWith('default');
+    expect(bridgeEventsFor('set_provider')).toEqual([['set_provider', 'codebuddy']]);
+    expect(bridgeEventsFor('set_model')).toEqual([['set_model', 'vendor/codebuddy-model']]);
   });
 });

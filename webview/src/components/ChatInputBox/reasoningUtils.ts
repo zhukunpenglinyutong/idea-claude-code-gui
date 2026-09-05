@@ -5,21 +5,38 @@ import {
   REASONING_LEVELS,
   XHIGH_EFFORT_CLAUDE_MODELS,
   codexModelSupportsMaxEffort,
+  type ModelInfo,
   type ReasoningEffort,
   type ReasoningInfo,
 } from './types';
 
-export function isReasoningVisible(currentProvider?: string, selectedModel?: string): boolean {
+export function isReasoningVisible(
+  currentProvider?: string,
+  selectedModel?: string,
+  selectedModelInfo?: ModelInfo,
+): boolean {
+  if (currentProvider === 'codebuddy') {
+    return selectedModelInfo?.reasoningSupported !== false;
+  }
   return currentProvider !== 'claude' || !selectedModel || EFFORT_SUPPORTED_CLAUDE_MODELS.has(selectedModel);
 }
 
 export function getAvailableReasoningLevels(
   currentProvider?: string,
   selectedModel?: string,
+  selectedModelInfo?: ModelInfo,
 ): ReasoningInfo[] {
   return REASONING_LEVELS.filter((level) => {
     if (currentProvider === 'grok') {
       return level.id === 'low' || level.id === 'medium' || level.id === 'high';
+    }
+    if (currentProvider === 'codebuddy') {
+      return !selectedModelInfo?.supportedEfforts
+        || selectedModelInfo.supportedEfforts.includes(level.id);
+    }
+    // 'minimal' is a CodeBuddy-only effort; other backends do not support it.
+    if (level.id === 'minimal') {
+      return false;
     }
     if (currentProvider === 'codex') {
       return level.id !== 'max' || (selectedModel !== undefined && codexModelSupportsMaxEffort(selectedModel));
@@ -54,15 +71,16 @@ export function useReasoningEffortGuard(
   onChange: (effort: ReasoningEffort) => void,
   selectedModel?: string,
   currentProvider?: string,
+  selectedModelInfo?: ModelInfo,
 ): {
   isVisible: boolean;
   availableLevels: ReasoningInfo[];
   currentLevel: ReasoningInfo | undefined;
 } {
-  const isVisible = isReasoningVisible(currentProvider, selectedModel);
+  const isVisible = isReasoningVisible(currentProvider, selectedModel, selectedModelInfo);
   const availableLevels = useMemo(
-    () => getAvailableReasoningLevels(currentProvider, selectedModel),
-    [currentProvider, selectedModel],
+    () => getAvailableReasoningLevels(currentProvider, selectedModel, selectedModelInfo),
+    [currentProvider, selectedModel, selectedModelInfo],
   );
   const currentLevel = resolveCurrentReasoningLevel(value, availableLevels);
 

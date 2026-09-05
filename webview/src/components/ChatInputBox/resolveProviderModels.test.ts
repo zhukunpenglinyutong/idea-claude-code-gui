@@ -115,6 +115,73 @@ describe('resolveProviderModels', () => {
     expect(result.some((m) => m.id === 'plan')).toBe(false);
   });
 
+  it('merges CodeBuddy SDK models with models.json customs', () => {
+    const models = [{ id: 'configured/codebuddy', label: 'Configured CodeBuddy' }];
+    expect(
+      resolveProviderModels({
+        provider: 'codebuddy',
+        cliModels: [{ id: 'sdk/model', label: 'SDK Model' }],
+        cliCatalogHasEntries: true,
+        codeBuddyCustomModels: models,
+      }),
+    ).toEqual([...models, { id: 'sdk/model', label: 'SDK Model' }]);
+  });
+
+  it('shows CodeBuddy SDK models when models.json is empty', () => {
+    const result = resolveProviderModels({
+      provider: 'codebuddy',
+      cliModels: [
+        { id: 'gpt-5.5', label: 'Discovered GPT-5.5' },
+        { id: 'vendor/discovered', label: 'Discovered Model' },
+      ],
+      codeBuddyCustomModels: [],
+    });
+
+    expect(result).toEqual([
+      { id: 'gpt-5.5', label: 'Discovered GPT-5.5' },
+      { id: 'vendor/discovered', label: 'Discovered Model' },
+    ]);
+  });
+
+  it('lets a models.json custom override a CodeBuddy built-in with the same ID', () => {
+    const custom = { id: 'gpt-5.5', label: 'Configured GPT-5.5', reasoningSupported: true };
+    const result = resolveProviderModels({
+      provider: 'codebuddy',
+      cliModels: [{ id: 'gpt-5.5', label: 'Discovered GPT-5.5' }, { id: 'gpt-5.4', label: 'Discovered GPT-5.4' }],
+      codeBuddyCustomModels: [custom],
+    });
+
+    expect(result).toEqual([custom, { id: 'gpt-5.4', label: 'Discovered GPT-5.4' }]);
+  });
+
+  it('dedupes CodeBuddy SDK custom-local:<id> entries against models.json customs', () => {
+    const custom = {
+      id: 'gpt-5.5',
+      label: 'Configured GPT-5.5',
+      vendor: 'gpt-5.5',
+      apiKey: 'sk-xxx',
+      url: 'https://codexapis.com/v1/chat/completions',
+      maxInputTokens: 300000,
+    };
+    const result = resolveProviderModels({
+      provider: 'codebuddy',
+      cliModels: [
+        { id: 'custom-local:gpt-5.5', label: 'gpt-5.5' },
+        { id: 'custom-local:gpt-5.4', label: 'gpt-5.4' },
+        { id: 'hy3', label: 'Hy3' },
+      ],
+      codeBuddyCustomModels: [custom],
+    });
+
+    // models.json copy (no prefix) wins; the SDK's custom-local:gpt-5.5 is dropped.
+    expect(result).toEqual([
+      custom,
+      { id: 'custom-local:gpt-5.4', label: 'gpt-5.4' },
+      { id: 'hy3', label: 'Hy3' },
+    ]);
+    expect(result.filter((m) => m.id === 'gpt-5.5' || m.id === 'custom-local:gpt-5.5')).toHaveLength(1);
+  });
+
   it('puts Claude customs first and keeps built-ins', () => {
     const customs = [{ id: 'my-claude', label: 'My Claude' }];
     const result = resolveProviderModels({

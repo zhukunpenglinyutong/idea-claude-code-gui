@@ -345,11 +345,37 @@
       }
     },
     "providers": "供應商管理",
-    "providersDesc": "管理 Claude 和 Codex API 供應商配置，切換不同的 API 服務提供商",
+    "providersDesc": "管理 Claude、Codex 和 CodeBuddy 供應商配置，切換不同的 AI 服務，並檢測本地 CLI 工具的安裝狀態",
     "providerTab": {
       "claude": "Claude Code",
       "codex": "Codex",
-      "cli": "CLI"
+      "cli": "CLI",
+      "codebuddy": "CodeBuddy"
+    },
+    "codebuddyProvider": {
+      "title": "CodeBuddy 供應商管理",
+      "description": "使用前請先授權插件讀取 CodeBuddy CLI 的本地配置。",
+      "localConfig": "使用本地 CodeBuddy 配置資訊",
+      "authorized": "已授權讀取本地配置，可呼叫 CodeBuddy",
+      "notAuthorized": "未授權，CodeBuddy 呼叫已停用",
+      "authorizationRequired": "需要使用本地配置資訊後才能呼叫 CodeBuddy。",
+      "loginRequired": "請先透過 codebuddy cli 登入後，再授權插件使用本地配置資訊。",
+      "refreshModels": "重新整理",
+      "modelsTitle": "CodeBuddy 自訂模型",
+      "modelsDescription": "已授權配置中的模型；新增模型請先按 CodeBuddy models.json 規則配置，再重新整理清單。",
+      "noModels": "未發現可用的 CodeBuddy 自訂模型",
+      "deleteModel": "刪除模型 {{name}}",
+      "modelDeleted": "已刪除模型 {{name}}",
+      "vendorPlaceholder": "供應商",
+      "apiKeyPlaceholder": "API KEY",
+      "urlPlaceholder": "BASE URL (OpenAI 相容)",
+      "maxInputTokensPlaceholder": "輸入（context）",
+      "maxOutputTokensPlaceholder": "輸出（max output）",
+      "supportsToolCall": "工具呼叫",
+      "supportsImages": "圖片輸入",
+      "supportsReasoning": "推理",
+      "modelsJsonHint": "將直接儲存到 CodeBuddy models.json；API 金鑰支援 ${ENV_VAR}。",
+      "invalidModelConfig": "請檢查 Token 上限。"
     },
     "pluginModels": {
       "title": "自訂模型",
@@ -394,6 +420,8 @@
       "claudeSdkDescription": "Claude AI 功能所需。包含 Claude Code SDK 及相關依賴。",
       "codexSdkName": "Codex SDK",
       "codexSdkDescription": "Codex AI 功能所需。包含 OpenAI Codex SDK。",
+      "codeBuddySdkName": "CodeBuddy Agent SDK",
+      "codeBuddySdkDescription": "CodeBuddy AI 功能所需。包含 @tencent-ai/agent-sdk。",
       "loading": "正在載入依賴狀態...",
       "install": "安裝",
       "installing": "安裝中...",
@@ -1641,7 +1669,8 @@
         "label": "GPT-5.4",
         "description": "最新前沿模型，能力進一步增強"
       }
-    }
+    },
+    "codebuddyAuthorize": "授權 CodeBuddy"
   },
   "modelConfig": {
     "title": "模型設定",
@@ -1682,6 +1711,13 @@
       "shortLabel": "全自動",
       "tooltip": "略過所有權限檢查",
       "description": "完全自動化，略過所有權限檢查【請謹慎使用】"
+    }
+  },
+  "codebuddyModes": {
+    "bypassPermissions": {
+      "label": "全自動",
+      "tooltip": "CodeBuddy 可以直接修改檔案並執行 Shell 命令，無需逐次確認",
+      "description": "CodeBuddy 全自動模式：檔案修改和 Shell 命令會直接執行，不再彈出確認。"
     }
   },
   "codexModes": {
@@ -1740,6 +1776,9 @@
     },
     "codex": {
       "label": "Codex"
+    },
+    "codebuddy": {
+      "label": "CodeBuddy"
     },
     "grok": {
       "label": "Grok CLI"
@@ -1827,6 +1866,10 @@
   },
   "reasoning": {
     "title": "選擇思考深度",
+    "minimal": {
+      "label": "極簡",
+      "description": "以最少推理換取最快回應"
+    },
     "low": {
       "label": "較少",
       "description": "快速響應，基礎推理"
@@ -1911,12 +1954,29 @@
   },
   "dshPresets": {
     "title": "選擇 DeepSeek Harness Agent 預設",
-    "none": { "label": "預設", "description": "dsh 預設 headless 組合（完整工具集）" },
-    "standard": { "label": "標準模式", "description": "功能完整的標準編碼工具集" },
-    "code": { "label": "PTC 模式", "description": "標準能力加 Code Mode" },
-    "minimal": { "label": "極簡模式", "description": "僅提供 bash 與 str_replace_editor" },
-    "cordis": { "label": "創造模式", "description": "標準能力加組合編排能力" },
-    "user": { "description": "安裝在 DSH 主目錄中的自訂預設" }
+    "none": {
+      "label": "預設",
+      "description": "dsh 預設 headless 組合（完整工具集）"
+    },
+    "standard": {
+      "label": "標準模式",
+      "description": "功能完整的標準編碼工具集"
+    },
+    "code": {
+      "label": "PTC 模式",
+      "description": "標準能力加 Code Mode"
+    },
+    "minimal": {
+      "label": "極簡模式",
+      "description": "僅提供 bash 與 str_replace_editor"
+    },
+    "cordis": {
+      "label": "創造模式",
+      "description": "標準能力加組合編排能力"
+    },
+    "user": {
+      "description": "安裝在 DSH 主目錄中的自訂預設"
+    }
   },
   "error": {
     "providerNotConfigured": "供應商未設定",

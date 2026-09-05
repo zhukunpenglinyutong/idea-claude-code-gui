@@ -244,7 +244,8 @@ public class MessageParser {
                     ? block.get("type").getAsString()
                     : null;
 
-                if ("text".equals(blockType) && block.has("text") && !block.get("text").isJsonNull()) {
+                if (("text".equals(blockType) || "input_text".equals(blockType) || "output_text".equals(blockType))
+                        && block.has("text") && !block.get("text").isJsonNull()) {
                     if (sb.length() > 0) {
                         sb.append("\n");
                     }
@@ -252,8 +253,8 @@ public class MessageParser {
                     hasContent = true;
                 } else if ("tool_use".equals(blockType)) {
                     // Skip tool_use block, don't display tool usage text
-                } else if ("thinking".equals(blockType)) {
-                    // Skip thinking block, don't display fixed text
+                } else if ("thinking".equals(blockType) || "reasoning_text".equals(blockType)) {
+                    // Skip thinking/reasoning block, don't display fixed text
                 } else if ("image".equals(blockType)) {
                     // Skip image block, don't display fixed text
                 }

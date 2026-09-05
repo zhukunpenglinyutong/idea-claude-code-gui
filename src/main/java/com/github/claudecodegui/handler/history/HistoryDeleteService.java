@@ -252,6 +252,9 @@ class HistoryDeleteService {
         if ("dsh".equals(currentProvider)) {
             return new DeleteResult(deleteDshSession(sessionId), 0);
         }
+        if ("codebuddy".equals(currentProvider)) {
+            return new DeleteResult(deleteCodeBuddySession(sessionId), 0);
+        }
 
         String rawPath = context.resolveEffectiveWorkingDirectory();
         String nodePath = NodeDetector.getInstance().getCachedNodePath();
@@ -340,6 +343,22 @@ class HistoryDeleteService {
         boolean archived = reader.deleteSession(sessionId, projectPath);
         LOG.info("[HistoryHandler] Archive DSH session " + sessionId + ": " + (archived ? "ok" : "failed"));
         return archived;
+    }
+
+    private boolean deleteCodeBuddySession(String sessionId) throws java.io.IOException {
+        String rawPath = context.resolveEffectiveWorkingDirectory();
+        if (rawPath == null || rawPath.isBlank()) {
+            LOG.warn("[HistoryHandler] CodeBuddy deletion rejected: working directory is required");
+            return false;
+        }
+        String nodePath = NodeDetector.getInstance().getCachedNodePath();
+        String projectPath = NodeDetector.isWslPath(nodePath)
+                ? NodeDetector.convertToWslPath(rawPath)
+                : rawPath;
+        boolean deleted = new com.github.claudecodegui.provider.codebuddy.CodeBuddyHistoryReader()
+                .deleteSession(sessionId, projectPath);
+        LOG.info("[HistoryHandler] Delete CodeBuddy session " + sessionId + ": " + (deleted ? "ok" : "not found"));
+        return deleted;
     }
 
     private boolean deleteCodexSession(String sessionId) throws java.io.IOException {

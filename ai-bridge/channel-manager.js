@@ -30,9 +30,12 @@
  */
 
 // Shared utilities
+import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import { readStdinData } from './utils/stdin-utils.js';
 import { handleClaudeCommand } from './channels/claude-channel.js';
 import { handleCodexCommand } from './channels/codex-channel.js';
+import { handleCodeBuddyCommand } from './channels/codebuddy-channel.js';
 import { handleGrokCommand } from './channels/grok-channel.js';
 import { handleKimiCommand } from './channels/kimi-channel.js';
 import { handleOpenCodeCommand } from './channels/opencode-channel.js';
@@ -144,9 +147,10 @@ async function handleSystemCommand(command, args, stdinData) {
   }
 }
 
-const providerHandlers = {
+export const providerHandlers = {
   claude: handleClaudeCommand,
   codex: handleCodexCommand,
+  codebuddy: handleCodeBuddyCommand,
   grok: handleGrokCommand,
   kimi: handleKimiCommand,
   opencode: handleOpenCodeCommand,
@@ -157,14 +161,19 @@ const providerHandlers = {
   system: handleSystemCommand
 };
 
-// Execute command
-(async () => {
+// Execute command only when invoked as the bridge entry point. Keeping the
+// dispatcher export importable makes it possible to smoke-test the registry
+// without starting a provider process.
+const isMainModule = process.argv[1]
+  && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+
+if (isMainModule) (async () => {
   console.error('[DIAG-EXEC] ========== STARTING EXECUTION ==========');
   try {
     // Validate provider
     console.error('[DIAG-EXEC] Validating provider...');
     if (!provider || !providerHandlers[provider]) {
-      console.error('Invalid provider. Use "claude", "codex", "grok", "kimi", "opencode", "pi", "omp", "dsh", "minimax", or "system"');
+      console.error('Invalid provider. Use "claude", "codex", "codebuddy", "grok", "kimi", "opencode", "pi", "omp", "dsh", "minimax", or "system"');
       writeJsonAndExit({
         success: false,
         error: 'Invalid provider: ' + provider

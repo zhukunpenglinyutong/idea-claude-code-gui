@@ -5,6 +5,7 @@ import com.github.claudecodegui.handler.core.HandlerContext;
 
 import com.github.claudecodegui.provider.claude.ClaudeHistoryReader;
 import com.github.claudecodegui.provider.codex.CodexHistoryReader;
+import com.github.claudecodegui.provider.codebuddy.CodeBuddyHistoryReader;
 import com.github.claudecodegui.provider.grok.GrokHistoryReader;
 import com.github.claudecodegui.provider.kimi.KimiHistoryReader;
 import com.github.claudecodegui.provider.minimax.MiniMaxHistoryReader;
@@ -132,6 +133,10 @@ class HistoryExportService {
             CodexHistoryReader codexReader = new CodexHistoryReader();
             String messagesJson = codexReader.getSessionMessagesAsJson(sessionId);
             return JsonParser.parseString(messagesJson != null ? messagesJson : "[]");
+        }
+        if ("codebuddy".equals(provider)) {
+            LOG.info("[HistoryHandler] 使用 CodeBuddyHistoryReader 导出 CodeBuddy 会话");
+            return toJsonArray(new CodeBuddyHistoryReader().getSessionMessages(sessionId, projectPath));
         }
         if ("grok".equals(provider)) {
             LOG.info("[HistoryHandler] 使用 GrokHistoryReader 导出 Grok 会话");
