@@ -27,6 +27,7 @@ export const startInitialSettingsRequest = (): void => {
     if (window.sendToJava) {
       window.sendToJava('get_streaming_enabled:');
       window.sendToJava('get_send_shortcut:');
+      window.sendToJava('get_chat_font_size:');
       window.sendToJava('get_auto_open_file_enabled:');
       window.sendToJava('get_permission_dialog_timeout:');
     } else {
@@ -137,6 +138,14 @@ export const drainPendingSettings = (): void => {
     const pending = w.__pendingSendShortcut as string;
     delete w.__pendingSendShortcut;
     window.updateSendShortcut?.(pending);
+  }
+
+  if (w.__pendingChatFontSize) {
+    const pending = w.__pendingChatFontSize as string;
+    delete w.__pendingChatFontSize;
+    // The main-app handler already applied the CSS variable when the payload
+    // first arrived; this drain only feeds the settings page state.
+    window.updateChatFontSize?.(pending);
   }
 
   if (w.__pendingAutoOpenFileEnabled) {

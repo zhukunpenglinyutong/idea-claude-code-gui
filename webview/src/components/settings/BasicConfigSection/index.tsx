@@ -2,6 +2,7 @@ import { useState } from 'react';
 import styles from './style.module.less';
 import { useTranslation } from 'react-i18next';
 import type { DiffThemeMode } from '../../../utils/diffTheme';
+import type { ChatFontSizeValue } from '../../../utils/chatFontSize';
 import type { UiFontConfig, CodeFontConfig } from '../hooks/useSettingsBasicActions';
 import AppearanceTab from './AppearanceTab';
 import BehaviorTab from './BehaviorTab';
@@ -56,6 +57,9 @@ interface BasicConfigSectionProps {
   // Send shortcut configuration
   sendShortcut?: 'enter' | 'cmdEnter';
   onSendShortcutChange?: (shortcut: 'enter' | 'cmdEnter') => void;
+  // Chat content font size configuration
+  chatFontSize?: ChatFontSizeValue;
+  onChatFontSizeChange?: (size: ChatFontSizeValue) => void;
   // Chat background color configuration
   chatBgColor?: string;
   onChatBgColorChange?: (color: string) => void;
@@ -143,6 +147,8 @@ const BasicConfigSection = (props: BasicConfigSectionProps) => {
           onThemeChange={props.onThemeChange}
           fontSizeLevel={props.fontSizeLevel}
           onFontSizeLevelChange={props.onFontSizeLevelChange}
+          chatFontSize={props.chatFontSize}
+          onChatFontSizeChange={props.onChatFontSizeChange}
           editorFontConfig={props.editorFontConfig}
           uiFontConfig={props.uiFontConfig}
           codeFontConfig={props.codeFontConfig}

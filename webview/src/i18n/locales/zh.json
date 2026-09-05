@@ -430,6 +430,10 @@
         "level5": "大（120%）",
         "level6": "最大（140%）"
       },
+      "chatFontSize": {
+        "label": "聊天正文字号",
+        "followEditor": "跟随编辑器字体"
+      },
       "editorFont": {
         "label": "UI 字体",
         "hint": "这里修改的是插件界面字体。代码可以使用单独的代码字体。",

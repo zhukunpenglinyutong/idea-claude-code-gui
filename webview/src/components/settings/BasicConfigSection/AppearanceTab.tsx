@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import styles from './style.module.less';
 import { useTranslation } from 'react-i18next';
 import type { DiffThemeMode } from '../../../utils/diffTheme';
+import type { ChatFontSizeValue } from '../../../utils/chatFontSize';
+import { CHAT_FONT_SIZE_OPTIONS, CHAT_FONT_SIZE_FOLLOW_EDITOR } from '../../../utils/chatFontSize';
 import type { UiFontConfig, CodeFontConfig } from '../hooks/useSettingsBasicActions';
 
 // Preset colors (module-level constants to avoid recreating on each render)
@@ -125,6 +127,8 @@ export interface AppearanceTabProps {
   onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
   fontSizeLevel: number;
   onFontSizeLevelChange: (level: number) => void;
+  chatFontSize?: ChatFontSizeValue;
+  onChatFontSizeChange?: (size: ChatFontSizeValue) => void;
   editorFontConfig?: {
     fontFamily: string;
     fontSize: number;
@@ -153,6 +157,8 @@ const AppearanceTab = ({
   onThemeChange,
   fontSizeLevel,
   onFontSizeLevelChange,
+  chatFontSize = CHAT_FONT_SIZE_FOLLOW_EDITOR,
+  onChatFontSizeChange,
   editorFontConfig,
   uiFontConfig,
   codeFontConfig,
@@ -523,6 +529,29 @@ const AppearanceTab = ({
           <option value={4}>{t('settings.basic.fontSize.level4')}</option>
           <option value={5}>{t('settings.basic.fontSize.level5')}</option>
           <option value={6}>{t('settings.basic.fontSize.level6')}</option>
+        </select>
+      </div>
+
+      {/* Chat content font size (absolute, independent of the editor font) */}
+      <div className={styles.fontSizeSection}>
+        <div className={styles.fieldHeader}>
+          <span className="codicon codicon-text-size" />
+          <span className={styles.fieldLabel}>{t('settings.basic.chatFontSize.label')}</span>
+        </div>
+        <select
+          className={styles.fontSizeSelect}
+          aria-label={t('settings.basic.chatFontSize.label')}
+          value={chatFontSize}
+          onChange={(e) => onChatFontSizeChange?.(e.target.value as ChatFontSizeValue)}
+        >
+          <option value={CHAT_FONT_SIZE_FOLLOW_EDITOR}>
+            {t('settings.basic.chatFontSize.followEditor')}
+          </option>
+          {CHAT_FONT_SIZE_OPTIONS.map((size) => (
+            <option key={size} value={size}>
+              {size}px
+            </option>
+          ))}
         </select>
       </div>
 

@@ -17,6 +17,7 @@ import { installRuntimeProviderDispatchers } from './utils/runtimeProviderCapabi
 import { sendBridgeEvent } from './utils/bridge';
 import { debugLog } from './utils/debug';
 import { forceWebviewRepaint } from './utils/forceWebviewRepaint';
+import { applyChatFontSizeJson } from './utils/chatFontSize';
 import {
   advanceSurfaceDamagePulse,
   beginSurfaceDamagePulse,
@@ -622,6 +623,17 @@ if (typeof window !== 'undefined' && !window.updateSendShortcut) {
   window.updateSendShortcut = (json: string) => {
     debugLog('[Main] Storing pending send shortcut status, length=' + (json ? json.length : 0));
     window.__pendingSendShortcut = json;
+  };
+}
+
+// Pre-register updateChatFontSize: apply the chat content font size immediately
+// (even before React mounts) and retain the payload for the settings page drain.
+if (typeof window !== 'undefined' && !window.updateChatFontSize) {
+  debugLog('[Main] Pre-registering updateChatFontSize handler');
+  window.updateChatFontSize = (json: string) => {
+    debugLog('[Main] Applying chat font size, length=' + (json ? json.length : 0));
+    window.__pendingChatFontSize = json;
+    applyChatFontSizeJson(json);
   };
 }
 

@@ -401,6 +401,11 @@ interface Window {
   updateSendShortcut?: (json: string) => void;
 
   /**
+   * Update chat content font size ("followEditor" or a px number as string)
+   */
+  updateChatFontSize?: (json: string) => void;
+
+  /**
    * Update auto open file enabled setting
    */
   updateAutoOpenFileEnabled?: (json: string) => void;
@@ -1021,6 +1026,11 @@ interface Window {
    * Pending send shortcut status before React initialization
    */
   __pendingSendShortcut?: string;
+
+  /**
+   * Pending chat font size payload before settings page initialization
+   */
+  __pendingChatFontSize?: string;
 
   /**
    * Pending auto open file enabled status before React initialization

@@ -250,4 +250,36 @@ describe('AppearanceTab ui font selector', () => {
 
     expect(onChatBarColorChange).toHaveBeenCalledWith('');
   });
+
+  it('renders the chat content font size select with follow-editor default and px options', () => {
+    renderAppearanceTab();
+
+    const select = screen.getByRole('combobox', {
+      name: 'settings.basic.chatFontSize.label',
+    }) as HTMLSelectElement;
+    const options = within(select).getAllByRole('option');
+
+    expect(select.value).toBe('followEditor');
+    expect(options[0]?.textContent).toBe('settings.basic.chatFontSize.followEditor');
+    // Numeric px options follow the follow-editor option.
+    expect(options).toHaveLength(8);
+    expect(options[1]?.textContent).toBe('12px');
+    expect(options[7]?.textContent).toBe('20px');
+  });
+
+  it('shows the persisted chat font size and reports changes', () => {
+    const onChatFontSizeChange = vi.fn();
+    renderAppearanceTab({ chatFontSize: '14', onChatFontSizeChange });
+
+    const select = screen.getByRole('combobox', {
+      name: 'settings.basic.chatFontSize.label',
+    }) as HTMLSelectElement;
+    expect(select.value).toBe('14');
+
+    fireEvent.change(select, { target: { value: '13' } });
+    expect(onChatFontSizeChange).toHaveBeenCalledWith('13');
+
+    fireEvent.change(select, { target: { value: 'followEditor' } });
+    expect(onChatFontSizeChange).toHaveBeenCalledWith('followEditor');
+  });
 });

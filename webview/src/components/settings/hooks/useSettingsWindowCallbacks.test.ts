@@ -37,6 +37,7 @@ describe('useSettingsWindowCallbacks', () => {
     setLocalStreamingEnabled: vi.fn(),
     setCodexSandboxMode: vi.fn(),
     setLocalSendShortcut: vi.fn(),
+    setLocalChatFontSize: vi.fn(),
     setLoading: vi.fn(),
     setCodexLoading: vi.fn(),
     setCodexConfigLoading: vi.fn(),

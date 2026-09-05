@@ -140,6 +140,8 @@ const SettingsView = ({
     setCodexSandboxMode,
     setLocalSendShortcut,
     sendShortcut,
+    setLocalChatFontSize,
+    chatFontSize,
     autoOpenFileEnabled,
     promptEnhancerConfig,
     setPromptEnhancerConfig,
@@ -173,6 +175,7 @@ const SettingsView = ({
     handleStreamingEnabledChange,
     handleCodexSandboxModeChange,
     handleSendShortcutChange,
+    handleChatFontSizeChange,
     handleAutoOpenFileEnabledChange,
     handleSoundNotificationEnabledChange,
     handleSoundOnlyWhenUnfocusedChange,
@@ -361,6 +364,7 @@ const SettingsView = ({
     setLocalStreamingEnabled,
     setCodexSandboxMode,
     setLocalSendShortcut,
+    setLocalChatFontSize,
     setLoading,
     setCodexLoading,
     setCodexConfigLoading,
@@ -537,6 +541,8 @@ const SettingsView = ({
               onStreamingEnabledChange={handleStreamingEnabledChange}
               sendShortcut={sendShortcut}
               onSendShortcutChange={handleSendShortcutChange}
+              chatFontSize={chatFontSize}
+              onChatFontSizeChange={handleChatFontSizeChange}
               autoOpenFileEnabled={autoOpenFileEnabled}
               onAutoOpenFileEnabledChange={handleAutoOpenFileEnabledChange}
               chatBgColor={chatBgColor}

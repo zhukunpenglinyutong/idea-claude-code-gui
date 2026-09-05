@@ -188,6 +188,10 @@
         "level5": "Grande (120%)",
         "level6": "Máximo (140%)"
       },
+      "chatFontSize": {
+        "label": "Tamaño de fuente del chat",
+        "followEditor": "Seguir la fuente del editor"
+      },
       "editorFont": {
         "label": "Fuente UI",
         "hint": "Aquí cambias la fuente de la interfaz del plugin; el código puede usar una fuente aparte.",

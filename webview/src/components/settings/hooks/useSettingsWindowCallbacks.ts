@@ -7,6 +7,8 @@ import type { PromptConfig } from '../../../types/prompt';
 import type { CommitAiConfig } from '../../../types/aiFeatureConfig';
 import { normalizeAiFeatureConfig, DEFAULT_COMMIT_AI_CONFIG } from '../../../types/aiFeatureConfig';
 import type { UiFontConfig, CodeFontConfig } from './useSettingsBasicActions';
+import type { ChatFontSizeValue } from '../../../utils/chatFontSize';
+import { applyChatFontSizeJson } from '../../../utils/chatFontSize';
 import type { PromptEnhancerConfig } from '../../../types/promptEnhancer';
 import { normalizePromptEnhancerConfig } from '../../../types/promptEnhancer';
 import type { AlertType } from '../../AlertDialog';
@@ -41,6 +43,7 @@ export const SETTINGS_BOOTSTRAP_BRIDGE_MESSAGES = [
   'get_editor_font_config:',
   'get_ui_font_config:',
   'get_code_font_config:',
+  'get_chat_font_size:',
   // Behavior / feature toggles (basic tab sub-views)
   'get_sound_notification_config:',
   'get_commit_generation_enabled:',
@@ -78,6 +81,7 @@ export interface SettingsWindowCallbacksDeps {
   setLocalStreamingEnabled: (enabled: boolean) => void;
   setCodexSandboxMode?: (mode: 'workspace-write' | 'danger-full-access') => void;
   setLocalSendShortcut: (shortcut: 'enter' | 'cmdEnter') => void;
+  setLocalChatFontSize: (size: ChatFontSizeValue) => void;
   setLoading: (loading: boolean) => void;
   setCodexLoading: (loading: boolean) => void;
   setCodexConfigLoading: (loading: boolean) => void;
@@ -309,6 +313,23 @@ export function useSettingsWindowCallbacks(deps: SettingsWindowCallbacksDeps) {
         }
       };
     }
+
+    // Chat content font size callback (Java pushes on get/set_chat_font_size).
+    // Must ALSO apply the CSS variable here: while the settings page is open,
+    // this callback replaces the main.tsx handler, and the live chat view
+    // behind the settings needs the change immediately.
+    const previousUpdateChatFontSize = window.updateChatFontSize;
+    window.updateChatFontSize = (jsonStr: string) => {
+      try {
+        applyChatFontSizeJson(jsonStr);
+        const data = JSON.parse(jsonStr);
+        if (typeof data?.chatFontSize === 'string') {
+          d().setLocalChatFontSize(data.chatFontSize as ChatFontSizeValue);
+        }
+      } catch (error) {
+        console.error('[SettingsView] Failed to parse chat font size config:', error);
+      }
+    };
 
     // Commit AI prompt callback
     window.updateCommitPrompt = (jsonStr: string) => {
@@ -609,6 +630,7 @@ export function useSettingsWindowCallbacks(deps: SettingsWindowCallbacksDeps) {
       if (!d().onSendShortcutChangeProp) {
         window.updateSendShortcut = previousUpdateSendShortcut;
       }
+      window.updateChatFontSize = previousUpdateChatFontSize;
       window.updateCommitPrompt = undefined;
       window.updateCommitAiConfig = undefined;
       window.updatePromptEnhancerConfig = undefined;
