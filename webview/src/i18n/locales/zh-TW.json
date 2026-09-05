@@ -86,7 +86,8 @@
     "retrySdkStatus": "重試",
     "openSourceBanner": "本專案保證100%開源和免費（謹防盜版項目）",
     "openSourceBannerStar": "點個 Star",
-    "openSourceBannerStarAria": "前往 GitHub 點 Star",
+    "openSourceBannerStarToast": "已複製倉庫地址到剪貼簿，複製到瀏覽器即可訪問 ⭐",
+    "openSourceBannerStarAria": "複製倉庫地址並前往 GitHub 點 Star",
     "goInstallSdk": "前往安裝",
     "commandNotImplemented": "`{{command}}` 功能尚未實現。",
     "clearCommandDescription": "清除對話歷史並新建會話",
@@ -146,6 +147,39 @@
         "lightDesc": "清爽明亮，適合白天使用",
         "dark": "暗色",
         "darkDesc": "護眼舒適，適合夜間使用"
+      },
+      "uiStyle": {
+        "label": "介面風格",
+        "default": "原版經典",
+        "defaultDesc": "經典 IDE 緊湊純粹風格",
+        "lightGlass": "晶透毛玻璃",
+        "lightGlassDesc": "懸浮塢通透毛玻璃與晶瑩光感",
+        "antigravity": "極簡膠囊",
+        "antigravityDesc": "圓角膠囊與流線懸浮塢",
+        "codebuddy": "純白卡片",
+        "codebuddyDesc": "明晰白卡與工程流式排版",
+        "idea": "深空深藍",
+        "ideaDesc": "深空藍灰與沉浸工程質感",
+        "vscode": "經典純藍",
+        "vscodeDesc": "經典開發藍與緊湊編輯器介面",
+        "qq": "天藍氣泡",
+        "qqDesc": "輕快天藍氣泡與輕盈對話體驗",
+        "wechat": "柔和蒼翠",
+        "wechatDesc": "親和青翠氣泡與極簡聊天質感",
+        "notion": "極簡紙感",
+        "notionDesc": "低灰紙感、細邊框與專注排版",
+        "arcGlass": "圓角輕晶",
+        "arcGlassDesc": "膠囊懸浮與局部透光質感",
+        "warp": "暗色終端",
+        "warpDesc": "深空終端色與高辨識狀態色",
+        "vercel": "極夜黑藍",
+        "vercelDesc": "深邃黑藍背景與現代層次排版",
+        "claudeWarm": "暖調陶土",
+        "claudeWarmDesc": "米白暖灰配陶土暖色調",
+        "solarized": "經典舒目",
+        "solarizedDesc": "經典低對比度舒目閱讀配色",
+        "custom": "自訂主題",
+        "customDesc": "使用自訂色彩與效果建立專屬主題"
       },
       "language": {
         "label": "介面語言",
@@ -285,8 +319,65 @@
         "disabled": "已關閉",
         "hint": "開啟後，僅在 IDE 視窗未聚焦時顯示任務完成與提問系統通知。"
       },
+      "customTheme": {
+        "label": "自訂主題",
+        "namePlaceholder": "輸入主題名稱...",
+        "presetTemplates": "精選預設範本",
+        "presets": {
+          "nebulaGlow": "星雲極光",
+          "frostedGlass": "晶透毛玻璃",
+          "deepOcean": "深海幽藍",
+          "sunsetAmber": "日落暖金",
+          "forestEmerald": "林間蒼翠",
+          "porcelainLight": "白瓷明亮"
+        },
+        "presetApplied": "已載入範本：{{name}}",
+        "bgPrimary": "主背景",
+        "bgSecondary": "次級背景",
+        "bgTertiary": "三級背景",
+        "bgElevated": "浮層背景",
+        "bgHover": "懸停背景",
+        "textPrimary": "主文字",
+        "textSecondary": "次級文字",
+        "borderPrimary": "主邊框",
+        "borderSecondary": "次級邊框",
+        "accentPrimary": "強調色",
+        "accentHover": "強調懸停",
+        "userBubble": "使用者氣泡",
+        "userText": "氣泡文字",
+        "radius": "圓角比例",
+        "glass": "毛玻璃強度",
+        "import": "匯入 JSON",
+        "export": "複製設定",
+        "reset": "恢復預設",
+        "imported": "主題已匯入並套用",
+        "exported": "主題設定已複製",
+        "invalid": "JSON 格式無效，已保留目前主題",
+        "invalidColor": "請輸入有效的色彩值"
+      },
       "soundNotification": {
-        "label": "任務完成提示音",
+        "label": "自訂主題",
+        "bgPrimary": "主背景",
+        "bgSecondary": "次級背景",
+        "bgTertiary": "三級背景",
+        "bgElevated": "浮層背景",
+        "bgHover": "懸停背景",
+        "textPrimary": "主文字",
+        "textSecondary": "次級文字",
+        "borderPrimary": "主邊框",
+        "borderSecondary": "次級邊框",
+        "accentPrimary": "強調色",
+        "accentHover": "強調懸停",
+        "userBubble": "使用者氣泡",
+        "userText": "氣泡文字",
+        "radius": "圓角",
+        "glass": "玻璃強度",
+        "import": "匯入 JSON",
+        "export": "複製設定",
+        "reset": "重設",
+        "imported": "主題已匯入並套用",
+        "exported": "主題設定已複製",
+        "invalid": "JSON 格式無效，已保留目前主題",
         "enabled": "已開啟",
         "disabled": "已關閉",
         "hint": "開啟後，AI 完成任務時會播放提示音，方便你離開螢幕時也能知道任務已完成。",
@@ -307,6 +398,26 @@
         "useDefault": "使用預設",
         "customSoundSaved": "自訂提示音已儲存"
       },
+      "label": "任務完成提示音",
+      "enabled": "已開啟",
+      "disabled": "已關閉",
+      "hint": "開啟後，AI 完成任務時會播放提示音，方便你離開螢幕時也能知道任務已完成。",
+      "onlyWhenUnfocused": "僅在 IDE 未聚焦時播放提示音",
+      "onlyWhenUnfocusedHint": "開啟後，僅在 IDE 視窗未聚焦時播放任務完成與提問提示音。",
+      "selectSound": "提示音",
+      "soundDefault": "預設",
+      "soundChime": "清脆鈴聲",
+      "soundBell": "鐘聲",
+      "soundDing": "叮咚",
+      "soundSuccess": "成功音",
+      "soundCustom": "自訂...",
+      "customSound": "自訂聲音檔",
+      "customSoundPlaceholder": "選擇或輸入音訊檔路徑",
+      "customSoundHint": "支援 WAV、MP3、AIFF 格式",
+      "testSound": "測試",
+      "browse": "瀏覽",
+      "useDefault": "使用預設",
+      "customSoundSaved": "自訂提示音已儲存",
       "sendShortcut": {
         "label": "發送快捷鍵",
         "enter": "Enter 發送",
@@ -343,6 +454,42 @@
         "disabled": "已關閉",
         "hint": "關閉後，在已有訊息的會話中點選新建將直接建立，不再彈出確認視窗"
       }
+    },
+    "sendShortcut": {
+      "label": "發送快捷鍵",
+      "enter": "Enter 發送",
+      "enterDesc": "按 Enter 發送訊息，Shift+Enter 換行",
+      "cmdEnter": "⌘/Ctrl+Enter 發送",
+      "cmdEnterDesc": "按 ⌘/Ctrl+Enter 發送訊息，Enter 換行"
+    },
+    "permissionDialogTimeout": {
+      "label": "權限與提問對話框超時時間",
+      "unit": "秒",
+      "hint": "設定 Claude 提問對話框和權限請求對話框的超時時間（30~3600 秒）。超時後對話框將自動關閉，Claude 會繼續執行。"
+    },
+    "chatBgColor": {
+      "label": "聊天背景色",
+      "custom": "自訂",
+      "reset": "恢復預設",
+      "hint": "自訂聊天區域的背景顏色，留空則跟隨主題預設顏色"
+    },
+    "chatBarColor": {
+      "label": "標題列與狀態列顏色",
+      "custom": "自訂",
+      "reset": "恢復預設",
+      "hint": "統一設定會話標題列與工作狀態列的主題顏色，留空則跟隨目前介面主題"
+    },
+    "userMsgColor": {
+      "label": "使用者訊息顏色",
+      "custom": "自訂",
+      "reset": "恢復預設",
+      "hint": "自訂您的訊息背景顏色，留空則跟隨主題預設顏色"
+    },
+    "newSessionConfirm": {
+      "label": "建立新會話時二次確認",
+      "enabled": "已開啟",
+      "disabled": "已關閉",
+      "hint": "關閉後，在已有訊息的會話中點選新建將直接建立，不再彈出確認視窗"
     },
     "providers": "供應商管理",
     "providersDesc": "管理 Claude 和 Codex API 供應商配置，切換不同的 API 服務提供商",
@@ -520,18 +667,11 @@
     "communityDesc": "掃描下方二維碼加入官方微信交流群，獲取最新資訊和技術支援",
     "communityQrTip": "使用微信掃一掃加入交流群",
     "communityQrAlt": "官方微信交流群二維碼",
-    "socialDocs": "官方文檔",
-    "socialTitle": "關注我們",
-    "socialGithub": "GitHub 開源倉庫，歡迎 Star",
-    "socialX": "X（Twitter）@ZPeng31310",
-    "socialZhihu": "知乎 @vscodeai",
-    "socialXiaohongshu": "小紅書",
-    "socialDouyin": "抖音，滑鼠懸停掃碼關注",
-    "socialYoutube": "YouTube 頻道 @昆鹏马上优化",
-    "douyinQrAlt": "抖音二維碼",
-    "douyinId": "抖音號：nengyongai",
-    "douyinCopied": "抖音號已複製到剪貼簿",
-    "douyinCopyFailed": "複製失敗，請手動複製",
+    "githubTitle": "GitHub 開源地址",
+    "githubDesc": "本專案已在 GitHub 開源，歡迎 Star 支持",
+    "githubCopyBtn": "複製開源地址",
+    "githubCopied": "開源地址已複製到剪貼簿，請在瀏覽器中訪問",
+    "githubCopyFailed": "複製失敗，請手動複製",
     "sponsor": "贊助支持",
     "sponsorDesc": "如果這個項目對你有幫助，歡迎贊助支持，你的支持是我持續維護的動力！",
     "alipay": "支付寶",
@@ -855,10 +995,6 @@
       "copied": "Copied to clipboard",
       "copyFailed": "Failed to copy",
       "tools": {
-        "minimax": {
-          "name": "MiniMax Code",
-          "description": "MiniMax 終端編碼智能體。需 Node.js 22.19+ / 24+（不支援 23）；命令：minimax / mcode"
-        },
         "grok": {
           "name": "Grok CLI",
           "description": "xAI Grok 終端編碼助手"
@@ -875,13 +1011,17 @@
           "name": "PI CLI",
           "description": "極簡終端編碼代理，支援多提供商模型"
         },
+        "dsh": {
+          "name": "DeepSeek Harness",
+          "description": "DeepSeek 官方編碼 Agent（dsh），支援工具呼叫、子代理與工作流程"
+        },
+        "minimax": {
+          "name": "MiniMax Code",
+          "description": "MiniMax 終端編碼智能體。需 Node.js 22.19+ / 24+（不支援 23）；命令：minimax / mcode"
+        },
         "omp": {
           "name": "OMP CLI",
           "description": "支援多提供商模型的 Oh My Pi 終端編碼代理"
-        },
-        "dsh": {
-          "name": "DeepSeek Harness",
-          "description": "DeepSeek 終端智慧體 CLI（dsh）"
         }
       },
       "installDialog": {
@@ -900,10 +1040,6 @@
       "summary": "{{installed}} / {{total}} 已安裝",
       "moreComingSoon": "即將支援更多",
       "copyPath": "複製路徑",
-      "visibility": {
-        "hide": "在切換選單中隱藏",
-        "show": "在切換選單中顯示"
-      },
       "dsh": {
         "groupTitle": "DeepSeek Harness",
         "cliRowTitle": "CLI 安裝",
@@ -923,8 +1059,24 @@
         "stopHost": "關閉（僅限外掛啟動的宿主）",
         "autoStart": "需要時自動啟動",
         "moreActions": "更多"
+      },
+      "visibility": {
+        "hide": "在切換選單中隱藏",
+        "show": "在切換選單中顯示"
       }
-    }
+    },
+    "socialDocs": "官方文檔",
+    "socialTitle": "關注我們",
+    "socialGithub": "GitHub 開源倉庫，歡迎 Star",
+    "socialX": "X（Twitter）@ZPeng31310",
+    "socialZhihu": "知乎 @vscodeai",
+    "socialXiaohongshu": "小紅書",
+    "socialDouyin": "抖音，滑鼠懸停掃碼關注",
+    "socialYoutube": "YouTube 頻道 @昆鹏马上优化",
+    "douyinQrAlt": "抖音二維碼",
+    "douyinId": "抖音號：nengyongai",
+    "douyinCopied": "抖音號已複製到剪貼簿",
+    "douyinCopyFailed": "複製失敗，請手動複製"
   },
   "history": {
     "title": "歷史會話",
@@ -1671,17 +1823,17 @@
       "tooltip": "自動接受檔案編輯",
       "description": "自動接受檔案建立/編輯，減少確認步驟"
     },
+    "bypassPermissions": {
+      "label": "自動模式",
+      "shortLabel": "自動",
+      "tooltip": "略過所有權限檢查",
+      "description": "完全自動化，略過所有權限檢查【請謹慎使用】"
+    },
     "auto": {
       "label": "自動審批",
       "shortLabel": "自動",
       "tooltip": "由模型審查器自動批准或阻止操作",
       "description": "使用供應商原生審查器處理審批，同時保留安全邊界"
-    },
-    "bypassPermissions": {
-      "label": "全自動",
-      "shortLabel": "全自動",
-      "tooltip": "略過所有權限檢查",
-      "description": "完全自動化，略過所有權限檢查【請謹慎使用】"
     }
   },
   "codexModes": {
@@ -1700,38 +1852,16 @@
       "tooltip": "Codex approval_policy=on-request – asks for approval when needed",
       "description": "Balanced option. Allows normal editing flow while still requiring approvals when needed."
     },
+    "bypassPermissions": {
+      "label": "Full Auto",
+      "tooltip": "Codex approval_policy=never – runs commands and writes files without prompting (workspace sandbox still enforced).",
+      "description": "Hands-off mode. Codex executes edits and shell commands immediately."
+    },
     "auto": {
       "label": "替我審批",
       "shortLabel": "自動",
       "tooltip": "Codex approvals_reviewer=auto_review：由自動審查器處理可審批請求。",
       "description": "維持 workspace-write 沙箱；審查器無法批准的請求仍會升級處理。"
-    },
-    "bypassPermissions": {
-      "label": "Full Auto",
-      "tooltip": "Codex approval_policy=never – runs commands and writes files without prompting (workspace sandbox still enforced).",
-      "description": "Hands-off mode. Codex executes edits and shell commands immediately."
-    }
-  },
-  "ompModes": {
-    "default": {
-      "label": "預設",
-      "tooltip": "使用所選模型（或 OMP auto）",
-      "description": "使用模型下拉選單中選擇的模型；設為 Auto 時使用 OMP CLI 預設模型。"
-    },
-    "smol": {
-      "label": "Smol",
-      "tooltip": "快速模型角色 (omp --model smol)",
-      "description": "使用為 omp 的 smol 角色設定的模型執行此對話。覆寫模型下拉選單的選擇。"
-    },
-    "slow": {
-      "label": "Slow",
-      "tooltip": "推理模型角色 (omp --model slow)",
-      "description": "使用為 omp 的 slow 角色設定的模型執行此對話。覆寫模型下拉選單的選擇。"
-    },
-    "plan": {
-      "label": "Plan",
-      "tooltip": "規劃模型角色 (omp --model plan)",
-      "description": "使用為 omp 的 plan 角色設定的模型執行此對話。覆寫模型下拉選單的選擇。"
     }
   },
   "providers": {
@@ -1747,9 +1877,6 @@
     "kimi": {
       "label": "Kimi CLI"
     },
-    "minimax": {
-      "label": "MiniMax Code"
-    },
     "gemini": {
       "label": "Gemini Cli"
     },
@@ -1759,16 +1886,19 @@
     "pi": {
       "label": "PI CLI"
     },
-    "omp": {
-      "label": "OMP CLI"
+    "dsh": {
+      "label": "DeepSeek Harness"
     },
     "beta": {
       "badge": "Beta",
       "title": "Beta 功能",
       "message": "此功能仍處於 Beta 階段。如果遇到使用 Bug，請及時回饋給作者。"
     },
-    "dsh": {
-      "label": "DeepSeek Harness"
+    "minimax": {
+      "label": "MiniMax Code"
+    },
+    "omp": {
+      "label": "OMP CLI"
     },
     "manageCli": "CLI 設定管理"
   },
@@ -1911,12 +2041,33 @@
   },
   "dshPresets": {
     "title": "選擇 DeepSeek Harness Agent 預設",
-    "none": { "label": "預設", "description": "dsh 預設 headless 組合（完整工具集）" },
-    "standard": { "label": "標準模式", "description": "功能完整的標準編碼工具集" },
-    "code": { "label": "PTC 模式", "description": "標準能力加 Code Mode" },
-    "minimal": { "label": "極簡模式", "description": "僅提供 bash 與 str_replace_editor" },
-    "cordis": { "label": "創造模式", "description": "標準能力加組合編排能力" },
-    "user": { "description": "安裝在 DSH 主目錄中的自訂預設" }
+    "none": {
+      "label": "預設",
+      "description": "dsh 預設 headless 組合（完整工具集）"
+    },
+    "standard": {
+      "label": "標準模式",
+      "description": "功能完整的編碼 Agent：檔案編輯、Shell、網頁搜尋、Skills、計畫、目標、子 Agent 與工作流"
+    },
+    "code": {
+      "label": "PTC 模式",
+      "description": "具備標準模式全部能力，並透過 Code Mode 將多步驟工具呼叫合併為一段 TypeScript 程式"
+    },
+    "minimal": {
+      "label": "極簡模式",
+      "description": "僅提供持久 bash 與 str_replace_editor 的雙工具編碼 Agent"
+    },
+    "cordis": {
+      "label": "創造模式",
+      "description": "具備標準模式全部能力，並支援組合編排與技能指導，用於建立自訂預設"
+    },
+    "routerStandard": {
+      "label": "路由標準模式",
+      "description": "任務感知思維模式路由（使用者安裝的預設）：修復類任務走 spec（先規劃），建構類任務走 react（直接執行）"
+    },
+    "user": {
+      "description": "安裝在 ~/.dsh/.agent-presets 的自訂預設"
+    }
   },
   "error": {
     "providerNotConfigured": "供應商未設定",
@@ -1965,6 +2116,28 @@
           "step1": "2. 開啟「相依性管理」重新安裝最新版 SDK："
         }
       }
+    }
+  },
+  "ompModes": {
+    "default": {
+      "label": "預設",
+      "tooltip": "使用所選模型（或 OMP auto）",
+      "description": "使用模型下拉選單中選擇的模型；設為 Auto 時使用 OMP CLI 預設模型。"
+    },
+    "smol": {
+      "label": "Smol",
+      "tooltip": "快速模型角色 (omp --model smol)",
+      "description": "使用為 omp 的 smol 角色設定的模型執行此對話。覆寫模型下拉選單的選擇。"
+    },
+    "slow": {
+      "label": "Slow",
+      "tooltip": "推理模型角色 (omp --model slow)",
+      "description": "使用為 omp 的 slow 角色設定的模型執行此對話。覆寫模型下拉選單的選擇。"
+    },
+    "plan": {
+      "label": "Plan",
+      "tooltip": "規劃模型角色 (omp --model plan)",
+      "description": "使用為 omp 的 plan 角色設定的模型執行此對話。覆寫模型下拉選單的選擇。"
     }
   }
 }

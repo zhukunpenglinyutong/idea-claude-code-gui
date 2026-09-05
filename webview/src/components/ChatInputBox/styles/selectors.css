@@ -21,6 +21,89 @@
   color: var(--text-primary);
 }
 
+/* Google Antigravity Pill */
+[data-ui-theme="antigravity"] .selector-button {
+  border-radius: 14px;
+  background: var(--bg-tertiary);
+}
+
+/* Tencent CodeBuddy Square Pill */
+[data-ui-theme="codebuddy"] .selector-button {
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+}
+
+/* JetBrains IDEA Compact Pill */
+[data-ui-theme="idea"] .selector-button {
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-secondary);
+}
+
+/* Visual Studio Code Square Pill */
+[data-ui-theme="vscode"] .selector-button {
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+}
+
+/* QQ Social Pill */
+[data-ui-theme="qq"] .selector-button {
+  border-radius: 13px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-secondary);
+}
+
+/* WeChat Minimal Pill */
+[data-ui-theme="wechat"] .selector-button {
+  border-radius: 9px;
+  background: var(--bg-tertiary);
+}
+
+/* Notion Minimal Pill */
+[data-ui-theme="notion"] .selector-button {
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+}
+
+/* Arc Glass Pill */
+[data-ui-theme="arcGlass"] .selector-button {
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+}
+
+/* Warp Terminal Pill */
+[data-ui-theme="warp"] .selector-button {
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+}
+
+/* Vercel Pill */
+[data-ui-theme="vercel"] .selector-button {
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+}
+
+/* Claude Warm Pill */
+[data-ui-theme="claudeWarm"] .selector-button {
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+}
+
+/* Solarized Pill */
+[data-ui-theme="solarized"] .selector-button {
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+}
+
+/* Custom Theme Pill */
+[data-ui-theme="custom"] .selector-button {
+  border-radius: calc(4px * var(--custom-radius-scale, 1));
+  background: var(--bg-tertiary);
+}
+
 /* Compact provider icon button */
 .selector-button.provider-compact {
   padding: 4px 5px;
@@ -265,6 +348,18 @@
   color: var(--text-secondary);
   font-family: inherit;
   margin-top: 2px;
+}
+
+.selector-option .model-credits {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 1px 5px;
+  border: 1px solid var(--dropdown-border);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .selector-search-row {

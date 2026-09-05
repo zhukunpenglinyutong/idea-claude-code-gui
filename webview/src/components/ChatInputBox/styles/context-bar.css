@@ -13,9 +13,10 @@
 
 /* Ensure the first visible child element (usually ContextBar or AttachmentList) has rounded corners */
 /* ResizeHandles are absolutely positioned :first-child, so select the next visible element after them */
+/* Radius follows the active theme via --input-radius (set on .chat-input-box in layout.css / liquid-glass.css) */
 .chat-input-box > .resize-handle + * {
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
+  border-top-left-radius: calc(var(--input-radius, 8px) - 1px);
+  border-top-right-radius: calc(var(--input-radius, 8px) - 1px);
 }
 
 .context-tools {

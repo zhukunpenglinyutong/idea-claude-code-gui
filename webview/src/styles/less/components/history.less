@@ -167,6 +167,148 @@
     }
 }
 
+/* ============================================================
+   UI Theme Adaptations
+   ============================================================ */
+[data-ui-theme="antigravity"] {
+    .history-item {
+        border-radius: 16px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    .history-toolbar-btn,
+    .history-deep-search-btn,
+    .history-search-input {
+        border-radius: 14px;
+    }
+}
+
+[data-ui-theme="codebuddy"] {
+    .history-item {
+        border-radius: 10px;
+    }
+
+    .history-toolbar-btn,
+    .history-deep-search-btn,
+    .history-search-input {
+        border-radius: 6px;
+    }
+
+    .history-toolbar-btn:hover:not(:disabled),
+    .history-deep-search-btn:hover:not(:disabled) {
+        background-color: rgba(54, 110, 244, 0.1);
+        border-color: var(--accent-primary);
+        color: var(--accent-primary);
+    }
+}
+
+[data-ui-theme="idea"] {
+    .history-item {
+        border-radius: 5px;
+        background: var(--bg-secondary);
+        border-color: var(--border-secondary);
+        box-shadow: none;
+    }
+
+    .history-item:hover {
+        border-color: var(--border-hover);
+        box-shadow: none;
+    }
+
+    .history-toolbar-btn,
+    .history-deep-search-btn,
+    .history-search-input {
+        border-radius: 4px;
+    }
+
+    .history-toolbar-btn:hover:not(:disabled),
+    .history-deep-search-btn:hover:not(:disabled) {
+        background-color: rgba(53, 116, 240, 0.1);
+        border-color: var(--accent-primary);
+        color: var(--accent-primary);
+    }
+
+    .history-search-input:focus {
+        border-color: var(--accent-primary) !important;
+        box-shadow: 0 0 0 2px rgba(53, 116, 240, 0.14) !important;
+    }
+}
+
+[data-ui-theme="vscode"] {
+    .history-item {
+        border-radius: 6px;
+        box-shadow: none;
+    }
+
+    .history-toolbar-btn,
+    .history-deep-search-btn,
+    .history-search-input {
+        border-radius: 4px;
+    }
+
+    .history-toolbar-btn:hover:not(:disabled),
+    .history-deep-search-btn:hover:not(:disabled) {
+        background-color: rgba(0, 120, 212, 0.1);
+        border-color: var(--accent-primary);
+        color: var(--accent-primary);
+    }
+
+    .history-search-input:focus {
+        border-color: var(--accent-primary) !important;
+        box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.14) !important;
+    }
+}
+
+[data-ui-theme="qq"] {
+    .history-item {
+        border-radius: 13px;
+        box-shadow: none;
+    }
+
+    .history-toolbar-btn,
+    .history-deep-search-btn,
+    .history-search-input {
+        border-radius: 12px;
+    }
+
+    .history-toolbar-btn:hover:not(:disabled),
+    .history-deep-search-btn:hover:not(:disabled) {
+        background-color: rgba(18, 183, 245, 0.12);
+        border-color: var(--accent-primary);
+        color: var(--accent-primary);
+    }
+
+    .history-search-input:focus {
+        border-color: var(--accent-primary) !important;
+        box-shadow: 0 0 0 2px rgba(18, 183, 245, 0.16) !important;
+    }
+}
+
+[data-ui-theme="wechat"] {
+    .history-item {
+        border-radius: 11px;
+        box-shadow: none;
+    }
+
+    .history-toolbar-btn,
+    .history-deep-search-btn,
+    .history-search-input {
+        border-radius: 8px;
+    }
+
+    .history-toolbar-btn:hover:not(:disabled),
+    .history-deep-search-btn:hover:not(:disabled) {
+        background-color: rgba(7, 193, 96, 0.1);
+        border-color: var(--accent-primary);
+        color: var(--accent-primary);
+    }
+
+    .history-search-input:focus {
+        border-color: var(--accent-primary) !important;
+        box-shadow: 0 0 0 2px rgba(7, 193, 96, 0.14) !important;
+    }
+}
+
 /* 搜索容器样式 */
 .history-search-container {
     position: relative;

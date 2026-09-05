@@ -1,11 +1,22 @@
 // hooks/useSettingsThemeSync.ts
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { applyDiffTheme, getStoredDiffTheme, type DiffThemeMode } from '../../../utils/diffTheme';
 import {
   applyChatBarThemeColor,
   CHAT_BAR_COLOR_STORAGE_KEY,
   isValidHexColor,
 } from '../../../utils/chatBarTheme';
+import {
+  applyUiThemeStyle,
+  getSavedUiThemeStyle,
+  type UiThemeStyle,
+} from '../../../utils/uiTheme';
+import {
+  applyCustomUiTheme,
+  clearCustomUiThemeProperties,
+  CUSTOM_UI_THEME_CHANGED_EVENT,
+  loadCustomUiTheme,
+} from '../../../utils/customUiTheme';
 
 // Extend window type for IDE theme injection
 declare global {
@@ -17,6 +28,8 @@ declare global {
 export interface UseSettingsThemeSyncReturn {
   themePreference: 'light' | 'dark' | 'system';
   setThemePreference: (theme: 'light' | 'dark' | 'system') => void;
+  uiThemeStyle: UiThemeStyle;
+  setUiThemeStyle: (style: UiThemeStyle) => void;
   ideTheme: 'light' | 'dark' | null;
   setIdeTheme: (theme: 'light' | 'dark' | null) => void;
   fontSizeLevel: number;
@@ -85,9 +98,58 @@ export function useSettingsThemeSync(): UseSettingsThemeSyncReturn {
   // Diff theme configuration
   const [diffTheme, setDiffTheme] = useState<DiffThemeMode>(() => getStoredDiffTheme());
 
+  // UI theme style (default / lightGlass / antigravity / codebuddy / etc.)
+  const [uiThemeStyle, setUiThemeStyle] = useState<UiThemeStyle>(() => getSavedUiThemeStyle());
+
+  const [customUiTheme, setCustomUiTheme] = useState(() => loadCustomUiTheme());
+  const previousUiThemeStyle = useRef<UiThemeStyle | null>(null);
+
+  useEffect(() => {
+    const handleCustomUiThemeChanged = () => {
+      setCustomUiTheme(loadCustomUiTheme());
+    };
+
+    window.addEventListener(CUSTOM_UI_THEME_CHANGED_EVENT, handleCustomUiThemeChanged);
+    return () => window.removeEventListener(CUSTOM_UI_THEME_CHANGED_EVENT, handleCustomUiThemeChanged);
+  }, []);
+
+  // UI Theme Style handler
+  useEffect(() => {
+    applyUiThemeStyle(uiThemeStyle);
+    if (uiThemeStyle === 'custom') {
+      // applyCustomUiTheme already overwrites all six --color-chat-bars-* vars,
+      // so no chat bar color clear is needed here.
+      applyCustomUiTheme(customUiTheme);
+    } else {
+      if (previousUiThemeStyle.current === 'custom') {
+        clearCustomUiThemeProperties();
+      }
+
+      // The default style is intentionally inert: its stylesheet and the
+      // user's existing color preferences remain the source of truth.
+      if (uiThemeStyle !== 'default') {
+        if (chatBgColor) {
+          document.documentElement.style.setProperty('--bg-chat', chatBgColor);
+        } else {
+          document.documentElement.style.removeProperty('--bg-chat');
+        }
+        if (userMsgColor) {
+          document.documentElement.style.setProperty('--color-message-user-bg', userMsgColor);
+        } else {
+          document.documentElement.style.removeProperty('--color-message-user-bg');
+        }
+        applyChatBarThemeColor(chatBarColor);
+      }
+    }
+    previousUiThemeStyle.current = uiThemeStyle;
+  }, [uiThemeStyle, customUiTheme, chatBgColor, userMsgColor, chatBarColor]);
+
   // Theme switching handler (supports following IDE theme)
   useEffect(() => {
     const applyTheme = (preference: 'light' | 'dark' | 'system') => {
+      if (uiThemeStyle === 'custom') {
+        return;
+      }
       if (preference === 'system') {
         // If following IDE, need to wait for IDE theme to load
         if (ideTheme === null) {
@@ -103,7 +165,7 @@ export function useSettingsThemeSync(): UseSettingsThemeSyncReturn {
     applyTheme(themePreference);
     // Save to localStorage
     localStorage.setItem('theme', themePreference);
-  }, [themePreference, ideTheme]);
+  }, [themePreference, ideTheme, uiThemeStyle]);
 
   // Font size scaling handler
   useEffect(() => {
@@ -125,37 +187,47 @@ export function useSettingsThemeSync(): UseSettingsThemeSyncReturn {
     localStorage.setItem('fontSizeLevel', fontSizeLevel.toString());
   }, [fontSizeLevel]);
 
-  // Chat background color handler
+  // Chat background color handler.
   useEffect(() => {
     if (chatBgColor) {
-      document.documentElement.style.setProperty('--bg-chat', chatBgColor);
+      if (uiThemeStyle !== 'custom') {
+        document.documentElement.style.setProperty('--bg-chat', chatBgColor);
+      }
       localStorage.setItem('chatBgColor', chatBgColor);
     } else {
-      document.documentElement.style.removeProperty('--bg-chat');
+      if (uiThemeStyle !== 'custom') {
+        document.documentElement.style.removeProperty('--bg-chat');
+      }
       localStorage.removeItem('chatBgColor');
     }
-  }, [chatBgColor]);
+  }, [chatBgColor, uiThemeStyle]);
 
   // User message bubble color handler
   useEffect(() => {
     if (userMsgColor) {
-      document.documentElement.style.setProperty('--color-message-user-bg', userMsgColor);
+      if (uiThemeStyle !== 'custom') {
+        document.documentElement.style.setProperty('--color-message-user-bg', userMsgColor);
+      }
       localStorage.setItem('userMsgColor', userMsgColor);
     } else {
-      document.documentElement.style.removeProperty('--color-message-user-bg');
+      if (uiThemeStyle !== 'custom') {
+        document.documentElement.style.removeProperty('--color-message-user-bg');
+      }
       localStorage.removeItem('userMsgColor');
     }
-  }, [userMsgColor]);
+  }, [userMsgColor, uiThemeStyle]);
 
   // Shared chat header and status bar color handler
   useEffect(() => {
-    applyChatBarThemeColor(chatBarColor);
+    if (uiThemeStyle !== 'custom') {
+      applyChatBarThemeColor(chatBarColor);
+    }
     if (isValidHexColor(chatBarColor)) {
       localStorage.setItem(CHAT_BAR_COLOR_STORAGE_KEY, chatBarColor);
     } else {
       localStorage.removeItem(CHAT_BAR_COLOR_STORAGE_KEY);
     }
-  }, [chatBarColor]);
+  }, [chatBarColor, uiThemeStyle]);
 
   // Diff theme handler
   useEffect(() => {
@@ -165,6 +237,8 @@ export function useSettingsThemeSync(): UseSettingsThemeSyncReturn {
   return {
     themePreference,
     setThemePreference,
+    uiThemeStyle,
+    setUiThemeStyle,
     ideTheme,
     setIdeTheme,
     fontSizeLevel,

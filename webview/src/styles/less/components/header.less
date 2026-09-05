@@ -11,6 +11,34 @@
     border-bottom: 1px solid var(--color-chat-bars-border, var(--border-primary));
     min-height: 50px;
     flex-shrink: 0;
+    z-index: 50;
+}
+
+/* JetBrains IDEA Header */
+[data-ui-theme="idea"] .header {
+    border-bottom: 1px solid var(--border-secondary);
+    box-shadow: none;
+}
+
+/* Visual Studio Code Header */
+[data-ui-theme="vscode"] .header {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-secondary);
+    box-shadow: none;
+}
+
+/* QQ Header */
+[data-ui-theme="qq"] .header {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-secondary);
+    box-shadow: none;
+}
+
+/* WeChat Header */
+[data-ui-theme="wechat"] .header {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-primary);
+    box-shadow: none;
 }
 
 .header-left {

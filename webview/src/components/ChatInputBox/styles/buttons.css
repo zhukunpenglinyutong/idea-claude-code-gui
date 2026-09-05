@@ -45,6 +45,96 @@
   transition: background 0.15s, opacity 0.15s;
 }
 
+/* Google Antigravity Circular Button */
+[data-ui-theme="antigravity"] .submit-button {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+[data-ui-theme="antigravity"][data-theme="dark"] .submit-button,
+[data-ui-theme="antigravity"] [data-theme="dark"] .submit-button {
+  color: #041e49;
+}
+
+/* Tencent CodeBuddy Square Button */
+[data-ui-theme="codebuddy"] .submit-button {
+  border-radius: 6px;
+  color: #ffffff;
+}
+
+/* JetBrains IDEA Flat Button */
+[data-ui-theme="idea"] .submit-button {
+  border-radius: 4px;
+  color: #ffffff;
+}
+
+/* Visual Studio Code Square Button */
+[data-ui-theme="vscode"] .submit-button {
+  border-radius: 4px;
+  color: #ffffff;
+}
+
+/* QQ Social Button */
+[data-ui-theme="qq"] .submit-button {
+  border-radius: 14px;
+  color: #ffffff;
+}
+
+/* WeChat Green Button */
+[data-ui-theme="wechat"] .submit-button {
+  border-radius: 8px;
+  color: #ffffff;
+}
+
+/* Notion Minimal Button */
+[data-ui-theme="notion"] .submit-button {
+  border-radius: 4px;
+  color: #ffffff;
+}
+
+/* Arc Glass Button */
+[data-ui-theme="arcGlass"] .submit-button {
+  border-radius: 8px;
+  color: #ffffff;
+}
+
+/* Warp Terminal Button */
+[data-ui-theme="warp"] .submit-button {
+  border-radius: 4px;
+  color: #10231c;
+}
+
+[data-ui-theme="warp"][data-theme="light"] .submit-button,
+[data-ui-theme="warp"] [data-theme="light"] .submit-button {
+  color: #ffffff;
+}
+
+/* Vercel Clean Button */
+[data-ui-theme="vercel"] .submit-button {
+  border-radius: 6px;
+  color: #ffffff;
+}
+
+/* Claude Warm Button */
+[data-ui-theme="claudeWarm"] .submit-button {
+  border-radius: 6px;
+  color: #ffffff;
+}
+
+/* Solarized Button */
+[data-ui-theme="solarized"] .submit-button {
+  border-radius: 4px;
+  color: #ffffff;
+}
+
+/* Custom Theme Button */
+[data-ui-theme="custom"] .submit-button {
+  border-radius: calc(4px * var(--custom-radius-scale, 1));
+  color: #ffffff;
+}
+
 .submit-button:hover:not(:disabled) {
   opacity: 0.85;
 }
@@ -66,4 +156,3 @@
 .stop-button:hover {
   background: #d32f2f;
 }
-

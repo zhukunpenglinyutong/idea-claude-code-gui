@@ -21,54 +21,48 @@
    ============================================================ */
 :root .chat-input-box,
 [data-theme="dark"] .chat-input-box {
-  --input-bg: var(--bg-chat, #1e1e1e);
-  --input-border: #3e3e42;
-  --input-focus-border: #007fd4;
-  --input-placeholder: #666;
-  --dropdown-bg: #252526;
-  --dropdown-border: #454545;
-  --dropdown-hover: #2a2d2e;
-  --dropdown-selected: #094771;
+  --input-bg: var(--bg-chat, var(--bg-secondary, #1e1e1e));
+  --input-border: var(--border-primary, #3e3e42);
+  --input-focus-border: var(--accent-primary, #007fd4);
+  --input-placeholder: var(--text-muted, #666);
+  --dropdown-bg: var(--bg-elevated, #252526);
+  --dropdown-border: var(--border-secondary, #454545);
+  --dropdown-hover: var(--bg-hover, #2a2d2e);
+  --dropdown-selected: var(--bg-active, #094771);
   --button-bg: transparent;
-  --button-hover: rgba(255, 255, 255, 0.1);
-  --button-primary: #007fd4;
+  --button-hover: var(--bg-hover, rgba(255, 255, 255, 0.1));
+  --button-primary: var(--accent-primary, #007fd4);
   --button-disabled: #555;
-  --text-primary: #cccccc;
-  --text-secondary: #888888;
-  --text-muted: #666666;
   --progress-bg: rgba(255, 255, 255, 0.15);
-  --progress-fill: #4fc3f7;
-  --attachment-bg: #2d2d2d;
-  --attachment-border: #404040;
+  --progress-fill: var(--accent-primary, #4fc3f7);
+  --attachment-bg: var(--bg-tertiary, #2d2d2d);
+  --attachment-border: var(--border-primary, #404040);
   --error-color: #f44336;
   --success-color: #4caf50;
-  --context-bar-bg: #2f2f2f;
+  --context-bar-bg: var(--bg-tertiary, #2f2f2f);
 }
 
 /* ============================================================
    CSS Variables - Light Theme
    ============================================================ */
 [data-theme="light"] .chat-input-box {
-  --input-bg: var(--bg-chat, #ffffff);
-  --input-border: #d0d0d0;
-  --input-focus-border: #0078d4;
-  --input-placeholder: #999999;
-  --dropdown-bg: #ffffff;
-  --dropdown-border: #d0d0d0;
-  --dropdown-hover: #f5f5f5;
-  --dropdown-selected: #e3f2fd;
+  --input-bg: var(--bg-chat, var(--bg-secondary, #ffffff));
+  --input-border: var(--border-primary, #d0d0d0);
+  --input-focus-border: var(--accent-primary, #0078d4);
+  --input-placeholder: var(--text-muted, #999999);
+  --dropdown-bg: var(--bg-elevated, #ffffff);
+  --dropdown-border: var(--border-secondary, #d0d0d0);
+  --dropdown-hover: var(--bg-hover, #f5f5f5);
+  --dropdown-selected: var(--bg-active, #e3f2fd);
   --button-bg: transparent;
-  --button-hover: rgba(0, 0, 0, 0.05);
-  --button-primary: #0078d4;
+  --button-hover: var(--bg-hover, rgba(0, 0, 0, 0.05));
+  --button-primary: var(--accent-primary, #0078d4);
   --button-disabled: #cccccc;
-  --text-primary: #333333;
-  --text-secondary: #666666;
-  --text-muted: #999999;
   --progress-bg: rgba(0, 0, 0, 0.1);
-  --progress-fill: #0078d4;
-  --attachment-bg: #f5f5f5;
-  --attachment-border: #e0e0e0;
+  --progress-fill: var(--accent-primary, #0078d4);
+  --attachment-bg: var(--bg-tertiary, #f5f5f5);
+  --attachment-border: var(--border-primary, #e0e0e0);
   --error-color: #e81123;
   --success-color: #107c10;
-  --context-bar-bg: #f0f0f0;
+  --context-bar-bg: var(--bg-tertiary, #f0f0f0);
 }

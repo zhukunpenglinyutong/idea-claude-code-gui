@@ -211,3 +211,161 @@
         }
     }
 }
+
+/* ============================================================
+   UI Theme Adaptations
+   ============================================================ */
+[data-ui-theme="antigravity"] {
+    .dialog,
+    .agent-dialog,
+    .modal-content,
+    .confirm-dialog {
+        border-radius: 18px;
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08);
+    }
+
+    .form-input,
+    .form-textarea {
+        border-radius: 12px;
+    }
+
+    .btn,
+    .modal-btn,
+    .confirm-dialog-button {
+        border-radius: 14px;
+    }
+}
+
+[data-ui-theme="codebuddy"] {
+    .dialog,
+    .agent-dialog,
+    .modal-content,
+    .confirm-dialog {
+        border-radius: 12px;
+        box-shadow: 0 6px 20px rgba(23, 24, 26, 0.1);
+    }
+
+    .form-input,
+    .form-textarea,
+    .btn,
+    .modal-btn,
+    .confirm-dialog-button {
+        border-radius: 7px;
+    }
+}
+
+[data-ui-theme="idea"] {
+    .dialog,
+    .agent-dialog,
+    .modal-content,
+    .confirm-dialog {
+        border-radius: 5px;
+        background: var(--bg-secondary);
+        border-color: var(--border-secondary);
+        box-shadow: none;
+    }
+
+    .dialog-header,
+    .dialog-footer,
+    .confirm-dialog-header,
+    .confirm-dialog-footer {
+        border-color: var(--border-secondary);
+    }
+
+    .form-input,
+    .form-textarea,
+    .btn,
+    .modal-btn,
+    .confirm-dialog-button {
+        border-radius: 3px;
+    }
+
+    .form-input:focus,
+    .form-textarea:focus {
+        box-shadow: 0 0 0 1px var(--accent-primary);
+    }
+
+    .btn-primary,
+    .modal-btn-primary,
+    .confirm-dialog-button.confirm-button {
+        box-shadow: none;
+    }
+}
+
+[data-ui-theme="vscode"] {
+    .dialog,
+    .agent-dialog,
+    .modal-content,
+    .confirm-dialog {
+        border-radius: 7px;
+        border-color: var(--border-secondary);
+        box-shadow: none;
+    }
+
+    .form-input,
+    .form-textarea {
+        border-radius: 4px;
+    }
+
+    .btn,
+    .modal-btn,
+    .confirm-dialog-button {
+        border-radius: 4px;
+    }
+}
+
+[data-ui-theme="qq"] {
+    .dialog,
+    .agent-dialog,
+    .modal-content,
+    .confirm-dialog {
+        border-radius: 15px;
+        border-color: transparent;
+        box-shadow: none;
+    }
+
+    .form-input,
+    .form-textarea {
+        border-radius: 11px;
+    }
+
+    .btn,
+    .modal-btn,
+    .confirm-dialog-button {
+        border-radius: 12px;
+    }
+
+    .btn-primary,
+    .modal-btn-primary,
+    .confirm-dialog-button.confirm-button {
+        box-shadow: none;
+    }
+}
+
+[data-ui-theme="wechat"] {
+    .dialog,
+    .agent-dialog,
+    .modal-content,
+    .confirm-dialog {
+        border-radius: 11px;
+        border-color: transparent;
+        box-shadow: none;
+    }
+
+    .form-input,
+    .form-textarea {
+        border-radius: 9px;
+    }
+
+    .btn,
+    .modal-btn,
+    .confirm-dialog-button {
+        border-radius: 9px;
+    }
+
+    .btn-primary,
+    .modal-btn-primary,
+    .confirm-dialog-button.confirm-button {
+        box-shadow: none;
+    }
+}

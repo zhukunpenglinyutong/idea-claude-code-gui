@@ -1,0 +1,157 @@
+/* ============================================================
+   macOS Frosted Glass & Custom Glass UI Themes
+   ============================================================ */
+
+/* Frosted Glass (晶透毛玻璃) Theme */
+[data-ui-theme="lightGlass"] {
+  --light-glass-bg: rgba(22, 26, 38, 0.52);
+  --light-glass-tabs-bg: rgba(22, 26, 38, 0.48);
+  --light-glass-pop-bg: rgba(20, 24, 38, 0.48);
+  --light-glass-border: rgba(255, 255, 255, 0.16);
+  --light-glass-blur: blur(14px) saturate(1.4);
+  --light-glass-pop-blur: blur(12px) saturate(1.4);
+  --light-glass-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.12) inset,
+    0 10px 32px rgba(0, 0, 0, 0.32),
+    0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+[data-ui-theme="lightGlass"][data-theme="light"],
+[data-ui-theme="lightGlass"] [data-theme="light"] {
+  --light-glass-bg: rgba(255, 255, 255, 0.55);
+  --light-glass-tabs-bg: rgba(255, 255, 255, 0.50);
+  --light-glass-pop-bg: rgba(255, 255, 255, 0.52);
+  --light-glass-border: rgba(255, 255, 255, 0.85);
+  --light-glass-blur: blur(14px) saturate(1.4);
+  --light-glass-pop-blur: blur(12px) saturate(1.4);
+  --light-glass-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 8px 30px rgba(31, 41, 61, 0.12),
+    0 2px 8px rgba(31, 41, 61, 0.05);
+}
+
+/* Floating input dock and dialogs */
+[data-ui-theme="lightGlass"] :is(
+  .chat-input-box,
+  .confirm-dialog,
+  .modal-content,
+  .dialog,
+  .agent-dialog
+) {
+  position: relative;
+  overflow: visible;
+  background: var(--light-glass-bg);
+  border-color: var(--light-glass-border);
+  box-shadow: var(--light-glass-shadow);
+  backdrop-filter: var(--light-glass-blur);
+  -webkit-backdrop-filter: var(--light-glass-blur);
+}
+
+[data-ui-theme="lightGlass"] .status-panel-tabs {
+  background: var(--light-glass-tabs-bg);
+  border-color: var(--light-glass-border);
+  backdrop-filter: var(--light-glass-blur);
+  -webkit-backdrop-filter: var(--light-glass-blur);
+  border-radius: 10px;
+}
+
+[data-ui-theme="lightGlass"] :is(
+  .selector-dropdown,
+  .menu-dropdown,
+  .status-panel-popover,
+  .completion-dropdown
+) {
+  background: var(--light-glass-pop-bg);
+  border-color: var(--light-glass-border);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+  backdrop-filter: var(--light-glass-pop-blur);
+  -webkit-backdrop-filter: var(--light-glass-pop-blur);
+  border-radius: 10px;
+}
+
+[data-ui-theme="lightGlass"] .chat-input-box {
+  border-radius: 14px;
+  --input-radius: 14px;
+}
+
+[data-ui-theme="lightGlass"] :is(
+  .menu-item,
+  .selector-option,
+  .modal-btn,
+  .confirm-dialog-button
+) {
+  border-radius: 6px;
+}
+
+/* Reading area stays opaque */
+[data-ui-theme="lightGlass"] :is(
+  .header,
+  .messages-container,
+  .history-item,
+  .message.assistant,
+  .starterCard
+) {
+  background: var(--bg-primary);
+  border-color: var(--border-primary);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* ============================================================
+   Custom Theme Surfaces (Dynamic Radius & Glass Strength)
+   ============================================================ */
+[data-ui-theme="custom"] .chat-input-box {
+  background: color-mix(in srgb, var(--bg-secondary) calc(100% - 48% * var(--custom-glass-strength, 0)), transparent);
+  border: 1px solid var(--border-primary);
+  border-radius: calc(10px * var(--custom-radius-scale, 1));
+  --input-radius: calc(10px * var(--custom-radius-scale, 1));
+  box-shadow: 0 8px 30px rgba(0, 0, 0, calc(0.08 + 0.2 * var(--custom-glass-strength, 0)));
+  backdrop-filter: blur(calc(16px * var(--custom-glass-strength, 0))) saturate(calc(1 + 0.35 * var(--custom-glass-strength, 0)));
+  -webkit-backdrop-filter: blur(calc(16px * var(--custom-glass-strength, 0))) saturate(calc(1 + 0.35 * var(--custom-glass-strength, 0)));
+}
+
+[data-ui-theme="custom"] .status-panel-tabs {
+  background: color-mix(in srgb, var(--bg-secondary) calc(100% - 50% * var(--custom-glass-strength, 0)), transparent);
+  border: 1px solid var(--border-primary);
+  border-radius: calc(8px * var(--custom-radius-scale, 1));
+  backdrop-filter: blur(calc(14px * var(--custom-glass-strength, 0)));
+  -webkit-backdrop-filter: blur(calc(14px * var(--custom-glass-strength, 0)));
+}
+
+[data-ui-theme="custom"] :is(
+  .selector-dropdown,
+  .menu-dropdown,
+  .status-panel-popover,
+  .completion-dropdown
+) {
+  background: color-mix(in srgb, var(--bg-elevated) calc(100% - 52% * var(--custom-glass-strength, 0)), transparent);
+  border: 1px solid var(--border-primary);
+  border-radius: calc(10px * var(--custom-radius-scale, 1));
+  box-shadow: 0 12px 36px rgba(0, 0, 0, calc(0.18 + 0.25 * var(--custom-glass-strength, 0)));
+  backdrop-filter: blur(calc(14px * var(--custom-glass-strength, 0))) saturate(calc(1 + 0.35 * var(--custom-glass-strength, 0)));
+  -webkit-backdrop-filter: blur(calc(14px * var(--custom-glass-strength, 0))) saturate(calc(1 + 0.35 * var(--custom-glass-strength, 0)));
+}
+
+[data-ui-theme="custom"] :is(
+  .confirm-dialog,
+  .modal-content,
+  .dialog,
+  .agent-dialog
+) {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-primary);
+  border-radius: calc(12px * var(--custom-radius-scale, 1));
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-ui-theme="custom"] :is(
+  .menu-item,
+  .selector-option,
+  .modal-btn,
+  .confirm-dialog-button
+) {
+  border-radius: calc(6px * var(--custom-radius-scale, 1));
+}

@@ -64,7 +64,7 @@ describe('AppearanceTab ui font selector', () => {
 
     renderAppearanceTab();
 
-    fireEvent.change(screen.getAllByRole('combobox')[0], {
+    fireEvent.change(screen.getByTestId('settings-language-select'), {
       target: { value: '__follow_idea__' },
     });
 
@@ -82,7 +82,7 @@ describe('AppearanceTab ui font selector', () => {
 
     renderAppearanceTab();
 
-    fireEvent.change(screen.getAllByRole('combobox')[0], {
+    fireEvent.change(screen.getByTestId('settings-language-select'), {
       target: { value: 'en' },
     });
 
@@ -99,7 +99,7 @@ describe('AppearanceTab ui font selector', () => {
     localStorage.setItem('languageSelectionMode', 'manual');
 
     renderAppearanceTab();
-    const select = screen.getAllByRole('combobox')[0] as HTMLSelectElement;
+    const select = screen.getByTestId('settings-language-select') as HTMLSelectElement;
     expect(select.value).toBe('zh');
 
     // Simulate Java pushing the authoritative followIdea state after a failure

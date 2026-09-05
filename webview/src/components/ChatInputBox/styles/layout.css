@@ -7,10 +7,128 @@
   background: var(--input-bg);
   border: 1px solid var(--input-border);
   border-radius: 8px;
+  --input-radius: 8px;
   overflow: visible;
   position: relative;
   margin: 0 auto;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Google Antigravity Capsule Floating Dock */
+[data-ui-theme="antigravity"] .chat-input-box {
+  border-radius: 22px;
+  --input-radius: 22px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* Tencent CodeBuddy Rounded Card Dock */
+[data-ui-theme="codebuddy"] .chat-input-box {
+  border-radius: 12px;
+  --input-radius: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* JetBrains IDEA Compact Dock */
+[data-ui-theme="idea"] .chat-input-box {
+  border-radius: 5px;
+  --input-radius: 5px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  box-shadow: none;
+}
+
+/* Visual Studio Code Compact Dock */
+[data-ui-theme="vscode"] .chat-input-box {
+  border-radius: 6px;
+  --input-radius: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  box-shadow: none;
+}
+
+/* QQ Social Dock */
+[data-ui-theme="qq"] .chat-input-box {
+  border-radius: 14px;
+  --input-radius: 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  box-shadow: 0 2px 12px rgba(18, 183, 245, 0.08);
+}
+
+/* WeChat Minimal Dock */
+[data-ui-theme="wechat"] .chat-input-box {
+  border-radius: 10px;
+  --input-radius: 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  box-shadow: none;
+}
+
+/* Notion Minimal Dock */
+[data-ui-theme="notion"] .chat-input-box {
+  border-radius: 6px;
+  --input-radius: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  box-shadow: none;
+}
+
+/* Arc Glass Dock */
+[data-ui-theme="arcGlass"] .chat-input-box {
+  border-radius: 14px;
+  --input-radius: 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* Warp Terminal Dock */
+[data-ui-theme="warp"] .chat-input-box {
+  border-radius: 6px;
+  --input-radius: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Vercel Clean Dock */
+[data-ui-theme="vercel"] .chat-input-box {
+  border-radius: 8px;
+  --input-radius: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Claude Warm Dock */
+[data-ui-theme="claudeWarm"] .chat-input-box {
+  border-radius: 10px;
+  --input-radius: 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  box-shadow: none;
+}
+
+/* Solarized Dock */
+[data-ui-theme="solarized"] .chat-input-box {
+  border-radius: 6px;
+  --input-radius: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  box-shadow: none;
+}
+
+/* Custom Theme Dock */
+[data-ui-theme="custom"] .chat-input-box {
+  border-radius: calc(8px * var(--custom-radius-scale, 1));
+  --input-radius: calc(8px * var(--custom-radius-scale, 1));
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  box-shadow: none;
 }
 
 /* Show blue border glow effect on hover */
@@ -126,4 +244,3 @@
 .chat-input-box.is-resizing .resize-handle--ne::before {
   opacity: 0.55;
 }
-

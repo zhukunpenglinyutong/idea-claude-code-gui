@@ -234,3 +234,109 @@
         background: var(--color-dialog-button-danger-active);
     }
 }
+
+/* ============================================================
+   UI Theme Adaptations
+   ============================================================ */
+[data-ui-theme="antigravity"] {
+    .confirm-dialog,
+    .modal-content {
+        border-radius: 18px;
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08);
+    }
+
+    .modal-btn,
+    .confirm-dialog-button {
+        border-radius: 14px;
+    }
+}
+
+[data-ui-theme="codebuddy"] {
+    .confirm-dialog,
+    .modal-content {
+        border-radius: 12px;
+        box-shadow: 0 6px 20px rgba(23, 24, 26, 0.1);
+    }
+
+    .modal-btn,
+    .confirm-dialog-button {
+        border-radius: 7px;
+    }
+}
+
+[data-ui-theme="idea"] {
+    .confirm-dialog,
+    .modal-content {
+        border-radius: 5px;
+        background: var(--bg-secondary);
+        border-color: var(--border-secondary);
+        box-shadow: none;
+    }
+
+    .confirm-dialog-header,
+    .confirm-dialog-footer {
+        border-color: var(--border-primary);
+    }
+
+    .modal-btn,
+    .confirm-dialog-button {
+        border-radius: 3px;
+    }
+
+    .modal-btn-primary,
+    .confirm-dialog-button.confirm-button {
+        box-shadow: none;
+    }
+}
+
+[data-ui-theme="vscode"] {
+    .confirm-dialog,
+    .modal-content {
+        border-radius: 7px;
+        border-color: var(--border-secondary);
+        box-shadow: none;
+    }
+
+    .modal-btn,
+    .confirm-dialog-button {
+        border-radius: 4px;
+    }
+}
+
+[data-ui-theme="qq"] {
+    .confirm-dialog,
+    .modal-content {
+        border-radius: 15px;
+        border-color: transparent;
+        box-shadow: none;
+    }
+
+    .modal-btn,
+    .confirm-dialog-button {
+        border-radius: 12px;
+    }
+
+    .modal-btn-primary,
+    .confirm-dialog-button.confirm-button {
+        box-shadow: none;
+    }
+}
+
+[data-ui-theme="wechat"] {
+    .confirm-dialog,
+    .modal-content {
+        border-radius: 11px;
+        border-color: transparent;
+        box-shadow: none;
+    }
+
+    .modal-btn,
+    .confirm-dialog-button {
+        border-radius: 10px;
+    }
+
+    .modal-btn-primary,
+    .confirm-dialog-button.confirm-button {
+        box-shadow: none;
+    }
+}

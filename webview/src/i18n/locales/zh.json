@@ -103,7 +103,8 @@
     "retrySdkStatus": "重试",
     "openSourceBanner": "本项目保证100%开源和免费（谨防盗版项目）",
     "openSourceBannerStar": "点个 Star",
-    "openSourceBannerStarAria": "前往 GitHub 点 Star",
+    "openSourceBannerStarToast": "已复制仓库地址到剪切板，复制到浏览器即可访问 ⭐",
+    "openSourceBannerStarAria": "复制仓库地址并前往 GitHub 点 Star",
     "goInstallSdk": "前往安装",
     "sdkTooLowForFable": "Claude SDK 版本过低，Fable 模型可能无法使用。请在设置中更新 Claude Code SDK。",
     "updateSdk": "更新 SDK",
@@ -165,10 +166,10 @@
       },
       "tabs": {
         "basic": "基础",
-        "actions": "动作",
         "bubble": "气泡",
         "local": "自定义",
-        "petdex": "Petdex"
+        "petdex": "Petdex",
+        "actions": "动作"
       },
       "floatingTitle": "IDE 悬浮宠物",
       "floatingDescription": "宠物会显示在编辑器和工具窗口上方，可拖动到 IDE 内的任意位置。",
@@ -176,7 +177,6 @@
       "disabled": "已禁用",
       "preview": "宠物预览",
       "currentPet": "当前宠物",
-      "currentPetHint": "从本地已安装的宠物中选择。",
       "petSearchPlaceholder": "搜索别名、原始名称或 ID",
       "noMatchingLocalPets": "没有匹配的已安装宠物",
       "alias": "本地别名",
@@ -185,10 +185,122 @@
       "saveAlias": "保存别名",
       "clearAlias": "清除别名",
       "size": "大小",
-      "sizeHint": "作用于当前窗口中的宠物。",
       "opacity": "透明度",
-      "opacityHint": "降低不活动时对编辑器的遮挡。",
       "showStatusIndicator": "显示状态点",
+      "resetPosition": "重置位置",
+      "refreshLocalPets": "刷新本地宠物",
+      "openPetDirectory": "打开宠物目录",
+      "localPetOperationFailed": "本地宠物操作失败，请检查 ~/.codex/pets 的访问权限。",
+      "petDirectoryUnavailable": "无法创建或打开 ~/.codex/pets 目录。",
+      "hatchTitle": "使用 hatch-pet 创建宠物",
+      "hatchDescription": "检测官方精选 Skill，并将可编辑命令放入当前 Codex 输入框。插件不会在后台运行该 Skill。",
+      "hatchStatus": {
+        "loading": "正在检查 hatch-pet Skill",
+        "missing": "未安装 hatch-pet Skill",
+        "broken": "hatch-pet Skill 安装不完整",
+        "installed": "已安装 hatch-pet Skill"
+      },
+      "prepareInstallSkill": "准备安装命令",
+      "prepareRepairSkill": "准备 Skill 修复命令",
+      "hatchOfficialSource": "官方 Skill 来源",
+      "refreshSkillStatus": "重新检查 Skill",
+      "hatchName": "宠物名称",
+      "hatchStyle": "视觉风格",
+      "hatchPrompt": "宠物描述",
+      "noReference": "未选择参考图片",
+      "chooseReference": "选择参考图片",
+      "clearReference": "清除参考图片",
+      "prepareCreatePet": "准备创建命令",
+      "prepareRepairPet": "准备修复命令",
+      "hatchCommandPrepared": "命令已添加到当前 Codex 输入框，请检查后再发送。",
+      "hatchReplaceDraftConfirm": "是否用此 hatch-pet 命令替换当前聊天草稿？",
+      "hatchCommandFailed": "无法准备 hatch-pet 命令。",
+      "hatchSkillNotReady": "hatch-pet Skill 未正确安装。",
+      "hatchInputRequired": "请输入名称或描述，或者选择一张参考图片。",
+      "hatchRequiresCodex": "准备 hatch-pet 命令前，请先切换到 Codex 页签。",
+      "bubbleTitle": "宠物气泡",
+      "bubbleDescription": "为实时 Codex 任务显示简短的状态气泡。气泡仅使用模板，不会包含聊天内容。",
+      "bubbleDuration": "气泡持续时间（秒）",
+      "bubbleSize": "气泡大小",
+      "bubbleShowForBackgroundTabs": "显示后台页签的气泡",
+      "templateVariables": "可用变量",
+      "templateVariableTable": {
+        "variable": "变量",
+        "content": "插入内容",
+        "tabTitle": "自定义会话标题；不可用时回退到 IDE 页签标题。",
+        "provider": "当前 AI 供应商，例如 Codex 或 Claude。",
+        "model": "当前选择的模型名称。",
+        "duration": "当前任务已用时间，例如 12.8 秒。"
+      },
+      "bubbleSizes": {
+        "small": "小",
+        "medium": "中",
+        "large": "大",
+        "xlarge": "超大"
+      },
+      "bubbleEvents": {
+        "task_started": "任务已开始",
+        "thinking": "思考中",
+        "running": "运行中",
+        "task_success": "任务已完成",
+        "task_error": "任务失败",
+        "idle": "空闲"
+      },
+      "petdexTitle": "Petdex 社区",
+      "petdexDescription": "从官方 Petdex 仓库浏览并安装经过验证的宠物包。",
+      "refreshCatalog": "刷新 Petdex 目录",
+      "searchPlaceholder": "搜索名称、作者、类型或 slug",
+      "catalogError": "无法加载 Petdex：{{error}}",
+      "noPets": "没有匹配的宠物",
+      "loadingCatalog": "正在加载 Petdex 宠物...",
+      "install": "安装",
+      "pagination": "宠物目录分页",
+      "previousPage": "上一页",
+      "nextPage": "下一页",
+      "pageStatus": "{{current}} / {{total}}",
+      "previewUnavailable": "预览不可用",
+      "connectTimeout": "连接超时（秒）",
+      "requestTimeout": "请求超时（秒）",
+      "retryAttempts": "重试次数",
+      "catalogColumns": "每行卡片数",
+      "catalogPageSize": "每页数量",
+      "pageSizeOption": "每页 {{count}} 个",
+      "pageJump": "跳转到",
+      "goToPage": "跳转到页面",
+      "sort": {
+        "default": "默认顺序",
+        "name_asc": "名称升序",
+        "name_desc": "名称降序",
+        "author_asc": "作者升序",
+        "kind_asc": "类型升序",
+        "slug_asc": "Slug 升序"
+      },
+      "columns3": "3 列",
+      "columns4": "4 列",
+      "columns5": "5 列",
+      "columns6": "6 列",
+      "connectTimeoutError": "连接 Petdex 超时，请检查网络或代理，或者增加连接超时时间。",
+      "requestTimeoutError": "Petdex 下载超时，请增加请求超时时间后重试。",
+      "networkError": "无法访问 Petdex，请检查网络、代理或防火墙后重试。",
+      "petNotFound": "此宠物已不在 Petdex 中。",
+      "alreadyInstalled": "此宠物已经安装。",
+      "resourceTooLarge": "宠物包超过允许的大小。",
+      "invalidPackage": "下载的宠物包无效或无法解码。",
+      "aliasTooLong": "宠物别名不能超过 60 个字符。",
+      "invalidAlias": "宠物别名包含不支持的控制字符。",
+      "aliasUpdateFailed": "无法写入宠物元数据，请检查 ~/.codex/pets 下的权限和文件占用情况。",
+      "httpError": "Petdex 返回 HTTP {{status}}，请稍后重试。",
+      "unknownError": "操作失败（{{code}}），请查看 idea.log 获取详细信息。",
+      "uninstall": "卸载",
+      "processing": "处理中",
+      "installedExternally": "本地安装",
+      "installSuccess": "宠物已安装并选中",
+      "uninstallSuccess": "宠物已卸载",
+      "aliasSuccess": "宠物别名已更新",
+      "operationFailed": "宠物操作失败：{{error}}",
+      "currentPetHint": "从本地已安装的宠物中选择。",
+      "sizeHint": "作用于当前窗口中的宠物。",
+      "opacityHint": "降低不活动时对编辑器的遮挡。",
       "showStatusIndicatorHint": "在悬浮宠物旁显示当前任务状态。",
       "confirmBeforeDelete": "删除前二次确认",
       "confirmBeforeDeleteHint": "移除本地宠物前需要确认。",
@@ -198,7 +310,6 @@
       "deleteConfirmTitle": "删除本地 Pet？",
       "deleteConfirm": "确定要从本地 Pet 存储中删除 {{name}} 吗？此操作不可撤销。",
       "deleteSuccess": "Pet 已删除",
-      "resetPosition": "重置位置",
       "actionsTitle": "状态动作",
       "actionsDescription": "为每种任务状态选择一个或多个图集动作。",
       "actionsHint": "状态开始时会从已选动作中随机选择一个。动作映射仅对 8×9 动画 Pet 生效，静态图片使用完整图片。",
@@ -249,125 +360,15 @@
         "running": "工作中",
         "review": "检查"
       },
-      "refreshLocalPets": "刷新本地宠物",
-      "openPetDirectory": "打开宠物目录",
-      "localPetOperationFailed": "本地宠物操作失败，请检查 ~/.codex/pets 的访问权限。",
-      "petDirectoryUnavailable": "无法创建或打开 ~/.codex/pets 目录。",
-      "hatchTitle": "使用 hatch-pet 创建宠物",
-      "hatchDescription": "检测官方精选 Skill，并将可编辑命令放入当前 Codex 输入框。插件不会在后台运行该 Skill。",
-      "hatchStatus": {
-        "loading": "正在检查 hatch-pet Skill",
-        "missing": "未安装 hatch-pet Skill",
-        "broken": "hatch-pet Skill 安装不完整",
-        "installed": "已安装 hatch-pet Skill"
-      },
-      "prepareInstallSkill": "准备安装命令",
-      "prepareRepairSkill": "准备 Skill 修复命令",
-      "hatchOfficialSource": "官方 Skill 来源",
-      "refreshSkillStatus": "重新检查 Skill",
-      "hatchName": "宠物名称",
-      "hatchStyle": "视觉风格",
-      "hatchPrompt": "宠物描述",
       "referenceImage": "参考图片",
       "petDirectory": "宠物目录",
       "petDirectoryHint": "本地宠物与生成结果统一管理。",
       "hatchCommandHint": "命令会发送到当前 Codex 输入框执行。",
-      "noReference": "未选择参考图片",
-      "chooseReference": "选择参考图片",
-      "clearReference": "清除参考图片",
-      "prepareCreatePet": "准备创建命令",
-      "prepareRepairPet": "准备修复命令",
-      "hatchCommandPrepared": "命令已添加到当前 Codex 输入框，请检查后再发送。",
       "hatchReplaceDraftConfirmTitle": "替换当前聊天草稿？",
-      "hatchReplaceDraftConfirm": "是否用此 hatch-pet 命令替换当前聊天草稿？",
       "hatchReplaceDraftAction": "替换草稿",
-      "hatchCommandFailed": "无法准备 hatch-pet 命令。",
-      "hatchSkillNotReady": "hatch-pet Skill 未正确安装。",
-      "hatchInputRequired": "请输入名称或描述，或者选择一张参考图片。",
-      "hatchRequiresCodex": "准备 hatch-pet 命令前，请先切换到 Codex 页签。",
-      "bubbleTitle": "宠物气泡",
-      "bubbleDescription": "为实时 Claude Code 和 Codex 任务显示简短的状态气泡。气泡仅使用模板，不会包含聊天内容。",
-      "bubbleDuration": "气泡持续时间（秒）",
-      "bubbleSize": "气泡大小",
-      "bubbleShowForBackgroundTabs": "显示后台页签的气泡",
-      "templateVariables": "可用变量",
-      "templateVariableTable": {
-        "variable": "变量",
-        "content": "插入内容",
-        "tabTitle": "自定义会话标题；不可用时回退到 IDE 页签标题。",
-        "provider": "当前 AI 供应商，例如 Codex 或 Claude。",
-        "model": "当前选择的模型名称。",
-        "duration": "当前任务已用时间，例如 12.8 秒。"
-      },
-      "bubbleSizes": {
-        "small": "小",
-        "medium": "中",
-        "large": "大",
-        "xlarge": "超大"
-      },
-      "bubbleEvents": {
-        "task_started": "任务已开始",
-        "thinking": "思考中",
-        "running": "运行中",
-        "task_success": "任务已完成",
-        "task_error": "任务失败",
-        "idle": "空闲"
-      },
-      "petdexTitle": "Petdex 社区",
-      "petdexDescription": "从官方 Petdex 仓库浏览并安装经过验证的宠物包。",
-      "refreshCatalog": "刷新 Petdex 目录",
-      "searchPlaceholder": "搜索名称、作者、类型或 slug",
-      "catalogError": "无法加载 Petdex：{{error}}",
-      "noPets": "没有匹配的宠物",
-      "loadingCatalog": "正在加载 Petdex 宠物...",
-      "install": "安装",
-      "pagination": "宠物目录分页",
-      "previousPage": "上一页",
-      "nextPage": "下一页",
-      "pageStatus": "{{current}} / {{total}}",
-      "previewUnavailable": "预览不可用",
-      "connectTimeout": "连接超时（秒）",
-      "requestTimeout": "请求超时（秒）",
-      "retryAttempts": "重试次数",
-      "catalogColumns": "每行卡片数",
-      "catalogPageSize": "每页数量",
       "catalogSort": "排序方式",
-      "pageSizeOption": "每页 {{count}} 个",
-      "pageJump": "跳转到",
-      "goToPage": "跳转到页面",
-      "sort": {
-        "default": "默认顺序",
-        "name_asc": "名称升序",
-        "name_desc": "名称降序",
-        "author_asc": "作者升序",
-        "kind_asc": "类型升序",
-        "slug_asc": "Slug 升序"
-      },
-      "columns3": "3 列",
-      "columns4": "4 列",
-      "columns5": "5 列",
-      "columns6": "6 列",
-      "connectTimeoutError": "连接 Petdex 超时，请检查网络或代理，或者增加连接超时时间。",
-      "requestTimeoutError": "Petdex 下载超时，请增加请求超时时间后重试。",
-      "networkError": "无法访问 Petdex，请检查网络、代理或防火墙后重试。",
-      "petNotFound": "此宠物已不在 Petdex 中。",
-      "alreadyInstalled": "此宠物已经安装。",
-      "resourceTooLarge": "宠物包超过允许的大小。",
-      "invalidPackage": "下载的宠物包无效或无法解码。",
-      "aliasTooLong": "宠物别名不能超过 60 个字符。",
-      "invalidAlias": "宠物别名包含不支持的控制字符。",
-      "aliasUpdateFailed": "无法写入宠物元数据，请检查 ~/.codex/pets 下的权限和文件占用情况。",
-      "httpError": "Petdex 返回 HTTP {{status}}，请稍后重试。",
-      "unknownError": "操作失败（{{code}}），请查看 idea.log 获取详细信息。",
-      "uninstall": "卸载",
       "uninstallConfirmTitle": "卸载 Pet？",
-      "uninstallConfirm": "确定要卸载 {{name}} 并删除其托管的本地文件吗？",
-      "processing": "处理中",
-      "installedExternally": "本地安装",
-      "installSuccess": "宠物已安装并选中",
-      "uninstallSuccess": "宠物已卸载",
-      "aliasSuccess": "宠物别名已更新",
-      "operationFailed": "宠物操作失败：{{error}}"
+      "uninstallConfirm": "确定要卸载 {{name}} 并删除其托管的本地文件吗？"
     },
     "basic": {
       "title": "基础配置",
@@ -385,6 +386,39 @@
         "lightDesc": "清爽明亮，适合白天使用",
         "dark": "暗色",
         "darkDesc": "护眼舒适，适合夜间使用"
+      },
+      "uiStyle": {
+        "label": "界面风格",
+        "default": "原版经典",
+        "defaultDesc": "经典 IDE 紧凑纯粹风格",
+        "lightGlass": "晶透毛玻璃",
+        "lightGlassDesc": "悬浮坞通透毛玻璃与晶莹光感",
+        "antigravity": "极简胶囊",
+        "antigravityDesc": "圆角胶囊与流线悬浮坞",
+        "codebuddy": "纯白卡片",
+        "codebuddyDesc": "明晰白卡与工程流式排版",
+        "idea": "深空深蓝",
+        "ideaDesc": "深空蓝灰与沉浸工程质感",
+        "vscode": "经典纯蓝",
+        "vscodeDesc": "经典开发蓝与紧凑编辑器界面",
+        "qq": "天蓝气泡",
+        "qqDesc": "轻快天蓝气泡与轻盈对话体验",
+        "wechat": "柔和苍翠",
+        "wechatDesc": "亲和青翠气泡与极简聊天质感",
+        "notion": "极简纸感",
+        "notionDesc": "低灰纸感、细边框与专注排版",
+        "arcGlass": "圆角轻晶",
+        "arcGlassDesc": "胶囊悬浮与局部透光质感",
+        "warp": "暗色终端",
+        "warpDesc": "深空终端色与高辨识状态色",
+        "vercel": "极夜黑蓝",
+        "vercelDesc": "深邃黑蓝背景与现代层次排版",
+        "claudeWarm": "暖调陶土",
+        "claudeWarmDesc": "米白暖灰配陶土暖色调",
+        "solarized": "经典舒目",
+        "solarizedDesc": "经典低对比度舒目阅读配色",
+        "custom": "自定义主题",
+        "customDesc": "使用自定义颜色和效果创建专属主题"
       },
       "language": {
         "label": "界面语言",
@@ -575,6 +609,42 @@
         "softDark": "柔和深色",
         "softDarkDesc": "保留代码感，但弱化纯黑对比"
       },
+      "customTheme": {
+        "label": "自定义主题",
+        "namePlaceholder": "输入主题名称...",
+        "presetTemplates": "精选预设模板",
+        "presets": {
+          "nebulaGlow": "星云极光",
+          "frostedGlass": "晶透毛玻璃",
+          "deepOcean": "深海幽蓝",
+          "sunsetAmber": "日落暖金",
+          "forestEmerald": "林间苍翠",
+          "porcelainLight": "白瓷明亮"
+        },
+        "presetApplied": "已载入模板：{{name}}",
+        "bgPrimary": "主背景",
+        "bgSecondary": "次级背景",
+        "bgTertiary": "三级背景",
+        "bgElevated": "浮层背景",
+        "bgHover": "悬停背景",
+        "textPrimary": "主文本",
+        "textSecondary": "次级文本",
+        "borderPrimary": "主边框",
+        "borderSecondary": "次级边框",
+        "accentPrimary": "强调色",
+        "accentHover": "强调悬停",
+        "userBubble": "用户气泡",
+        "userText": "气泡文字",
+        "radius": "圆角比例",
+        "glass": "毛玻璃强度",
+        "import": "导入 JSON",
+        "export": "复制配置",
+        "reset": "恢复默认",
+        "imported": "主题已导入并应用",
+        "exported": "主题配置已复制",
+        "invalid": "JSON 格式无效，已保留当前主题",
+        "invalidColor": "请输入有效的颜色值"
+      },
       "soundNotification": {
         "label": "任务完成提示音",
         "enabled": "已开启",
@@ -637,10 +707,6 @@
       "copied": "已复制到剪贴板",
       "copyFailed": "复制失败",
       "tools": {
-        "minimax": {
-          "name": "MiniMax Code",
-          "description": "MiniMax 终端编码智能体。需 Node.js 22.19+ / 24+（不支持 23）；命令：minimax / mcode"
-        },
         "grok": {
           "name": "Grok CLI",
           "description": "xAI Grok 终端编码助手"
@@ -657,13 +723,21 @@
           "name": "PI CLI",
           "description": "极简终端编码代理，支持多提供商模型"
         },
+        "dsh": {
+          "name": "DeepSeek Harness",
+          "description": "DeepSeek 官方编码 Agent（dsh），支持工具调用、子代理与工作流"
+        },
+        "antigravity": {
+          "name": "Antigravity CLI",
+          "description": "Google Antigravity 官方终端 AI 编程助手"
+        },
+        "minimax": {
+          "name": "MiniMax Code",
+          "description": "MiniMax 终端编码智能体。需 Node.js 22.19+ / 24+（不支持 23）；命令：minimax / mcode"
+        },
         "omp": {
           "name": "OMP CLI",
           "description": "支持多提供商模型的 Oh My Pi 终端编码代理"
-        },
-        "dsh": {
-          "name": "DeepSeek Harness",
-          "description": "DeepSeek 终端智能体 CLI（dsh）"
         }
       },
       "installDialog": {
@@ -682,10 +756,6 @@
       "summary": "{{installed}} / {{total}} 已安装",
       "moreComingSoon": "即将支持更多",
       "copyPath": "复制路径",
-      "visibility": {
-        "hide": "在切换菜单中隐藏",
-        "show": "在切换菜单中显示"
-      },
       "dsh": {
         "groupTitle": "DeepSeek Harness",
         "cliRowTitle": "CLI 安装",
@@ -705,6 +775,10 @@
         "stopHost": "关闭（仅限插件启动的宿主）",
         "autoStart": "需要时自动启动",
         "moreActions": "更多"
+      },
+      "visibility": {
+        "hide": "在切换菜单中隐藏",
+        "show": "在切换菜单中显示"
       }
     },
     "pluginModels": {
@@ -896,18 +970,11 @@
     "versionHistoryDesc": "查看所有版本更新记录",
     "communityQrTip": "使用微信扫一扫",
     "communityQrAlt": "官方微信交流群二维码",
-    "socialDocs": "官方文档",
-    "socialTitle": "关注我们",
-    "socialGithub": "GitHub 开源仓库，欢迎 Star",
-    "socialX": "X（Twitter）@ZPeng31310",
-    "socialZhihu": "知乎 @vscodeai",
-    "socialXiaohongshu": "小红书",
-    "socialDouyin": "抖音，鼠标悬停扫码关注",
-    "socialYoutube": "YouTube 频道 @昆鹏马上优化",
-    "douyinQrAlt": "抖音二维码",
-    "douyinId": "抖音号：nengyongai",
-    "douyinCopied": "抖音号已复制到剪贴板",
-    "douyinCopyFailed": "复制失败，请手动复制",
+    "githubTitle": "GitHub 开源地址",
+    "githubDesc": "本项目已在 GitHub 开源，欢迎 Star 支持",
+    "githubCopyBtn": "复制开源地址",
+    "githubCopied": "开源地址已复制到剪切板，请在浏览器中访问",
+    "githubCopyFailed": "复制失败，请手动复制",
     "sponsor": "赞助支持",
     "sponsorDesc": "如果这个项目对你有帮助，欢迎赞助支持，你的支持是我持续维护的动力！",
     "alipay": "支付宝",
@@ -1324,7 +1391,19 @@
         "selectHint": "选择要导出的提示词",
         "confirmExport": "确认导出"
       }
-    }
+    },
+    "socialDocs": "官方文档",
+    "socialTitle": "关注我们",
+    "socialGithub": "GitHub 开源仓库，欢迎 Star",
+    "socialX": "X（Twitter）@ZPeng31310",
+    "socialZhihu": "知乎 @vscodeai",
+    "socialXiaohongshu": "小红书",
+    "socialDouyin": "抖音，鼠标悬停扫码关注",
+    "socialYoutube": "YouTube 频道 @昆鹏马上优化",
+    "douyinQrAlt": "抖音二维码",
+    "douyinId": "抖音号：nengyongai",
+    "douyinCopied": "抖音号已复制到剪贴板",
+    "douyinCopyFailed": "复制失败，请手动复制"
   },
   "history": {
     "title": "历史会话",
@@ -1797,7 +1876,16 @@
     "bashGroupAllCompleted": "全部完成",
     "bashGroupFailed": "失败",
     "updatePlan": "更新计划",
-    "applyPatch": "应用补丁"
+    "applyPatch": "应用补丁",
+    "applyHunk": "采纳本段",
+    "revertHunk": "撤销本段",
+    "hunkApplied": "已采纳",
+    "hunkReverted": "已撤销",
+    "hunkPending": "未采纳",
+    "applyAllHunks": "全部采纳",
+    "revertAllHunks": "全部撤销",
+    "interactiveMergeInIdea": "在 IDEA 中交互式合并",
+    "hunkTitle": "变更块 #{{index}}"
   },
   "todo": {
     "inProgress": "进行中 {{completed}}/{{total}} 个任务",
@@ -2119,17 +2207,17 @@
       "tooltip": "自动接受文件编辑",
       "description": "自动接受文件创建/编辑，减少确认步骤"
     },
+    "bypassPermissions": {
+      "label": "自动模式",
+      "shortLabel": "自动",
+      "tooltip": "绕过所有权限检查",
+      "description": "完全自动化，绕过所有权限检查【谨慎使用】"
+    },
     "auto": {
       "label": "自动审批",
       "shortLabel": "自动",
       "tooltip": "由模型审查器自动批准或阻止操作",
       "description": "使用提供商原生审查器处理审批，同时保留安全边界"
-    },
-    "bypassPermissions": {
-      "label": "全自动",
-      "shortLabel": "全自动",
-      "tooltip": "绕过所有权限检查",
-      "description": "完全自动化，绕过所有权限检查【谨慎使用】"
     }
   },
   "codexModes": {
@@ -2150,38 +2238,16 @@
       "tooltip": "Codex approval_policy=on-request：按需发起审批请求。",
       "description": "平衡模式，保持正常编辑流程，同时在需要时进行审批。"
     },
+    "bypassPermissions": {
+      "label": "全自动",
+      "tooltip": "Codex approval_policy=never：命令与写入直接执行（workspace 沙箱仍生效）。",
+      "description": "完全免审批，写文件和执行命令立即生效，仅受沙箱限制。"
+    },
     "auto": {
       "label": "替我审批",
       "shortLabel": "自动",
       "tooltip": "Codex approvals_reviewer=auto_review：由自动审查器处理可审批请求。",
       "description": "保持 workspace-write 沙箱；审查器无法批准的请求仍会升级处理。"
-    },
-    "bypassPermissions": {
-      "label": "全自动",
-      "tooltip": "Codex approval_policy=never：命令与写入直接执行（workspace 沙箱仍生效）。",
-      "description": "完全免审批，写文件和执行命令立即生效，仅受沙箱限制。"
-    }
-  },
-  "ompModes": {
-    "default": {
-      "label": "默认",
-      "tooltip": "使用所选模型（或 OMP auto）",
-      "description": "使用模型下拉框中选择的模型；设为 Auto 时使用 OMP CLI 默认模型。"
-    },
-    "smol": {
-      "label": "Smol",
-      "tooltip": "快速模型角色 (omp --model smol)",
-      "description": "使用为 omp 的 smol 角色配置的模型运行此对话。覆盖模型下拉框的选择。"
-    },
-    "slow": {
-      "label": "Slow",
-      "tooltip": "推理模型角色 (omp --model slow)",
-      "description": "使用为 omp 的 slow 角色配置的模型运行此对话。覆盖模型下拉框的选择。"
-    },
-    "plan": {
-      "label": "Plan",
-      "tooltip": "规划模型角色 (omp --model plan)",
-      "description": "使用为 omp 的 plan 角色配置的模型运行此对话。覆盖模型下拉框的选择。"
     }
   },
   "providers": {
@@ -2197,9 +2263,6 @@
     "kimi": {
       "label": "Kimi CLI"
     },
-    "minimax": {
-      "label": "MiniMax Code"
-    },
     "gemini": {
       "label": "Gemini Cli"
     },
@@ -2209,16 +2272,22 @@
     "pi": {
       "label": "PI CLI"
     },
-    "omp": {
-      "label": "OMP CLI"
+    "dsh": {
+      "label": "DeepSeek Harness"
+    },
+    "antigravity": {
+      "label": "Antigravity CLI"
     },
     "beta": {
       "badge": "Beta",
       "title": "Beta 功能",
       "message": "此功能仍处于 Beta 阶段。如果遇到使用 Bug，请及时反馈给作者。"
     },
-    "dsh": {
-      "label": "DeepSeek Harness"
+    "minimax": {
+      "label": "MiniMax Code"
+    },
+    "omp": {
+      "label": "OMP CLI"
     },
     "manageCli": "CLI 配置管理"
   },
@@ -2399,12 +2468,33 @@
   },
   "dshPresets": {
     "title": "选择 DeepSeek Harness Agent 预设",
-    "none": { "label": "默认", "description": "dsh 默认 headless 组合（完整工具集）" },
-    "standard": { "label": "标准模式", "description": "功能完整的标准编码工具集" },
-    "code": { "label": "PTC 模式", "description": "标准能力加 Code Mode" },
-    "minimal": { "label": "极简模式", "description": "仅提供 bash 与 str_replace_editor" },
-    "cordis": { "label": "创造模式", "description": "标准能力加组合编排能力" },
-    "user": { "description": "安装在 DSH 主目录中的自定义预设" }
+    "none": {
+      "label": "默认",
+      "description": "dsh 默认 headless 组合（完整工具集）"
+    },
+    "standard": {
+      "label": "标准模式",
+      "description": "功能完整的编码 Agent：文件编辑、Shell、网页检索、Skills、计划、目标、子 Agent 和工作流"
+    },
+    "code": {
+      "label": "PTC 模式",
+      "description": "具备标准模式全部能力，并通过 Code Mode 将多步工具调用合并为一段 TypeScript 程序"
+    },
+    "minimal": {
+      "label": "极简模式",
+      "description": "仅提供持久 bash 与 str_replace_editor 的双工具编码 Agent"
+    },
+    "cordis": {
+      "label": "创造模式",
+      "description": "具备标准模式全部能力，并支持组合编排与技能指导，用于创建自定义预设"
+    },
+    "routerStandard": {
+      "label": "路由标准模式",
+      "description": "任务感知思维模式路由（用户安装的预设）：修复类任务走 spec（先规划），构建类任务走 react（直接执行）"
+    },
+    "user": {
+      "description": "安装在 ~/.dsh/.agent-presets 的自定义预设"
+    }
   },
   "error": {
     "providerNotConfigured": "供应商未配置",
@@ -2453,6 +2543,28 @@
           "step1": "2. 打开「依赖管理」重装最新版 SDK："
         }
       }
+    }
+  },
+  "ompModes": {
+    "default": {
+      "label": "默认",
+      "tooltip": "使用所选模型（或 OMP auto）",
+      "description": "使用模型下拉框中选择的模型；设为 Auto 时使用 OMP CLI 默认模型。"
+    },
+    "smol": {
+      "label": "Smol",
+      "tooltip": "快速模型角色 (omp --model smol)",
+      "description": "使用为 omp 的 smol 角色配置的模型运行此对话。覆盖模型下拉框的选择。"
+    },
+    "slow": {
+      "label": "Slow",
+      "tooltip": "推理模型角色 (omp --model slow)",
+      "description": "使用为 omp 的 slow 角色配置的模型运行此对话。覆盖模型下拉框的选择。"
+    },
+    "plan": {
+      "label": "Plan",
+      "tooltip": "规划模型角色 (omp --model plan)",
+      "description": "使用为 omp 的 plan 角色配置的模型运行此对话。覆盖模型下拉框的选择。"
     }
   }
 }

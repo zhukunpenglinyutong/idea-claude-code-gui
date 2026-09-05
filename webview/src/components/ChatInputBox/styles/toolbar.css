@@ -9,6 +9,10 @@
   border-top: none;
   background: rgba(0, 0, 0, 0.1);
   font-family: inherit;
+  /* Match the container's bottom corners: .chat-input-box keeps overflow
+     visible for the resize handles, so square corners would bleed past
+     large theme radii (e.g. the antigravity 22px capsule). */
+  border-radius: 0 0 calc(var(--input-radius, 8px) - 1px) calc(var(--input-radius, 8px) - 1px);
   /* Enable container queries for responsive button behavior */
   container-type: inline-size;
   container-name: button-area;

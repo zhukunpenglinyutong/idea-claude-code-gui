@@ -120,6 +120,277 @@
   white-space: nowrap;
 }
 
+/* UI Theme Style Grid */
+.uiStyleGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.customPresetSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+}
+
+.customPresetLabel {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.customPresetButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.customPresetBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-primary);
+  }
+
+  &.active {
+    background: var(--bg-hover);
+    border-color: var(--accent-primary);
+    font-weight: 600;
+    box-shadow: 0 0 0 1px var(--accent-primary);
+  }
+}
+
+.customPresetDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.customThemeToolbar {
+  display: grid;
+  grid-template-columns: 1fr 140px;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.customColorGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.customColorField {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+}
+
+.customColorFieldName {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.customColorInputGroup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.customHexInput {
+  width: 76px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: var(--cc-gui-code-font-family, monospace);
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 6px;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+
+  &:hover {
+    border-color: var(--border-hover, var(--border-primary));
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    background: var(--bg-secondary);
+    box-shadow: 0 0 0 1px var(--accent-primary);
+  }
+}
+
+.customSliderRow {
+  display: grid;
+  grid-template-columns: 72px 1fr 48px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.customJsonEditor {
+  min-height: 160px;
+  padding: 10px;
+  resize: vertical;
+  font-family: var(--cc-gui-code-font-family);
+  line-height: 1.45;
+}
+
+.customThemeActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+
+  button {
+    padding: 6px 10px;
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-secondary);
+    border-radius: 8px;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--bg-hover);
+    }
+  }
+}
+
+.uiStyleCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  position: relative;
+
+  &:hover {
+    border-color: var(--accent-primary);
+    background: var(--bg-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  }
+
+  &.active {
+    border-color: var(--accent-primary);
+    background: var(--bg-tertiary);
+    box-shadow: 0 0 0 1px var(--accent-primary);
+
+    .uiStyleCardTitle {
+      color: var(--accent-primary);
+    }
+  }
+}
+
+.uiStyleCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.uiStyleCardIcon {
+  font-size: 16px;
+  color: var(--accent-primary);
+  flex-shrink: 0;
+}
+
+.uiStyleCardTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.uiStyleCheckBadge {
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--accent-primary);
+}
+
+.uiStyleCardDesc {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+:global([data-ui-theme="antigravity"]) .uiStyleCard {
+  border-radius: 16px;
+}
+
+:global([data-ui-theme="codebuddy"]) .uiStyleCard {
+  border-radius: 10px;
+}
+
+:global([data-ui-theme="idea"]) .uiStyleCard {
+  border-radius: 5px;
+
+  &.active {
+    background: var(--bg-elevated);
+    box-shadow: 0 0 0 1px var(--accent-primary);
+  }
+}
+
+:global([data-ui-theme="vscode"]) .uiStyleCard {
+  border-radius: 6px;
+
+  &.active {
+    box-shadow: 0 0 0 1px var(--accent-primary), 0 4px 14px rgba(141, 161, 1, 0.1);
+  }
+}
+
+:global([data-ui-theme="qq"]) .uiStyleCard {
+  border-radius: 14px;
+
+  &.active {
+    box-shadow: 0 0 0 1px var(--accent-primary);
+  }
+}
+
+:global([data-ui-theme="wechat"]) .uiStyleCard {
+  border-radius: 10px;
+
+  &.active {
+    box-shadow: 0 0 0 1px var(--accent-primary);
+  }
+}
+
 /* 保留 themeGrid 和 themeCard 供其他地方使用 (如发送快捷键) */
 .themeGrid {
   display: grid;
@@ -522,7 +793,7 @@
   margin-bottom: 24px;
 }
 
-/* 🔧 流式传输开关样式 */
+/* 流式传输开关样式 */
 .streamingSection {
   margin-bottom: 24px;
 }
@@ -888,5 +1159,159 @@
     width: 100%;
     padding: 8px 12px;
     font-size: 12px;
+  }
+}
+
+/* Settings controls follow the active UI theme shape. */
+:global([data-ui-theme="antigravity"]) {
+  .basicTabSelector,
+  .themeOption {
+    border-radius: 16px;
+  }
+
+  .basicTabBtn {
+    border-radius: 13px;
+  }
+
+  .colorSwatch,
+  .upwardSelectDropdown {
+    border-radius: 14px;
+  }
+
+  .languageSelect,
+  .fontSizeSelect,
+  .fontInfoDisplay,
+  .nodePathInput,
+  .hexInput,
+  .saveBtn,
+  .resetBtn,
+  .soundTestBtn,
+  .upwardSelectTrigger {
+    border-radius: 12px;
+  }
+}
+
+:global([data-ui-theme="codebuddy"]) {
+  .basicTabSelector,
+  .themeOption {
+    border-radius: 10px;
+  }
+
+  .basicTabBtn,
+  .languageSelect,
+  .fontSizeSelect,
+  .fontInfoDisplay,
+  .nodePathInput,
+  .hexInput,
+  .saveBtn,
+  .resetBtn,
+  .soundTestBtn,
+  .upwardSelectTrigger {
+    border-radius: 7px;
+  }
+
+  .upwardSelectDropdown {
+    border-radius: 9px;
+  }
+}
+
+:global([data-ui-theme="idea"]) {
+  .basicTabSelector,
+  .themeOption,
+  .upwardSelectDropdown {
+    border-radius: 4px;
+  }
+
+  .basicTabBtn {
+    border-radius: 2px;
+  }
+
+  .languageSelect,
+  .fontSizeSelect,
+  .fontInfoDisplay,
+  .nodePathInput,
+  .hexInput,
+  .saveBtn,
+  .resetBtn,
+  .soundTestBtn,
+  .upwardSelectTrigger {
+    border-radius: 3px;
+  }
+
+  .languageSelect:focus,
+  .fontSizeSelect:focus,
+  .nodePathInput:focus,
+  .hexInput:focus,
+  .upwardSelectTrigger.open {
+    box-shadow: 0 0 0 1px var(--accent-primary);
+  }
+}
+
+:global([data-ui-theme="vscode"]) {
+  .basicTabSelector,
+  .themeOption,
+  .upwardSelectDropdown {
+    border-radius: 12px;
+  }
+
+  .basicTabBtn {
+    border-radius: 9px;
+  }
+
+  .languageSelect,
+  .fontSizeSelect,
+  .fontInfoDisplay,
+  .nodePathInput,
+  .hexInput,
+  .saveBtn,
+  .resetBtn,
+  .soundTestBtn,
+  .upwardSelectTrigger {
+    border-radius: 8px;
+  }
+}
+
+:global([data-ui-theme="qq"]) {
+  .basicTabSelector,
+  .themeOption,
+  .upwardSelectDropdown {
+    border-radius: 10px;
+  }
+
+  .basicTabBtn,
+  .languageSelect,
+  .fontSizeSelect,
+  .fontInfoDisplay,
+  .nodePathInput,
+  .hexInput,
+  .saveBtn,
+  .resetBtn,
+  .soundTestBtn,
+  .upwardSelectTrigger {
+    border-radius: 7px;
+  }
+}
+
+:global([data-ui-theme="wechat"]) {
+  .basicTabSelector,
+  .themeOption,
+  .upwardSelectDropdown {
+    border-radius: 14px;
+  }
+
+  .basicTabBtn {
+    border-radius: 11px;
+  }
+
+  .languageSelect,
+  .fontSizeSelect,
+  .fontInfoDisplay,
+  .nodePathInput,
+  .hexInput,
+  .saveBtn,
+  .resetBtn,
+  .soundTestBtn,
+  .upwardSelectTrigger {
+    border-radius: 9px;
   }
 }

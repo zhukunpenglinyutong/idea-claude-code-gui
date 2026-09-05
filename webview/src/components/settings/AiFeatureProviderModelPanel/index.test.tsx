@@ -70,6 +70,7 @@ describe('AiFeatureProviderModelPanel', () => {
       opencode: false,
       pi: false,
       omp: false,
+      minimax: false,
     },
   };
 

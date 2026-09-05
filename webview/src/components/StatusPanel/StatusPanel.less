@@ -1,4 +1,6 @@
 /* StatusPanel Styles */
+
+
 .status-panel {
   position: relative;
   margin: 0 20px 8px 20px;
@@ -21,15 +23,12 @@
   &::-webkit-scrollbar {
     height: 4px;
   }
-
   &::-webkit-scrollbar-track {
     background: transparent;
   }
-
   &::-webkit-scrollbar-thumb {
     background: var(--scrollbar-thumb);
     border-radius: 2px;
-
     &:hover {
       background: var(--scrollbar-thumb-hover);
     }
@@ -58,7 +57,6 @@
     border-radius: 4px 0 0 4px;
     margin-right: -1px;
   }
-
   &:last-child {
     border-radius: 0 4px 4px 0;
   }
@@ -110,6 +108,199 @@
 
     .stat-deletions {
       color: #ff6b6b;
+    }
+  }
+}
+
+/* CodeBuddy Underline Tabs */
+[data-ui-theme="codebuddy"] {
+  .status-panel {
+    margin: 0 0 8px 0;
+  }
+
+  .status-panel-tabs {
+    background: var(--bg-secondary, #ffffff);
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    border-bottom: 1px solid var(--border-primary, #e5e6eb);
+    border-radius: 0;
+    padding: 0 12px;
+    gap: 16px;
+  }
+
+  .status-panel-tab {
+    flex: 0 0 auto;
+    border-radius: 0;
+    padding: 8px 4px;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+
+    &:hover {
+      background: transparent;
+      color: var(--text-primary, #18191c);
+    }
+
+    &.active {
+      color: var(--accent-primary, #0052d9);
+      background: transparent;
+      border-bottom: 2px solid var(--accent-primary, #0052d9);
+    }
+  }
+}
+
+/* Google Antigravity Segmented Pill */
+[data-ui-theme="antigravity"] {
+  .status-panel-tabs {
+    background: var(--bg-tertiary, #f1f3f4);
+    border: 1px solid var(--border-primary, #e1e4e8);
+    border-radius: 18px;
+    padding: 3px;
+    gap: 2px;
+  }
+
+  .status-panel-tab {
+    border-radius: 15px;
+    padding: 5px 12px;
+
+    &:hover {
+      background: transparent;
+      color: var(--text-primary, #1f1f1f);
+    }
+
+    &.active {
+      background: var(--bg-elevated, #ffffff);
+      color: var(--text-primary, #1f1f1f);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+  }
+}
+
+/* JetBrains IDEA Flat Tabs */
+[data-ui-theme="idea"] {
+  .status-panel {
+    margin: 0 0 8px 0;
+  }
+
+  .status-panel-tabs {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    border-radius: 4px;
+    padding: 3px;
+    gap: 2px;
+    box-shadow: none;
+  }
+
+  .status-panel-tab {
+    border-radius: 3px;
+    padding: 5px 12px;
+
+    &:hover {
+      background: transparent;
+      color: var(--text-primary);
+    }
+
+    &.active {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      box-shadow: none;
+    }
+  }
+}
+
+/* Visual Studio Code Underline Tabs */
+[data-ui-theme="vscode"] {
+  .status-panel {
+    margin: 0 0 8px 0;
+  }
+
+  .status-panel-tabs {
+    background: var(--bg-secondary);
+    border: none;
+    border-bottom: 1px solid var(--border-primary);
+    border-radius: 0;
+    padding: 0 12px;
+    gap: 16px;
+  }
+
+  .status-panel-tab {
+    flex: 0 0 auto;
+    border-radius: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    padding: 8px 4px;
+
+    &:hover {
+      background: transparent;
+      color: var(--text-primary);
+    }
+
+    &.active {
+      background: transparent;
+      color: var(--accent-primary);
+      border-bottom-color: var(--accent-primary);
+    }
+  }
+}
+
+/* QQ Rounded Tabs */
+[data-ui-theme="qq"] {
+  .status-panel {
+    margin: 0 0 8px 0;
+  }
+
+  .status-panel-tabs {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-secondary);
+    border-radius: 10px;
+    padding: 3px;
+    gap: 3px;
+  }
+
+  .status-panel-tab {
+    border-radius: 7px;
+    padding: 5px 12px;
+
+    &:hover {
+      background: transparent;
+      color: var(--text-primary);
+    }
+
+    &.active {
+      background: var(--bg-elevated);
+      color: var(--accent-primary);
+      box-shadow: none;
+    }
+  }
+}
+
+/* WeChat Soft Tabs */
+[data-ui-theme="wechat"] {
+  .status-panel {
+    margin: 0 0 8px 0;
+  }
+
+  .status-panel-tabs {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    border-radius: 14px;
+    padding: 3px;
+    gap: 3px;
+  }
+
+  .status-panel-tab {
+    border-radius: 11px;
+    padding: 5px 12px;
+
+    &:hover {
+      background: transparent;
+      color: var(--text-primary);
+    }
+
+    &.active {
+      background: var(--bg-elevated);
+      color: var(--accent-primary);
+      box-shadow: none;
     }
   }
 }

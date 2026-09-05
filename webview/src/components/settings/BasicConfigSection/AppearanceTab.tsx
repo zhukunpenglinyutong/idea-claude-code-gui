@@ -2,7 +2,20 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import styles from './style.module.less';
 import { useTranslation } from 'react-i18next';
 import type { DiffThemeMode } from '../../../utils/diffTheme';
+import {
+  DEFAULT_CUSTOM_UI_THEME,
+  CUSTOM_THEME_PRESETS,
+  exportCustomUiTheme,
+  importCustomUiTheme,
+  isCustomUiThemeColor,
+  loadCustomUiTheme,
+  normalizeCustomUiTheme,
+  notifyCustomUiThemeChanged,
+  saveCustomUiTheme,
+  type CustomUiTheme,
+} from '../../../utils/customUiTheme';
 import type { UiFontConfig, CodeFontConfig } from '../hooks/useSettingsBasicActions';
+import type { UiThemeStyle } from '../../../utils/uiTheme';
 
 // Preset colors (module-level constants to avoid recreating on each render)
 const DARK_PRESETS = [
@@ -11,7 +24,7 @@ const DARK_PRESETS = [
   { color: '#282c34', label: 'One Dark' },
   { color: '#2b2d30', label: 'JetBrains' },
   { color: '#0d1117', label: 'GitHub Dark' },
-  { color: '#1e1f29', label: 'Dracula' },
+  { color: '#171a21', label: 'QQ' },
   { color: '#262335', label: 'SynthWave' },
   { color: '#292d3e', label: 'Palenight' },
 ];
@@ -120,9 +133,51 @@ const SystemIcon = () => (
   </svg>
 );
 
+const UI_THEME_STYLE_OPTIONS: Array<{
+  key: UiThemeStyle;
+  icon: string;
+}> = [
+  { key: 'default', icon: 'codicon-layout' },
+  { key: 'lightGlass', icon: 'codicon-circle-large' },
+  { key: 'antigravity', icon: 'codicon-compass' },
+  { key: 'codebuddy', icon: 'codicon-hubot' },
+  { key: 'idea', icon: 'codicon-tools' },
+  { key: 'vscode', icon: 'codicon-code' },
+  { key: 'qq', icon: 'codicon-comment-discussion' },
+  { key: 'wechat', icon: 'codicon-comment' },
+  { key: 'notion', icon: 'codicon-book' },
+  { key: 'arcGlass', icon: 'codicon-circle-large-filled' },
+  { key: 'warp', icon: 'codicon-terminal' },
+  { key: 'vercel', icon: 'codicon-cloud' },
+  { key: 'claudeWarm', icon: 'codicon-heart-filled' },
+  { key: 'solarized', icon: 'codicon-color-mode' },
+  { key: 'custom', icon: 'codicon-edit' },
+];
+
+const CUSTOM_COLOR_FIELDS: Array<{
+  key: keyof CustomUiTheme['colors'];
+  labelKey: string;
+}> = [
+  { key: 'bgPrimary', labelKey: 'bgPrimary' },
+  { key: 'bgSecondary', labelKey: 'bgSecondary' },
+  { key: 'bgTertiary', labelKey: 'bgTertiary' },
+  { key: 'bgElevated', labelKey: 'bgElevated' },
+  { key: 'bgHover', labelKey: 'bgHover' },
+  { key: 'textPrimary', labelKey: 'textPrimary' },
+  { key: 'textSecondary', labelKey: 'textSecondary' },
+  { key: 'borderPrimary', labelKey: 'borderPrimary' },
+  { key: 'borderSecondary', labelKey: 'borderSecondary' },
+  { key: 'accentPrimary', labelKey: 'accentPrimary' },
+  { key: 'accentHover', labelKey: 'accentHover' },
+  { key: 'userBubble', labelKey: 'userBubble' },
+  { key: 'userText', labelKey: 'userText' },
+];
+
 export interface AppearanceTabProps {
   theme: 'light' | 'dark' | 'system';
   onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
+  uiThemeStyle?: UiThemeStyle;
+  onUiThemeStyleChange?: (style: UiThemeStyle) => void;
   fontSizeLevel: number;
   onFontSizeLevelChange: (level: number) => void;
   editorFontConfig?: {
@@ -151,6 +206,8 @@ export interface AppearanceTabProps {
 const AppearanceTab = ({
   theme,
   onThemeChange,
+  uiThemeStyle = 'default',
+  onUiThemeStyleChange = () => {},
   fontSizeLevel,
   onFontSizeLevelChange,
   editorFontConfig,
@@ -178,6 +235,11 @@ const AppearanceTab = ({
   const [hexInput, setHexInput] = useState(chatBgColor || '');
   const [userMsgHexInput, setUserMsgHexInput] = useState(userMsgColor || '');
   const [chatBarHexInput, setChatBarHexInput] = useState(chatBarColor || '');
+  const [customTheme, setCustomTheme] = useState<CustomUiTheme>(() => loadCustomUiTheme());
+  const [customColorDrafts, setCustomColorDrafts] = useState<Partial<Record<keyof CustomUiTheme['colors'], string>>>({});
+  const [customJson, setCustomJson] = useState(() => exportCustomUiTheme(loadCustomUiTheme()));
+  const [customJsonDirty, setCustomJsonDirty] = useState(false);
+  const [customMessage, setCustomMessage] = useState('');
   const [selectedUiFontOption, setSelectedUiFontOption] = useState(() => {
     if (!uiFontConfig || uiFontConfig.mode === 'followEditor') return 'followEditor';
     return 'customFile';
@@ -205,6 +267,18 @@ const AppearanceTab = ({
   useEffect(() => {
     setChatBarHexInput(chatBarColor || '');
   }, [chatBarColor]);
+
+  const updateCustomTheme = (updater: (current: CustomUiTheme) => CustomUiTheme) => {
+    setCustomTheme((current) => {
+      const next = normalizeCustomUiTheme(updater(current), current);
+      saveCustomUiTheme(next);
+      if (!customJsonDirty) {
+        setCustomJson(exportCustomUiTheme(next));
+      }
+      notifyCustomUiThemeChanged();
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!uiFontConfig || uiFontConfig.mode === 'followEditor') {
@@ -447,7 +521,198 @@ const AppearanceTab = ({
 
   return (
     <div className={styles.tabContent}>
-      {/* Theme switcher */}
+      {/* UI Theme Style selector */}
+      <div className={styles.themeSection}>
+        <div className={styles.fieldHeader}>
+          <span className="codicon codicon-paintcan" />
+          <span className={styles.fieldLabel}>{t('settings.basic.uiStyle.label')}</span>
+        </div>
+        <select
+          data-testid="settings-ui-style-select"
+          className={styles.languageSelect}
+          value={uiThemeStyle}
+          onChange={(e) => {
+            onUiThemeStyleChange(e.target.value as UiThemeStyle);
+          }}
+        >
+          {UI_THEME_STYLE_OPTIONS.map((opt) => (
+            <option key={opt.key} value={opt.key}>
+              {t(`settings.basic.uiStyle.${opt.key}`)} {t(`settings.basic.uiStyle.${opt.key}Desc`, '') ? `(${t(`settings.basic.uiStyle.${opt.key}Desc`)})` : ''}
+            </option>
+          ))}
+        </select>
+        <small className={styles.formHint}>
+          <span className="codicon codicon-info" />
+          <span>{t(`settings.basic.uiStyle.${uiThemeStyle}Desc`, '')}</span>
+        </small>
+      </div>
+
+      {/* Custom theme editor */}
+      {uiThemeStyle === 'custom' && (
+        <div className={styles.themeSection}>
+          <div className={styles.fieldHeader}>
+            <span className="codicon codicon-edit" />
+            <span className={styles.fieldLabel}>{t('settings.basic.customTheme.label')}</span>
+          </div>
+
+          {/* Quick Preset Templates */}
+          <div className={styles.customPresetSection}>
+            <span className={styles.customPresetLabel}>{t('settings.basic.customTheme.presetTemplates')}</span>
+            <div className={styles.customPresetButtons}>
+              {CUSTOM_THEME_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  className={`${styles.customPresetBtn} ${customTheme.name === preset.theme.name ? styles.active : ''}`}
+                  onClick={() => {
+                    setCustomTheme(preset.theme);
+                    setCustomColorDrafts({});
+                    setCustomJson(exportCustomUiTheme(preset.theme));
+                    setCustomJsonDirty(false);
+                    saveCustomUiTheme(preset.theme);
+                    notifyCustomUiThemeChanged();
+                    setCustomMessage(t('settings.basic.customTheme.presetApplied', { name: t(`settings.basic.customTheme.presets.${preset.nameKey}`) }));
+                  }}
+                  title={t(`settings.basic.customTheme.presets.${preset.nameKey}`)}
+                >
+                  <span
+                    className={styles.customPresetDot}
+                    style={{ backgroundColor: preset.theme.colors.accentPrimary }}
+                  />
+                  {t(`settings.basic.customTheme.presets.${preset.nameKey}`)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className={styles.customThemeToolbar}>
+            <input
+              className={styles.languageSelect}
+              value={customTheme.name}
+              placeholder={t('settings.basic.customTheme.namePlaceholder')}
+              onChange={(event) => updateCustomTheme(current => ({ ...current, name: event.target.value }))}
+            />
+            <select
+              className={styles.languageSelect}
+              value={customTheme.mode}
+              onChange={(event) => updateCustomTheme(current => ({ ...current, mode: event.target.value as 'dark' | 'light' }))}
+            >
+              <option value="dark">{t('settings.basic.theme.dark')}</option>
+              <option value="light">{t('settings.basic.theme.light')}</option>
+            </select>
+          </div>
+
+          <div className={styles.customColorGrid}>
+            {CUSTOM_COLOR_FIELDS.map(({ key, labelKey }) => (
+              <div key={key} className={styles.customColorField}>
+                <span className={styles.customColorFieldName}>{t(`settings.basic.customTheme.${labelKey}`)}</span>
+                <div className={styles.customColorInputGroup}>
+                  <label className={styles.colorPickerWrapper}>
+                    <span
+                      className={styles.colorPickerPreview}
+                      style={{ backgroundColor: customTheme.colors[key] }}
+                    />
+                    <input
+                      type="color"
+                      value={/^#[0-9a-fA-F]{6}$/.test(customTheme.colors[key]) ? customTheme.colors[key] : '#000000'}
+                      onChange={(event) => {
+                        setCustomColorDrafts(current => {
+                          const next = { ...current };
+                          delete next[key];
+                          return next;
+                        });
+                        updateCustomTheme(current => ({
+                          ...current,
+                          colors: { ...current.colors, [key]: event.target.value },
+                        }));
+                      }}
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    className={styles.customHexInput}
+                    value={customColorDrafts[key] ?? customTheme.colors[key] ?? ''}
+                    placeholder="#000000"
+                    onChange={(event) => {
+                      const val = event.target.value;
+                      setCustomColorDrafts(current => ({ ...current, [key]: val }));
+                      if (isCustomUiThemeColor(val)) {
+                        setCustomMessage('');
+                        updateCustomTheme(current => ({
+                          ...current,
+                          colors: { ...current.colors, [key]: val },
+                        }));
+                      }
+                    }}
+                    onBlur={(event) => {
+                      const value = event.target.value;
+                      if (!isCustomUiThemeColor(value)) {
+                        setCustomMessage(t('settings.basic.customTheme.invalidColor'));
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className={styles.customSliderRow}>
+            <label>{t('settings.basic.customTheme.radius')}</label>
+            <input type="range" min="0" max="2" step="0.1" value={customTheme.radiusScale}
+              onChange={(event) => updateCustomTheme(current => ({ ...current, radiusScale: Number(event.target.value) }))} />
+            <span>{customTheme.radiusScale.toFixed(1)}×</span>
+          </div>
+
+          <div className={styles.customSliderRow}>
+            <label>{t('settings.basic.customTheme.glass')}</label>
+            <input type="range" min="0" max="100" step="5" value={customTheme.glassStrength}
+              onChange={(event) => updateCustomTheme(current => ({ ...current, glassStrength: Number(event.target.value) }))} />
+            <span>{customTheme.glassStrength}%</span>
+          </div>
+
+          <textarea
+            className={`${styles.languageSelect} ${styles.customJsonEditor}`}
+            value={customJson}
+            onChange={(event) => {
+              setCustomJson(event.target.value);
+              setCustomJsonDirty(true);
+            }}
+            spellCheck={false}
+          />
+
+          <div className={styles.customThemeActions}>
+            <button type="button" onClick={() => {
+              try {
+                const imported = importCustomUiTheme(customJson);
+                saveCustomUiTheme(imported);
+                setCustomTheme(imported);
+                setCustomColorDrafts({});
+                setCustomJsonDirty(false);
+                notifyCustomUiThemeChanged();
+                setCustomMessage(t('settings.basic.customTheme.imported'));
+              } catch {
+                setCustomMessage(t('settings.basic.customTheme.invalid'));
+              }
+            }}>{t('settings.basic.customTheme.import')}</button>
+            <button type="button" onClick={() => {
+              navigator.clipboard?.writeText(exportCustomUiTheme(customTheme));
+              setCustomMessage(t('settings.basic.customTheme.exported'));
+            }}>{t('settings.basic.customTheme.export')}</button>
+            <button type="button" onClick={() => {
+              saveCustomUiTheme(DEFAULT_CUSTOM_UI_THEME);
+              setCustomTheme(DEFAULT_CUSTOM_UI_THEME);
+              setCustomColorDrafts({});
+              setCustomJson(exportCustomUiTheme(DEFAULT_CUSTOM_UI_THEME));
+              setCustomJsonDirty(false);
+              notifyCustomUiThemeChanged();
+              setCustomMessage('');
+            }}>{t('settings.basic.customTheme.reset')}</button>
+          </div>
+          {customMessage && <small className={styles.formHint}>{customMessage}</small>}
+        </div>
+      )}
+
+      {/* Light / Dark Mode switcher */}
       <div className={styles.themeSection}>
         <div className={styles.fieldHeader}>
           <span className="codicon codicon-symbol-color" />
@@ -494,6 +759,7 @@ const AppearanceTab = ({
           <span className={styles.fieldLabel}>{t('settings.basic.language.label')}</span>
         </div>
         <select
+          data-testid="settings-language-select"
           className={styles.languageSelect}
           value={languageSelection}
           onChange={handleLanguageChange}
@@ -696,233 +962,238 @@ const AppearanceTab = ({
         </select>
       </div>
 
-      {/* Chat background color */}
-      <div className={styles.bgColorSection}>
-        <div className={styles.fieldHeader}>
-          <span className="codicon codicon-paintcan" />
-          <span className={styles.fieldLabel}>{t('settings.basic.chatBgColor.label')}</span>
-        </div>
-
-        <div className={styles.colorPresets}>
-          {presets.map((preset) => (
-            <div
-              key={preset.color}
-              className={`${styles.colorSwatch} ${isPresetActive(preset.color) ? styles.active : ''}`}
-              onClick={() => handlePresetClick(preset.color)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handlePresetClick(preset.color);
-                }
-              }}
-              role="button"
-              tabIndex={0}
-              title={preset.label}
-              aria-label={preset.label}
-            >
-              <div
-                className={styles.colorSwatchInner}
-                style={getSwatchStyle(preset.color)}
-              />
+      {/* Standalone color overrides (only shown for preset themes) */}
+      {uiThemeStyle !== 'custom' && (
+        <>
+          {/* Chat background color */}
+          <div className={styles.bgColorSection}>
+            <div className={styles.fieldHeader}>
+              <span className="codicon codicon-paintcan" />
+              <span className={styles.fieldLabel}>{t('settings.basic.chatBgColor.label')}</span>
             </div>
-          ))}
-        </div>
 
-        <div className={styles.customColorRow}>
-          <span className={styles.customColorLabel}>{t('settings.basic.chatBgColor.custom')}</span>
-          <div
-            className={styles.colorPickerWrapper}
-            onClick={() => colorInputRef.current?.click()}
-          >
-            <div
-              className={styles.colorPickerPreview}
-              style={getSwatchStyle(chatBgColor || defaultBgColor)}
-            />
-            <input
-              ref={colorInputRef}
-              type="color"
-              className={styles.colorPickerInput}
-              value={chatBgColor || defaultBgColor}
-              onChange={handleColorInputChange}
-            />
-          </div>
-          <input
-            type="text"
-            className={styles.hexInput}
-            value={hexInput}
-            onChange={handleHexInputChange}
-            placeholder="#000000"
-            maxLength={7}
-          />
-          {chatBgColor && (
-            <button
-              className={styles.resetBtn}
-              onClick={handleResetBgColor}
-              title={t('settings.basic.chatBgColor.reset')}
-            >
-              <span className="codicon codicon-discard" />
-              {t('settings.basic.chatBgColor.reset')}
-            </button>
-          )}
-        </div>
-
-        <small className={styles.formHint}>
-          <span className="codicon codicon-info" />
-          <span>{t('settings.basic.chatBgColor.hint')}</span>
-        </small>
-      </div>
-
-      {/* Shared chat header and status bar color */}
-      <div className={styles.bgColorSection}>
-        <div className={styles.fieldHeader}>
-          <span className="codicon codicon-layout" />
-          <span className={styles.fieldLabel}>{t('settings.basic.chatBarColor.label')}</span>
-        </div>
-
-        <div className={styles.colorPresets}>
-          {chatBarPresets.map((preset) => (
-            <div
-              key={preset.color}
-              className={`${styles.colorSwatch} ${isChatBarPresetActive(preset.color) ? styles.active : ''}`}
-              onClick={() => handleChatBarPresetClick(preset.color)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handleChatBarPresetClick(preset.color);
-                }
-              }}
-              role="button"
-              tabIndex={0}
-              title={preset.label}
-              aria-label={preset.label}
-            >
-              <div
-                className={styles.colorSwatchInner}
-                style={getSwatchStyle(preset.color)}
-              />
+            <div className={styles.colorPresets}>
+              {presets.map((preset) => (
+                <div
+                  key={preset.color}
+                  className={`${styles.colorSwatch} ${isPresetActive(preset.color) ? styles.active : ''}`}
+                  onClick={() => handlePresetClick(preset.color)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handlePresetClick(preset.color);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  title={preset.label}
+                  aria-label={preset.label}
+                >
+                  <div
+                    className={styles.colorSwatchInner}
+                    style={getSwatchStyle(preset.color)}
+                  />
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        <div className={styles.customColorRow}>
-          <span className={styles.customColorLabel}>{t('settings.basic.chatBarColor.custom')}</span>
-          <div
-            className={styles.colorPickerWrapper}
-            onClick={() => chatBarColorInputRef.current?.click()}
-          >
-            <div
-              className={styles.colorPickerPreview}
-              style={getSwatchStyle(chatBarColor || defaultChatBarColor)}
-            />
-            <input
-              ref={chatBarColorInputRef}
-              type="color"
-              className={styles.colorPickerInput}
-              value={chatBarColor || defaultChatBarColor}
-              onChange={handleChatBarColorInputChange}
-            />
-          </div>
-          <input
-            type="text"
-            className={styles.hexInput}
-            value={chatBarHexInput}
-            onChange={handleChatBarHexInputChange}
-            placeholder="#000000"
-            maxLength={7}
-          />
-          {chatBarColor && (
-            <button
-              className={styles.resetBtn}
-              onClick={handleResetChatBarColor}
-              title={t('settings.basic.chatBarColor.reset')}
-            >
-              <span className="codicon codicon-discard" />
-              {t('settings.basic.chatBarColor.reset')}
-            </button>
-          )}
-        </div>
-
-        <small className={styles.formHint}>
-          <span className="codicon codicon-info" />
-          <span>{t('settings.basic.chatBarColor.hint')}</span>
-        </small>
-      </div>
-
-      {/* User message bubble color */}
-      <div className={styles.bgColorSection}>
-        <div className={styles.fieldHeader}>
-          <span className="codicon codicon-comment" />
-          <span className={styles.fieldLabel}>{t('settings.basic.userMsgColor.label')}</span>
-        </div>
-
-        <div className={styles.colorPresets}>
-          {userMsgPresets.map((preset) => (
-            <div
-              key={preset.color}
-              className={`${styles.colorSwatch} ${isUserMsgPresetActive(preset.color) ? styles.active : ''}`}
-              onClick={() => handleUserMsgPresetClick(preset.color)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handleUserMsgPresetClick(preset.color);
-                }
-              }}
-              role="button"
-              tabIndex={0}
-              title={preset.label}
-              aria-label={preset.label}
-            >
+            <div className={styles.customColorRow}>
+              <span className={styles.customColorLabel}>{t('settings.basic.chatBgColor.custom')}</span>
               <div
-                className={styles.colorSwatchInner}
-                style={getSwatchStyle(preset.color)}
+                className={styles.colorPickerWrapper}
+                onClick={() => colorInputRef.current?.click()}
+              >
+                <div
+                  className={styles.colorPickerPreview}
+                  style={getSwatchStyle(chatBgColor || '')}
+                />
+                <input
+                  ref={colorInputRef}
+                  type="color"
+                  className={styles.colorPickerInput}
+                  value={chatBgColor || '#ffffff'}
+                  onChange={handleColorInputChange}
+                />
+              </div>
+              <input
+                type="text"
+                className={styles.hexInput}
+                value={hexInput}
+                onChange={handleHexInputChange}
+                placeholder="#000000"
+                maxLength={7}
               />
+              {chatBgColor && (
+                <button
+                  className={styles.resetBtn}
+                  onClick={handleResetBgColor}
+                  title={t('settings.basic.chatBgColor.reset')}
+                >
+                  <span className="codicon codicon-discard" />
+                  {t('settings.basic.chatBgColor.reset')}
+                </button>
+              )}
             </div>
-          ))}
-        </div>
 
-        <div className={styles.customColorRow}>
-          <span className={styles.customColorLabel}>{t('settings.basic.userMsgColor.custom')}</span>
-          <div
-            className={styles.colorPickerWrapper}
-            onClick={() => userMsgColorInputRef.current?.click()}
-          >
-            <div
-              className={styles.colorPickerPreview}
-              style={getSwatchStyle(userMsgColor || defaultUserMsgColor)}
-            />
-            <input
-              ref={userMsgColorInputRef}
-              type="color"
-              className={styles.colorPickerInput}
-              value={userMsgColor || defaultUserMsgColor}
-              onChange={handleUserMsgColorInputChange}
-            />
+            <small className={styles.formHint}>
+              <span className="codicon codicon-info" />
+              <span>{t('settings.basic.chatBgColor.hint')}</span>
+            </small>
           </div>
-          <input
-            type="text"
-            className={styles.hexInput}
-            value={userMsgHexInput}
-            onChange={handleUserMsgHexInputChange}
-            placeholder="#000000"
-            maxLength={7}
-          />
-          {userMsgColor && (
-            <button
-              className={styles.resetBtn}
-              onClick={handleResetUserMsgColor}
-              title={t('settings.basic.userMsgColor.reset')}
-            >
-              <span className="codicon codicon-discard" />
-              {t('settings.basic.userMsgColor.reset')}
-            </button>
-          )}
-        </div>
 
-        <small className={styles.formHint}>
-          <span className="codicon codicon-info" />
-          <span>{t('settings.basic.userMsgColor.hint')}</span>
-        </small>
-      </div>
+          {/* Shared chat header and status bar color */}
+          <div className={styles.bgColorSection}>
+            <div className={styles.fieldHeader}>
+              <span className="codicon codicon-layout" />
+              <span className={styles.fieldLabel}>{t('settings.basic.chatBarColor.label')}</span>
+            </div>
+
+            <div className={styles.colorPresets}>
+              {chatBarPresets.map((preset) => (
+                <div
+                  key={preset.color}
+                  className={`${styles.colorSwatch} ${isChatBarPresetActive(preset.color) ? styles.active : ''}`}
+                  onClick={() => handleChatBarPresetClick(preset.color)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleChatBarPresetClick(preset.color);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  title={preset.label}
+                  aria-label={preset.label}
+                >
+                  <div
+                    className={styles.colorSwatchInner}
+                    style={getSwatchStyle(preset.color)}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className={styles.customColorRow}>
+              <span className={styles.customColorLabel}>{t('settings.basic.chatBarColor.custom')}</span>
+              <div
+                className={styles.colorPickerWrapper}
+                onClick={() => chatBarColorInputRef.current?.click()}
+              >
+                <div
+                  className={styles.colorPickerPreview}
+                  style={getSwatchStyle(chatBarColor || defaultChatBarColor)}
+                />
+                <input
+                  ref={chatBarColorInputRef}
+                  type="color"
+                  className={styles.colorPickerInput}
+                  value={chatBarColor || defaultChatBarColor}
+                  onChange={handleChatBarColorInputChange}
+                />
+              </div>
+              <input
+                type="text"
+                className={styles.hexInput}
+                value={chatBarHexInput}
+                onChange={handleChatBarHexInputChange}
+                placeholder="#000000"
+                maxLength={7}
+              />
+              {chatBarColor && (
+                <button
+                  className={styles.resetBtn}
+                  onClick={handleResetChatBarColor}
+                  title={t('settings.basic.chatBarColor.reset')}
+                >
+                  <span className="codicon codicon-discard" />
+                  {t('settings.basic.chatBarColor.reset')}
+                </button>
+              )}
+            </div>
+
+            <small className={styles.formHint}>
+              <span className="codicon codicon-info" />
+              <span>{t('settings.basic.chatBarColor.hint')}</span>
+            </small>
+          </div>
+
+          {/* User message bubble color */}
+          <div className={styles.bgColorSection}>
+            <div className={styles.fieldHeader}>
+              <span className="codicon codicon-comment" />
+              <span className={styles.fieldLabel}>{t('settings.basic.userMsgColor.label')}</span>
+            </div>
+
+            <div className={styles.colorPresets}>
+              {userMsgPresets.map((preset) => (
+                <div
+                  key={preset.color}
+                  className={`${styles.colorSwatch} ${isUserMsgPresetActive(preset.color) ? styles.active : ''}`}
+                  onClick={() => handleUserMsgPresetClick(preset.color)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleUserMsgPresetClick(preset.color);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  title={preset.label}
+                  aria-label={preset.label}
+                >
+                  <div
+                    className={styles.colorSwatchInner}
+                    style={getSwatchStyle(preset.color)}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className={styles.customColorRow}>
+              <span className={styles.customColorLabel}>{t('settings.basic.userMsgColor.custom')}</span>
+              <div
+                className={styles.colorPickerWrapper}
+                onClick={() => userMsgColorInputRef.current?.click()}
+              >
+                <div
+                  className={styles.colorPickerPreview}
+                  style={getSwatchStyle(userMsgColor || defaultUserMsgColor)}
+                />
+                <input
+                  ref={userMsgColorInputRef}
+                  type="color"
+                  className={styles.colorPickerInput}
+                  value={userMsgColor || defaultUserMsgColor}
+                  onChange={handleUserMsgColorInputChange}
+                />
+              </div>
+              <input
+                type="text"
+                className={styles.hexInput}
+                value={userMsgHexInput}
+                onChange={handleUserMsgHexInputChange}
+                placeholder="#000000"
+                maxLength={7}
+              />
+              {userMsgColor && (
+                <button
+                  className={styles.resetBtn}
+                  onClick={handleResetUserMsgColor}
+                  title={t('settings.basic.userMsgColor.reset')}
+                >
+                  <span className="codicon codicon-discard" />
+                  {t('settings.basic.userMsgColor.reset')}
+                </button>
+              )}
+            </div>
+
+            <small className={styles.formHint}>
+              <span className="codicon codicon-info" />
+              <span>{t('settings.basic.userMsgColor.hint')}</span>
+            </small>
+          </div>
+        </>
+      )}
     </div>
   );
 };

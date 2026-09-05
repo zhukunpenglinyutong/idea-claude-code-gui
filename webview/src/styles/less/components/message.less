@@ -84,6 +84,48 @@
     white-space: pre-wrap;
 }
 
+/* Google Antigravity Capsule Bubble */
+[data-ui-theme="antigravity"] .message.user .message-content {
+    border-radius: 18px 18px 4px 18px;
+    border: 1px solid var(--border-primary, rgba(0, 0, 0, 0.08));
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Tencent CodeBuddy White Card Bubble */
+[data-ui-theme="codebuddy"] .message.user .message-content {
+    border-radius: 8px;
+    border: 1px solid var(--border-primary, #e5e6eb);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* JetBrains IDEA Compact Bubble */
+[data-ui-theme="idea"] .message.user .message-content {
+    border-radius: 6px;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+/* Visual Studio Code Square Bubble */
+[data-ui-theme="vscode"] .message.user .message-content {
+    border-radius: 5px;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+/* QQ Social Bubble */
+[data-ui-theme="qq"] .message.user .message-content {
+    border-radius: 14px 14px 4px 14px;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+/* WeChat Green Bubble */
+[data-ui-theme="wechat"] .message.user .message-content {
+    border-radius: 10px;
+    border-color: transparent;
+    box-shadow: none;
+}
+
 /* System notification messages: left-aligned, no bubble (task_notification + compact_notification + non-human origin) */
 .message.task_notification,
 .message.notification,
@@ -123,6 +165,56 @@
     flex-direction: column; /* Revert to column to avoid alignment issues without dot */
     gap: 6px;
     padding-left: 20px;
+}
+
+/* Google Antigravity Clean Elevated Card */
+[data-ui-theme="antigravity"] .message.assistant {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 16px;
+    margin: 8px 16px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+/* JetBrains IDEA Panel Card */
+[data-ui-theme="idea"] .message.assistant {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    border-radius: 5px;
+    margin: 8px 16px;
+    padding: 15px;
+    box-shadow: none;
+}
+
+/* Visual Studio Code Editor Card */
+[data-ui-theme="vscode"] .message.assistant {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    border-radius: 6px;
+    margin: 8px 16px;
+    padding: 15px;
+    box-shadow: none;
+}
+
+/* QQ Social Card */
+[data-ui-theme="qq"] .message.assistant {
+    background: var(--bg-secondary);
+    border-color: transparent;
+    border-radius: 13px;
+    margin: 8px 16px;
+    padding: 15px;
+    box-shadow: none;
+}
+
+/* WeChat Message Card */
+[data-ui-theme="wechat"] .message.assistant {
+    background: var(--bg-secondary);
+    border-color: transparent;
+    border-radius: 11px;
+    margin: 8px 16px;
+    padding: 15px;
+    box-shadow: none;
 }
 
 .message.assistant .message-content {
@@ -958,22 +1050,23 @@
     opacity: 0.95;
 }
 
-/* 表格容器 - 处理溢出 */
-.markdown-content table {
-    border-collapse: collapse;
-    width: 100%;
-    margin: 10px 0;
-    display: block; /* 使表格可以滚动 */
-    max-width: 100%;
-    overflow-x: auto; /* 表格内部滚动 */
+/* 表格容器 - 处理溢出
+   旧实现把 table 设成 display:block 并把 thead/tbody/tr 都设成 display:table，
+   在 Chromium 里每一行会变成独立的“表格”、table-layout:fixed 把列宽均分，
+   7 列宽表格的每一列被压成窄条（中文/emoji 竖排堆叠），overflow-x 又永远不会
+   触发——宽表格看起来就像“没显示全”。改为：表格保持标准 table 布局，宽度随
+   内容自适应（width:auto + min-width:100%），超出容器时由 .markdown-content
+   横向滚动。 */
+.markdown-content {
+    overflow-x: auto; /* 宽表格出现横向滚动条 */
 }
 
-.markdown-content thead,
-.markdown-content tbody,
-.markdown-content tr {
-    display: table;
-    width: 100%;
-    table-layout: fixed; /* 固定表格布局 */
+.markdown-content table {
+    border-collapse: collapse;
+    width: auto; /* 按内容宽度布局，避免列被均分挤压 */
+    min-width: 100%; /* 窄表格仍然占满容器 */
+    max-width: none;
+    margin: 10px 0;
 }
 
 .markdown-content th, .markdown-content td {
