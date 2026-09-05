@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  formatBalance,
   formatShortReset,
   nextWindowId,
   paceColor,
@@ -46,6 +47,59 @@ describe('parseCapacityPayload', () => {
     expect(snap.present).toBe(true);
     expect(snap.capacityPct).toBe(42);
     expect(snap.periodType).toBeNull();
+  });
+
+  it('accepts balance-only payloads (prepaid vendors)', () => {
+    const snap = parseCapacityPayload({
+      ok: true,
+      present: true,
+      provider: 'claude',
+      source: 'deepseek',
+      balance: { remaining: '42.50', unit: 'CNY' },
+    });
+    expect(snap.present).toBe(true);
+    expect(snap.balance?.remaining).toBe(42.5);
+    expect(snap.balance?.unit).toBe('CNY');
+    expect(snap.balance?.total).toBeNull();
+    expect(snap.capacityPct).toBeUndefined();
+    expect(snap.windows).toBeUndefined();
+  });
+
+  it('parses total/used alongside remaining (OpenRouter)', () => {
+    const snap = parseCapacityPayload({
+      balance: { remaining: 42.5, total: 100, used: 57.5, unit: 'USD' },
+    });
+    expect(snap.present).toBe(true);
+    expect(snap.balance).toEqual({ remaining: 42.5, total: 100, used: 57.5, unit: 'USD' });
+  });
+
+  it('still rejects payloads with neither pct, windows nor balance', () => {
+    const snap = parseCapacityPayload({ ok: true, present: true, source: 'x' });
+    expect(snap.present).toBe(false);
+    expect(snap.balance).toBeUndefined();
+  });
+
+  it('rejects null or blank remaining instead of coercing it to 0', () => {
+    expect(parseCapacityPayload({ balance: { remaining: null } }).present).toBe(false);
+    expect(parseCapacityPayload({ balance: { remaining: '' } }).present).toBe(false);
+    // A real zero (exhausted balance) must still count as present
+    expect(parseCapacityPayload({ balance: { remaining: 0 } }).present).toBe(true);
+  });
+});
+
+describe('formatBalance', () => {
+  it('prefixes CNY and USD with the matching sign, two decimals', () => {
+    expect(formatBalance(42.5, 'CNY')).toBe('¥42.50');
+    expect(formatBalance(12.345, 'USD')).toBe('$12.35');
+  });
+
+  it('defaults to CNY for missing units, keeps negative sign', () => {
+    expect(formatBalance(42.5)).toBe('¥42.50');
+    expect(formatBalance(-1.2, 'USD')).toBe('-$1.20');
+  });
+
+  it('renders a dash for non-finite amounts', () => {
+    expect(formatBalance(Number.NaN, 'USD')).toBe('—');
   });
 });
 

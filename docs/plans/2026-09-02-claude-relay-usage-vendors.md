@@ -2,7 +2,7 @@
 
 - 日期：2026-09-02
 - 分支：`feature/v0.5.6`
-- 状态：阶段一已完成（单测全绿；`CliStatusDetectorLoginShellTest` 为预存的环境相关失败，与本特性无关）
+- 状态：阶段一、阶段三已完成（阶段二火山 Ark 跳过）；单测全绿（Java / webview 用例数见下）
 
 ## 1. 背景与目标
 
@@ -23,7 +23,6 @@
 | Kimi For Coding（api.kimi.com/coding） | `{origin}/coding/v1/usages` | 同上（Bearer） | 5h/7d limit/remaining | **一** |
 | 火山引擎 Ark（volces.com） | `open.volcengineapi.com` `GetAFPUsage` → `GetCodingPlanUsage` 回落 | AccessKey/Secret（新增 env），HMAC-SHA256 V4 签名 | 5h/7d/月 百分比 | 二 |
 | DeepSeek / 硅基流动 / StepFun / Moonshot / OpenRouter / Novita | 各自余额接口 | Bearer | ¥/USD 余额，无百分比分母 | 三（需 webview 余额渲染） |
-| 阿里 DashScope | 阿里云 BSS `QueryAccountBalance` | AK/SK + HMAC-SHA1 RPC 签名 | ¥ 余额 | 三 |
 | 小米 MiMo | `platform.xiaomimimo.com/api/v1/tokenPlan/usage` | 浏览器 Cookie | 月度百分比 | **不做**（Cookie 为完整会话凭证，敏感且易过期） |
 | 百度千帆 / 腾讯混元 / 讯飞星辰 | 无公开 API | — | — | 不做 |
 
@@ -72,14 +71,40 @@ provider/claude/usage/
   与官方 SDK 的 `VOLCENGINE_ACCESSKEY`/`VOLCENGINE_SECRETKEY`；未配置时静默跳过。
 - host 匹配 `volces.com`；返回 5h/7d/月百分比窗口，仍无需 webview 改动。
 
-## 6. 阶段三（独立 PR）：余额型厂商
+## 6. 阶段三（已完成）：余额型厂商
 
-- webview `PlanUsageSnapshot` 增加可选 `balance{remaining, total?, unit}`，
-  `PlanUsageIndicator` 有余额时显示金额（如 `¥42.50`）替代百分比条，tooltip 放明细。
-- 接入 DeepSeek / SiliconFlow（国内外双端点，CNY/USD）/ StepFun / Moonshot /
-  OpenRouter / Novita（金额 ÷10000）/ 阿里 BSS（AK/SK + HMAC-SHA1）。
+- webview `PlanUsageSnapshot` 增加可选 `balance{remaining, total?, used?, unit}`，
+  `parseCapacityPayload` 接受 balance-only payload；`PlanUsageIndicator` 有余额且无
+  windows 时显示金额（`formatBalance`：CNY→`¥42.50`、USD→`$12.34`）替代百分比条，
+  tooltip 放明细（余额/总额/已用，OpenRouter 有总额），余额 ≤0 时红色。
+- Java 侧：`RelayUsageJson.balancePayload()` + `Balance` record；`BalanceUsageVendor`
+  模板基类（secureOrigin → Bearer GET → parseBalance）。
+- 接入 4 个 vendor：
+  - DeepSeek `{origin}/user/balance`：`balance_infos[0].total_balance`，币种读响应 `currency`。
+  - Moonshot `{origin}/v1/users/me/balance`：`data.available_balance`（兼容 `balance`/
+    `total_balance` 变体），CNY。
+  - OpenRouter `{origin}/api/v1/credits`：remaining = `total_credits − total_usage`，
+    唯一带 total/used 的厂商，USD。
+  - （SiliconFlow / StepFun / Novita / 阿里 DashScope 曾实现，后按要求移除，见第 7 节。）
 
-## 7. 风险
+## 7. 厂商清单与 host 匹配
+
+本项目按 `ANTHROPIC_BASE_URL` 自动识别厂商，`matches()` 对齐各厂商
+**Claude Code 兼容端点**的 host。只做两类查询：「coding plan 订阅限额」
+（百分比窗口）与「余额」（金额）。
+
+| vendor | 形态 | 匹配 host | 查询端点 |
+|---|---|---|---|
+| zai | 订阅限额 | `z.ai`（含子域）、`open.bigmodel.cn`（含子域） | `{origin}/api/monitor/usage/quota/limit` |
+| minimax | 订阅限额 | `minimaxi.com`（含子域）、`minimax.io`（含子域） | `{origin}/v1/api/openplatform/coding_plan/remains` |
+| kimi-coding | 订阅限额 | `api.kimi.com` + path `/coding` | `{origin}/coding/v1/usages` |
+| opencode | 订阅限额 | `opencode.ai` | `{origin}/zen/go/v1/usage`（rolling→5h / weekly→7d / monthly；`percent` 为已用%） |
+| moonshot | 余额 | `api.moonshot.cn`、`api.moonshot.ai` | `{origin}/v1/users/me/balance` |
+| deepseek | 余额 | `api.deepseek.com` | `{origin}/user/balance` |
+| openrouter | 余额 | `openrouter.ai` | `{origin}/api/v1/credits`（remaining = total_credits − total_usage） |
+
+
+## 8. 风险
 
 1. MiniMax / Kimi Coding 的接口无官方公开文档，解析基于其线上实际响应格式实现；
    字段变更时探测失败 → stale 缓存兜底 → 静默回落 rate_limit，不影响主流程。

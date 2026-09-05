@@ -43,6 +43,10 @@
     "optional": "Optional"
   },
   "chat": {
+    "planUsage": {
+      "balanceLabel": "Balance: ",
+      "balanceRemaining": "Balance: {{value}}"
+    },
     "sendMessage": "Send message to {{provider}}",
     "createNewSession": "Create New Session",
     "confirmNewSession": "Current session has messages. Are you sure you want to create a new session?",

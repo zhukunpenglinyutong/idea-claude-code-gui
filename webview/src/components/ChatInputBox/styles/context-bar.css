@@ -430,6 +430,20 @@ button.context-file-placeholder:focus-visible {
   flex-shrink: 0;
 }
 
+/* Prepaid balance amount replaces the bar (DeepSeek/Moonshot/OpenRouter/…). */
+.plan-usage-balance {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-usage.pace-red .plan-usage-balance {
+  color: #e34850;
+}
+
 .plan-usage-reset {
   overflow: hidden;
   text-overflow: ellipsis;

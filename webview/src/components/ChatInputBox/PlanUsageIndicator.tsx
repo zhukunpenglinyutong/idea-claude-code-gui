@@ -2,6 +2,7 @@ import React, { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   clampPercent,
+  formatBalance,
   formatFullReset,
   formatShortReset,
   nextWindowId,
@@ -146,6 +147,54 @@ export const PlanUsageIndicator: React.FC<PlanUsageIndicatorProps> = memo(({
       >
         <span className="plan-usage-label">
           {t('chat.planUsage.dash', { defaultValue: 'Usage —' })}
+        </span>
+      </div>
+    );
+  }
+
+  // Prepaid balance vendors (DeepSeek/Moonshot/OpenRouter/…): no percentage
+  // denominator, so show the labeled amount instead of the bar — the label
+  // follows the UI language (chat.planUsage.balanceLabel); tooltip carries
+  // the total/used detail when the vendor reports it (OpenRouter).
+  // Reaching here relies on resolveDisplayWindow's fallback returning
+  // capacityPct 0 for balance-only snapshots — that keeps `present` true
+  // past the !present return above.
+  const balance = snapshot?.balance;
+  if (balance && windows.length === 0) {
+    const amount = formatBalance(balance.remaining, balance.unit);
+    const balanceColor = balance.remaining <= 0 ? 'red' : 'neutral';
+    const tipLines = [
+      t('chat.planUsage.balanceRemaining', {
+        value: amount,
+        defaultValue: 'Balance: {{value}}',
+      }),
+    ];
+    if (balance.total != null || balance.used != null) {
+      tipLines.push(
+        t('chat.planUsage.balanceDetail', {
+          total: balance.total != null ? formatBalance(balance.total, balance.unit) : '—',
+          used: balance.used != null ? formatBalance(balance.used, balance.unit) : '—',
+          defaultValue: 'Total {{total}} · Used {{used}}',
+        }),
+      );
+    }
+    if (snapshot?.stale) {
+      tipLines.push(
+        t('chat.planUsage.stale', {
+          defaultValue: 'Data may be outdated (refresh failed)',
+        }),
+      );
+    }
+    const balanceTooltip = tipLines.join('\n');
+    return (
+      <div
+        className={`plan-usage pace-${balanceColor} has-tooltip`}
+        data-tooltip={balanceTooltip}
+        aria-label={balanceTooltip}
+      >
+        <span className="plan-usage-balance">
+          {t('chat.planUsage.balanceLabel', { defaultValue: 'Balance: ' })}
+          {amount}
         </span>
       </div>
     );

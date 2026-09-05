@@ -54,4 +54,57 @@ describe('PlanUsageIndicator', () => {
     const { container } = render(<PlanUsageIndicator status="idle" snapshot={null} />);
     expect(container.firstChild).toBeNull();
   });
+
+  it('renders the balance amount instead of the bar for prepaid vendors', () => {
+    const { container, getByText } = render(
+      <PlanUsageIndicator
+        status="ready"
+        snapshot={{
+          present: true,
+          source: 'deepseek',
+          balance: { remaining: 42.5, total: null, used: null, unit: 'CNY' },
+        }}
+      />,
+    );
+    expect(getByText('Balance: ¥42.50')).toBeTruthy();
+    expect(container.querySelector('.plan-usage-bar')).toBeNull();
+    expect(container.querySelector('.plan-usage-balance')).toBeTruthy();
+  });
+
+  it('colors an exhausted balance red and shows totals in the tooltip', () => {
+    // The test env has no i18n instance, so t() returns raw defaultValue
+    // without {{…}} interpolation — assert on words, not interpolated values.
+    const { container, getByText } = render(
+      <PlanUsageIndicator
+        status="ready"
+        snapshot={{
+          present: true,
+          source: 'openrouter',
+          balance: { remaining: 0, total: 100, used: 100, unit: 'USD' },
+        }}
+      />,
+    );
+    expect(getByText('Balance: $0.00')).toBeTruthy();
+    expect(container.querySelector('.pace-red')).toBeTruthy();
+    const tooltip = container.querySelector('.plan-usage')?.getAttribute('data-tooltip') ?? '';
+    expect(tooltip).toContain('Balance');
+    expect(tooltip).toContain('Total');
+    expect(tooltip).toContain('Used');
+  });
+
+  it('prefers windows over balance when both are present', () => {
+    const { container } = render(
+      <PlanUsageIndicator
+        status="ready"
+        snapshot={{
+          present: true,
+          capacityPct: 30,
+          windows: [{ id: '5h', usedPct: 30 }],
+          balance: { remaining: 5, unit: 'CNY' },
+        }}
+      />,
+    );
+    expect(container.querySelector('.plan-usage-bar')).toBeTruthy();
+    expect(container.querySelector('.plan-usage-balance')).toBeNull();
+  });
 });

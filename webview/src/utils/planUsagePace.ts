@@ -13,6 +13,16 @@ export interface CapacityWindow {
   periodType?: string | null;
 }
 
+export interface PlanUsageBalance {
+  /** Remaining money (vendor currency). */
+  remaining: number;
+  /** Denominator when the vendor reports one (OpenRouter credits). */
+  total?: number | null;
+  used?: number | null;
+  /** ISO-4217 code, "CNY" | "USD" | … */
+  unit: string;
+}
+
 export interface PlanUsageSnapshot {
   present: boolean;
   /** Usage percent 0–100 (TP) — binding/worst-case at top level. */
@@ -25,6 +35,12 @@ export interface PlanUsageSnapshot {
   periodType?: string | null;
   /** All known windows (e.g. 5h/7d). */
   windows?: CapacityWindow[];
+  /**
+   * Prepaid-account balance (DeepSeek/Moonshot/OpenRouter/… balance vendors).
+   * Present only — balance vendors have no percentage denominator, so the
+   * indicator renders the amount instead of the bar.
+   */
+  balance?: PlanUsageBalance;
   /** Provider from capacity payload (claude | …). */
   provider?: string;
   source?: string;
@@ -230,6 +246,37 @@ function parseWindows(raw: unknown): CapacityWindow[] {
   return out;
 }
 
+/**
+ * Numeric coercion for payload fields: numbers and numeric strings pass, but
+ * null/blank/other shapes are rejected — Number() would coerce them to 0,
+ * turning a missing amount into an "exhausted" ¥0.00.
+ */
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/** Parse a balance object ({@code remaining}, optional total/used, unit). */
+function parseBalance(raw: unknown): PlanUsageBalance | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const b = raw as Record<string, unknown>;
+  const remaining = toFiniteNumber(b.remaining);
+  if (remaining === null) return null;
+  const unit = typeof b.unit === 'string' && b.unit.trim() ? b.unit.trim() : 'CNY';
+  return {
+    remaining,
+    total: toFiniteNumber(b.total),
+    used: toFiniteNumber(b.used),
+    unit,
+  };
+}
+
 /** Normalize a capacity JSON payload (snake_case or camelCase) into a snapshot. */
 export function parseCapacityPayload(data: unknown): PlanUsageSnapshot {
   if (!data || typeof data !== 'object') {
@@ -244,9 +291,11 @@ export function parseCapacityPayload(data: unknown): PlanUsageSnapshot {
     };
   }
   const windows = parseWindows(o.windows);
+  const balance = parseBalance(o.balance);
   const pctRaw = o.capacity_pct ?? o.used_pct ?? o.capacityPct;
   const pct = typeof pctRaw === 'number' ? pctRaw : Number(pctRaw);
-  if (!Number.isFinite(pct) && windows.length === 0) {
+  // Balance-only payloads (prepaid vendors) carry no percentage denominator.
+  if (!Number.isFinite(pct) && windows.length === 0 && !balance) {
     return {
       present: false,
       message: 'capacity missing capacity_pct',
@@ -263,11 +312,25 @@ export function parseCapacityPayload(data: unknown): PlanUsageSnapshot {
     periodType: typeof o.period_type === 'string' ? o.period_type : typeof o.periodType === 'string' ? o.periodType : null,
     periodStart: typeof o.period_start === 'string' ? o.period_start : null,
     windows: windows.length > 0 ? windows : undefined,
+    balance: balance ?? undefined,
     provider: typeof o.provider === 'string' ? o.provider : undefined,
     source: typeof o.source === 'string' ? o.source : 'gateway',
     level: typeof o.level === 'string' ? o.level : undefined,
     stale: o.stale === true ? true : undefined,
   };
+}
+
+/**
+ * Compact amount label for the balance indicator: "¥42.50" / "$12.34".
+ * Unknown units fall back to the CNY sign (every current balance vendor
+ * bills in CNY or USD); negatives keep their sign.
+ */
+export function formatBalance(amount: number, unit?: string | null): string {
+  if (!Number.isFinite(amount)) return '—';
+  const u = (unit || 'CNY').toUpperCase();
+  const prefix = u === 'USD' ? '$' : '¥';
+  const abs = Math.abs(amount).toFixed(2);
+  return amount < 0 ? `-${prefix}${abs}` : `${prefix}${abs}`;
 }
 
 /** Prefer stored window id if present; else binding top-level; else first window. */
@@ -321,6 +384,8 @@ export function resolveDisplayWindow(
       periodType: windows[0].periodType ?? windows[0].id,
     };
   }
+  // Balance-only snapshots have no pct/windows; the numeric 0 keeps the
+  // indicator's `present` gate true so its balance branch can render.
   return { windowId: null, capacityPct: 0, resetAt: null, periodType: null };
 }
 
