@@ -64,9 +64,12 @@
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
-    <!-- Git support — required for Commit AI to run a real `git diff`.
-         Git4Idea is bundled in all JetBrains IDEs that support Git. -->
-    <depends>Git4Idea</depends>
+  <!-- Git support — only needed by the Commit AI feature (a real `git diff`
+       via git4idea). Optional so the plugin also loads in environments without
+       Git4Idea, e.g. the Remote Development frontend client, where VCS runs on
+       the remote backend instead. The commit-message action hides itself via
+       GenerateCommitMessageAction#update when Git4Idea is absent. -->
+  <depends optional="true">Git4Idea</depends>
     <!-- JCEF is a separate platform module in IntelliJ IDEA 2026.2+, but older
          IDEs may provide JCEF from the platform without exposing this module. -->
     <depends optional="true" config-file="jcef-features.xml">com.intellij.modules.jcef</depends>
@@ -181,7 +184,8 @@
             <add-to-group group-id="ConsoleView.PopupMenu" anchor="last"/>
         </action>
 
-        <!-- Generate Commit Message with AI Action -->
+        <!-- Generate Commit Message with AI Action. Requires the optional
+             Git4Idea dependency; the action hides itself when it is absent. -->
         <action id="ClaudeCodeGUI.GenerateCommitMessageAction"
                 class="com.github.claudecodegui.action.vcs.GenerateCommitMessageAction"
                 icon="/icons/logo-16.png">
