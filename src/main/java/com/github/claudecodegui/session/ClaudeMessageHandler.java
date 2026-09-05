@@ -822,6 +822,10 @@ public class ClaudeMessageHandler implements MessageCallback {
         // After streaming ends, send a final message update to ensure the message list is in sync
         callbackHandler.notifyMessageUpdate(state.getMessages());
         callbackHandler.notifyStreamEnd();
+        // The final snapshot is out — raw payloads of older turns are dead weight
+        // (tool_result file contents, base64 images). Drop them now instead of
+        // letting session memory grow linearly with conversation length.
+        state.trimRawHistory(SessionState.RAW_RETENTION_COUNT);
         state.setBusy(false);
         state.setLoading(false);
         state.updateLastModifiedTime();

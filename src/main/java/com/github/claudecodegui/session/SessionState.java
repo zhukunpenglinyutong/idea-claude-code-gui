@@ -112,6 +112,13 @@ public class SessionState {
     // Message history
     private final List<ClaudeSession.Message> messages = new ArrayList<>();
 
+    /**
+     * How many most-recent messages keep their raw SDK payload. Two covers the
+     * in-flight turn (user message + assistant being streamed) plus the last
+     * assistant message the completion notification previews.
+     */
+    static final int RAW_RETENTION_COUNT = 2;
+
     // Session metadata — cwd is written in handler thread before send(), read inside send();
     // the happens-before from CompletableFuture.runAsync guarantees visibility, so volatile is not required.
     private String summary = null;
@@ -366,9 +373,35 @@ public class SessionState {
 
     /**
      * Add a message to the history.
+     *
+     * <p>Also lazily drops the raw SDK payloads of everything older than the
+     * last {@link #RAW_RETENTION_COUNT} messages: raw carries tool_result file
+     * contents and base64 images and is the dominant memory cost of a long
+     * session. Nothing reads raw of older messages (notifications read the
+     * last assistant message; rewind/history re-read from disk), so dropping
+     * it is safe — see {@link #trimRawHistory(int)}.
      */
     public void addMessage(ClaudeSession.Message message) {
         messages.add(message);
+        trimRawHistory(RAW_RETENTION_COUNT);
+    }
+
+    /**
+     * Drop the raw SDK payloads of all but the last {@code keepLast} messages.
+     *
+     * <p>Raw JSON is only needed while a turn is streaming (merge in
+     * ClaudeMessageHandler) and for the last assistant message when the
+     * completion notification builds its preview. Calling this after the
+     * final snapshot push bounds session memory to the current turn instead
+     * of letting it grow linearly with conversation length.
+     *
+     * @param keepLast how many most-recent messages keep their raw payload
+     */
+    public void trimRawHistory(int keepLast) {
+        int trimUntil = Math.max(0, messages.size() - Math.max(0, keepLast));
+        for (int i = 0; i < trimUntil; i++) {
+            messages.get(i).raw = null;
+        }
     }
 
     /**
