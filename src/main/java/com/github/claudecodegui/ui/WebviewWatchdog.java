@@ -1,5 +1,6 @@
 package com.github.claudecodegui.ui;
 
+import com.github.claudecodegui.util.PlatformUtils;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.intellij.openapi.application.ApplicationManager;
@@ -28,7 +29,13 @@ public class WebviewWatchdog {
     private static final long HEARTBEAT_TIMEOUT_MS = 45_000L;
     private static final long WATCHDOG_INTERVAL_MS = 10_000L;
     private static final long RECOVERY_COOLDOWN_MS = 60_000L;
-    private static final long STARTUP_READY_TIMEOUT_MS = 15_000L;
+    // Remote Development backends render via Linux/OSR JCEF, whose first page
+    // load (CEF cold start + the ~10MB single-file webview) takes ~60s on
+    // typical hosts. A 15s startup budget reloads the page mid-load and adds
+    // ~40s of restart churn per reconnect (observed 2026-09), so the pre-ready
+    // budget is platform-adaptive: tight 15s locally, 150s where OSR applies.
+    // Frontend readiness exits the startup phase as soon as the page finishes.
+    private static final long STARTUP_READY_TIMEOUT_MS = PlatformUtils.isLinux() ? 150_000L : 15_000L;
     private static final long STARTUP_RECOVERY_COOLDOWN_MS = 15_000L;
     private static final int MAX_STARTUP_RECOVERY_ATTEMPTS = 2;
 
@@ -278,6 +285,11 @@ public class WebviewWatchdog {
             return STARTUP_READY_TIMEOUT_MS;
         }
         return streaming ? STREAMING_HEARTBEAT_TIMEOUT_MS : HEARTBEAT_TIMEOUT_MS;
+    }
+
+    /** Whether the pre-ready startup budget uses the extended remote/OSR value. */
+    static boolean isRemoteStartupBudget() {
+        return PlatformUtils.isLinux();
     }
 
     static long recoveryCooldownMs(boolean frontendReady) {

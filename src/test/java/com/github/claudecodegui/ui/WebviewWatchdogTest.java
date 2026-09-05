@@ -17,13 +17,23 @@ import static org.junit.Assert.assertTrue;
  */
 public class WebviewWatchdogTest {
 
-    /** Verifies that an unready frontend uses the bounded startup timeout. */
+    /**
+     * Verifies that an unready frontend uses the bounded startup timeout.
+     * On Linux (Remote Development backends render via OSR) the startup budget
+     * is intentionally larger than the post-ready heartbeat timeout, because
+     * the first page load legitimately takes about a minute; on desktop
+     * platforms it stays tighter than the runtime timeout.
+     */
     @Test
     public void usesShortTimeoutBeforeFrontendReady() {
         long startupTimeout = WebviewWatchdog.heartbeatTimeoutMs(false, false);
 
         assertEquals(startupTimeout, WebviewWatchdog.heartbeatTimeoutMs(false, true));
-        assertTrue(startupTimeout < WebviewWatchdog.heartbeatTimeoutMs(true, false));
+        if (WebviewWatchdog.isRemoteStartupBudget()) {
+            assertTrue(startupTimeout >= WebviewWatchdog.heartbeatTimeoutMs(true, false));
+        } else {
+            assertTrue(startupTimeout < WebviewWatchdog.heartbeatTimeoutMs(true, false));
+        }
     }
 
     /** Verifies that active streaming only extends the timeout after frontend readiness. */
