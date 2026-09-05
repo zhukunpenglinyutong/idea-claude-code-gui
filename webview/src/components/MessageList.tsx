@@ -80,6 +80,33 @@ function getMessageToolResultSignature(
     .join('|');
 }
 
+// Streaming delta frames re-render MessageList ~60x/s; recomputing every
+// visible message's tool-result signature (result content previews) each
+// frame is pure waste — the assistant message object and its tool_use blocks
+// are identity-stable across frames. Cached per message, invalidated when the
+// conversation length changes (tool_result results arrive as new messages,
+// so a growing conversation re-arms the cache).
+const toolResultSignatureCache = new WeakMap<object, { epoch: number; signatures: Map<number, string> }>();
+
+function getMessageToolResultSignatureCached(
+  message: ClaudeMessage,
+  messageIndex: number,
+  conversationLength: number,
+  getContentBlocks: (message: ClaudeMessage) => ClaudeContentBlock[],
+  findToolResult: (toolId: string | undefined, messageIndex: number) => ToolResultBlock | null | undefined,
+): string {
+  let entry = toolResultSignatureCache.get(message);
+  if (!entry || entry.epoch !== conversationLength) {
+    entry = { epoch: conversationLength, signatures: new Map() };
+    toolResultSignatureCache.set(message, entry);
+  }
+  const cached = entry.signatures.get(messageIndex);
+  if (cached !== undefined) return cached;
+  const signature = getMessageToolResultSignature(message, messageIndex, getContentBlocks, findToolResult);
+  entry.signatures.set(messageIndex, signature);
+  return signature;
+}
+
 interface MessageListProps {
   messages: ClaudeMessage[];
   messageKeys: readonly string[];
@@ -318,7 +345,8 @@ export const MessageList = memo(forwardRef<MessageListRevealHandle, MessageListP
       {visibleMessages.map((message, visibleIndex) => {
         const messageIndex = shouldCollapse ? visibleIndex + collapsedCount : visibleIndex;
         const messageKey = messageKeys[messageIndex];
-        const toolResultSignature = getMessageToolResultSignature(message, messageIndex, getContentBlocks, findToolResult);
+        const toolResultSignature = getMessageToolResultSignatureCached(
+          message, messageIndex, messages.length, getContentBlocks, findToolResult);
 
         return (
           <MessageItem

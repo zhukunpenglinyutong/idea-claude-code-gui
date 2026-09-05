@@ -25,6 +25,9 @@ import {
   sliceLatestConversationTurn,
 } from '../utils/turnScope';
 import { FILE_MODIFY_TOOL_NAMES, isToolName } from '../utils/toolConstants';
+import {
+  computeStructureVersion,
+} from '../utils/messageStructure';
 import { extractSubagentsFromMessages, useSubagents } from './useSubagents';
 import { useCodexSubagentStatusPolling } from './useCodexSubagentStatusPolling';
 import { useFileChanges } from './useFileChanges';
@@ -197,6 +200,30 @@ export function useChatComputations({
     return fileChanges.filter((fc) => !fileChangeMgmt.processedFiles.includes(fc.filePath));
   }, [fileChanges, fileChangeMgmt.processedFiles]);
 
+  // ------------------------------------------------------------------
+  // Structure-version gating
+  //
+  // Streaming delta frames replace the tail assistant message object and the
+  // messages array identity on every rendered frame, but the derived state
+  // below (subagents, todos, rewindables, session title) depends only on tool
+  // structure, never on streaming text. structureVersion stays stable across
+  // text-only frames, so the gated useMemos skip their O(conversation) scans
+  // instead of re-running ~60x/s. Latest arrays are kept in refs so a gated
+  // memo that does re-run always reads the freshest arrays.
+  // ------------------------------------------------------------------
+  const mergedMessagesRef = useRef(mergedMessages);
+  mergedMessagesRef.current = mergedMessages;
+
+  const structureStateRef = useRef<{ fingerprints: string[]; version: number }>({
+    fingerprints: [], version: 0,
+  });
+  const structureState = useMemo(
+    () => computeStructureVersion(messages, structureStateRef.current),
+    [messages],
+  );
+  structureStateRef.current = structureState;
+  const structureVersion = structureState.version;
+
   const latestTurnMessages = useMemo(() => sliceLatestConversationTurn(messages), [messages]);
 
   // A run_in_background agent outlives the turn that launched it: the main turn
@@ -209,10 +236,13 @@ export function useChatComputations({
   // conversation in scope in that case. The check reuses the same extraction
   // as the list itself (isAsyncAgentInput on the raw tool input) so the two
   // can never disagree.
+  // Gated on structure version: the full-conversation subagent extraction is
+  // the heaviest per-frame scan, and its result only changes with tool structure.
   const asyncAgentPresence = useMemo(
     () => extractSubagentsFromMessages(messages, getContentBlocks, findToolResult, getToolResultRaw, {})
       .some((subagent) => subagent.isAsync === true),
-    [messages, getContentBlocks, findToolResult, getToolResultRaw],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [structureVersion, getContentBlocks, findToolResult, getToolResultRaw],
   );
 
   // While streaming, focus on the current turn's task progress; once settled
@@ -228,10 +258,13 @@ export function useChatComputations({
   // stream-end signal flips streamingActive back to false. Widening only adds
   // content (earlier turns' settled items) - it never drops the current turn's.
   // A session with any async agent likewise never narrows (see asyncAgentPresence).
+  // Gated on structure version: reads latestTurnMessages/messages whose tool
+  // structure is unchanged across text-only streaming frames.
   const statusScopeMessages = useMemo(() => {
     const latestTurnHasToolUse = latestTurnMessages.length > 0 && sliceHasToolUse(latestTurnMessages, getContentBlocks);
     return computeStatusScopeMessages(streamingActive, asyncAgentPresence, latestTurnMessages, messages, latestTurnHasToolUse);
-  }, [streamingActive, asyncAgentPresence, latestTurnMessages, messages, getContentBlocks]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [streamingActive, asyncAgentPresence, structureVersion, getContentBlocks]);
 
   // Plans belong to the current user turn while streaming. Unlike subagents,
   // a text-only new turn must not temporarily revive a previous turn's plan.
@@ -242,8 +275,18 @@ export function useChatComputations({
     [streamingActive, latestTurnMessages, messages],
   );
 
+  // Codex scans the full conversation through useSubagents; keep the scan
+  // input identity stable across text-only frames so its internal memo skips
+  // exactly like the Claude path (which is gated via statusScopeMessages).
+  const codexScanMessagesRef = useRef(messages);
+  const codexScanMessages = useMemo(() => {
+    codexScanMessagesRef.current = messages;
+    return codexScanMessagesRef.current;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [structureVersion, currentProvider]);
+
   const extractedSubagents = useSubagents({
-    messages: currentProvider === 'codex' ? messages : statusScopeMessages,
+    messages: currentProvider === 'codex' ? codexScanMessages : statusScopeMessages,
     getContentBlocks,
     findToolResult,
     getToolResultRaw,
@@ -264,12 +307,16 @@ export function useChatComputations({
 
   useCodexSubagentStatusPolling({ subagents, currentSessionId, currentProvider });
 
+  // Gated on structure version: the todo scan only changes when a todo/plan
+  // tool_use or its result appears, never on streaming text.
   const globalTodos = useMemo(() => {
     return deriveTodosForTurn(todoScopeMessages, getContentBlocks, streamingActive, currentProvider);
-  }, [todoScopeMessages, getContentBlocks, streamingActive, currentProvider]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [structureVersion, streamingActive, currentProvider, getContentBlocks]);
 
   const canRewindFromMessageIndex = useCallback(
     (userMessageIndex: number) => {
+      const mergedMessages = mergedMessagesRef.current;
       if (userMessageIndex < 0 || userMessageIndex >= mergedMessages.length) return false;
       const current = mergedMessages[userMessageIndex];
       if (current.type !== 'user') return false;
@@ -292,11 +339,14 @@ export function useChatComputations({
       }
       return false;
     },
-    [mergedMessages, getContentBlocks],
+    [getContentBlocks],
   );
 
+  // Gated on structure version: rewindability is a pure tool-structure
+  // property; message counts change only when the structure does.
   const rewindableMessages = useMemo((): RewindableMessage[] => {
     if (currentProvider !== 'claude') return [];
+    const mergedMessages = mergedMessagesRef.current;
     const result: RewindableMessage[] = [];
     for (let i = 0; i < mergedMessages.length - 1; i++) {
       if (!canRewindFromMessageIndex(i)) continue;
@@ -307,16 +357,19 @@ export function useChatComputations({
       result.push({ messageIndex: i, message, displayContent: content, timestamp, messagesAfterCount });
     }
     return result;
-  }, [mergedMessages, currentProvider, canRewindFromMessageIndex, getMessageText]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [structureVersion, currentProvider, canRewindFromMessageIndex, getMessageText]);
 
+  // Gated on structure version: user message texts are immutable once added,
+  // so the first-real-prompt scan cannot change during text-only streaming.
   const sessionTitle = useMemo(() => {
     if (customSessionTitle) return customSessionTitle;
-    if (messages.length === 0) return t('common.newSession');
+    if (messagesRef.current.length === 0) return t('common.newSession');
     // Pick the first REAL prompt: skip meta/caveat messages and anything whose
     // text is raw internal XML (e.g. <local-command-caveat>) so the tag is
     // never leaked as the session title.
     let text = '';
-    for (const message of messages) {
+    for (const message of messagesRef.current) {
       if (message.type !== 'user') continue;
       const raw = message.raw;
       if (raw && typeof raw === 'object' && raw.isMeta === true) continue;
@@ -329,7 +382,8 @@ export function useChatComputations({
     }
     if (!text) return t('common.newSession');
     return text.length > 15 ? `${text.substring(0, 15)}...` : text;
-  }, [customSessionTitle, messages, t, getMessageText]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [structureVersion, customSessionTitle, t, getMessageText]);
 
   return {
     findToolResult,
