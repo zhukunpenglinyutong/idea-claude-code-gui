@@ -130,6 +130,8 @@ public class EnvironmentConfigurator {
                     userHome + "/.grok/bin",
                     userHome + "/.pi/bin",
                     userHome + "/.omp/bin",
+                    userHome + "/.mimo/bin",
+                    userHome + "/.mimocode",
                     // Bun global installs (bun add -g) land here, e.g. omp CLI
                     userHome + "/.bun/bin",
                     // Yarn classic global installs

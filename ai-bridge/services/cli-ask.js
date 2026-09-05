@@ -22,6 +22,7 @@ import {
   resolveOpenCodeCliPath,
   resolvePiCliPath,
   resolveOmpCliPath,
+  resolveMimoCliPath,
   enrichPathWithBinDirs,
   commonCliBinDirs,
 } from '../utils/cli-path.js';
@@ -31,7 +32,7 @@ import { getRealHomeDir } from '../utils/path-utils.js';
 import { runAcpTurn } from './grok/grok-acp-client.js';
 import { buildGrokEnv, resolveEffectiveGrokAuth } from './grok/grok-utils.js';
 
-export const CLI_ASK_PROVIDERS = ['grok', 'kimi', 'opencode', 'pi', 'omp'];
+export const CLI_ASK_PROVIDERS = ['grok', 'kimi', 'opencode', 'pi', 'omp', 'mimo'];
 
 const DEFAULT_MODELS = {
   grok: 'grok',
@@ -39,6 +40,7 @@ const DEFAULT_MODELS = {
   opencode: 'opencode-default',
   pi: 'auto',
   omp: 'auto',
+  mimo: 'auto',
 };
 
 function isDefaultModelToken(model) {
@@ -59,6 +61,8 @@ function isDefaultModelToken(model) {
     || lower === 'pi default'
     || lower === 'omp-default'
     || lower === 'omp default'
+    || lower === 'mimo-default'
+    || lower === 'mimo default'
   );
 }
 
@@ -427,6 +431,75 @@ async function askPi(prompt, { model, cwd, onDelta } = {}) {
   });
 }
 
+/**
+ * One-shot ask via MiMo Code (`mimo run --format json`).
+ *
+ * MiMo Code is an OpenCode fork, so the headless event stream matches
+ * upstream OpenCode 1.x and the parser mirrors askOpenCode.
+ */
+async function askMimo(prompt, { model, cwd, onDelta } = {}) {
+  const bin = resolveMimoCliPath();
+  const args = ['run', '--format', 'json'];
+  const modelFlag = resolveModelFlag(model);
+  if (modelFlag) args.push('--model', modelFlag);
+  args.push(safePromptArg(prompt));
+
+  let structuredError = '';
+  try {
+    return await collectFromStreamingCli({
+      bin,
+      args,
+      cwd: buildWorkCwd(cwd),
+      label: 'MiMo',
+      onDelta,
+      onLine: (line) => {
+        if (!line || !line.trim()) return '';
+        let event;
+        try {
+          event = JSON.parse(line);
+        } catch {
+          return '';
+        }
+        if (!event || typeof event !== 'object') return '';
+        const type = typeof event.type === 'string' ? event.type : '';
+        const lower = type.toLowerCase();
+        if (lower === 'error' || lower.endsWith('.error')) {
+          const message = extractCliEventErrorMessage(event);
+          if (message) structuredError = message;
+          return '';
+        }
+        if (
+          lower === 'reasoning_delta'
+          || lower.includes('reasoning')
+          || lower.includes('think')
+        ) {
+          return '';
+        }
+        if (
+          lower === 'text'
+          || lower === 'content_delta'
+          || lower === 'text_delta'
+          || lower === 'output_text_delta'
+          || lower === 'assistant_message_delta'
+          || lower === 'message_delta'
+          || lower === 'assistant_message'
+          || lower === 'message'
+          || ((lower.includes('delta') || lower.includes('message') || lower.includes('text'))
+            && extractOpenCodeTextDelta(event))
+        ) {
+          return extractOpenCodeTextDelta(event) || '';
+        }
+        return '';
+      },
+    });
+  } catch (error) {
+    if (structuredError) {
+      throw new Error(structuredError);
+    }
+    throw error;
+  }
+}
+
 async function askOmp(prompt, { model, cwd, onDelta } = {}) {
   const bin = resolveOmpCliPath();
   const args = ['--print', '--mode', 'json'];
@@ -464,7 +537,7 @@ async function askOmp(prompt, { model, cwd, onDelta } = {}) {
  * One-shot text generation for a CLI provider.
  *
  * @param {object} options
- * @param {'grok'|'kimi'|'opencode'|'pi'|'omp'} options.provider
+ * @param {'grok'|'kimi'|'opencode'|'pi'|'omp'|'mimo'} options.provider
  * @param {string} options.prompt
  * @param {string} [options.model]
  * @param {string} [options.cwd]
@@ -499,6 +572,8 @@ export async function askCliProvider({
       return askPi(prompt, opts);
     case 'omp':
       return askOmp(prompt, opts);
+    case 'mimo':
+      return askMimo(prompt, opts);
     default:
       throw new Error(`Unsupported CLI ask provider: ${provider}`);
   }

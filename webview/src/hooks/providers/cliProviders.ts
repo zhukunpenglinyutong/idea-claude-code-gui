@@ -1,7 +1,7 @@
 import type { ModelInfo, PermissionMode } from '../../components/ChatInputBox/types';
 
 /** Headless CLI providers that share Grok-style marker streaming (no npm SDK). */
-export const CLI_ONLY_PROVIDERS = new Set(['grok', 'kimi', 'opencode', 'pi', 'omp', 'dsh']);
+export const CLI_ONLY_PROVIDERS = new Set(['grok', 'kimi', 'opencode', 'pi', 'omp', 'dsh', 'mimo']);
 
 export function isCliOnlyProvider(providerId: string | null | undefined): boolean {
   return !!providerId && CLI_ONLY_PROVIDERS.has(providerId);

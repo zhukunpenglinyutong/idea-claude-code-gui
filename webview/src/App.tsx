@@ -169,7 +169,7 @@ const App = () => {
     setClaudePermissionMode, setCodexPermissionMode,
     setSelectedClaudeModel, setSelectedCodexModel,
     setSelectedGrokModel, setSelectedKimiModel,
-    setSelectedOpenCodeModel, setSelectedPiModel, setSelectedDshModel,
+    setSelectedOpenCodeModel, setSelectedPiModel, setSelectedDshModel, setSelectedMimoModel,
     setSelectedOmpModel, setOmpPermissionMode,
     setLongContextEnabled, setReasoningEffort, setCodexFastMode,
     setProviderConfigVersion, setActiveProviderConfig,
@@ -354,6 +354,9 @@ const App = () => {
           }
         } else if (provider === 'dsh') {
           setSelectedDshModel(model);
+          sendBridgeEvent('set_model', model);
+        } else if (provider === 'mimo') {
+          setSelectedMimoModel(model);
           sendBridgeEvent('set_model', model);
         } else {
           // claude (or unrecognized): apply the claude model directly —

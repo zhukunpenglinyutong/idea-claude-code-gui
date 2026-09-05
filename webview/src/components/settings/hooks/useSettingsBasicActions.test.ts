@@ -19,6 +19,7 @@ describe('useSettingsBasicActions', () => {
       opencode: false,
       pi: false,
       omp: false,
+      mimo: false,
     },
   };
 
@@ -118,6 +119,7 @@ describe('useSettingsBasicActions', () => {
           opencode: false,
           pi: false,
           omp: false,
+          mimo: false,
         },
       });
     });
@@ -148,6 +150,7 @@ describe('useSettingsBasicActions', () => {
           opencode: false,
           pi: false,
           omp: false,
+          mimo: false,
         },
       });
     });
@@ -181,6 +184,7 @@ describe('useSettingsBasicActions', () => {
           opencode: false,
           pi: false,
           omp: false,
+          mimo: false,
         },
       });
     });
@@ -212,6 +216,7 @@ describe('useSettingsBasicActions', () => {
           opencode: false,
           pi: false,
           omp: false,
+          mimo: false,
         },
       });
     });

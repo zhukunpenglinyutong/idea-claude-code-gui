@@ -20,6 +20,7 @@ export type ModelVendor =
   | 'zhipu'
   | 'minimax'
   | 'xiaomi'
+  | 'mimo'
   | 'bailian'
   | 'longcat'
   | 'opencode'
@@ -108,6 +109,8 @@ const PROVIDER_TO_VENDOR: Record<string, ModelVendor> = {
   zhipu: 'zhipu',
   minimax: 'minimax',
   xiaomi: 'xiaomi',
+  // MiMo Code CLI provider — shares the Xiaomi MiMo brand mark.
+  mimo: 'xiaomi',
   'xiaomi-plan': 'xiaomi',
   bailian: 'bailian',
   'bailian-coding': 'bailian',

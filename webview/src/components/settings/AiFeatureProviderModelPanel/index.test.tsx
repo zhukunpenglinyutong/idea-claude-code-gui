@@ -70,6 +70,7 @@ describe('AiFeatureProviderModelPanel', () => {
       opencode: false,
       pi: false,
       omp: false,
+      mimo: false,
     },
   };
 
@@ -159,7 +160,7 @@ describe('AiFeatureProviderModelPanel', () => {
     const providerRoot = screen.getByTestId('ai-feature-provider-select');
     fireEvent.click(within(providerRoot).getByRole('button'));
     const options = within(providerRoot).getAllByRole('option');
-    expect(options).toHaveLength(7);
+    expect(options).toHaveLength(8);
     const labels = options.map((opt) => opt.textContent ?? '');
     expect(labels.some((l) => /Claude/i.test(l) || /providers\.claude\.label/.test(l))).toBe(true);
     expect(labels.some((l) => /Codex/i.test(l) || /providers\.codex\.label/.test(l))).toBe(true);
@@ -168,6 +169,7 @@ describe('AiFeatureProviderModelPanel', () => {
     expect(labels.some((l) => /OpenCode/i.test(l) || /providers\.opencode\.label/.test(l))).toBe(true);
     expect(labels.some((l) => /PI/i.test(l) || /providers\.pi\.label/.test(l))).toBe(true);
     expect(labels.some((l) => /OMP/i.test(l) || /providers\.omp\.label/.test(l))).toBe(true);
+    expect(labels.some((l) => /MiMo/i.test(l) || /providers\.mimo\.label/.test(l))).toBe(true);
   });
 
   it('keeps selects compact with ellipsis instead of wrapping', () => {
@@ -203,6 +205,7 @@ describe('AiFeatureProviderModelPanel', () => {
             opencode: false,
             pi: false,
             omp: false,
+            mimo: false,
           },
         }}
         settingsKeyPrefix="settings.basic.promptEnhancer"
@@ -220,7 +223,7 @@ describe('AiFeatureProviderModelPanel', () => {
 
     fireEvent.click(trigger);
     const options = within(providerRoot).getAllByRole('option');
-    expect(options.length).toBe(7);
+    expect(options.length).toBe(8);
     options.forEach((opt) => {
       expect((opt as HTMLButtonElement).disabled).toBe(false);
     });
@@ -357,6 +360,7 @@ describe('AiFeatureProviderModelPanel', () => {
             opencode: false,
             pi: false,
             omp: false,
+            mimo: false,
           },
         }}
         settingsKeyPrefix="settings.basic.promptEnhancer"

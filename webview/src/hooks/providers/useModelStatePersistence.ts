@@ -7,6 +7,7 @@ import {
   GROK_DEFAULT_MODEL_ID,
   KIMI_DEFAULT_MODEL_ID,
   OMP_DEFAULT_MODEL_ID,
+  MIMO_DEFAULT_MODEL_ID,
   OPENCODE_DEFAULT_MODEL_ID,
   PI_DEFAULT_MODEL_ID,
   DSH_DEFAULT_MODEL_ID,
@@ -61,12 +62,14 @@ export interface UseModelStatePersistenceOptions {
   setSelectedPiModel: (value: string) => void;
   setSelectedOmpModel: (value: string) => void;
   setSelectedDshModel: (value: string) => void;
+  setSelectedMimoModel: (value: string) => void;
   setGrokPermissionMode: (value: PermissionMode) => void;
   setKimiPermissionMode: (value: PermissionMode) => void;
   setOpenCodePermissionMode: (value: PermissionMode) => void;
   setPiPermissionMode: (value: PermissionMode) => void;
   setOmpPermissionMode: (value: PermissionMode) => void;
   setDshPermissionMode: (value: PermissionMode) => void;
+  setMimoPermissionMode: (value: PermissionMode) => void;
   setPermissionMode: (value: PermissionMode) => void;
   setLongContextEnabled: (value: boolean) => void;
   setReasoningEffort: (value: ReasoningEffort) => void;
@@ -84,12 +87,14 @@ export interface UseModelStatePersistenceOptions {
   selectedPiModel: string;
   selectedOmpModel: string;
   selectedDshModel: string;
+  selectedMimoModel: string;
   grokPermissionMode: PermissionMode;
   kimiPermissionMode: PermissionMode;
   openCodePermissionMode: PermissionMode;
   piPermissionMode: PermissionMode;
   ompPermissionMode: PermissionMode;
   dshPermissionMode: PermissionMode;
+  mimoPermissionMode: PermissionMode;
   longContextEnabled: boolean;
   reasoningEffort: ReasoningEffort;
   codexFastMode: CodexFastMode;
@@ -119,12 +124,14 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
     setSelectedPiModel,
     setSelectedOmpModel,
     setSelectedDshModel,
+    setSelectedMimoModel,
     setGrokPermissionMode,
     setKimiPermissionMode,
     setOpenCodePermissionMode,
     setPiPermissionMode,
     setOmpPermissionMode,
     setDshPermissionMode,
+    setMimoPermissionMode,
     setPermissionMode,
     setLongContextEnabled,
     setReasoningEffort,
@@ -141,12 +148,14 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
     selectedPiModel,
     selectedOmpModel,
     selectedDshModel,
+    selectedMimoModel,
     grokPermissionMode,
     kimiPermissionMode,
     openCodePermissionMode,
     piPermissionMode,
     ompPermissionMode,
     dshPermissionMode,
+    mimoPermissionMode,
     longContextEnabled,
     reasoningEffort,
     codexFastMode,
@@ -187,12 +196,14 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
       let restoredPiModel = PI_DEFAULT_MODEL_ID;
       let restoredOmpModel = OMP_DEFAULT_MODEL_ID;
       let restoredDshModel = DSH_DEFAULT_MODEL_ID;
+      let restoredMimoModel = MIMO_DEFAULT_MODEL_ID;
       let restoredGrokPermissionMode: PermissionMode = 'default';
       let restoredKimiPermissionMode: PermissionMode = 'default';
       let restoredOpenCodePermissionMode: PermissionMode = 'default';
       let restoredPiPermissionMode: PermissionMode = 'default';
       let restoredOmpPermissionMode: PermissionMode = 'default';
       let restoredDshPermissionMode: PermissionMode = 'default';
+      let restoredMimoPermissionMode: PermissionMode = 'default';
       let restoredLongContextEnabled = true;
       let restoredCodexFastMode: CodexFastMode = 'normal';
       let restoredDshPreset = DSH_PRESET_NONE;
@@ -253,6 +264,10 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
         restoredDshModel = id;
         setSelectedDshModel(id);
       });
+      const applyMimoModel = makeCliModelApplier((id) => {
+        restoredMimoModel = id;
+        setSelectedMimoModel(id);
+      });
 
       if (saved) {
         const state = JSON.parse(saved);
@@ -291,6 +306,9 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
         }
         if (isValidPermissionMode(state.dshPermissionMode)) {
           restoredDshPermissionMode = normalizeCliPermissionMode(state.dshPermissionMode);
+        }
+        if (isValidPermissionMode(state.mimoPermissionMode)) {
+          restoredMimoPermissionMode = normalizeCliPermissionMode(state.mimoPermissionMode, 'mimo');
         }
 
         if (typeof state.longContextEnabled === 'boolean') {
@@ -348,6 +366,11 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
           ? initialTabModel
           : state.dshModel;
         applyDshModel(dshModelCandidate);
+
+        const mimoModelCandidate = hasBackendModel && restoredProvider === 'mimo'
+          ? initialTabModel
+          : state.mimoModel;
+        applyMimoModel(mimoModelCandidate);
       } else if (hasBackendProvider) {
         // No localStorage yet (fresh user) but backend supplied a provider:
         // honor it so the tab starts with the right provider.
@@ -362,6 +385,7 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
           else if (initialTabProvider === 'pi') applyPiModel(initialTabModel);
           else if (initialTabProvider === 'omp') applyOmpModel(initialTabModel);
           else if (initialTabProvider === 'dsh') applyDshModel(initialTabModel);
+          else if (initialTabProvider === 'mimo') applyMimoModel(initialTabModel);
         }
       }
 
@@ -392,6 +416,8 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
                   ? restoredOmpPermissionMode
                   : restoredProvider === 'dsh'
                     ? restoredDshPermissionMode
+                    : restoredProvider === 'mimo'
+                    ? restoredMimoPermissionMode
                     : restoredClaudePermissionMode;
       setClaudePermissionMode(restoredClaudePermissionMode);
       setCodexPermissionMode(restoredCodexPermissionMode);
@@ -401,6 +427,7 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
       setPiPermissionMode(restoredPiPermissionMode);
       setOmpPermissionMode(restoredOmpPermissionMode);
       setDshPermissionMode(restoredDshPermissionMode);
+      setMimoPermissionMode(restoredMimoPermissionMode);
       setPermissionMode(initialPermissionMode);
 
       let syncRetryCount = 0;
@@ -429,6 +456,8 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
                       ? restoredOmpModel
                       : restoredProvider === 'dsh'
                         ? restoredDshModel
+                        : restoredProvider === 'mimo'
+                        ? restoredMimoModel
                         : apply1MContextSuffix(restoredClaudeModel, restoredLongContextEnabled);
           sendBridgeEvent('set_model', modelToSync);
           // Do NOT push the permission mode to Java on boot. Java is the source
@@ -493,12 +522,14 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
           piModel: selectedPiModel,
           ompModel: selectedOmpModel,
           dshModel: selectedDshModel,
+          mimoModel: selectedMimoModel,
           grokPermissionMode,
           kimiPermissionMode,
           openCodePermissionMode,
           piPermissionMode,
           ompPermissionMode,
           dshPermissionMode,
+          mimoPermissionMode,
           longContextEnabled,
           reasoningEffort,
           codexFastMode,
@@ -527,12 +558,14 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
     selectedPiModel,
     selectedOmpModel,
     selectedDshModel,
+    selectedMimoModel,
     grokPermissionMode,
     kimiPermissionMode,
     openCodePermissionMode,
     piPermissionMode,
     ompPermissionMode,
     dshPermissionMode,
+    mimoPermissionMode,
     longContextEnabled,
     reasoningEffort,
     codexFastMode,

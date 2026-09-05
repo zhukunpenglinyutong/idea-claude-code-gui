@@ -164,7 +164,7 @@ public class GitCommitMessageService {
             return;
         }
 
-        // Headless CLI providers (grok / kimi / opencode / pi) share the same
+        // Headless CLI providers (grok / kimi / opencode / pi / mimo) share the same
         // one-shot commit-message.js path as Claude/Codex.
         callCliProviderAPI(prompt, effectiveProvider, model, callback);
     }

@@ -9,7 +9,9 @@ public enum CliToolId {
     OPENCODE("opencode", "OpenCode", "opencode"),
     PI("pi", "PI CLI", "pi"),
     OMP("omp", "OMP CLI", "omp"),
-    DSH("dsh", "DeepSeek Harness", "dsh");
+    DSH("dsh", "DeepSeek Harness", "dsh"),
+    // MiMo Code (OpenCode fork); alt-name probing happens Node-side in resolveMimoCliPath.
+    MIMO("mimo", "MiMo Code", "mimo");
 
     private final String id;
     private final String displayName;

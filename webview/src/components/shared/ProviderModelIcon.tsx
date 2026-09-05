@@ -159,6 +159,9 @@ const VENDOR_ICON_MAP: Record<
     colored ? <BailianColor size={size} /> : <BailianMono size={size} />,
   longcat: (size, colored) =>
     colored ? <LongCatColor size={size} /> : <LongCatMono size={size} />,
+  // MiMo Code shares the Xiaomi MiMo brand mark.
+  mimo: (size, colored) =>
+    XiaomiMiMoIcon(size, colored),
   // Avatar variant pulls @lobehub/ui (not a webview dependency); Mono only.
   opencode: (size, _colored) =>
     <OpenCodeMono size={size} />,

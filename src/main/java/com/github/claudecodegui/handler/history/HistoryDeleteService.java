@@ -246,6 +246,9 @@ class HistoryDeleteService {
         if ("kimi".equals(currentProvider)) {
             return new DeleteResult(deleteKimiSession(sessionId), 0);
         }
+        if ("mimo".equals(currentProvider)) {
+            return new DeleteResult(deleteMimoSession(sessionId), 0);
+        }
         if ("dsh".equals(currentProvider)) {
             return new DeleteResult(deleteDshSession(sessionId), 0);
         }
@@ -314,6 +317,17 @@ class HistoryDeleteService {
                 new com.github.claudecodegui.provider.kimi.KimiHistoryReader();
         boolean deleted = reader.deleteSession(sessionId, projectPath);
         LOG.info("[HistoryHandler] Delete Kimi session " + sessionId + ": " + (deleted ? "ok" : "not found"));
+        return deleted;
+    }
+
+    private boolean deleteMimoSession(String sessionId) throws java.io.IOException {
+        String rawPath = context.resolveEffectiveWorkingDirectory();
+        String nodePath = NodeDetector.getInstance().getCachedNodePath();
+        String projectPath = NodeDetector.isWslPath(nodePath) ? NodeDetector.convertToWslPath(rawPath) : rawPath;
+        com.github.claudecodegui.provider.mimo.MimoHistoryReader reader =
+                new com.github.claudecodegui.provider.mimo.MimoHistoryReader();
+        boolean deleted = reader.deleteSession(sessionId, projectPath);
+        LOG.info("[HistoryHandler] Delete MiMo session " + sessionId + ": " + (deleted ? "ok" : "not found"));
         return deleted;
     }
 

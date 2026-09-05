@@ -18,6 +18,7 @@ const PROVIDER_TO_SDK: Record<string, string> = {
   opencode: 'opencode-cli',
   pi: 'pi-cli',
   omp: 'omp-cli',
+  mimo: 'mimo-cli',
 };
 
 type SdkStatus = Record<string, {

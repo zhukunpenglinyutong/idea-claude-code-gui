@@ -549,6 +549,17 @@ export const DSH_MODELS: ModelInfo[] = [
   },
 ];
 
+/** MiMo Code default: omit `--model` so the CLI resolves its own default. */
+export const MIMO_DEFAULT_MODEL_ID = 'auto';
+
+export const MIMO_MODELS: ModelInfo[] = [
+  {
+    id: MIMO_DEFAULT_MODEL_ID,
+    label: 'MiMo Auto',
+    description: 'Use MiMo Code default model',
+  },
+];
+
 /** No DSH agent preset: use the default headless composition. */
 export const DSH_PRESET_NONE = '';
 
@@ -612,6 +623,7 @@ export const AVAILABLE_PROVIDERS: ProviderInfo[] = [
   { id: 'pi', label: 'PI CLI', icon: 'codicon-terminal', enabled: true, beta: true },
   { id: 'omp', label: 'OMP CLI', icon: 'codicon-terminal', enabled: true, beta: true },
   { id: 'dsh', label: 'DeepSeek Harness', icon: 'codicon-terminal', enabled: true, beta: true },
+  { id: 'mimo', label: 'MiMo Code', icon: 'codicon-terminal', enabled: true, beta: true },
 ];
 
 /**

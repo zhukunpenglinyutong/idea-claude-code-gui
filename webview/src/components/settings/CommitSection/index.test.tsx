@@ -38,6 +38,7 @@ describe('CommitSection', () => {
         opencode: false,
         pi: false,
         omp: false,
+        mimo: false,
       },
     };
 

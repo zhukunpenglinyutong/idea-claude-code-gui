@@ -237,7 +237,8 @@
           "kimi": "Kimi CLI",
           "opencode": "OpenCode",
           "pi": "PI CLI",
-          "omp": "OMP CLI"
+          "omp": "OMP CLI",
+          "mimo": "MiMo Code"
         },
         "currentProviderAuto": "目前使用自動選擇：{{provider}}",
         "currentProviderManual": "目前使用手動選擇的 provider：{{provider}}",
@@ -877,6 +878,10 @@
         "dsh": {
           "name": "DeepSeek Harness",
           "description": "DeepSeek 終端智慧體 CLI（dsh）"
+        },
+        "mimo": {
+          "name": "MiMo Code",
+          "description": "小米 MiMo 終端編碼智慧體（OpenCode fork）。需 Node.js 18+；命令：mimo / mimocode"
         }
       },
       "installDialog": {
@@ -1750,7 +1755,10 @@
     "dsh": {
       "label": "DeepSeek Harness"
     },
-    "manageCli": "CLI 設定管理"
+    "manageCli": "CLI 設定管理",
+    "mimo": {
+      "label": "MiMo Code"
+    }
   },
   "promptEnhancer": {
     "title": "Prompt Enhancer",
@@ -1891,12 +1899,29 @@
   },
   "dshPresets": {
     "title": "選擇 DeepSeek Harness Agent 預設",
-    "none": { "label": "預設", "description": "dsh 預設 headless 組合（完整工具集）" },
-    "standard": { "label": "標準模式", "description": "功能完整的標準編碼工具集" },
-    "code": { "label": "PTC 模式", "description": "標準能力加 Code Mode" },
-    "minimal": { "label": "極簡模式", "description": "僅提供 bash 與 str_replace_editor" },
-    "cordis": { "label": "創造模式", "description": "標準能力加組合編排能力" },
-    "user": { "description": "安裝在 DSH 主目錄中的自訂預設" }
+    "none": {
+      "label": "預設",
+      "description": "dsh 預設 headless 組合（完整工具集）"
+    },
+    "standard": {
+      "label": "標準模式",
+      "description": "功能完整的標準編碼工具集"
+    },
+    "code": {
+      "label": "PTC 模式",
+      "description": "標準能力加 Code Mode"
+    },
+    "minimal": {
+      "label": "極簡模式",
+      "description": "僅提供 bash 與 str_replace_editor"
+    },
+    "cordis": {
+      "label": "創造模式",
+      "description": "標準能力加組合編排能力"
+    },
+    "user": {
+      "description": "安裝在 DSH 主目錄中的自訂預設"
+    }
   },
   "error": {
     "providerNotConfigured": "供應商未設定",

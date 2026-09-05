@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { sendBridgeEvent } from '../../utils/bridge';
 import type { ModelInfo } from '../../components/ChatInputBox/types';
-import { CODEX_MODELS, DSH_MODELS, GROK_MODELS, KIMI_MODELS, OMP_MODELS, OMP_ROLE_MODELS, OPENCODE_MODELS, PI_MODELS } from '../../components/ChatInputBox/types';
+import { CODEX_MODELS, DSH_MODELS, GROK_MODELS, KIMI_MODELS, MIMO_MODELS, OMP_MODELS, OMP_ROLE_MODELS, OPENCODE_MODELS, PI_MODELS } from '../../components/ChatInputBox/types';
 import { isCliOnlyProvider } from './cliProviders';
 import { subscribeActiveCodexProvider } from '../../utils/runtimeProviderCapabilities';
 
@@ -52,6 +52,7 @@ function fallbackModels(providerId: string): ModelInfo[] {
   if (providerId === 'grok') return GROK_MODELS;
   if (providerId === 'kimi') return KIMI_MODELS;
   if (providerId === 'opencode') return OPENCODE_MODELS;
+  if (providerId === 'mimo') return MIMO_MODELS;
   if (providerId === 'pi') return PI_MODELS;
   if (providerId === 'omp') return OMP_MODELS;
   if (providerId === 'dsh') return DSH_MODELS;

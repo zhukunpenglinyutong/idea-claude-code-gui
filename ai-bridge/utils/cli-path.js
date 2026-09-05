@@ -486,6 +486,8 @@ export function commonCliBinDirs(home = homedir()) {
     join(home, '.pi', 'bin'),
     join(home, '.omp', 'bin'),
     join(home, '.bun', 'bin'),
+    join(home, '.mimo', 'bin'),
+    join(home, '.mimocode'),
     join(home, '.claude', 'bin'),
     join(home, '.yarn', 'bin'),
     // pnpm global installs (PNPM_HOME defaults per platform)
@@ -537,6 +539,36 @@ export function resolveOpenCodeCliPath() {
       '{home}/.local/share/opencode/bin/{bin}',
     ],
   });
+}
+
+export function resolveMimoCliPath() {
+  // Official installer exposes `mimo`; some installs expose `mimocode`.
+  // Try the primary name first, then fall back to the alt name.
+  const envKeys = ['MIMO_BIN', 'MIMO_PATH', 'MIMO_CLI_PATH', 'MIMOCODE_BIN'];
+  const mimo = resolveCliPath({
+    binaryName: 'mimo',
+    envKeys,
+    homeCandidates: [
+      '{home}/.mimo/bin/{bin}',
+      '{home}/.local/bin/{bin}',
+      '{home}/.local/share/mimocode/bin/{bin}',
+    ],
+  });
+  if (mimo !== 'mimo') {
+    return mimo;
+  }
+  const mimocode = resolveCliPath({
+    binaryName: 'mimocode',
+    envKeys,
+    homeCandidates: [
+      '{home}/.mimocode/{bin}',
+      '{home}/.mimo/bin/{bin}',
+      '{home}/.local/bin/{bin}',
+    ],
+  });
+  // resolveCliPath returns the bare name when nothing resolved; prefer mimocode's
+  // result (it may be a real path) and only fall back to `mimo` at the very end.
+  return mimocode !== 'mimocode' ? mimocode : mimo;
 }
 
 export function resolvePiCliPath() {

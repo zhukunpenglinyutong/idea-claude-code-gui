@@ -78,7 +78,7 @@ export const ModeSelect = ({ value, onChange, provider }: ModeSelectProps) => {
       const roleModes = ompRoles.map(roleToModeInfo);
       return defaultMode ? [defaultMode, ...roleModes] : roleModes;
     }
-    if (provider === 'codex' || provider === 'grok' || provider === 'kimi' || provider === 'opencode' || provider === 'pi' || provider === 'dsh') {
+    if (provider === 'codex' || provider === 'grok' || provider === 'kimi' || provider === 'mimo' || provider === 'opencode' || provider === 'pi' || provider === 'dsh') {
       // Codex + headless CLI: plan/smol/slow modes are not exposed (always-approve / auto).
       return AVAILABLE_MODES.filter((mode) => mode.id !== 'plan' && mode.id !== 'smol' && mode.id !== 'slow');
     }

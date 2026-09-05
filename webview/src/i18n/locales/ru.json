@@ -237,7 +237,8 @@
           "kimi": "Kimi CLI",
           "opencode": "OpenCode",
           "pi": "PI CLI",
-          "omp": "OMP CLI"
+          "omp": "OMP CLI",
+          "mimo": "MiMo Code"
         },
         "currentProviderAuto": "Currently using automatic selection: {{provider}}",
         "currentProviderManual": "Currently using manually selected provider: {{provider}}",
@@ -880,6 +881,10 @@
         "omp": {
           "name": "OMP CLI",
           "description": "Терминальный агент для кодирования Oh My Pi с поддержкой нескольких провайдеров"
+        },
+        "mimo": {
+          "name": "MiMo Code",
+          "description": "Терминальный кодинг-агент Xiaomi MiMo (форк OpenCode). Требуется Node.js 18+; команды: mimo / mimocode"
         }
       },
       "installDialog": {
@@ -1719,6 +1724,9 @@
     },
     "omp": {
       "label": "OMP CLI"
+    },
+    "mimo": {
+      "label": "MiMo Code"
     }
   },
   "promptEnhancer": {

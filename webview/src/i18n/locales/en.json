@@ -479,7 +479,8 @@
           "kimi": "Kimi CLI",
           "opencode": "OpenCode",
           "pi": "PI CLI",
-          "omp": "OMP CLI"
+          "omp": "OMP CLI",
+          "mimo": "MiMo Code"
         },
         "currentProviderAuto": "Currently using automatic selection: {{provider}}",
         "currentProviderManual": "Currently using manually selected provider: {{provider}}",
@@ -658,6 +659,10 @@
         "dsh": {
           "name": "DeepSeek Harness",
           "description": "DeepSeek terminal agent CLI (dsh)"
+        },
+        "mimo": {
+          "name": "MiMo Code",
+          "description": "Xiaomi MiMo Code CLI (OpenCode fork). Requires Node.js 18+; commands: mimo / mimocode"
         }
       },
       "installDialog": {
@@ -2193,7 +2198,10 @@
     "dsh": {
       "label": "DeepSeek Harness"
     },
-    "manageCli": "CLI Settings"
+    "manageCli": "CLI Settings",
+    "mimo": {
+      "label": "MiMo Code"
+    }
   },
   "promptEnhancer": {
     "title": "Prompt Enhancer",
@@ -2372,12 +2380,29 @@
   },
   "dshPresets": {
     "title": "Select DeepSeek Harness agent preset",
-    "none": { "label": "Default", "description": "dsh default headless composition (full toolset)" },
-    "standard": { "label": "Standard", "description": "Full coding agent with the standard toolset" },
-    "code": { "label": "PTC", "description": "Standard capabilities with Code Mode" },
-    "minimal": { "label": "Minimal", "description": "Bash and str_replace_editor only" },
-    "cordis": { "label": "Creator", "description": "Standard capabilities plus composition authoring" },
-    "user": { "description": "Custom preset installed under the DSH home" }
+    "none": {
+      "label": "Default",
+      "description": "dsh default headless composition (full toolset)"
+    },
+    "standard": {
+      "label": "Standard",
+      "description": "Full coding agent with the standard toolset"
+    },
+    "code": {
+      "label": "PTC",
+      "description": "Standard capabilities with Code Mode"
+    },
+    "minimal": {
+      "label": "Minimal",
+      "description": "Bash and str_replace_editor only"
+    },
+    "cordis": {
+      "label": "Creator",
+      "description": "Standard capabilities plus composition authoring"
+    },
+    "user": {
+      "description": "Custom preset installed under the DSH home"
+    }
   },
   "error": {
     "providerNotConfigured": "Provider Not Configured",

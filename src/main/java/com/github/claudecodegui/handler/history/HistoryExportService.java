@@ -9,6 +9,7 @@ import com.github.claudecodegui.provider.grok.GrokHistoryReader;
 import com.github.claudecodegui.provider.kimi.KimiHistoryReader;
 import com.github.claudecodegui.provider.opencode.OpenCodeHistoryReader;
 import com.github.claudecodegui.provider.pi.PiHistoryReader;
+import com.github.claudecodegui.provider.mimo.MimoHistoryReader;
 import com.github.claudecodegui.provider.omp.OmpHistoryReader;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -147,6 +148,10 @@ class HistoryExportService {
         if ("pi".equals(provider)) {
             LOG.info("[HistoryHandler] 使用 PiHistoryReader 导出 PI 会话");
             return toJsonArray(new PiHistoryReader().getSessionMessages(sessionId, projectPath));
+        }
+        if ("mimo".equals(provider)) {
+            LOG.info("[HistoryHandler] 使用 MimoHistoryReader 导出 MiMo 会话");
+            return toJsonArray(new MimoHistoryReader().getSessionMessages(sessionId, projectPath));
         }
         if ("omp".equals(provider)) {
             LOG.info("[HistoryHandler] 使用 OmpHistoryReader 导出 OMP 会话");
