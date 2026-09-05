@@ -40,6 +40,29 @@ import {
 } from './codex-event-handler.js';
 
 // ---------------------------------------------------------------------------
+// Turn abort (daemon mode)
+// ---------------------------------------------------------------------------
+
+// The AbortController of the in-flight turn. In one-shot mode Java kills the
+// whole process, so nothing needs this — but in daemon mode the process is
+// shared across providers and turns, so the daemon 'abort' command must reach
+// the live turn's signal instead.
+let activeTurnAbortController = null;
+
+/**
+ * Aborts the currently streaming Codex turn, if any.
+ * @returns {boolean} true when an active turn was aborted
+ */
+export function abortCurrentTurn() {
+  const controller = activeTurnAbortController;
+  if (controller && !controller.signal.aborted) {
+    controller.abort();
+    return true;
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // sendMessage
 // ---------------------------------------------------------------------------
 
@@ -285,6 +308,7 @@ export async function sendMessage(
     await prepareSessionReplayBoundary(state, threadId);
 
     const turnAbortController = new AbortController();
+    activeTurnAbortController = turnAbortController;
     const { events } = await thread.runStreamed(runInput, {
       signal: turnAbortController.signal
     });
@@ -339,6 +363,7 @@ export async function sendMessage(
       state.finalResponse = noResponseMsg;
     }
 
+    activeTurnAbortController = null;
     console.log('[MESSAGE_END]');
     console.log(JSON.stringify({
       success: true,
@@ -347,6 +372,7 @@ export async function sendMessage(
     }));
 
   } catch (error) {
+    activeTurnAbortController = null;
     emitStreamEndOnce();
     console.error('[DEBUG] Error:', error.message);
     console.error('[DEBUG] Error stack:', error.stack);

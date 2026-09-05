@@ -52,6 +52,7 @@ import {
 } from './services/grok/persistent-acp-service.js';
 import { injectStartupEnvVars, isWebviewControlledEnvVar, isDangerousEnvVar } from './config/api-config.js';
 import { cleanupStaleTempImages } from './services/claude/attachment-service.js';
+import { abortCurrentTurn as codexAbortCurrentTurn } from './services/codex/message-service.js';
 
 // =============================================================================
 // Startup Environment Setup (must run before any HTTPS connection)
@@ -642,10 +643,11 @@ async function runDaemonMain() {
         'utf8'
       );
       if (targetId) {
-        // Fire-and-forget for both providers
+        // Fire-and-forget for all providers
         Promise.all([
           abortCurrentTurn().catch((e) => _originalStderrWrite(`[daemon] Claude abort error: ${e.message}\n`, 'utf8')),
           grokAbortCurrentTurn().catch((e) => _originalStderrWrite(`[daemon] Grok abort error: ${e.message}\n`, 'utf8')),
+          codexAbortCurrentTurn().catch((e) => _originalStderrWrite(`[daemon] Codex abort error: ${e.message}\n`, 'utf8')),
         ]);
       }
       writeRawLine({ id: request.id || '0', done: true, success: true });

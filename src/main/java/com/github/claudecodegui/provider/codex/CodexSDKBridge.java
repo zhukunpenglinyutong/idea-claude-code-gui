@@ -12,6 +12,7 @@ import com.github.claudecodegui.dependency.DependencyManager;
 import com.github.claudecodegui.bridge.NodeDetector;
 import com.github.claudecodegui.bridge.ProcessManager;
 import com.github.claudecodegui.provider.common.BaseSDKBridge;
+import com.github.claudecodegui.provider.common.DaemonBridge;
 import com.github.claudecodegui.provider.common.MessageCallback;
 import com.github.claudecodegui.provider.common.SDKResult;
 import com.github.claudecodegui.util.PlatformUtils;
@@ -57,6 +58,8 @@ public class CodexSDKBridge extends BaseSDKBridge {
     private static final int MAX_ENV_VAR_VALUE_LENGTH = 16 * 1024;
     private final CodexHistoryReader historyReader;
     private final CodemossSettingsService settingsService = new CodemossSettingsService();
+    private final CodexDaemonCoordinator daemonCoordinator;
+    private final CodexDaemonRequestExecutor daemonRequestExecutor;
 
     private static final Set<String> PROTECTED_ENV_KEYS = new HashSet<>();
     static {
@@ -99,11 +102,58 @@ public class CodexSDKBridge extends BaseSDKBridge {
     public CodexSDKBridge() {
         super(CodexSDKBridge.class);
         this.historyReader = new CodexHistoryReader();
+        this.daemonCoordinator = new CodexDaemonCoordinator(
+                LOG,
+                nodeDetector,
+                this::getDirectoryResolver,
+                envConfigurator,
+                envConfigurator::configureCodexEnv
+        );
+        this.daemonRequestExecutor = new CodexDaemonRequestExecutor(LOG, this);
     }
 
     CodexSDKBridge(Path sessionsDir) {
         super(CodexSDKBridge.class);
         this.historyReader = new CodexHistoryReader(sessionsDir, gson);
+        this.daemonCoordinator = new CodexDaemonCoordinator(
+                LOG,
+                nodeDetector,
+                this::getDirectoryResolver,
+                envConfigurator,
+                envConfigurator::configureCodexEnv
+        );
+        this.daemonRequestExecutor = new CodexDaemonRequestExecutor(LOG, this);
+    }
+
+    /**
+     * Interrupt a channel. In daemon mode, sends an abort command so the live
+     * Codex turn's AbortController fires; also delegates to ProcessManager for
+     * the one-shot fallback.
+     */
+    @Override
+    public void interruptChannel(String channelId) {
+        DaemonBridge db = daemonCoordinator.getCurrentDaemonBridge();
+        if (db != null && db.isAlive()) {
+            LOG.info("[CodexSDKBridge] Sending daemon abort for channel: " + channelId);
+            try {
+                db.sendAbort();
+            } catch (Exception e) {
+                LOG.error("[CodexSDKBridge] Daemon abort failed: " + e.getMessage());
+            }
+        }
+        // Also try per-process interrupt (covers one-shot fallback)
+        super.interruptChannel(channelId);
+    }
+
+    @Override
+    public void cleanupAllProcesses() {
+        shutdownDaemon();
+        super.cleanupAllProcesses();
+    }
+
+    /** Stops the Codex daemon if running (idempotent). */
+    public void shutdownDaemon() {
+        daemonCoordinator.shutdownDaemon();
     }
 
     // ============================================================================
@@ -451,14 +501,102 @@ public class CodexSDKBridge extends BaseSDKBridge {
                     LOG.info("[Codex] ✓ Prepared " + attachmentsArray.size() + " image attachment(s)");
                 }
 
+                File processTempDir = processManager.prepareClaudeTempDir();
+
+                // Build the request env once — both transports need the same
+                // variables: as child-process env for the one-shot spawn and
+                // as params.env for the daemon (applied per request).
+                Map<String, String> requestEnv = new java.util.LinkedHashMap<>();
+                envConfigurator.configureTempDir(requestEnv, processTempDir);
+                requestEnv.put("CODEX_USE_STDIN", "true");
+
+                // Set model via environment variable if specified
+                if (model != null && !model.isEmpty()) {
+                    requestEnv.put("CODEX_MODEL", model);
+                }
+
+                // Override user's ~/.codex/config.toml sandbox and approval settings via environment variables
+                if (permissionMode != null && !permissionMode.isEmpty()) {
+                    String sandboxMode = resolveCodexSandboxMode(cwd);
+
+                    switch (permissionMode) {
+                        case "auto":
+                            // Codex native auto review requires the guarded workspace-write/on-request pair.
+                            requestEnv.put(ENV_CODEX_SANDBOX_MODE, SANDBOX_MODE_WORKSPACE_WRITE);
+                            requestEnv.put(ENV_CODEX_SANDBOX, SANDBOX_MODE_WORKSPACE_WRITE);
+                            requestEnv.put(ENV_CODEX_APPROVAL_POLICY, APPROVAL_POLICY_ON_REQUEST);
+                            break;
+                        case "bypassPermissions":
+                            requestEnv.put(ENV_CODEX_SANDBOX_MODE, sandboxMode);
+                            requestEnv.put(ENV_CODEX_SANDBOX, sandboxMode);
+                            requestEnv.put(ENV_CODEX_APPROVAL_POLICY, APPROVAL_POLICY_NEVER);
+                            break;
+                        case "acceptEdits":
+                        case "autoEdit":
+                            requestEnv.put(ENV_CODEX_SANDBOX_MODE, sandboxMode);
+                            requestEnv.put(ENV_CODEX_SANDBOX, sandboxMode);
+                            requestEnv.put(ENV_CODEX_APPROVAL_POLICY, APPROVAL_POLICY_ON_REQUEST);
+                            break;
+                        case "plan":
+                            requestEnv.put(ENV_CODEX_SANDBOX_MODE, sandboxMode);
+                            requestEnv.put(ENV_CODEX_SANDBOX, sandboxMode);
+                            requestEnv.put(ENV_CODEX_APPROVAL_POLICY, APPROVAL_POLICY_ON_REQUEST);
+                            break;
+                        default:
+                            // Default mode: use configured sandbox mode with confirmation
+                            requestEnv.put(ENV_CODEX_SANDBOX_MODE, sandboxMode);
+                            requestEnv.put(ENV_CODEX_SANDBOX, sandboxMode);
+                            requestEnv.put(ENV_CODEX_APPROVAL_POLICY, APPROVAL_POLICY_ON_REQUEST);
+                            break;
+                    }
+                    LOG.info("[Codex] Permission env override: SANDBOX_MODE=" +
+                            requestEnv.get(ENV_CODEX_SANDBOX_MODE) + ", SANDBOX=" +
+                            requestEnv.get(ENV_CODEX_SANDBOX) + ", APPROVAL_POLICY=" +
+                            requestEnv.get(ENV_CODEX_APPROVAL_POLICY) + " (from permissionMode=" + permissionMode +
+                            ")");
+                }
+
+                // Configure Codex-specific env vars from ~/.codex/config.toml
+                envConfigurator.configureCodexEnv(requestEnv);
+
+                // Inject custom "message" env vars from active provider
+                injectCustomEnvVars(requestEnv, "message");
+
+                LOG.info("[Codex] Final Node permission env snapshot: CODEX_SANDBOX_MODE=" +
+                        requestEnv.get(ENV_CODEX_SANDBOX_MODE) + ", CODEX_SANDBOX=" +
+                        requestEnv.get(ENV_CODEX_SANDBOX) + ", CODEX_CI=" + requestEnv.get(ENV_CODEX_CI) +
+                        ", CODEX_SANDBOX_NETWORK_DISABLED=" + requestEnv.get(ENV_CODEX_SANDBOX_NETWORK_DISABLED) +
+                        ", CLAUDE_SESSION_ID=" + requestEnv.get("CLAUDE_SESSION_ID") +
+                        ", CLAUDE_PERMISSION_DIR=" + requestEnv.get("CLAUDE_PERMISSION_DIR"));
+
+                // Daemon path first: the warm process skips the per-message
+                // node + SDK cold start. The coordinator returns null while the
+                // daemon is down (60s retry backoff) — fall through to one-shot.
+                DaemonBridge daemon = daemonCoordinator.getDaemonBridge();
+                if (daemon != null) {
+                    JsonObject envJson = new JsonObject();
+                    for (Map.Entry<String, String> entry : requestEnv.entrySet()) {
+                        envJson.addProperty(entry.getKey(), entry.getValue() != null ? entry.getValue() : "");
+                    }
+                    stdinInput.add("env", envJson);
+                    LOG.info("[CodexSDKBridge] Sending via daemon (codex.send)");
+                    SDKResult daemonResult = daemonRequestExecutor.sendMessageViaDaemon(
+                            daemon, channelId, stdinInput, callback,
+                            () -> cleanupTempImages(tempImageFiles)).join();
+                    if (daemonResult == null) {
+                        daemonResult = new SDKResult();
+                        daemonResult.success = false;
+                        daemonResult.error = "Codex daemon returned no result";
+                    }
+                    return daemonResult;
+                }
+
                 String stdinJson = gson.toJson(stdinInput);
 
                 String scriptPath = new File(bridgeDir, CHANNEL_SCRIPT).getAbsolutePath();
                 List<String> command = NodeDetector.buildNodeScriptCommand(node, scriptPath);
                 command.add("codex");
                 command.add("send");
-
-                File processTempDir = processManager.prepareClaudeTempDir();
 
                 ProcessBuilder pb = new ProcessBuilder(command);
 
@@ -474,72 +612,9 @@ public class CodexSDKBridge extends BaseSDKBridge {
                     pb.directory(bridgeDir);
                 }
 
-                // Configure environment variables
-                Map<String, String> env = pb.environment();
-                envConfigurator.configureTempDir(env, processTempDir);
-                env.put("CODEX_USE_STDIN", "true");
-
-                // Set model via environment variable if specified
-                if (model != null && !model.isEmpty()) {
-                    env.put("CODEX_MODEL", model);
-                }
-
-                // Override user's ~/.codex/config.toml sandbox and approval settings via environment variables
-                if (permissionMode != null && !permissionMode.isEmpty()) {
-                    String sandboxMode = resolveCodexSandboxMode(cwd);
-
-                    switch (permissionMode) {
-                        case "auto":
-                            // Codex native auto review requires the guarded workspace-write/on-request pair.
-                            env.put(ENV_CODEX_SANDBOX_MODE, SANDBOX_MODE_WORKSPACE_WRITE);
-                            env.put(ENV_CODEX_SANDBOX, SANDBOX_MODE_WORKSPACE_WRITE);
-                            env.put(ENV_CODEX_APPROVAL_POLICY, APPROVAL_POLICY_ON_REQUEST);
-                            break;
-                        case "bypassPermissions":
-                            env.put(ENV_CODEX_SANDBOX_MODE, sandboxMode);
-                            env.put(ENV_CODEX_SANDBOX, sandboxMode);
-                            env.put(ENV_CODEX_APPROVAL_POLICY, APPROVAL_POLICY_NEVER);
-                            break;
-                        case "acceptEdits":
-                        case "autoEdit":
-                            env.put(ENV_CODEX_SANDBOX_MODE, sandboxMode);
-                            env.put(ENV_CODEX_SANDBOX, sandboxMode);
-                            env.put(ENV_CODEX_APPROVAL_POLICY, APPROVAL_POLICY_ON_REQUEST);
-                            break;
-                        case "plan":
-                            env.put(ENV_CODEX_SANDBOX_MODE, sandboxMode);
-                            env.put(ENV_CODEX_SANDBOX, sandboxMode);
-                            env.put(ENV_CODEX_APPROVAL_POLICY, APPROVAL_POLICY_ON_REQUEST);
-                            break;
-                        default:
-                            // Default mode: use configured sandbox mode with confirmation
-                            env.put(ENV_CODEX_SANDBOX_MODE, sandboxMode);
-                            env.put(ENV_CODEX_SANDBOX, sandboxMode);
-                            env.put(ENV_CODEX_APPROVAL_POLICY, APPROVAL_POLICY_ON_REQUEST);
-                            break;
-                    }
-                    LOG.info("[Codex] Permission env override: SANDBOX_MODE=" +
-                            env.get(ENV_CODEX_SANDBOX_MODE) + ", SANDBOX=" +
-                            env.get(ENV_CODEX_SANDBOX) + ", APPROVAL_POLICY=" +
-                            env.get(ENV_CODEX_APPROVAL_POLICY) + " (from permissionMode=" + permissionMode +
-                            ")");
-                }
-
                 pb.redirectErrorStream(true);
                 envConfigurator.updateProcessEnvironment(pb, node);
-
-                // Configure Codex-specific env vars from ~/.codex/config.toml
-                envConfigurator.configureCodexEnv(env);
-
-                // Inject custom "message" env vars from active provider
-                injectCustomEnvVars(env, "message");
-
-                LOG.info("[Codex] Final Node permission env snapshot: CODEX_SANDBOX_MODE=" +
-                        env.get(ENV_CODEX_SANDBOX_MODE) + ", CODEX_SANDBOX=" +
-                        env.get(ENV_CODEX_SANDBOX) + ", CODEX_CI=" + env.get(ENV_CODEX_CI) +
-                        ", CODEX_SANDBOX_NETWORK_DISABLED=" + env.get(ENV_CODEX_SANDBOX_NETWORK_DISABLED) +
-                        ", CLAUDE_SESSION_ID=" + env.get("CLAUDE_SESSION_ID") +
-                        ", CLAUDE_PERMISSION_DIR=" + env.get("CLAUDE_PERMISSION_DIR"));
+                pb.environment().putAll(requestEnv);
 
                 LOG.info("Command: " + String.join(" ", command));
 
