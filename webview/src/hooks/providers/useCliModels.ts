@@ -7,6 +7,7 @@ import {
   GROK_MODELS,
   KIMI_MODELS,
   MINIMAX_MODELS,
+  MIMO_MODELS,
   OMP_MODELS,
   OMP_ROLE_MODELS,
   OPENCODE_MODELS,
@@ -62,6 +63,7 @@ function fallbackModels(providerId: string): ModelInfo[] {
   if (providerId === 'grok') return GROK_MODELS;
   if (providerId === 'kimi') return KIMI_MODELS;
   if (providerId === 'minimax') return MINIMAX_MODELS;
+  if (providerId === 'mimo') return MIMO_MODELS;
   if (providerId === 'opencode') return OPENCODE_MODELS;
   if (providerId === 'pi') return PI_MODELS;
   if (providerId === 'omp') return OMP_MODELS;

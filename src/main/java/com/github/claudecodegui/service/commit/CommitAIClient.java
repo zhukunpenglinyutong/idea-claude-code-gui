@@ -52,6 +52,7 @@ public class CommitAIClient {
     public static final String PROVIDER_PI = "pi";
     public static final String PROVIDER_OMP = "omp";
     public static final String PROVIDER_MINIMAX = "minimax";
+    public static final String PROVIDER_MIMO = "mimo";
 
     private static final Logger LOG = Logger.getInstance(CommitAIClient.class);
     private static final Gson GSON = new Gson();

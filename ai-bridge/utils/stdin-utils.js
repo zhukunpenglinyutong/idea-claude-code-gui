@@ -12,6 +12,7 @@ const STDIN_ENV_BY_PROVIDER = {
   omp: 'OMP_USE_STDIN',
   dsh: 'DSH_USE_STDIN',
   minimax: 'MINIMAX_USE_STDIN',
+  mimo: 'MIMO_USE_STDIN',
 };
 
 /**

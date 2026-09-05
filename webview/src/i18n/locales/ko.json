@@ -238,7 +238,8 @@
           "opencode": "OpenCode",
           "pi": "PI CLI",
           "omp": "OMP CLI",
-          "minimax": "MiniMax Code"
+          "minimax": "MiniMax Code",
+          "mimo": "MiMo Code"
         },
         "currentProviderAuto": "Currently using automatic selection: {{provider}}",
         "currentProviderManual": "Currently using manually selected provider: {{provider}}",
@@ -713,7 +714,8 @@
         "bailianCoding": "Bailian Coding",
         "longcat": "LongCat",
         "opencodeGo": "OpenCode Go",
-        "openrouter": "OpenRouter"
+        "openrouter": "OpenRouter",
+        "mimo": "MiMo Code"
       }
     },
     "comingSoon": "곧 출시 예정...",
@@ -967,6 +969,10 @@
         "omp": {
           "name": "OMP CLI",
           "description": "멀티 프로바이더 모델을 지원하는 Oh My Pi 터미널 코딩 에이전트"
+        },
+        "mimo": {
+          "name": "MiMo Code",
+          "description": "Xiaomi MiMo 터미널 코딩 에이전트(OpenCode fork). Node.js 18+ 필요; 명령: mimo / mimocode"
         }
       },
       "installDialog": {
@@ -1815,6 +1821,9 @@
     },
     "omp": {
       "label": "OMP CLI"
+    },
+    "mimo": {
+      "label": "MiMo Code"
     }
   },
   "promptEnhancer": {

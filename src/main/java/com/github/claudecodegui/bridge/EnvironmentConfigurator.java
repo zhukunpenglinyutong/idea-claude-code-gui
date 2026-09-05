@@ -132,6 +132,8 @@ public class EnvironmentConfigurator {
                     userHome + "/.omp/bin",
                     userHome + "/.minimax/bin",
                     userHome + "/.minimax-code",
+                    userHome + "/.mimo/bin",
+                    userHome + "/.mimocode",
                     // Bun global installs (bun add -g) land here, e.g. omp CLI
                     userHome + "/.bun/bin",
                     // Yarn classic global installs

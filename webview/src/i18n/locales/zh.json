@@ -515,7 +515,8 @@
           "opencode": "OpenCode",
           "pi": "PI CLI",
           "omp": "OMP CLI",
-          "minimax": "MiniMax Code"
+          "minimax": "MiniMax Code",
+          "mimo": "MiMo Code"
         },
         "currentProviderAuto": "当前使用自动选择：{{provider}}",
         "currentProviderManual": "当前使用手动选择的 provider：{{provider}}",
@@ -738,6 +739,10 @@
         "omp": {
           "name": "OMP CLI",
           "description": "支持多提供商模型的 Oh My Pi 终端编码代理"
+        },
+        "mimo": {
+          "name": "MiMo Code",
+          "description": "小米 MiMo 终端编码智能体（OpenCode fork）。需 Node.js 18+；命令：mimo / mimocode"
         }
       },
       "installDialog": {
@@ -1177,7 +1182,8 @@
         "bailianCoding": "Bailian Coding",
         "longcat": "LongCat",
         "opencodeGo": "OpenCode Go",
-        "openrouter": "OpenRouter"
+        "openrouter": "OpenRouter",
+        "mimo": "MiMo Code"
       }
     },
     "comingSoon": "功能即将推出...",
@@ -2289,7 +2295,10 @@
     "omp": {
       "label": "OMP CLI"
     },
-    "manageCli": "CLI 配置管理"
+    "manageCli": "CLI 配置管理",
+    "mimo": {
+      "label": "MiMo Code"
+    }
   },
   "promptEnhancer": {
     "title": "增强提示词",

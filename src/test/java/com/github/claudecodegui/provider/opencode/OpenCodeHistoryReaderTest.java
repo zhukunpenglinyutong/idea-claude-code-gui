@@ -252,4 +252,65 @@ public class OpenCodeHistoryReaderTest {
         assertTrue(reader.deleteSession(sessionId, projectPath));
         assertTrue(reader.listSessionsForProject(projectPath).isEmpty());
     }
+
+    /**
+     * MiMo Code (an OpenCode fork) drops the session.model / session.agent
+     * columns and stores the model only on user messages. Listing must survive
+     * the missing columns and infer the model from the user message.
+     */
+    @Test
+    public void listsSessionFromForkSchemaWithoutModelColumns() throws Exception {
+        Path root = Files.createTempDirectory("mimo-history-db");
+        Path storage = root.resolve("storage");
+        Files.createDirectories(storage);
+        Path db = root.resolve("mimocode.db");
+
+        String sessionId = "ses_fork_mimo1";
+        String projectPath = "C:/code/my-app";
+
+        Class.forName("org.sqlite.JDBC");
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + db.toAbsolutePath());
+             Statement st = conn.createStatement()) {
+            // mimocode.db session schema: no model / agent columns.
+            st.execute("""
+                    CREATE TABLE session (
+                      id text PRIMARY KEY,
+                      project_id text NOT NULL,
+                      parent_id text,
+                      slug text NOT NULL,
+                      directory text NOT NULL,
+                      title text NOT NULL,
+                      version text NOT NULL,
+                      time_created integer NOT NULL,
+                      time_updated integer NOT NULL
+                    )
+                    """);
+            st.execute("""
+                    CREATE TABLE message (
+                      id text PRIMARY KEY,
+                      session_id text NOT NULL,
+                      time_created integer NOT NULL,
+                      time_updated integer NOT NULL,
+                      data text NOT NULL
+                    )
+                    """);
+            st.execute("INSERT INTO session (id, project_id, parent_id, slug, directory, title, version, "
+                    + "time_created, time_updated) VALUES ('" + sessionId + "', 'proj1', null, 'slug', "
+                    + "'" + projectPath + "', 'MiMo chat', '0.1.14', 1000, 2000)");
+            st.execute("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES "
+                    + "('msg_u1', '" + sessionId + "', 1001, 1001, "
+                    + "'{\"role\":\"user\",\"model\":{\"providerID\":\"blueswords\",\"modelID\":\"gpt-5.6-luna\"},\"time\":{\"created\":1001}}')");
+        }
+
+        OpenCodeHistoryReader reader = new OpenCodeHistoryReader(storage, db, new Gson());
+
+        List<OpenCodeHistoryReader.SessionInfo> listed = reader.listSessionsForProject(projectPath);
+        assertEquals(1, listed.size());
+        assertEquals(sessionId, listed.get(0).sessionId);
+        assertEquals("MiMo chat", listed.get(0).title);
+        assertEquals(1, listed.get(0).messageCount);
+        // Model inferred from the user message payload; agent absent on forks.
+        assertEquals("blueswords/gpt-5.6-luna", listed.get(0).model);
+        assertEquals(null, listed.get(0).agent);
+    }
 }

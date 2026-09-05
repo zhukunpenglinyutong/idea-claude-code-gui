@@ -169,7 +169,7 @@ const App = () => {
     setPermissionMode, setCurrentProvider,
     setClaudePermissionMode, setCodexPermissionMode,
     setSelectedClaudeModel, setSelectedCodexModel,
-    setSelectedGrokModel, setSelectedKimiModel, setSelectedMiniMaxModel,
+    setSelectedGrokModel, setSelectedKimiModel, setSelectedMiniMaxModel, setSelectedMimoModel,
     setSelectedOpenCodeModel, setSelectedPiModel, setSelectedDshModel,
     setSelectedOmpModel, setOmpPermissionMode,
     setLongContextEnabled, setReasoningEffort, setCodexFastMode,
@@ -339,6 +339,9 @@ const App = () => {
           sendBridgeEvent('set_model', model);
         } else if (provider === 'minimax') {
           setSelectedMiniMaxModel(model);
+          sendBridgeEvent('set_model', model);
+        } else if (provider === 'mimo') {
+          setSelectedMimoModel(model);
           sendBridgeEvent('set_model', model);
         } else if (provider === 'opencode') {
           setSelectedOpenCodeModel(model);

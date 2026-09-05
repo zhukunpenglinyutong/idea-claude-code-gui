@@ -238,7 +238,8 @@
           "opencode": "OpenCode",
           "pi": "PI CLI",
           "omp": "OMP CLI",
-          "minimax": "MiniMax Code"
+          "minimax": "MiniMax Code",
+          "mimo": "MiMo Code"
         },
         "currentProviderAuto": "Currently using automatic selection: {{provider}}",
         "currentProviderManual": "Currently using manually selected provider: {{provider}}",
@@ -704,7 +705,8 @@
         "bailianCoding": "Bailian Coding",
         "longcat": "LongCat",
         "opencodeGo": "OpenCode Go",
-        "openrouter": "OpenRouter"
+        "openrouter": "OpenRouter",
+        "mimo": "MiMo Code"
       }
     },
     "comingSoon": "Próximamente...",
@@ -873,6 +875,10 @@
         "omp": {
           "name": "OMP CLI",
           "description": "Agente de codificación de terminal Oh My Pi con soporte multi-proveedor"
+        },
+        "mimo": {
+          "name": "MiMo Code",
+          "description": "Agente de código en terminal de Xiaomi MiMo (fork de OpenCode). Requiere Node.js 18+; comandos: mimo / mimocode"
         }
       },
       "installDialog": {
@@ -1720,6 +1726,9 @@
     },
     "omp": {
       "label": "OMP CLI"
+    },
+    "mimo": {
+      "label": "MiMo Code"
     }
   },
   "promptEnhancer": {

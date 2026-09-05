@@ -11,7 +11,9 @@ public enum CliToolId {
     OMP("omp", "OMP CLI", "omp", null),
     DSH("dsh", "DeepSeek Harness", "dsh", null),
     // Official installer exposes `minimax`; npm global installs expose `mcode`.
-    MINIMAX("minimax", "MiniMax Code", "minimax", "mcode");
+    MINIMAX("minimax", "MiniMax Code", "minimax", "mcode"),
+    // MiMo Code (OpenCode fork): installer exposes `mimo`; some installs `mimocode`.
+    MIMO("mimo", "MiMo Code", "mimo", "mimocode");
 
     private final String id;
     private final String displayName;

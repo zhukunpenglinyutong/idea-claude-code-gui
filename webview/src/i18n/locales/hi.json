@@ -238,7 +238,8 @@
           "opencode": "OpenCode",
           "pi": "PI CLI",
           "omp": "OMP CLI",
-          "minimax": "MiniMax Code"
+          "minimax": "MiniMax Code",
+          "mimo": "MiMo Code"
         },
         "currentProviderAuto": "Currently using automatic selection: {{provider}}",
         "currentProviderManual": "Currently using manually selected provider: {{provider}}",
@@ -704,7 +705,8 @@
         "bailianCoding": "Bailian Coding",
         "longcat": "LongCat",
         "opencodeGo": "OpenCode Go",
-        "openrouter": "OpenRouter"
+        "openrouter": "OpenRouter",
+        "mimo": "MiMo Code"
       }
     },
     "comingSoon": "सुविधा जल्द आ रही है...",
@@ -873,6 +875,10 @@
         "omp": {
           "name": "OMP CLI",
           "description": "मल्टी-प्रोवाइडर मॉडल सपोर्ट वाला Oh My Pi टर्मिनल कोडिंग एजेंट"
+        },
+        "mimo": {
+          "name": "MiMo Code",
+          "description": "Xiaomi MiMo टर्मिनल कोडिंग एजेंट (OpenCode fork)। Node.js 18+ आवश्यक; कमांड: mimo / mimocode"
         }
       },
       "installDialog": {
@@ -1713,6 +1719,9 @@
     },
     "omp": {
       "label": "OMP CLI"
+    },
+    "mimo": {
+      "label": "MiMo Code"
     }
   },
   "promptEnhancer": {

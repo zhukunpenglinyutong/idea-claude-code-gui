@@ -127,6 +127,7 @@ describe('useSettingsWindowCallbacks', () => {
         pi: 'auto',
         omp: 'auto',
         minimax: 'auto',
+        mimo: 'auto',
       },
       availability: {
         claude: true,
@@ -137,6 +138,7 @@ describe('useSettingsWindowCallbacks', () => {
         pi: false,
         omp: false,
         minimax: false,
+        mimo: false,
       },
     };
 
@@ -163,6 +165,7 @@ describe('useSettingsWindowCallbacks', () => {
         pi: 'auto',
         omp: 'auto',
         minimax: 'auto',
+        mimo: 'auto',
       },
       availability: {
         claude: true,
@@ -173,6 +176,7 @@ describe('useSettingsWindowCallbacks', () => {
         pi: false,
         omp: false,
         minimax: false,
+        mimo: false,
       },
     };
 

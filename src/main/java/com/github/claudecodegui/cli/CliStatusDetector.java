@@ -237,6 +237,12 @@ public final class CliStatusDetector {
                 dirs.add(join(home, ".minimax-code"));
                 dirs.add(join(home, ".local", "bin"));
                 break;
+            case MIMO:
+                dirs.add(join(home, ".mimo", "bin"));
+                dirs.add(join(home, ".mimocode"));
+                dirs.add(join(home, ".local", "share", "mimocode", "bin"));
+                dirs.add(join(home, ".local", "bin"));
+                break;
             default:
                 break;
         }
@@ -345,6 +351,7 @@ public final class CliStatusDetector {
             case OMP -> new String[]{"OMP_BIN", "OMP_PATH", "OMP_CLI_PATH"};
             case DSH -> new String[]{"DSH_BIN", "DSH_PATH", "DSH_CLI_PATH"};
             case MINIMAX -> new String[]{"MINIMAX_BIN", "MINIMAX_PATH", "MINIMAX_CLI_PATH", "MCODE_BIN"};
+            case MIMO -> new String[]{"MIMO_BIN", "MIMO_PATH", "MIMO_CLI_PATH", "MIMOCODE_BIN"};
         };
     }
 
@@ -569,6 +576,7 @@ public final class CliStatusDetector {
                 join(home, ".pi", "bin"),
                 join(home, ".omp", "bin"),
                 join(home, ".minimax", "bin"),
+                join(home, ".mimo", "bin"),
                 join(home, ".local", "bin"),
                 join(home, ".cargo", "bin"),
                 "/opt/homebrew/bin",

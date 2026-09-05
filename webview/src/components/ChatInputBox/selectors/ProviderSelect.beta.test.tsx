@@ -44,14 +44,14 @@ describe('ProviderSelect Beta badge and first-click notice', () => {
     window.updateCodexSubscriptionQuota = undefined;
   });
 
-  it('renders Beta badges on Grok, Kimi, MiniMax, OpenCode, PI, OMP and DSH', () => {
+  it('renders Beta badges on Grok, Kimi, MiniMax, MiMo, OpenCode, PI, OMP and DSH', () => {
     render(<ProviderSelect value="claude" />);
     fireEvent.click(screen.getByRole('button'));
 
     const badges = screen.getAllByText('Beta');
-    expect(badges).toHaveLength(7);
+    expect(badges).toHaveLength(8);
 
-    for (const id of ['grok', 'kimi', 'minimax', 'opencode', 'pi', 'omp', 'dsh']) {
+    for (const id of ['grok', 'kimi', 'minimax', 'mimo', 'opencode', 'pi', 'omp', 'dsh']) {
       const row = document.querySelector(`[data-provider-id="${id}"]`);
       expect(row?.querySelector('.provider-beta-badge')).toBeTruthy();
     }

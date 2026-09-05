@@ -515,6 +515,8 @@ public class SessionSendService {
                 || "config_default".equals(lower)
                 || "opencode default".equals(lower)
                 || "opencode-default".equals(lower)
+                || "mimo default".equals(lower)
+                || "mimo-default".equals(lower)
                 || "dsh-default".equals(lower)) {
             return null;
         }

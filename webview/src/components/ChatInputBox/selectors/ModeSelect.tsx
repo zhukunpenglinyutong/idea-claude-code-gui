@@ -92,7 +92,7 @@ export const ModeSelect = ({
         && mode.id !== 'slow'
       );
     }
-    if (provider === 'grok' || provider === 'kimi' || provider === 'minimax' || provider === 'opencode' || provider === 'pi' || provider === 'dsh') {
+    if (provider === 'grok' || provider === 'kimi' || provider === 'minimax' || provider === 'mimo' || provider === 'opencode' || provider === 'pi' || provider === 'dsh') {
       // Headless CLI providers do not expose Claude/Codex native automatic reviewers.
       return AVAILABLE_MODES.filter((mode) => mode.id !== 'auto' && mode.id !== 'plan' && mode.id !== 'smol' && mode.id !== 'slow');
     }

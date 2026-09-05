@@ -161,6 +161,7 @@ export const ButtonArea = ({
   // When a dynamic model catalog arrives, ensure selection is a real entry.
   useEffect(() => {
     const isDynamicProvider = currentProvider === 'kimi' || currentProvider === 'minimax'
+      || currentProvider === 'mimo'
       || currentProvider === 'opencode'
       || currentProvider === 'pi' || currentProvider === 'codex'
       || currentProvider === 'grok' || currentProvider === 'omp'
@@ -181,7 +182,16 @@ export const ButtonArea = ({
     const exists = availableModels.some((model) => model.id === selectedModel)
       || (currentProvider === 'omp' && ompRoles.some((role) => role.id === selectedModel));
     if (!exists) {
-      onModelSelect(cliDefaultModel ?? availableModels[0].id);
+      // The static default (e.g. 'auto') may itself be absent from the real
+      // catalog — MiMo's free 'mimo/mimo-auto' is not listed once the free
+      // tier ends. Land on the default only when it is a real catalog entry,
+      // otherwise fall back to the first entry so the user never sends with a
+      // model id the CLI will reject.
+      const fallback = cliDefaultModel != null
+        && availableModels.some((model) => model.id === cliDefaultModel)
+        ? cliDefaultModel
+        : availableModels[0].id;
+      onModelSelect(fallback);
     }
   }, [
     availableModels,

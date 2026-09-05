@@ -8,6 +8,7 @@ import {
   KIMI_DEFAULT_MODEL_ID,
   OMP_DEFAULT_MODEL_ID,
   MINIMAX_DEFAULT_MODEL_ID,
+  MIMO_DEFAULT_MODEL_ID,
   OPENCODE_DEFAULT_MODEL_ID,
   PI_DEFAULT_MODEL_ID,
   DSH_DEFAULT_MODEL_ID,
@@ -65,6 +66,7 @@ export interface UseModelStatePersistenceOptions {
   setSelectedGrokModel: (value: string) => void;
   setSelectedKimiModel: (value: string) => void;
   setSelectedMiniMaxModel: (value: string) => void;
+  setSelectedMimoModel: (value: string) => void;
   setSelectedOpenCodeModel: (value: string) => void;
   setSelectedPiModel: (value: string) => void;
   setSelectedOmpModel: (value: string) => void;
@@ -72,6 +74,7 @@ export interface UseModelStatePersistenceOptions {
   setGrokPermissionMode: (value: PermissionMode) => void;
   setKimiPermissionMode: (value: PermissionMode) => void;
   setMiniMaxPermissionMode: (value: PermissionMode) => void;
+  setMimoPermissionMode: (value: PermissionMode) => void;
   setOpenCodePermissionMode: (value: PermissionMode) => void;
   setPiPermissionMode: (value: PermissionMode) => void;
   setOmpPermissionMode: (value: PermissionMode) => void;
@@ -90,6 +93,7 @@ export interface UseModelStatePersistenceOptions {
   selectedGrokModel: string;
   selectedKimiModel: string;
   selectedMiniMaxModel: string;
+  selectedMimoModel: string;
   selectedOpenCodeModel: string;
   selectedPiModel: string;
   selectedOmpModel: string;
@@ -97,6 +101,7 @@ export interface UseModelStatePersistenceOptions {
   grokPermissionMode: PermissionMode;
   kimiPermissionMode: PermissionMode;
   miniMaxPermissionMode: PermissionMode;
+  mimoPermissionMode: PermissionMode;
   openCodePermissionMode: PermissionMode;
   piPermissionMode: PermissionMode;
   ompPermissionMode: PermissionMode;
@@ -127,6 +132,7 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
     setSelectedGrokModel,
     setSelectedKimiModel,
     setSelectedMiniMaxModel,
+    setSelectedMimoModel,
     setSelectedOpenCodeModel,
     setSelectedPiModel,
     setSelectedOmpModel,
@@ -134,6 +140,7 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
     setGrokPermissionMode,
     setKimiPermissionMode,
     setMiniMaxPermissionMode,
+    setMimoPermissionMode,
     setOpenCodePermissionMode,
     setPiPermissionMode,
     setOmpPermissionMode,
@@ -151,6 +158,7 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
     selectedGrokModel,
     selectedKimiModel,
     selectedMiniMaxModel,
+    selectedMimoModel,
     selectedOpenCodeModel,
     selectedPiModel,
     selectedOmpModel,
@@ -158,6 +166,7 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
     grokPermissionMode,
     kimiPermissionMode,
     miniMaxPermissionMode,
+    mimoPermissionMode,
     openCodePermissionMode,
     piPermissionMode,
     ompPermissionMode,
@@ -199,6 +208,7 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
       let restoredGrokModel = GROK_DEFAULT_MODEL_ID;
       let restoredKimiModel = KIMI_DEFAULT_MODEL_ID;
       let restoredMiniMaxModel = MINIMAX_DEFAULT_MODEL_ID;
+      let restoredMimoModel = MIMO_DEFAULT_MODEL_ID;
       let restoredOpenCodeModel = OPENCODE_DEFAULT_MODEL_ID;
       let restoredPiModel = PI_DEFAULT_MODEL_ID;
       let restoredOmpModel = OMP_DEFAULT_MODEL_ID;
@@ -206,6 +216,7 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
       let restoredGrokPermissionMode: PermissionMode = 'default';
       let restoredKimiPermissionMode: PermissionMode = 'default';
       let restoredMiniMaxPermissionMode: PermissionMode = 'default';
+      let restoredMimoPermissionMode: PermissionMode = 'default';
       let restoredOpenCodePermissionMode: PermissionMode = 'default';
       let restoredPiPermissionMode: PermissionMode = 'default';
       let restoredOmpPermissionMode: PermissionMode = 'default';
@@ -258,6 +269,10 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
         restoredMiniMaxModel = id;
         setSelectedMiniMaxModel(id);
       });
+      const applyMimoModel = makeCliModelApplier((id) => {
+        restoredMimoModel = id;
+        setSelectedMimoModel(id);
+      });
       const applyOpenCodeModel = makeCliModelApplier((id) => {
         restoredOpenCodeModel = id;
         setSelectedOpenCodeModel(id);
@@ -308,6 +323,10 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
         const restoredMiniMaxMode = normalizeRestoredPermissionMode(state.miniMaxPermissionMode);
         if (restoredMiniMaxMode) {
           restoredMiniMaxPermissionMode = normalizeCliPermissionMode(restoredMiniMaxMode, 'minimax');
+        }
+        const restoredMimoMode = normalizeRestoredPermissionMode(state.mimoPermissionMode);
+        if (restoredMimoMode) {
+          restoredMimoPermissionMode = normalizeCliPermissionMode(restoredMimoMode, 'mimo');
         }
         const restoredOpenCodeMode = normalizeRestoredPermissionMode(state.openCodePermissionMode);
         if (restoredOpenCodeMode) {
@@ -370,6 +389,11 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
           : state.miniMaxModel;
         applyMiniMaxModel(miniMaxModelCandidate);
 
+        const mimoModelCandidate = hasBackendModel && restoredProvider === 'mimo'
+          ? initialTabModel
+          : state.mimoModel;
+        applyMimoModel(mimoModelCandidate);
+
         const openCodeModelCandidate = hasBackendModel && restoredProvider === 'opencode'
           ? initialTabModel
           : state.openCodeModel;
@@ -399,6 +423,7 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
           else if (initialTabProvider === 'grok') applyGrokModel(initialTabModel);
           else if (initialTabProvider === 'kimi') applyKimiModel(initialTabModel);
           else if (initialTabProvider === 'minimax') applyMiniMaxModel(initialTabModel);
+          else if (initialTabProvider === 'mimo') applyMimoModel(initialTabModel);
           else if (initialTabProvider === 'opencode') applyOpenCodeModel(initialTabModel);
           else if (initialTabProvider === 'pi') applyPiModel(initialTabModel);
           else if (initialTabProvider === 'omp') applyOmpModel(initialTabModel);
@@ -427,6 +452,8 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
             ? restoredKimiPermissionMode
             : restoredProvider === 'minimax'
               ? restoredMiniMaxPermissionMode
+              : restoredProvider === 'mimo'
+              ? restoredMimoPermissionMode
               : restoredProvider === 'opencode'
               ? restoredOpenCodePermissionMode
               : restoredProvider === 'pi'
@@ -441,6 +468,7 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
       setGrokPermissionMode(restoredGrokPermissionMode);
       setKimiPermissionMode(restoredKimiPermissionMode);
       setMiniMaxPermissionMode(restoredMiniMaxPermissionMode);
+      setMimoPermissionMode(restoredMimoPermissionMode);
       setOpenCodePermissionMode(restoredOpenCodePermissionMode);
       setPiPermissionMode(restoredPiPermissionMode);
       setOmpPermissionMode(restoredOmpPermissionMode);
@@ -467,6 +495,8 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
                 ? restoredKimiModel
                 : restoredProvider === 'minimax'
                   ? restoredMiniMaxModel
+                  : restoredProvider === 'mimo'
+                  ? restoredMimoModel
                   : restoredProvider === 'opencode'
                   ? restoredOpenCodeModel
                   : restoredProvider === 'pi'
@@ -536,6 +566,7 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
           grokModel: selectedGrokModel,
           kimiModel: selectedKimiModel,
           miniMaxModel: selectedMiniMaxModel,
+          mimoModel: selectedMimoModel,
           openCodeModel: selectedOpenCodeModel,
           piModel: selectedPiModel,
           ompModel: selectedOmpModel,
@@ -543,6 +574,7 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
           grokPermissionMode,
           kimiPermissionMode,
           miniMaxPermissionMode,
+          mimoPermissionMode,
           openCodePermissionMode,
           piPermissionMode,
           ompPermissionMode,
@@ -572,6 +604,7 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
     selectedGrokModel,
     selectedKimiModel,
     selectedMiniMaxModel,
+    selectedMimoModel,
     selectedOpenCodeModel,
     selectedPiModel,
     selectedOmpModel,
@@ -579,6 +612,7 @@ export function useModelStatePersistence(options: UseModelStatePersistenceOption
     grokPermissionMode,
     kimiPermissionMode,
     miniMaxPermissionMode,
+    mimoPermissionMode,
     openCodePermissionMode,
     piPermissionMode,
     ompPermissionMode,

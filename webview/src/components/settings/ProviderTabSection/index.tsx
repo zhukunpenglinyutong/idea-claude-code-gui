@@ -63,7 +63,7 @@ const ProviderTabSection = ({
     if (currentProvider === 'codex') return 'codex';
     // Grok / Kimi / MiniMax / OpenCode / PI / OMP / DSH share the CLI management surface.
     if (currentProvider === 'grok' || currentProvider === 'kimi'
-      || currentProvider === 'minimax'
+      || currentProvider === 'minimax' || currentProvider === 'mimo'
       || currentProvider === 'opencode' || currentProvider === 'pi'
       || currentProvider === 'omp' || currentProvider === 'dsh') {
       return 'cli';

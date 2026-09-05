@@ -40,8 +40,8 @@ let codexSdk = null;
 //   [ENHANCED_ERROR]<msg>          — final failure
 
 /** Mirrors chat AVAILABLE_PROVIDERS / webview AiFeatureProvider. */
-const AI_FEATURE_PROVIDERS = ['claude', 'codex', 'grok', 'kimi', 'opencode', 'pi', 'omp', 'minimax'];
-const CLI_ONLY_PROVIDERS = new Set(['grok', 'kimi', 'opencode', 'pi', 'omp', 'minimax']);
+const AI_FEATURE_PROVIDERS = ['claude', 'codex', 'grok', 'kimi', 'opencode', 'pi', 'omp', 'minimax', 'mimo'];
+const CLI_ONLY_PROVIDERS = new Set(['grok', 'kimi', 'opencode', 'pi', 'omp', 'minimax', 'mimo']);
 
 const DEFAULT_PROMPT_ENHANCER_CONFIG = {
   provider: null,

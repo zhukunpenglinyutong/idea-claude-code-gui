@@ -11,6 +11,7 @@ export const AI_FEATURE_PROVIDERS = [
   'pi',
   'omp',
   'minimax',
+  'mimo',
 ] as const;
 
 export type AiFeatureProvider = (typeof AI_FEATURE_PROVIDERS)[number];
@@ -26,6 +27,7 @@ export const DEFAULT_AI_FEATURE_MODELS: Record<AiFeatureProvider, string> = {
   pi: 'auto',
   omp: 'auto',
   minimax: 'auto',
+  mimo: 'auto',
 };
 
 export type AiFeatureModels = Record<AiFeatureProvider, string>;
@@ -67,6 +69,7 @@ function emptyAvailability(value = false): AiFeatureAvailability {
     pi: value,
     omp: value,
     minimax: value,
+    mimo: value,
   };
 }
 

@@ -16,6 +16,7 @@ const PROVIDER_TO_SDK: Record<string, string> = {
   grok: 'grok-cli',
   kimi: 'kimi-cli',
   minimax: 'minimax-cli',
+  mimo: 'mimo-cli',
   opencode: 'opencode-cli',
   pi: 'pi-cli',
   omp: 'omp-cli',

@@ -617,6 +617,17 @@ export const MINIMAX_MODELS: ModelInfo[] = [
   },
 ];
 
+/** MiMo Code default: omit `--model` so the CLI resolves its own default. */
+export const MIMO_DEFAULT_MODEL_ID = 'auto';
+
+export const MIMO_MODELS: ModelInfo[] = [
+  {
+    id: MIMO_DEFAULT_MODEL_ID,
+    label: 'MiMo Auto',
+    description: 'Use MiMo Code default model',
+  },
+];
+
 /**
  * Available models (backward compatibility)
  */
@@ -647,6 +658,7 @@ export const AVAILABLE_PROVIDERS: ProviderInfo[] = [
   { id: 'omp', label: 'OMP CLI', icon: 'codicon-terminal', enabled: true, beta: true },
   { id: 'dsh', label: 'DeepSeek Harness', icon: 'codicon-terminal', enabled: true, beta: true },
   { id: 'minimax', label: 'MiniMax Code', icon: 'codicon-terminal', enabled: true, beta: true },
+  { id: 'mimo', label: 'MiMo Code', icon: 'codicon-terminal', enabled: true, beta: true },
 ];
 
 /**

@@ -19,6 +19,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -66,12 +67,27 @@ public class OpenCodeHistoryReader {
     }
 
     /**
-     * Test constructor that can point storage and database at independent fixtures.
+     * Test/fork constructor that can point storage and database at independent
+     * fixtures. OpenCode forks (e.g. MiMo Code) subclass and pass their own paths.
      */
-    OpenCodeHistoryReader(Path storageRoot, Path databasePath, Gson gson) {
+    protected OpenCodeHistoryReader(Path storageRoot, Path databasePath, Gson gson) {
         this.storageRoot = storageRoot;
         this.databasePath = databasePath;
         this.gson = gson;
+    }
+
+    /**
+     * Provider id written into session listings (override in OpenCode forks).
+     */
+    protected String providerId() {
+        return "opencode";
+    }
+
+    /**
+     * Display name used in fallback session titles and user-facing errors.
+     */
+    protected String providerDisplayName() {
+        return "OpenCode";
     }
 
     private static Path defaultStorageRoot() {
@@ -118,15 +134,15 @@ public class OpenCodeHistoryReader {
             result.put("success", true);
             result.put("sessions", sessions);
             result.put("sessionCount", sessions.size());
-            result.put("provider", "opencode");
+            result.put("provider", providerId());
             int totalMessages = sessions.stream().mapToInt(s -> s.messageCount).sum();
             result.put("total", totalMessages);
             return gson.toJson(result);
         } catch (Exception e) {
             LOG.error("[OpenCodeHistoryReader] Failed to list sessions: " + e.getMessage(), e);
-            Map<String, Object> error = new HashMap<>();
-            error.put("success", false);
-            error.put("error", "Failed to read OpenCode sessions: " + e.getMessage());
+                Map<String, Object> error = new HashMap<>();
+                error.put("success", false);
+                error.put("error", "Failed to read " + providerDisplayName() + " sessions: " + e.getMessage());
             return gson.toJson(error);
         }
     }
@@ -172,15 +188,18 @@ public class OpenCodeHistoryReader {
                 return sessions;
             }
             // Skip child/subagent sessions (parent_id set) so the main list stays clean.
+            // Forks (e.g. MiMo Code) drop the model/agent columns, so select s.* and
+            // probe the ResultSet metadata instead of naming them in the projection.
             String sql = """
-                    SELECT s.id, s.directory, s.title, s.time_created, s.time_updated,
-                           s.model, s.agent, s.parent_id,
+                    SELECT s.*,
                            (SELECT COUNT(*) FROM message m WHERE m.session_id = s.id) AS message_count
                     FROM session s
                     WHERE s.parent_id IS NULL OR TRIM(s.parent_id) = ''
                     """;
             try (Statement st = conn.createStatement();
                  ResultSet rs = st.executeQuery(sql)) {
+                boolean hasModel = hasColumn(rs, "model");
+                boolean hasAgent = hasColumn(rs, "agent");
                 while (rs.next()) {
                     String id = rs.getString("id");
                     if (id == null || id.isBlank() || !isSafeSessionId(id)) {
@@ -193,12 +212,9 @@ public class OpenCodeHistoryReader {
                     info.firstTimestamp = rs.getLong("time_created");
                     info.lastTimestamp = rs.getLong("time_updated");
                     info.messageCount = rs.getInt("message_count");
-                    info.provider = "opencode";
-                    info.model = normalizeOpenCodeModel(rs.getString("model"));
-                    info.agent = blankToNull(rs.getString("agent"));
-                    if (info.model == null) {
-                        info.model = inferModelFromLastAssistant(conn, info.sessionId);
-                    }
+                    info.provider = providerId();
+                    info.model = hasModel ? normalizeOpenCodeModel(rs.getString("model")) : null;
+                    info.agent = hasAgent ? blankToNull(rs.getString("agent")) : null;
                     try {
                         info.fileSize = Files.size(databasePath);
                     } catch (IOException ignored) {
@@ -214,17 +230,97 @@ public class OpenCodeHistoryReader {
                         String firstUser = firstUserTitleFromDb(conn, info.sessionId);
                         info.title = firstUser != null
                                 ? truncate(firstUser, MAX_TITLE_CHARS)
-                                : "OpenCode session " + shortId(info.sessionId);
+                                : providerDisplayName() + " session " + shortId(info.sessionId);
                     }
                     sessions.add(info);
                 }
             }
+            // One batched query instead of a per-session model scan (N+1).
+            inferMissingModelsBatch(conn, sessions);
         } catch (Exception e) {
             LOG.warn("[OpenCodeHistoryReader] SQLite list failed (" + databasePath + "): " + e.getMessage());
         }
         return sessions;
     }
 
+    /**
+     * Batch model inference for sessions whose row carries no model (fork
+     * schemas like MiMo Code). A single json1 query over the model-bearing
+     * messages replaces the per-session scan; assistant rows win over user
+     * rows (MiMo only stores the model on user messages). Falls back to the
+     * per-session loop when the SQLite build lacks the json1 extension.
+     */
+    private void inferMissingModelsBatch(Connection conn, List<SessionInfo> sessions) {
+        List<SessionInfo> missing = new ArrayList<>();
+        for (SessionInfo session : sessions) {
+            if (session.model == null || session.model.isBlank()) {
+                missing.add(session);
+            }
+        }
+        if (missing.isEmpty()) {
+            return;
+        }
+        Map<String, SessionInfo> byId = new HashMap<>();
+        for (SessionInfo session : missing) {
+            byId.put(session.sessionId, session);
+        }
+        String placeholders = "?,".repeat(missing.size());
+        placeholders = placeholders.substring(0, placeholders.length() - 1);
+        String sql = """
+                SELECT m.session_id, m.data
+                FROM message m
+                WHERE m.session_id IN (%s)
+                  AND json_extract(m.data, '$.model') IS NOT NULL
+                ORDER BY m.time_created DESC, m.id DESC
+                """.formatted(placeholders);
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 0; i < missing.size(); i++) {
+                ps.setString(i + 1, missing.get(i).sessionId);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                Map<String, String> userFallback = new HashMap<>();
+                while (rs.next()) {
+                    String sid = rs.getString("session_id");
+                    SessionInfo target = byId.get(sid);
+                    if (target == null || target.model != null) {
+                        continue;
+                    }
+                    JsonObject msg = parseObject(rs.getString("data"));
+                    if (msg == null) {
+                        continue;
+                    }
+                    String role = text(msg, "role");
+                    String model = normalizeOpenCodeModelFromMessage(msg);
+                    if (model == null) {
+                        continue;
+                    }
+                    if ("assistant".equals(role)) {
+                        target.model = model;
+                    } else if ("user".equals(role)) {
+                        userFallback.putIfAbsent(sid, model);
+                    }
+                }
+                for (Map.Entry<String, String> entry : userFallback.entrySet()) {
+                    SessionInfo target = byId.get(entry.getKey());
+                    if (target != null && target.model == null) {
+                        target.model = entry.getValue();
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            for (SessionInfo session : missing) {
+                if (session.model == null) {
+                    session.model = inferModelFromLastAssistant(conn, session.sessionId);
+                }
+            }
+        }
+    }
+
+    /**
+     * Model inference when the session row carries no model: scan the last
+     * messages for a model payload. Assistant messages win; MiMo Code only
+     * stores it on user messages, so those are the fallback.
+     */
     private String inferModelFromLastAssistant(Connection conn, String sessionId) {
         String sql = """
                 SELECT data FROM message
@@ -235,16 +331,25 @@ public class OpenCodeHistoryReader {
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, sessionId);
             try (ResultSet rs = ps.executeQuery()) {
+                String fromUser = null;
                 while (rs.next()) {
                     JsonObject msg = parseObject(rs.getString("data"));
-                    if (msg == null || !"assistant".equals(text(msg, "role"))) {
+                    if (msg == null) {
                         continue;
                     }
+                    String role = text(msg, "role");
                     String model = normalizeOpenCodeModelFromMessage(msg);
-                    if (model != null) {
+                    if (model == null) {
+                        continue;
+                    }
+                    if ("assistant".equals(role)) {
                         return model;
                     }
+                    if ("user".equals(role) && fromUser == null) {
+                        fromUser = model;
+                    }
                 }
+                return fromUser;
             }
         } catch (SQLException ignored) {
         }
@@ -481,6 +586,17 @@ public class OpenCodeHistoryReader {
         }
     }
 
+    /** Case-insensitive column probe on the current ResultSet (schema tolerant). */
+    private static boolean hasColumn(ResultSet rs, String column) throws SQLException {
+        ResultSetMetaData meta = rs.getMetaData();
+        for (int i = 1; i <= meta.getColumnCount(); i++) {
+            if (meta.getColumnLabel(i).equalsIgnoreCase(column)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static JsonObject parseObject(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
@@ -533,7 +649,7 @@ public class OpenCodeHistoryReader {
             SessionInfo info = new SessionInfo();
             info.sessionId = id;
             info.cwd = text(obj, "directory");
-            info.provider = "opencode";
+            info.provider = providerId();
             info.title = text(obj, "title");
             info.agent = blankToNull(text(obj, "agent"));
             if (obj.has("model") && !obj.get("model").isJsonNull()) {
@@ -565,7 +681,7 @@ public class OpenCodeHistoryReader {
                 String firstUser = firstUserTitle(msgDir);
                 info.title = firstUser != null
                         ? truncate(firstUser, MAX_TITLE_CHARS)
-                        : "OpenCode session " + shortId(id);
+                        : providerDisplayName() + " session " + shortId(id);
             }
             return info;
         } catch (Exception e) {
