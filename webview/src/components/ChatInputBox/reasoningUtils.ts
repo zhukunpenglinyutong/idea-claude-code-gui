@@ -19,7 +19,7 @@ export function getAvailableReasoningLevels(
 ): ReasoningInfo[] {
   return REASONING_LEVELS.filter((level) => {
     if (currentProvider === 'grok') {
-      return level.id === 'low' || level.id === 'medium' || level.id === 'high';
+      return level.id === 'low' || level.id === 'medium' || level.id === 'high' || level.id === 'xhigh';
     }
     if (currentProvider === 'codex') {
       return level.id !== 'max' || (selectedModel !== undefined && codexModelSupportsMaxEffort(selectedModel));

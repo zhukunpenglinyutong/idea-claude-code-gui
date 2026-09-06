@@ -34,6 +34,7 @@ interface ReasoningSelectProps {
  * Controls the depth of reasoning for AI models.
  * Visibility and available levels depend on the selected model:
  * - Codex GPT-5.6: low/medium/high/xhigh/max; other Codex models: up to xhigh
+ * - Grok CLI: low/medium/high/xhigh
  * - Claude Opus 5 and Opus 4.8: low/medium/high/xhigh/max
  * - Claude Sonnet 5, Sonnet 4.7, Opus 4.6, and Sonnet 4.6: low/medium/high/max
  * - Claude Haiku 4.5 and legacy models: hidden (no adaptive thinking support)

@@ -165,6 +165,7 @@ async function createRuntime(params, { log } = {}) {
   );
   if (params.reasoningEffort) {
     env.GROK_REASONING_EFFORT = String(params.reasoningEffort);
+    env.REASONING_EFFORT = String(params.reasoningEffort);
   }
   env.GROK_NO_AUTO_UPDATE = '1';
   env.CI = env.CI || '1';
