@@ -229,7 +229,9 @@ public final class SafeJsonFileOps {
      * (b) separate plugin processes (OS file lock, handles multiple IDE
      * windows). Lock acquisition waits up to {@code timeoutMs}; on timeout the
      * action still runs without the lock (writes remain atomic, only the RMW
-     * window widens) so a stuck peer never blocks the UI forever.
+     * window widens) so a stuck peer never blocks the UI forever. Worst-case
+     * total wait is about {@code 2 x timeoutMs}: the in-JVM lock and the OS
+     * file lock each have their own independent {@code timeoutMs} budget.
      *
      * @param lockFile  the sidecar lock file (created if missing, never deleted)
      * @param timeoutMs how long to wait for the lock

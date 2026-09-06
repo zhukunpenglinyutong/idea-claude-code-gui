@@ -278,6 +278,50 @@ public class McpConfigLossGuardTest {
         }
     }
 
+    /**
+     * Follow-up from sub-agent review: the ~/.codemoss/config.json fallback
+     * delete path must ALSO propagate the deletion to settings.json — the
+     * deleted server may have been synced there while it still lived in
+     * ~/.claude.json. No ghost entry may survive via that path either.
+     */
+    @Test
+    public void codemossFallbackDeleteAlsoClearsSettingsDotJson() throws Exception {
+        // settings.json holds a server synced earlier (via ~/.claude.json)
+        JsonObject settings = new JsonObject();
+        JsonObject servers = new JsonObject();
+        JsonObject spec = new JsonObject();
+        spec.addProperty("type", "stdio");
+        spec.addProperty("command", "npx");
+        servers.add("srv-a", spec);
+        settings.add("mcpServers", servers);
+        Files.writeString(settingsPath, settings.toString(), StandardCharsets.UTF_8);
+
+        // The server ONLY exists in ~/.codemoss/config.json now (~/.claude.json
+        // has no mcpServers entry), so the delete falls back to that path.
+        writeClaudeJson("{}");
+        JsonObject codemoss = new JsonObject();
+        com.google.gson.JsonArray arr = new com.google.gson.JsonArray();
+        arr.add(buildServer("srv-a", "npx"));
+        codemoss.add("mcpServers", arr);
+        com.google.gson.JsonObject[] written = new com.google.gson.JsonObject[1];
+        McpServerManager codemossManager = new McpServerManager(
+                new Gson(),
+                v -> codemoss,
+                c -> written[0] = c,
+                claudeSettingsManager);
+
+        boolean removed = codemossManager.deleteMcpServer("srv-a");
+        assertTrue(removed);
+        assertNotNull("codemoss config must have been written", written[0]);
+
+        JsonObject after = JsonParser.parseString(
+                Files.readString(settingsPath, StandardCharsets.UTF_8)).getAsJsonObject();
+        if (after.has("mcpServers") && after.get("mcpServers").isJsonObject()) {
+            assertTrue("no ghost server may survive in settings.json after a codemoss-path delete",
+                    after.getAsJsonObject("mcpServers").keySet().isEmpty());
+        }
+    }
+
     // ==================== settings.json durability ====================
 
     /** settings.json must never be left truncated after a write. */

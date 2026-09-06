@@ -483,6 +483,19 @@ public class McpServerManager {
                 config.add("mcpServers", newServers);
                 configWriter.accept(config);
                 LOG.info("[McpServerManager] Deleted MCP server from ~/.codemoss/config.json: " + serverId);
+                // The deleted server may have been synced into settings.json
+                // earlier (when it still lived in ~/.claude.json) — propagate
+                // the deletion there too, or a ghost entry survives. Same
+                // allowEmptyOverwrite=true semantics as the primary path: the
+                // user deleted intentionally. (Harmless when settings.json
+                // never knew about the server: the sync just rewrites the
+                // current source state.)
+                try {
+                    claudeSettingsManager.syncMcpToClaudeSettings(true);
+                } catch (Exception syncError) {
+                    LOG.warn("[McpServerManager] Failed to sync MCP to settings.json after codemoss delete: "
+                            + syncError.getMessage());
+                }
             }
         }
 
