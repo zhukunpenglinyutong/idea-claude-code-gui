@@ -108,6 +108,7 @@ export async function sendMessage(
     );
     if (reasoningEffort) {
       env.GROK_REASONING_EFFORT = String(reasoningEffort);
+      env.REASONING_EFFORT = String(reasoningEffort);
     }
 
     const result = await runAcpTurn({
