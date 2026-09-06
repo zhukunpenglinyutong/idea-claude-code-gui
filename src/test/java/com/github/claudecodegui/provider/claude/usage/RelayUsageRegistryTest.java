@@ -22,10 +22,17 @@ public class RelayUsageRegistryTest {
     @Test
     public void match_dispatchesByHostAndPath() {
         assertEquals("kimi-coding", RelayUsageRegistry.match("https://api.kimi.com/coding").id());
+        // api.kimi.com is the Coding Plan host only — no plain-kimi form exists
+        assertNull(RelayUsageRegistry.match("https://api.kimi.com/v1"));
+        assertEquals("moonshot", RelayUsageRegistry.match("https://api.moonshot.cn/anthropic").id());
+        assertEquals("moonshot", RelayUsageRegistry.match("https://api.moonshot.ai/anthropic").id());
         assertEquals("minimax", RelayUsageRegistry.match("https://api.minimaxi.com/v1").id());
         assertEquals("minimax", RelayUsageRegistry.match("https://api.minimax.io/v1").id());
         assertEquals("zai", RelayUsageRegistry.match("https://api.z.ai/api/anthropic").id());
         assertEquals("zai", RelayUsageRegistry.match("https://open.bigmodel.cn/api/anthropic").id());
+        assertEquals("opencode", RelayUsageRegistry.match("https://opencode.ai/zen/v1").id());
+        assertEquals("deepseek", RelayUsageRegistry.match("https://api.deepseek.com/anthropic").id());
+        assertEquals("openrouter", RelayUsageRegistry.match("https://openrouter.ai/api/v1").id());
         assertNull(RelayUsageRegistry.match("https://api.anthropic.com"));
         assertNull(RelayUsageRegistry.match("https://gateway.example.com"));
         assertNull(RelayUsageRegistry.match("https://gateway.example.com/z.ai/proxy"));
@@ -41,7 +48,7 @@ public class RelayUsageRegistryTest {
             return new JsonObject();
         });
 
-        assertNull(RelayUsageRegistry.resolve(ZaiUsageVendorTest.settings("https://api.deepseek.com", "sk-x"), 1000L));
+        assertNull(RelayUsageRegistry.resolve(ZaiUsageVendorTest.settings("https://gateway.example.com", "sk-x"), 1000L));
         // Vendor host but no credential → nothing to authenticate with
         assertNull(RelayUsageRegistry.resolve(ZaiUsageVendorTest.settings("https://api.z.ai/api/anthropic", null), 1000L));
         assertNull(RelayUsageRegistry.resolve(null, 1000L));

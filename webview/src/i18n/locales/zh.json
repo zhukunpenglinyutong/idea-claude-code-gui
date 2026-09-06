@@ -43,6 +43,10 @@
     "optional": "可选"
   },
   "chat": {
+    "planUsage": {
+      "balanceLabel": "余额：",
+      "balanceRemaining": "余额：{{value}}"
+    },
     "sendMessage": "给 {{provider}} 发送消息",
     "createNewSession": "创建新会话",
     "confirmNewSession": "当前会话已有消息，确定要创建新会话吗？",

@@ -26,6 +26,10 @@
     "optional": "Optional"
   },
   "chat": {
+    "planUsage": {
+      "balanceLabel": "餘額：",
+      "balanceRemaining": "餘額：{{value}}"
+    },
     "sendMessage": "給 {{provider}} 發送訊息",
     "createNewSession": "建立新會話",
     "confirmNewSession": "目前會話已有訊息，確定要建立新會話嗎？",
