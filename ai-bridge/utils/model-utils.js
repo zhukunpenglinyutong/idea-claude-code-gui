@@ -143,37 +143,6 @@ export function setModelEnvironmentVariables(modelId, baseModelId) {
   }
 }
 
-/**
- * Determine whether the model natively supports Anthropic vision content blocks.
- *
- * Different models have different vision input capabilities:
- * - Claude models (claude-*): Support Anthropic's standard vision format
- *   via {type: "image", source: {type: "base64", media_type, data}}.
- * - Third-party models (mimo, deepseek, qwen, glm, etc.): Many do not properly
- *   handle Anthropic vision content blocks, especially when routed through
- *   third-party Anthropic-compatible proxies. The image blocks may be silently
- *   dropped during proxy translation, causing the model to report "no image attached".
- *
- * For non-Claude models, the caller should fall back to saving images as temp
- * files and referencing them in the message text, mimicking Claude Code CLI
- * behavior which uses the Read tool to load images from disk.
- *
- * @param {string} modelId - The resolved model name actually sent to the API.
- *                            Examples: "claude-sonnet-4-5", "mimo-v2.5-pro", "MiniMax-M2.5"
- * @returns {boolean} True if the model natively supports Anthropic vision blocks.
- */
-export function modelSupportsVision(modelId) {
-  if (!modelId || typeof modelId !== 'string') {
-    return true;
-  }
-  const lower = modelId.toLowerCase();
-  // Anchor to the canonical "claude-" prefix to avoid matching third-party
-  // model names that merely contain the substring "claude" (e.g.
-  // "claude-compatible-proxy"), which historically yielded false positives
-  // and dropped images for proxies that don't speak Anthropic vision blocks.
-  return lower.startsWith('claude-');
-}
-
 // Note: getClaudeCliPath() has been removed.
 // Now using the SDK's built-in cli.js (at node_modules/@anthropic-ai/claude-agent-sdk/cli.js).
 // This avoids system CLI path issues on Windows (ENOENT errors) and keeps the version aligned with the SDK.

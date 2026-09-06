@@ -161,10 +161,10 @@ function buildQueryOptions(workingDirectory, sdkModelName, permissionMode, maxTh
   };
 }
 
-async function buildUserMessage(params, withAttachments, requestedSessionId, resolvedModelId = null) {
+async function buildUserMessage(params, withAttachments, requestedSessionId) {
   if (withAttachments) {
     const attachments = await loadAttachments({ attachments: params.attachments || [] });
-    const contentBlocks = await buildContentBlocks(attachments, params.message || '', resolvedModelId);
+    const contentBlocks = await buildContentBlocks(attachments, params.message || '');
     return {
       type: 'user',
       session_id: requestedSessionId || '',
@@ -223,7 +223,7 @@ async function buildRequestContext(params, withAttachments, overrides = {}) {
     mcpServers, modelId
   );
 
-  const userMessage = await buildUserMessage(params, withAttachments, requestedSessionId, resolvedModelId);
+  const userMessage = await buildUserMessage(params, withAttachments, requestedSessionId);
 
   const runtimeSignature = buildRuntimeSignature(options, systemPromptAppend, streamingEnabled, runtimeSessionEpoch, modelId);
   console.log('[LIFECYCLE] buildRequestContext sessionId=' + (requestedSessionId || '(new)')

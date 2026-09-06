@@ -586,7 +586,7 @@ export async function sendMessageWithAttachments(message, resumeSessionId = null
     console.log('[DEBUG] (withAttachments) Model:', model, '->', resolvedAttachModel);
     setModelEnvironmentVariables(resolvedAttachModel, model);
 
-    const contentBlocks = await buildContentBlocks(attachments, message, resolvedAttachModel);
+    const contentBlocks = await buildContentBlocks(attachments, message);
     const userMessage = {
       type: 'user', session_id: '', parent_tool_use_id: null,
       message: { role: 'user', content: contentBlocks }

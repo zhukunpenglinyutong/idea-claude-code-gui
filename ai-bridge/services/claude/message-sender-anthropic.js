@@ -81,7 +81,7 @@ export async function sendMessageWithAnthropicSDK(message, resumeSessionId, cwd,
     console.log('[DEBUG] Auth type:', authType || 'api_key (default)');
 
     const userContent = (Array.isArray(attachments) && attachments.length > 0)
-      ? await buildContentBlocks(attachments, message, modelId)
+      ? await buildContentBlocks(attachments, message)
       : [{ type: 'text', text: message }];
 
     persistJsonlMessage(sessionId, cwd, {

@@ -5,7 +5,6 @@ import {
   mapModelIdToSdkName,
   resolveModelFromSettings,
   setModelEnvironmentVariables,
-  modelSupportsVision,
 } from './model-utils.js';
 
 // --- mapModelIdToSdkName ------------------------------------------------
@@ -199,21 +198,4 @@ test('setModelEnvironmentVariables routes haiku base to haiku env', () => {
       else process.env[key] = value;
     }
   }
-});
-
-// --- modelSupportsVision -------------------------------------------------
-
-test('modelSupportsVision only matches the canonical claude- prefix', () => {
-  assert.equal(modelSupportsVision('claude-sonnet-4-6'), true);
-  assert.equal(modelSupportsVision('claude-fable-5'), true);
-  assert.equal(modelSupportsVision('claude-opus-5'), true);
-  assert.equal(modelSupportsVision('claude-opus-4-8'), true);
-  // Third-party proxies that merely contain "claude" must NOT be treated as
-  // native vision-capable models.
-  assert.equal(modelSupportsVision('claude-compatible-proxy'), true); // starts with 'claude-'
-  assert.equal(modelSupportsVision('mimo-claude-bridge'), false);
-  assert.equal(modelSupportsVision('glm-4.7'), false);
-  assert.equal(modelSupportsVision('deepseek-v4-pro[1m]'), false);
-  assert.equal(modelSupportsVision(''), true);
-  assert.equal(modelSupportsVision(null), true);
 });
