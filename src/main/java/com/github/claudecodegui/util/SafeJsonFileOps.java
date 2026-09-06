@@ -16,6 +16,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
@@ -58,6 +62,14 @@ public final class SafeJsonFileOps {
     /** Suffix for the automatic pre-overwrite backup of a config file. */
     public static final String BACKUP_SUFFIX = ".ccgui-backup";
 
+    /**
+     * Owner-only (0600) attribute for files that may carry secrets — the
+     * settings.json backup can hold ANTHROPIC_AUTH_TOKEN (Security J).
+     * Evaluated lazily so non-POSIX filesystems never trip over it at class init.
+     */
+    private static final java.util.function.Supplier<FileAttribute<Set<PosixFilePermission>>> OWNER_ONLY_ATTR =
+            () -> PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------"));
+
     /** How many times the replace-move is retried (Windows sharing violations while another process reads the target). */
     private static final int MOVE_ATTEMPTS = 5;
     private static final long MOVE_RETRY_DELAY_MS = 100;
@@ -97,6 +109,22 @@ public final class SafeJsonFileOps {
      * @throws IOException if the content cannot be staged or the replace keeps failing
      */
     public static void writeAtomically(Path target, ThrowingWriter writerFn) throws IOException {
+        writeAtomically(target, writerFn, true);
+    }
+
+    /**
+     * Internal variant of {@link #writeAtomically(Path, ThrowingWriter)}.
+     *
+     * @param target     the config file to replace
+     * @param writerFn   callback that writes the new content
+     * @param makeBackup {@code false} ONLY for the self-healing restore path:
+     *                   the restore writes content parsed FROM the backup, so
+     *                   backing up first would copy the corrupt live file over
+     *                   the good backup — the "last known good" copy must be
+     *                   preserved for a potential later recovery.
+     * @throws IOException if the content cannot be staged or the replace keeps failing
+     */
+    static void writeAtomically(Path target, ThrowingWriter writerFn, boolean makeBackup) throws IOException {
         Path parent = target.getParent();
         if (parent != null) {
             Files.createDirectories(parent);
@@ -110,9 +138,13 @@ public final class SafeJsonFileOps {
                 writerFn.writeTo(writer);
                 writer.flush();
             }
-            backupExisting(target);
+            if (makeBackup) {
+                backupExisting(target);
+            }
             moveWithRetry(tmp, target);
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
+            // RuntimeException from the writer callback (e.g. a Gson failure)
+            // must not leak the staged temp file either.
             try {
                 Files.deleteIfExists(tmp);
             } catch (IOException cleanupError) {
@@ -176,10 +208,14 @@ public final class SafeJsonFileOps {
         LOG.warn("[SafeJsonFileOps] " + file.getFileName() + " is unreadable — restoring last known good copy from "
                 + backup.getFileName());
         try {
-            writeAtomically(file, writer -> RESTORE_GSON.toJson(fromBackup, writer));
-        } catch (IOException e) {
-            // Restore failed (e.g. read-only file) — still return the parsed
-            // backup content so the caller keeps working with the recovered data.
+            // makeBackup=false: never copy the CORRUPT live file over the good
+            // backup we are about to restore from — the last known good copy
+            // must survive for a potential later recovery (review item 3).
+            writeAtomically(file, writer -> RESTORE_GSON.toJson(fromBackup, writer), false);
+        } catch (IOException | RuntimeException e) {
+            // Restore failed (e.g. read-only file, or serialisation failure) —
+            // still return the parsed backup content so the caller keeps
+            // working with the recovered data.
             LOG.warn("[SafeJsonFileOps] Could not write restored copy back to " + file + ": " + e.getMessage());
         }
         return fromBackup;
@@ -254,18 +290,61 @@ public final class SafeJsonFileOps {
      * Copy the current target to the backup sibling (best effort — a backup
      * failure must not block the write; the staged temp file still replaces
      * the corrupt/old content atomically).
+     *
+     * <p>The backup may carry secrets (the settings.json backup can hold
+     * ANTHROPIC_AUTH_TOKEN — Security J), so it is created with owner-only
+     * (0600) permissions wherever POSIX is available: born 0600 at creation
+     * (closing the create-to-chmod window) and re-forced after the copy to
+     * cover pre-existing backup files, where the creation attribute is
+     * ignored. Windows falls back to a plain create (default ACLs).
      */
     private static void backupExisting(Path target) {
         if (!Files.isRegularFile(target)) {
             return;
         }
         Path backup = sibling(target, BACKUP_SUFFIX);
-        try (java.io.InputStream in = Files.newInputStream(target);
-             java.io.OutputStream out = Files.newOutputStream(backup,
-                     StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
-            in.transferTo(out);
+        try {
+            // Born 0600: the token-bearing copy is never world-readable, not
+            // even for the instant before a later chmod. (The attribute only
+            // applies when the file is newly created.)
+            try (java.io.InputStream in = Files.newInputStream(target);
+                 java.io.OutputStream out = openOwnerOnly(backup)) {
+                in.transferTo(out);
+            }
+            // A backup left behind with default permissions keeps them across
+            // TRUNCATE_EXISTING — force 0600 to cover that case too.
+            hardenOwnerOnly(backup);
         } catch (IOException e) {
             LOG.warn("[SafeJsonFileOps] Could not back up " + target + " before replacing: " + e.getMessage());
+        }
+    }
+
+    /** Open the backup for writing — born 0600 on POSIX, default perms on Windows. */
+    private static java.io.OutputStream openOwnerOnly(Path backup) throws IOException {
+        try {
+            // FileChannel.open (unlike Files.newOutputStream) accepts creation
+            // attributes, so the backup is born 0600 — the secret never spends
+            // an instant world-readable before a later chmod.
+            java.nio.channels.FileChannel channel = java.nio.channels.FileChannel.open(backup,
+                    java.util.EnumSet.of(StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING,
+                            StandardOpenOption.WRITE),
+                    OWNER_ONLY_ATTR.get());
+            return java.nio.channels.Channels.newOutputStream(channel);
+        } catch (UnsupportedOperationException notPosix) {
+            // Non-POSIX filesystem (e.g. Windows): no permission attributes,
+            // mirror the best-effort policy of ClaudeSettingsManager.
+            return Files.newOutputStream(backup,
+                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING,
+                    StandardOpenOption.WRITE);
+        }
+    }
+
+    /** Best-effort 0600 — same policy as ClaudeSettingsManager.hardenFilePermissions. */
+    private static void hardenOwnerOnly(Path file) {
+        try {
+            Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
+        } catch (UnsupportedOperationException | IOException e) {
+            LOG.debug("[SafeJsonFileOps] Could not set 0600 on " + file + ": " + e.getMessage());
         }
     }
 

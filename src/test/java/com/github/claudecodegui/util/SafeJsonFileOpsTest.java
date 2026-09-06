@@ -25,6 +25,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * Unit tests for {@link SafeJsonFileOps}: atomic writes, automatic backups,
@@ -180,5 +181,87 @@ public class SafeJsonFileOpsTest {
         SafeJsonFileOps.writeAtomically(file, w -> w.write("{\"ok\":false}"));
         assertFalse(JsonParser.parseString(
                 Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject().get("ok").getAsBoolean());
+    }
+
+    /** The backup may carry secrets (settings.json holds tokens) — it must not be world-readable. */
+    @Test
+    public void backupFileIsOwnerOnlyOnPosix() throws Exception {
+        org.junit.Assume.assumeTrue("POSIX-only check",
+                java.nio.file.FileSystems.getDefault().supportedFileAttributeViews().contains("posix"));
+        Path file = tempDir.resolve("settings.json");
+        SafeJsonFileOps.writeAtomically(file, w -> w.write("{\"env\":{\"ANTHROPIC_AUTH_TOKEN\":\"secret\"}}"));
+        SafeJsonFileOps.writeAtomically(file, w -> w.write("{\"env\":{}}"));
+
+        Path backup = SafeJsonFileOps.sibling(file, SafeJsonFileOps.BACKUP_SUFFIX);
+        assertEquals(java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"),
+                Files.getPosixFilePermissions(backup));
+    }
+
+    /**
+     * Self-healing restore must NOT clobber the good backup with the corrupt
+     * live content (review item 3): after healing, the backup still holds the
+     * last known good document.
+     */
+    @Test
+    public void selfHealRestorePreservesTheGoodBackup() throws Exception {
+        Path file = tempDir.resolve("config.json");
+        SafeJsonFileOps.writeAtomically(file, w -> w.write("{\"v\":1}"));
+        SafeJsonFileOps.writeAtomically(file, w -> w.write("{\"v\":2}"));
+        Path backup = SafeJsonFileOps.sibling(file, SafeJsonFileOps.BACKUP_SUFFIX);
+        assertEquals("{\"v\":1}", Files.readString(backup, StandardCharsets.UTF_8));
+
+        // Corrupt the live file, then self-heal
+        Files.writeString(file, "{torn", StandardCharsets.UTF_8);
+        JsonObject healed = SafeJsonFileOps.readJsonOrBackup(file, 2, 10);
+        assertNotNull(healed);
+        assertEquals(1, healed.get("v").getAsInt());
+
+        // The backup must still hold the last known good content — NOT the torn junk
+        assertEquals("the good backup must survive the restore",
+                "{\"v\":1}", Files.readString(backup, StandardCharsets.UTF_8));
+    }
+
+    /** A RuntimeException from the writer callback must not leak the staged temp file. */
+    @Test
+    public void runtimeExceptionDoesNotLeakTempFile() throws Exception {
+        Path file = tempDir.resolve("config.json");
+        SafeJsonFileOps.writeAtomically(file, w -> w.write("{\"v\":1}"));
+        try {
+            SafeJsonFileOps.writeAtomically(file, w -> {
+                w.write("{ half");
+                throw new IllegalStateException("simulated Gson failure");
+            });
+            fail("expected the RuntimeException to propagate");
+        } catch (IllegalStateException expected) {
+            // expected
+        }
+        List<Path> leftovers = new ArrayList<>();
+        try (java.util.stream.Stream<Path> paths = Files.list(tempDir)) {
+            paths.filter(p -> p.getFileName().toString().contains(".ccgui-tmp")).forEach(leftovers::add);
+        }
+        assertTrue("staged temp file must be cleaned up on RuntimeException",
+                leftovers.isEmpty());
+        // And the original content survives
+        assertEquals("{\"v\":1}", Files.readString(file, StandardCharsets.UTF_8));
+    }
+
+    /** A RuntimeException from the writer callback must not leak the staged temp file (internal no-backup variant). */
+    @Test
+    public void runtimeExceptionDoesNotLeakTempFileOnRestorePath() throws Exception {
+        Path file = tempDir.resolve("config.json");
+        try {
+            SafeJsonFileOps.writeAtomically(file, w -> {
+                w.write("{ half");
+                throw new IllegalStateException("simulated failure");
+            }, false);
+            fail("expected the RuntimeException to propagate");
+        } catch (IllegalStateException expected) {
+            // expected
+        }
+        List<Path> leftovers = new ArrayList<>();
+        try (java.util.stream.Stream<Path> paths = Files.list(tempDir)) {
+            paths.filter(p -> p.getFileName().toString().contains(".ccgui-tmp")).forEach(leftovers::add);
+        }
+        assertTrue(leftovers.isEmpty());
     }
 }

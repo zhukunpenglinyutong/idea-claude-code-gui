@@ -441,9 +441,13 @@ public class McpServerManager {
 
                                     LOG.info("[McpServerManager] Deleted MCP server from ~/.claude.json: " + serverId);
 
-                                    // Sync to settings.json (after file write is complete)
+                                    // Sync to settings.json (after file write is complete).
+                                    // allowEmptyOverwrite=true: the user just deleted
+                                    // (possibly their last) server intentionally — the
+                                    // empty state MUST propagate, or settings.json keeps
+                                    // a ghost the UI no longer shows.
                                     try {
-                                        claudeSettingsManager.syncMcpToClaudeSettings();
+                                        claudeSettingsManager.syncMcpToClaudeSettings(true);
                                     } catch (Exception syncError) {
                                         LOG.warn("[McpServerManager] Failed to sync MCP to settings.json: " + syncError.getMessage());
                                     }

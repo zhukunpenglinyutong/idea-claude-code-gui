@@ -163,6 +163,22 @@ public class ClaudeSettingsManager {
      * The Claude CLI reads MCP config from ~/.claude/settings.json at runtime.
      */
     public void syncMcpToClaudeSettings() throws IOException {
+        // Default: guarded sync — an empty source mcpServers is treated as
+        // suspicious (possible data loss) and never wipes a non-empty target.
+        syncMcpToClaudeSettings(false);
+    }
+
+    /**
+     * Sync MCP servers from ~/.claude.json to ~/.claude/settings.json.
+     *
+     * @param allowEmptyOverwrite {@code true} when the caller KNOWS the user
+     *                            intentionally emptied the source (e.g. just
+     *                            deleted their last server in the UI) and the
+     *                            empty state must propagate to settings.json;
+     *                            {@code false} keeps the loss guard active
+     * @throws IOException on read/write failures
+     */
+    public void syncMcpToClaudeSettings(boolean allowEmptyOverwrite) throws IOException {
         try {
             String homeDir = NodeDetector.resolveHomeForFileOps();
 
@@ -205,7 +221,7 @@ public class ClaudeSettingsManager {
                 boolean targetHasServers = settings.has("mcpServers")
                         && settings.get("mcpServers").isJsonObject()
                         && !settings.getAsJsonObject("mcpServers").keySet().isEmpty();
-                if (!sourceEmpty || !targetHasServers) {
+                if (allowEmptyOverwrite || !sourceEmpty || !targetHasServers) {
                     settings.add("mcpServers", sourceServers);
                     LOG.info("[ClaudeSettingsManager] Synced mcpServers to settings.json (source servers: "
                             + sourceServers.keySet().size() + ")");

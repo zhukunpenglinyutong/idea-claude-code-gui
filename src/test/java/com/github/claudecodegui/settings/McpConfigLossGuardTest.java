@@ -256,6 +256,28 @@ public class McpConfigLossGuardTest {
         }
     }
 
+    /**
+     * Review item 2: deleting the LAST server must also clear settings.json —
+     * the delete path passes allowEmptyOverwrite=true because the user acted
+     * intentionally, so no ghost entry may survive there.
+     */
+    @Test
+    public void deletingLastServerClearsSettingsDotJson() throws Exception {
+        writeClaudeJson("{}");
+        manager.upsertMcpServer(buildServer("srv-a", "npx"));
+        // settings.json now holds srv-a (synced during upsert)
+
+        boolean removed = manager.deleteMcpServer("srv-a");
+        assertTrue(removed);
+
+        JsonObject after = JsonParser.parseString(
+                Files.readString(settingsPath, StandardCharsets.UTF_8)).getAsJsonObject();
+        if (after.has("mcpServers") && after.get("mcpServers").isJsonObject()) {
+            assertTrue("no ghost server may survive in settings.json after deleting the last one",
+                    after.getAsJsonObject("mcpServers").keySet().isEmpty());
+        }
+    }
+
     // ==================== settings.json durability ====================
 
     /** settings.json must never be left truncated after a write. */
