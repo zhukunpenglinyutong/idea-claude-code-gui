@@ -86,7 +86,15 @@ public class GenerateCommitMessageAction extends AnAction implements DumbAware {
         // Cancel any in-flight generation (double-click / re-trigger).
         cancelInFlight(project);
 
-        final GitCommitMessageService service = new GitCommitMessageService(project);
+        final GitCommitMessageService service;
+        try {
+            service = new GitCommitMessageService(project);
+        } catch (NoClassDefFoundError error) {
+            // 兜底: update() 已按 Git4Idea 可用性隐藏入口, 这里防御极端时序
+            // (如运行中被禁用插件)。git4idea 缺失时 CommitDiffProvider 无法加载。
+            LOG.warn("Git4Idea became unavailable; aborting commit message generation", error);
+            return;
+        }
         setActive(project, service);
 
         // Preserve the user's existing draft; restored on error.
@@ -289,6 +297,13 @@ public class GenerateCommitMessageAction extends AnAction implements DumbAware {
 
     @Override
     public void update(@NotNull AnActionEvent e) {
+        // Git4Idea 是可选依赖 (见 plugin.xml): 提交信息生成走 git4idea 的 git diff。
+        // 没有它的环境 (如 Remote Development 的前端客户端) 直接隐藏入口。
+        if (!isGit4IdeaAvailable()) {
+            e.getPresentation().setEnabledAndVisible(false);
+            return;
+        }
+
         Project project = e.getProject();
         boolean enabled = project != null;
 
@@ -307,6 +322,23 @@ public class GenerateCommitMessageAction extends AnAction implements DumbAware {
         e.getPresentation().setText(ClaudeCodeGuiBundle.message("action.generateCommitMessage.text"));
         e.getPresentation().setDescription(ClaudeCodeGuiBundle.message("action.generateCommitMessage.description"));
         e.getPresentation().setEnabledAndVisible(enabled);
+    }
+
+    /**
+     * Whether the optional Git4Idea plugin's classes are loadable. The commit
+     * message generator needs its {@code git diff}; without it (e.g. the Remote
+     * Development frontend client) the action hides itself instead of crashing.
+     * Class-loadability is exactly the condition {@link GitCommitMessageService}
+     * (via {@code CommitDiffProvider}) needs, and it also covers the
+     * installed-but-disabled case.
+     */
+    private static boolean isGit4IdeaAvailable() {
+        try {
+            Class.forName("git4idea.repo.GitRepositoryManager");
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
     }
 
     /**
