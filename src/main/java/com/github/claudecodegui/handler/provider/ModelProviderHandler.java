@@ -28,6 +28,7 @@ public class ModelProviderHandler {
     static final Map<String, Integer> MODEL_CONTEXT_LIMITS = new HashMap<>();
     static {
         // Claude models with 1M context (base IDs)
+        MODEL_CONTEXT_LIMITS.put("claude-fable-5-1", 200_000);
         MODEL_CONTEXT_LIMITS.put("claude-opus-5", 200_000);
         MODEL_CONTEXT_LIMITS.put("claude-sonnet-5", 200_000);
         MODEL_CONTEXT_LIMITS.put("claude-sonnet-4-7", 200_000);
@@ -36,6 +37,7 @@ public class ModelProviderHandler {
         MODEL_CONTEXT_LIMITS.put("claude-opus-4-8", 200_000);
         MODEL_CONTEXT_LIMITS.put("claude-opus-4-6", 200_000);
         // Claude models with [1m] suffix - 1M context
+        MODEL_CONTEXT_LIMITS.put("claude-fable-5-1[1m]", 1_000_000);
         MODEL_CONTEXT_LIMITS.put("claude-opus-5[1m]", 1_000_000);
         MODEL_CONTEXT_LIMITS.put("claude-sonnet-5[1m]", 1_000_000);
         MODEL_CONTEXT_LIMITS.put("claude-sonnet-4-7[1m]", 1_000_000);
@@ -46,6 +48,7 @@ public class ModelProviderHandler {
         // Haiku - no 1M context available
         MODEL_CONTEXT_LIMITS.put("claude-haiku-4-5", 200_000);
         // Codex/GPT models
+        MODEL_CONTEXT_LIMITS.put("gpt-6-astra", 1_050_000);
         MODEL_CONTEXT_LIMITS.put("gpt-5.6-sol", 1_050_000);
         MODEL_CONTEXT_LIMITS.put("gpt-5.6-terra", 1_050_000);
         MODEL_CONTEXT_LIMITS.put("gpt-5.6-luna", 1_050_000);

@@ -1333,14 +1333,14 @@ export default function PetSettingsSection({ addToast }: PetSettingsSectionProps
                       <span className="codicon codicon-sparkle" aria-hidden="true" />
                       {t('settings.pet.prepareCreatePet')}
                     </button>
-                    <button type="button" className={styles.secondaryButton} onClick={petBridge.openPetDirectory}>
-                      <span className="codicon codicon-folder-opened" aria-hidden="true" />
-                      {t('settings.pet.openPetDirectory')}
-                    </button>
                     <button type="button" className={styles.secondaryButton}
                       onClick={() => prepareHatchCommand('repair')}>
                       <span className="codicon codicon-tools" aria-hidden="true" />
                       {t('settings.pet.prepareRepairPet')}
+                    </button>
+                    <button type="button" className={styles.secondaryButton} onClick={petBridge.openPetDirectory}>
+                      <span className="codicon codicon-folder-opened" aria-hidden="true" />
+                      {t('settings.pet.openPetDirectory')}
                     </button>
                   </div>
                 </div>

@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { resolveCliSpawn } from '../../utils/cli-path.js';
 
 const DEFAULT_OUTPUT_BYTE_LIMIT = 1024 * 1024; // 1 MiB soft default if agent omits limit
 const MAX_TERMINALS = 32;
@@ -266,10 +267,9 @@ export class AcpTerminalHost {
     const terminalId = randomUUID();
     const rawEnv = buildEnv(this.env, params.env);
 
-    // Clean env: explicitly build minimal user env without any IDEA_* pollution
-    // so that when Grok's wrapper does /bin/bash -lc 'cmd' (or direct), the bash/mvn
-    // see normal user env (not "launched from inside IDEA").
-    const cleanEnv = {
+    // Unix login shells rebuild the user environment without IDEA_* pollution.
+    // Native Windows tools also need SystemRoot, ComSpec and the profile paths.
+    const cleanEnv = process.platform === 'win32' ? rawEnv : {
       PATH: rawEnv.PATH || process.env.PATH,
       HOME: rawEnv.HOME || process.env.HOME,
       USER: rawEnv.USER || process.env.USER,
@@ -282,12 +282,8 @@ export class AcpTerminalHost {
     };
     if (rawEnv.NODE_PATH) cleanEnv.NODE_PATH = rawEnv.NODE_PATH;
 
-    // Always run through the user's login shell (profiles / normal env).
-    // Array form only — never pass a full "/bin/bash -lc '…'" string as argv[0]/path.
-    // Flag shape matches daemon.js: bash uses -lc, fish -c, others -l -c.
-    // Always respect the user's login shell ($SHELL).
-    // If not set, prefer zsh on macOS only if the binary exists,
-    // otherwise fall back to bash or POSIX sh.
+    // Windows command strings need cmd syntax even when Git Bash sets SHELL.
+    // Unix commands retain the user's login shell and its profiles.
     function resolveDefaultShell() {
       if (process.platform === 'win32') return 'cmd.exe';
       if (process.platform === 'darwin') {
@@ -300,7 +296,9 @@ export class AcpTerminalHost {
       return '/bin/sh';
     }
 
-    const loginShell = rawEnv.SHELL || process.env.SHELL || resolveDefaultShell();
+    const loginShell = process.platform === 'win32'
+      ? rawEnv.ComSpec || rawEnv.COMSPEC || resolveDefaultShell()
+      : rawEnv.SHELL || process.env.SHELL || resolveDefaultShell();
     let commandLine = unwrapShellWrapperCommand(command, args);
     if (!commandLine.trim()) {
       throw Object.assign(new Error('command is empty after unwrapping shell wrapper'), {
@@ -309,20 +307,28 @@ export class AcpTerminalHost {
     }
 
     let scriptPath = null;
-    if (needsFileExecution(commandLine)) {
+    if (process.platform !== 'win32' && needsFileExecution(commandLine)) {
       // Complex payload (shebang / heredoc / ! / heavy quoting) — write to temp script.
       // This bypasses the outer wrapper mangling that corrupts heredoc, bang, nested quotes.
       scriptPath = writeTempScript(commandLine);
       commandLine = scriptPath; // pass the path; loginShell will exec it
     }
 
-    // Execution strategy (robust against noexec):
-    // - Normal commands: loginShell -lc/-l -c "commandLine"
-    // - Complex payloads (heredoc/!/shebang): write to temp script, then
-    //   ALWAYS invoke via the user's login shell: loginShell -c "/tmp/.../cmd.sh"
-    //   This works even when /tmp has noexec.
+    // Unix shells read complex scripts as files, which also works on noexec mounts.
     let child;
-    if (scriptPath) {
+    if (process.platform === 'win32') {
+      const options = { cwd, env: cleanEnv, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true };
+      if (args.length > 0 && !isShellExecutable(command)) {
+        // Keep argv intact; shell escaping would turn literal metacharacters into code.
+        const invocation = resolveCliSpawn(String(command), args, options);
+        child = spawn(invocation.file, invocation.args, invocation.options);
+      } else {
+        child = spawn(loginShell, ['/d', '/s', '/c', `"${commandLine}"`], {
+          ...options,
+          windowsVerbatimArguments: true,
+        });
+      }
+    } else if (scriptPath) {
       // Execute the temp script directly via the login shell as a file, not via -c.
       // This bypasses the outer ACP wrapper entirely and avoids treating the path as code.
       // Strategy: loginShell -l scriptPath  (or equivalent per shell)

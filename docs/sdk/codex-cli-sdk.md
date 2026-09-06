@@ -132,19 +132,32 @@ Run interactively:
 codex
 ```
 
-Or, run with a prompt as input (and optionally in `Full Auto` mode):
+Or run with a prompt:
 
 ```shell
 codex "explain this codebase to me"
 ```
 
+When supported by the installed Codex CLI, `--approve-for-me` (alias `--not-so-yolo`) is a convenience flag for the native reviewer:
+
 ```shell
-codex --approval-mode full-auto "create the fanciest todo-list app"
+codex --approve-for-me "create the fanciest todo-list app"
 ```
 
-That's it - Codex will scaffold a file, run it inside a sandbox, install any
-missing dependencies, and show you the live result. Approve the changes and
-they'll be committed to your working directory.
+The plugin uses the SDK configuration form instead:
+
+```js
+const codex = new Codex({
+  config: { approvals_reviewer: "auto_review" },
+});
+const thread = codex.startThread({
+  approvalPolicy: "on-request",
+  sandboxMode: "workspace-write",
+});
+```
+
+The native reviewer is distinct from Full Auto: it retains the `workspace-write`
+sandbox and the approval boundary.
 
 ---
 
@@ -156,7 +169,7 @@ files, and iterate - all under version control. In short, it's _chat-driven
 development_ that understands and executes your repo.
 
 - **Zero setup** - bring your OpenAI API key and it just works!
-- **Full auto-approval, while safe + secure** by running network-disabled and directory-sandboxed
+- **Provider-native auto-review** for fewer prompts while retaining the workspace sandbox
 - **Multimodal** - pass in screenshots or diagrams to implement features ✨
 
 And it's **fully open-source** so you can see and contribute to how it develops!
@@ -165,23 +178,21 @@ And it's **fully open-source** so you can see and contribute to how it develops!
 
 ## Security model & permissions
 
-Codex lets you decide _how much autonomy_ the agent receives and auto-approval policy via the
-`--approval-mode` flag (or the interactive onboarding prompt):
+Codex lets you decide _how much autonomy_ the agent receives through its approval policy,
+sandbox mode, and optional automatic approval reviewer:
 
-| Mode                      | What the agent may do without asking                                                                | Still requires approval                                                                         |
-| ------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| **Suggest** <br>(default) | <li>Read any file in the repo                                                                       | <li>**All** file writes/patches<li> **Any** arbitrary shell commands (aside from reading files) |
-| **Auto Edit**             | <li>Read **and** apply-patch writes to files                                                        | <li>**All** shell commands                                                                      |
-| **Full Auto**             | <li>Read/write files <li> Execute shell commands (network disabled, writes limited to your workdir) | -                                                                                               |
+| Mode | What happens without direct user approval | Remaining boundary |
+| ---- | ----------------------------------------- | ------------------ |
+| **Suggest** | Read-only work proceeds normally | Writes and commands are presented to the user |
+| **Auto Edit** | Normal editing flow proceeds with `on-request` | Codex may still request approval |
+| **Approve for me** | `auto_review` evaluates eligible approval requests | `workspace-write` sandbox remains; requests outside the reviewer boundary are handled by Codex's native rejection/escalation path |
+| **Full Auto** | Approval policy is `never` | The plugin's configured sandbox remains the final boundary |
 
-In **Full Auto** every command is run **network-disabled** and confined to the
-current working directory (plus temporary files) for defense-in-depth. Codex
-will also show a warning/confirmation if you start in **auto-edit** or
-**full-auto** while the directory is _not_ tracked by Git, so you always have a
-safety net.
-
-Coming soon: you'll be able to whitelist specific commands to auto-execute with
-the network enabled, once we're confident in additional safeguards.
+The plugin sends **Approve for me** as `approvals_reviewer="auto_review"`,
+`approval_policy="on-request"`, and `sandbox_mode="workspace-write"`. In the plugin's
+non-interactive SDK stream, Codex owns these approval decisions; the event adapter does
+not issue a second Java prompt after an item has started. Full Auto remains a separate
+plugin mode and does not invoke the automatic reviewer.
 
 ### Platform sandboxing details
 
@@ -225,7 +236,7 @@ The hardening mechanism Codex uses depends on your OS:
 | `codex -q "..."`                     | Non-interactive "quiet mode"        | `codex -q --json "explain utils.ts"` |
 | `codex completion <bash\|zsh\|fish>` | Print shell completion script       | `codex completion bash`              |
 
-Key flags: `--model/-m`, `--approval-mode/-a`, `--quiet/-q`, and `--notify`.
+Key flags for the current CLI include `--model/-m`, `--sandbox/-s`, `--config/-c`, `--json`, and the native reviewer options described above.
 
 ---
 
@@ -250,7 +261,9 @@ Run Codex head-less in pipelines. Example GitHub Action step:
   run: |
     npm install -g @openai/codex
     export OPENAI_API_KEY="${{ secrets.OPENAI_KEY }}"
-    codex -a auto-edit --quiet "update CHANGELOG for next release"
+    codex -c 'approvals_reviewer="auto_review"' \
+      -c 'approval_policy="on-request"' \
+      --sandbox workspace-write --json "update CHANGELOG for next release"
 ```
 
 Set `CODEX_QUIET_MODE=1` to silence interactive UI noise.

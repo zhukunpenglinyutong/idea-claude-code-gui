@@ -32,9 +32,9 @@ public enum SdkDefinition {
         "@openai/codex-sdk",
         "latest",
         Collections.emptyList(),
-        Arrays.asList("0.117.0", "0.116.0", "0.115.0"),
+        Arrays.asList("0.151.0", "0.150.0", "0.146.0"),
         "Codex AI 提供商所需。",
-        null // minRequiredVersion — no enforced minimum
+        "0.146.0" // minRequiredVersion — approvals_reviewer config is available in the verified SDK floor
     );
 
     private final String id;
@@ -89,7 +89,7 @@ public enum SdkDefinition {
 
     /**
      * Minimum installed version required for full feature support.
-     * The Claude SDK needs 0.3.182 or later for the Fable tier; Codex has no minimum.
+     * Claude needs 0.3.182 or later for the Fable tier; Codex needs 0.146.0 or later for native auto review config.
      * Null means no minimum is enforced.
      */
     public String getMinRequiredVersion() {

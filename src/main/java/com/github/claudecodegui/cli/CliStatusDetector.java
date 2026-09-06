@@ -149,7 +149,11 @@ public final class CliStatusDetector {
 
     private static List<String> candidatesFor(CliToolId tool) {
         Set<String> candidates = new LinkedHashSet<>();
-        String binary = tool.getBinaryName();
+        // Primary name first, then the alt name (e.g. minimax → mcode): tools
+        // installed under either name must be detected.
+        String[] binaries = tool.getAltBinaryName() != null
+                ? new String[]{tool.getBinaryName(), tool.getAltBinaryName()}
+                : new String[]{tool.getBinaryName()};
         String[] extensions = PlatformUtils.isWindows()
                 ? new String[]{".cmd", ".exe", ""}
                 : new String[]{""};
@@ -165,18 +169,22 @@ public final class CliStatusDetector {
         // 2. Common home / system install locations
         String home = PlatformUtils.getHomeDirectory();
         List<String> homeDirs = homeBinDirs(tool, home);
-        for (String dir : homeDirs) {
-            for (String ext : extensions) {
-                File file = new File(dir, binary + ext);
-                if (file.isFile()) {
-                    candidates.add(file.getAbsolutePath());
+        for (String binary : binaries) {
+            for (String dir : homeDirs) {
+                for (String ext : extensions) {
+                    File file = new File(dir, binary + ext);
+                    if (file.isFile()) {
+                        candidates.add(file.getAbsolutePath());
+                    }
                 }
             }
         }
 
         // 3. Bare binary names (resolved via process PATH)
-        for (String ext : extensions) {
-            candidates.add(binary + ext);
+        for (String binary : binaries) {
+            for (String ext : extensions) {
+                candidates.add(binary + ext);
+            }
         }
 
         return new ArrayList<>(candidates);
@@ -222,6 +230,11 @@ public final class CliStatusDetector {
                 // Hermes (the DSH-native installer) keeps node + dsh together.
                 dirs.add(join(home, ".hermes", "node", "bin"));
                 dirs.add(join(home, ".dsh", "bin"));
+                dirs.add(join(home, ".local", "bin"));
+                break;
+            case MINIMAX:
+                dirs.add(join(home, ".minimax", "bin"));
+                dirs.add(join(home, ".minimax-code"));
                 dirs.add(join(home, ".local", "bin"));
                 break;
             default:
@@ -331,6 +344,7 @@ public final class CliStatusDetector {
             case PI -> new String[]{"PI_BIN", "PI_PATH", "PI_CLI_PATH"};
             case OMP -> new String[]{"OMP_BIN", "OMP_PATH", "OMP_CLI_PATH"};
             case DSH -> new String[]{"DSH_BIN", "DSH_PATH", "DSH_CLI_PATH"};
+            case MINIMAX -> new String[]{"MINIMAX_BIN", "MINIMAX_PATH", "MINIMAX_CLI_PATH", "MCODE_BIN"};
         };
     }
 
@@ -554,6 +568,7 @@ public final class CliStatusDetector {
                 join(home, ".grok", "bin"),
                 join(home, ".pi", "bin"),
                 join(home, ".omp", "bin"),
+                join(home, ".minimax", "bin"),
                 join(home, ".local", "bin"),
                 join(home, ".cargo", "bin"),
                 "/opt/homebrew/bin",

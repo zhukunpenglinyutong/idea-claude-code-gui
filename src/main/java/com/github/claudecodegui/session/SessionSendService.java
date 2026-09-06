@@ -220,6 +220,9 @@ public class SessionSendService {
         if (trimmed.isEmpty()) {
             return null;
         }
+        if ("autoEdit".equals(trimmed)) {
+            return "acceptEdits";
+        }
         if (SessionState.isValidPermissionMode(trimmed)) {
             return trimmed;
         }
@@ -236,14 +239,21 @@ public class SessionSendService {
             resolvedMode = "default";
         }
 
+        boolean isProviderWithoutPlanMode = "codex".equals(provider)
+                || "grok".equals(provider)
+                || (SessionProviderRouter.isCliProvider(provider) && !"omp".equals(provider));
+        boolean isCliProviderWithoutNativeAuto = SessionProviderRouter.isCliProvider(provider);
         // Codex and Grok run as full SDK bridges (not MarkerCli providers, so they
         // are absent from CLI_PROVIDER_IDS), but like the headless CLI providers
         // they have no plan-mode equivalent — so plan still downgrades to default.
         // EXCEPT omp, where "plan" is a model role (`omp --model plan`), not Claude
-        // plan mode.
-        if (("codex".equals(provider) || "grok".equals(provider)
-                || (SessionProviderRouter.isCliProvider(provider) && !"omp".equals(provider)))
+        // plan mode. Native auto review is limited to Claude/Codex; Grok retains its
+        // existing internal auto-approve alias, while the Webview still hides auto there.
+        if (isProviderWithoutPlanMode
                 && "plan".equals(resolvedMode)) {
+            return "default";
+        }
+        if (isCliProviderWithoutNativeAuto && "auto".equals(resolvedMode)) {
             return "default";
         }
         return resolvedMode;

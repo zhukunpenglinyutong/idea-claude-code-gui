@@ -74,7 +74,19 @@ export function findRuntimeForRequest(requestContext) {
   if (requestContext.requestedSessionId) {
     return runtimesBySessionId.get(requestContext.requestedSessionId) || null;
   }
-  return anonymousRuntimesBySignature.get(requestContext.runtimeSignature) || null;
+  const exact = anonymousRuntimesBySignature.get(requestContext.runtimeSignature);
+  if (exact) return exact;
+  // A bypass transition changes the spawn-time signature before the next
+  // request arrives. Only consider a pending runtime from the same anonymous
+  // session epoch; otherwise a request could dispose another session's runtime.
+  if (!requestContext.runtimeSessionEpoch) return null;
+  for (const runtime of anonymousRuntimes) {
+    if (runtime.runtimeSignature === '__rebuild-pending-bypass-change__'
+        && runtime.runtimeSessionEpoch === requestContext.runtimeSessionEpoch) {
+      return runtime;
+    }
+  }
+  return null;
 }
 
 export function beginRuntimeTurn(runtime) {

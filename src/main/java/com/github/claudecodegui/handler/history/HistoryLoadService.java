@@ -11,6 +11,7 @@ import com.github.claudecodegui.provider.codex.CodexHistoryReader;
 import com.github.claudecodegui.provider.dsh.DshHistoryReader;
 import com.github.claudecodegui.provider.grok.GrokHistoryReader;
 import com.github.claudecodegui.provider.kimi.KimiHistoryReader;
+import com.github.claudecodegui.provider.minimax.MiniMaxHistoryReader;
 import com.github.claudecodegui.provider.opencode.OpenCodeHistoryReader;
 import com.github.claudecodegui.provider.pi.PiHistoryReader;
 import com.github.claudecodegui.provider.omp.OmpHistoryReader;
@@ -99,6 +100,11 @@ class HistoryLoadService {
                     KimiHistoryReader kimiReader = new KimiHistoryReader();
                     historyJson = kimiReader.getSessionsForProjectAsJson(projectPath);
                     LOG.info("[HistoryHandler] KimiHistoryReader 返回的 JSON 长度: " + historyJson.length());
+                } else if ("minimax".equals(provider)) {
+                    LOG.info("[HistoryHandler] 使用 MiniMaxHistoryReader 读取 MiniMax 会话 (项目: " + projectPath + ")");
+                    MiniMaxHistoryReader miniMaxReader = new MiniMaxHistoryReader();
+                    historyJson = miniMaxReader.getSessionsForProjectAsJson(projectPath);
+                    LOG.info("[HistoryHandler] MiniMaxHistoryReader 返回的 JSON 长度: " + historyJson.length());
                 } else {
                     // Default: use ClaudeHistoryReader to read Claude sessions
                     LOG.info("[HistoryHandler] 使用 ClaudeHistoryReader 读取 Claude 会话");
@@ -179,7 +185,7 @@ class HistoryLoadService {
             } else if ("grok".equals(provider)) {
                 // Grok history is read live from disk; no dedicated index cache yet.
                 LOG.info("[HistoryHandler] Grok deep search: reloading from ~/.grok/sessions");
-            } else if ("pi".equals(provider) || "omp".equals(provider) || "opencode".equals(provider) || "kimi".equals(provider)) {
+            } else if ("pi".equals(provider) || "omp".equals(provider) || "opencode".equals(provider) || "kimi".equals(provider) || "minimax".equals(provider)) {
                 // Disk readers scan live filesystem; no dedicated index cache.
                 LOG.info("[HistoryHandler] " + provider + " deep search: reloading from disk");
             } else if (projectPath != null) {

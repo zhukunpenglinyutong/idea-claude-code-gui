@@ -7,6 +7,7 @@ import com.github.claudecodegui.provider.claude.ClaudeHistoryReader;
 import com.github.claudecodegui.provider.codex.CodexHistoryReader;
 import com.github.claudecodegui.provider.grok.GrokHistoryReader;
 import com.github.claudecodegui.provider.kimi.KimiHistoryReader;
+import com.github.claudecodegui.provider.minimax.MiniMaxHistoryReader;
 import com.github.claudecodegui.provider.opencode.OpenCodeHistoryReader;
 import com.github.claudecodegui.provider.pi.PiHistoryReader;
 import com.github.claudecodegui.provider.omp.OmpHistoryReader;
@@ -143,6 +144,10 @@ class HistoryExportService {
         if ("kimi".equals(provider)) {
             LOG.info("[HistoryHandler] 使用 KimiHistoryReader 导出 Kimi 会话");
             return toJsonArray(new KimiHistoryReader().getSessionMessages(sessionId, projectPath));
+        }
+        if ("minimax".equals(provider)) {
+            LOG.info("[HistoryHandler] 使用 MiniMaxHistoryReader 导出 MiniMax 会话");
+            return toJsonArray(new MiniMaxHistoryReader().getSessionMessages(sessionId, projectPath));
         }
         if ("pi".equals(provider)) {
             LOG.info("[HistoryHandler] 使用 PiHistoryReader 导出 PI 会话");

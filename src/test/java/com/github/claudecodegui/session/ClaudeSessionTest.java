@@ -1,6 +1,7 @@
 package com.github.claudecodegui.session;
 
 import com.github.claudecodegui.provider.codex.CodexSDKBridge;
+import com.github.claudecodegui.permission.PermissionManager;
 import org.junit.Test;
 
 import java.util.List;
@@ -63,6 +64,17 @@ public class ClaudeSessionTest {
         session.getState().setChannelId("failing-channel");
 
         session.interrupt().join();
+    }
+
+    @Test
+    public void nativeAutoKeepsResidualPermissionRequestsInteractive() {
+        ClaudeSession session = new ClaudeSession(null, null, null, null);
+
+        session.setPermissionMode("auto");
+        assertEquals(PermissionManager.PermissionMode.DEFAULT, session.getPermissionManager().getPermissionMode());
+
+        session.setPermissionMode("bypassPermissions");
+        assertEquals(PermissionManager.PermissionMode.ALLOW_ALL, session.getPermissionManager().getPermissionMode());
     }
 
     private static class RecordingCallback implements ClaudeSession.SessionCallback {

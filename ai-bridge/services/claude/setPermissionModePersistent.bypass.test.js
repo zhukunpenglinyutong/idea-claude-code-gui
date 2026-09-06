@@ -4,10 +4,10 @@ import assert from 'node:assert/strict';
 import { setPermissionModePersistent, __testing } from './persistent-query-service.js';
 
 /**
- * Tests for the live permission-mode switch's handling of the Auto
+ * Tests for the live permission-mode switch's handling of the Full Auto
  * (bypassPermissions) transition.
  *
- * Entering or leaving Auto cannot be applied to a running subprocess:
+ * Entering or leaving Full Auto cannot be applied to a running subprocess:
  * allowDangerouslySkipPermissions is a spawn-time launch flag, and
  * setPermissionMode() (a control request) can neither add nor remove it. So a
  * bypass-bit change must NOT call setPermissionMode (which would falsely report
@@ -47,7 +47,7 @@ test.after(async () => {
   await __testing.resetState();
 });
 
-test('entering Auto marks the runtime for rebuild and does NOT call setPermissionMode', async () => {
+test('entering Full Auto marks the runtime for rebuild and does NOT call setPermissionMode', async () => {
   const runtime = createFakeRuntime({ currentPermissionMode: 'default' });
   __testing.setActiveTurnRuntime(runtime);
 
@@ -61,14 +61,14 @@ test('entering Auto marks the runtime for rebuild and does NOT call setPermissio
   assert.equal(runtime.permissionModeState.value, 'bypassPermissions');
 });
 
-test('leaving Auto also marks the runtime for rebuild (flag cannot be removed live)', async () => {
+test('leaving Full Auto also marks the runtime for rebuild (flag cannot be removed live)', async () => {
   const runtime = createFakeRuntime({ currentPermissionMode: 'bypassPermissions' });
   __testing.setActiveTurnRuntime(runtime);
 
   await setPermissionModePersistent({ sessionId: 'sess-1', permissionMode: 'default' });
 
   assert.deepEqual(runtime.__setPermissionModeCalls, [],
-    'leaving Auto must not call setPermissionMode — the subprocess was spawned WITH the skip flag');
+    'leaving Full Auto must not call setPermissionMode — the subprocess was spawned WITH the skip flag');
   assert.notEqual(runtime.runtimeSignature, 'sig-original');
   assert.equal(runtime.currentPermissionMode, 'default');
 });

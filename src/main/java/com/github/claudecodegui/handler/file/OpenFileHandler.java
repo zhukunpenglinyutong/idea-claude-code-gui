@@ -45,6 +45,8 @@ class OpenFileHandler {
 
     private static final Logger LOG = Logger.getInstance(OpenFileHandler.class);
     private static final Pattern LINE_INFO_PATTERN = Pattern.compile("^(.*):(\\d+)(?:-(\\d+))?$");
+    private static final Pattern SAFE_EXTERNAL_URL_PATTERN =
+            Pattern.compile("^(https?|mailto):.*$", Pattern.CASE_INSENSITIVE);
 
     private final HandlerContext context;
 
@@ -621,6 +623,53 @@ class OpenFileHandler {
                 LOG.error("Cannot open browser: " + e.getMessage(), e);
             }
         });
+    }
+
+    /**
+     * Open a URL in the system default browser, bypassing the IDE's embedded
+     * JCEF preview. Used for external docs whose SPA pages render blank inside
+     * JCEF (e.g. npm package pages behind Cloudflare). The platform's
+     * BrowserUtil follows the IDE setting (which may pick the embedded
+     * preview), so shell out to the OS "open URL" command instead.
+     */
+    void handleOpenBrowserExternal(String url) {
+        if (url == null || url.isBlank()) {
+            return;
+        }
+        // The webview gates this bridge event too, but any script in the
+        // webview context can post it — re-validate server-side so a crafted
+        // file:///javascript: URL never reaches the OS protocol handler.
+        if (!isSafeExternalUrl(url)) {
+            LOG.warn("Refusing to open external URL with disallowed scheme: " + url);
+            return;
+        }
+        ApplicationManager.getApplication().executeOnPooledThread(() -> {
+            try {
+                String[] command = PlatformUtils.isWindows()
+                        ? new String[]{"rundll32", "url.dll,FileProtocolHandler", url}
+                        : PlatformUtils.isMac()
+                        ? new String[]{"open", url}
+                        : new String[]{"xdg-open", url};
+                new ProcessBuilder(command).start();
+            } catch (Exception e) {
+                LOG.error("Cannot open external browser: " + e.getMessage(), e);
+                ApplicationManager.getApplication().invokeLater(() -> {
+                    try {
+                        BrowserUtil.browse(url);
+                    } catch (Exception fallbackError) {
+                        LOG.error("Fallback browse failed: " + fallbackError.getMessage(), fallbackError);
+                    }
+                });
+            }
+        });
+    }
+
+    /**
+     * Allowlist of URL schemes that may be handed to the OS "open URL" command.
+     * Mirrors {@code SAFE_BROWSER_PROTOCOLS} in webview/src/utils/bridge.ts.
+     */
+    static boolean isSafeExternalUrl(String url) {
+        return url != null && SAFE_EXTERNAL_URL_PATTERN.matcher(url).matches();
     }
 
     /**

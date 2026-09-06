@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import {
   DSH_PRESET_IDS,
@@ -153,6 +155,7 @@ test('buildPresetOverlay drops the tool-cordis row for the cordis preset', () =>
 });
 
 test('buildPresetOverlay rewrites relative plugin rows and baseUrl against the preset dir', () => {
+  const presetDir = resolve('test-presets', 'router');
   const presetText = [
     '- id: router',
     '  name: ./router-bootstrap.mjs',
@@ -164,12 +167,12 @@ test('buildPresetOverlay rewrites relative plugin rows and baseUrl against the p
     presetId: 'router-standard',
     presetText,
     baseIds: new Set(),
-    presetDir: '/tmp/preset',
+    presetDir,
   });
-  assert.ok(overlay.includes('name: file:///tmp/preset/router-bootstrap.mjs'));
-  assert.ok(overlay.includes('root: "file:///tmp/preset/"'));
+  assert.ok(overlay.includes(`name: ${pathToFileURL(join(presetDir, 'router-bootstrap.mjs')).href}`));
+  assert.ok(overlay.includes(`root: "${pathToFileURL(presetDir + '/').href}"`));
   // The skills/ + baseUrl expression is emitted as a resolved path.
-  assert.ok(overlay.includes('- /tmp/preset/skills'));
+  assert.ok(overlay.includes(`- ${join(presetDir, 'skills').replace(/\\/g, '/')}`));
   assert.ok(!overlay.includes('baseUrl'));
 });
 

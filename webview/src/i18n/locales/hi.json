@@ -237,7 +237,8 @@
           "kimi": "Kimi CLI",
           "opencode": "OpenCode",
           "pi": "PI CLI",
-          "omp": "OMP CLI"
+          "omp": "OMP CLI",
+          "minimax": "MiniMax Code"
         },
         "currentProviderAuto": "Currently using automatic selection: {{provider}}",
         "currentProviderManual": "Currently using manually selected provider: {{provider}}",
@@ -849,6 +850,10 @@
       "copied": "Copied to clipboard",
       "copyFailed": "Failed to copy",
       "tools": {
+        "minimax": {
+          "name": "MiniMax Code",
+          "description": "MiniMax terminal coding agent. Node.js 22.19+ / 24+ (23 नहीं) आवश्यक; कमांड: minimax / mcode"
+        },
         "grok": {
           "name": "Grok CLI",
           "description": "xAI Grok terminal coding agent"
@@ -1570,13 +1575,13 @@
         "label": "Haiku 4.5",
         "description": "Haiku 4.5 · सबसे तेज़, त्वरित उत्तरों के लिए उपयुक्त"
       },
-      "opus48": {
-        "label": "Opus 4.8",
-        "description": "Opus 4.8 · पिछली Opus पीढ़ी"
+      "fable51": {
+        "label": "Fable 5.1",
+        "description": "Fable 5.1 · सबसे शक्तिशाली · Mythos-श्रेणी"
       },
       "fable5": {
         "label": "Fable 5",
-        "description": "Fable 5 · सबसे शक्तिशाली · Mythos-श्रेणी"
+        "description": "Fable 5 · पिछली Fable पीढ़ी"
       }
     },
     "longContext": {
@@ -1586,6 +1591,10 @@
       "tooltipDisabled": "Haiku के लिए 1M संदर्भ उपलब्ध नहीं है"
     },
     "codex": {
+      "gpt6astra": {
+        "label": "GPT-6 Astra",
+        "description": "स्वायत्त कंप्यूटर उपयोग और लंबे एजेंटिक कार्यों के लिए नई पीढ़ी का फ्लैगशिप मॉडल।"
+      },
       "gpt56sol": {
         "label": "GPT-5.6 Sol",
         "description": "जटिल पेशेवर कार्यों के लिए फ्रंटियर मॉडल।"
@@ -1624,10 +1633,17 @@
       "tooltip": "Automatically accept file edits",
       "description": "Automatically accept file creation/editing, reducing confirmation steps"
     },
+    "auto": {
+      "label": "स्वचालित अनुमोदन",
+      "shortLabel": "स्वचालित",
+      "tooltip": "प्रदाता के मूल समीक्षक को अनुमोदन अनुरोध स्वचालित रूप से संभालने दें",
+      "description": "सुरक्षा सीमाएँ बनाए रखते हुए प्रदाता के मूल समीक्षक का उपयोग करता है"
+    },
     "bypassPermissions": {
-      "label": "Auto Mode",
-      "tooltip": "Bypass all permission checks",
-      "description": "Fully automated, bypassing all permission checks [Use with caution]"
+      "label": "पूर्ण स्वचालित",
+      "shortLabel": "पूर्ण",
+      "tooltip": "सभी अनुमति जाँचों को बायपास करें",
+      "description": "पूरी तरह स्वचालित, सभी अनुमति जाँचों को बायपास करता है [सावधानी से उपयोग करें]"
     }
   },
   "codexModes": {
@@ -1645,6 +1661,12 @@
       "label": "Auto Edit",
       "tooltip": "Codex approval_policy=on-request – asks for approval when needed",
       "description": "Balanced option. Allows normal editing flow while still requiring approvals when needed."
+    },
+    "auto": {
+      "label": "मेरे लिए अनुमोदित करें",
+      "shortLabel": "स्वचालित",
+      "tooltip": "Codex approvals_reviewer=auto_review – स्वचालित समीक्षक योग्य अनुरोधों को संभालता है।",
+      "description": "workspace-write सैंडबॉक्स बनाए रखता है और अस्वीकृत अनुरोधों को आगे भेजता है।"
     },
     "bypassPermissions": {
       "label": "Full Auto",
@@ -1680,6 +1702,9 @@
     },
     "codex": {
       "label": "Codex"
+    },
+    "minimax": {
+      "label": "MiniMax Code"
     },
     "gemini": {
       "label": "Gemini Cli"

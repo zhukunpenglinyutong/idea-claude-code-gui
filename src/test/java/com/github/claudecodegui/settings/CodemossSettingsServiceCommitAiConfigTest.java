@@ -105,13 +105,13 @@ public class CodemossSettingsServiceCommitAiConfigTest {
 
         CodemossSettingsService service = new CodemossSettingsService();
 
-        invokeSetCommitAiConfig(service, "claude", "claude-opus-4-8", "gpt-5.4");
+        invokeSetCommitAiConfig(service, "claude", "claude-opus-5", "gpt-5.4");
         JsonObject config = invokeGetCommitAiConfig(service);
 
         assertEquals("claude", config.get("provider").getAsString());
         assertEquals("claude", config.get("effectiveProvider").getAsString());
         assertEquals("manual", config.get("resolutionSource").getAsString());
-        assertEquals("claude-opus-4-8", config.getAsJsonObject("models").get("claude").getAsString());
+        assertEquals("claude-opus-5", config.getAsJsonObject("models").get("claude").getAsString());
         assertEquals("gpt-5.4", config.getAsJsonObject("models").get("codex").getAsString());
     }
 
@@ -123,7 +123,7 @@ public class CodemossSettingsServiceCommitAiConfigTest {
 
         CodemossSettingsService service = new CodemossSettingsService();
 
-        invokeSetCommitAiConfig(service, "claude", "claude-opus-4-8", "gpt-5.4");
+        invokeSetCommitAiConfig(service, "claude", "claude-opus-5", "gpt-5.4");
         JsonObject config = invokeGetCommitAiConfig(service);
 
         assertEquals("claude", config.get("provider").getAsString());
@@ -169,20 +169,20 @@ public class CodemossSettingsServiceCommitAiConfigTest {
         installSdk(tempHome, "codex-sdk", "@openai/codex-sdk", "0.117.0");
 
         CodemossSettingsService service = new CodemossSettingsService();
-        invokeSetPromptEnhancerConfig(service, "claude", "claude-opus-4-8", "gpt-5.4");
+        invokeSetPromptEnhancerConfig(service, "claude", "claude-opus-5", "gpt-5.4");
 
-        invokeSetCommitAiConfig(service, "codex", "claude-opus-4-8", "gpt-5.5");
+        invokeSetCommitAiConfig(service, "codex", "claude-opus-5", "gpt-5.5");
 
         JsonObject promptEnhancerConfig = invokeGetPromptEnhancerConfig(service);
         JsonObject commitAiConfig = invokeGetCommitAiConfig(service);
 
         assertEquals("claude", promptEnhancerConfig.get("provider").getAsString());
-        assertEquals("claude-opus-4-8", promptEnhancerConfig.getAsJsonObject("models").get("claude").getAsString());
+        assertEquals("claude-opus-5", promptEnhancerConfig.getAsJsonObject("models").get("claude").getAsString());
         assertEquals("gpt-5.4", promptEnhancerConfig.getAsJsonObject("models").get("codex").getAsString());
 
         assertEquals("codex", commitAiConfig.get("provider").getAsString());
         assertEquals("gpt-5.5", commitAiConfig.getAsJsonObject("models").get("codex").getAsString());
-        assertEquals("claude-opus-4-8", commitAiConfig.getAsJsonObject("models").get("claude").getAsString());
+        assertEquals("claude-opus-5", commitAiConfig.getAsJsonObject("models").get("claude").getAsString());
     }
 
     private JsonObject invokeGetCommitAiConfig(CodemossSettingsService service) throws Exception {

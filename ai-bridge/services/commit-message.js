@@ -122,6 +122,21 @@ async function generateWithClaude(prompt, model) {
 }
 
 /**
+ * Build the messages.stream() request for the commit ask path.
+ * Reasoning models (e.g. DeepSeek) otherwise emit only `thinking` blocks and
+ * never a `text` answer, leaving the commit message empty.
+ * Exposed for tests.
+ */
+export function buildCommitAskRequest(modelId, prompt) {
+  return {
+    model: modelId,
+    max_tokens: 1024,
+    thinking: { type: 'disabled' },
+    messages: [{ role: 'user', content: prompt }],
+  };
+}
+
+/**
  * Fast path: Anthropic SDK messages.stream() with a real API key / auth token.
  */
 async function generateWithClaudeAsk(prompt, model, config) {
@@ -151,11 +166,7 @@ async function generateWithClaudeAsk(prompt, model, config) {
   console.log('[CommitMessage] Streaming via Anthropic SDK messages.stream()...');
 
   let streamedText = '';
-  const stream = client.messages.stream({
-    model: modelId,
-    max_tokens: 1024,
-    messages: [{ role: 'user', content: prompt }],
-  });
+  const stream = client.messages.stream(buildCommitAskRequest(modelId, prompt));
 
   stream.on('text', (text) => {
     if (text) {

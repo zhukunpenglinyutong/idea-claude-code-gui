@@ -234,6 +234,8 @@ describe('PetSettingsSection catalog pagination', () => {
       .toEqual(collectTranslationLeaves(en.settings.pet).sort());
     expect(zh.settings.pet.title).toBe('Codex 宠物');
     expect(zh.settings.pet.floatingTitle).toBe('IDE 悬浮宠物');
+    expect(zh.settings.pet.catalogSort).toBe('排序方式');
+    expect(en.settings.pet.catalogSort).toBe('Sort order');
   });
 
   it('renders all pet settings in one five-tab group', () => {

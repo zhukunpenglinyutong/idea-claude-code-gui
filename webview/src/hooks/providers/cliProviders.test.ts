@@ -8,21 +8,28 @@ describe('normalizeCliPermissionMode', () => {
     expect(normalizeCliPermissionMode('smol', 'omp')).toBe('smol');
     expect(normalizeCliPermissionMode('slow', 'omp')).toBe('slow');
     expect(normalizeCliPermissionMode('default', 'omp')).toBe('default');
+    expect(normalizeCliPermissionMode('auto', 'omp')).toBe('default');
+    expect(normalizeCliPermissionMode('autoEdit', 'omp')).toBe('default');
+    expect(normalizeCliPermissionMode('acceptEdits', 'omp')).toBe('acceptEdits');
   });
 
-  it('keeps coercing plan to default for the other CLI providers', () => {
+  it('keeps coercing unsupported plan/auto modes to default for the other CLI providers', () => {
     for (const provider of ['pi', 'grok', 'kimi', 'opencode']) {
       expect(normalizeCliPermissionMode('plan', provider)).toBe('default');
+      expect(normalizeCliPermissionMode('auto', provider)).toBe('default');
+      expect(normalizeCliPermissionMode('autoEdit', provider)).toBe('acceptEdits');
     }
   });
 
-  it('coerces plan to default when no provider is given (legacy callers)', () => {
+  it('coerces unsupported plan/auto modes to default when no provider is given (legacy callers)', () => {
     expect(normalizeCliPermissionMode('plan')).toBe('default');
+    expect(normalizeCliPermissionMode('auto')).toBe('default');
     expect(normalizeCliPermissionMode('default')).toBe('default');
   });
 
   it('passes non-plan modes through unchanged for other providers', () => {
     expect(normalizeCliPermissionMode('acceptEdits', 'pi')).toBe('acceptEdits');
+    expect(normalizeCliPermissionMode('autoEdit', 'pi')).toBe('acceptEdits');
     expect(normalizeCliPermissionMode('bypassPermissions', 'grok')).toBe('bypassPermissions');
   });
 });

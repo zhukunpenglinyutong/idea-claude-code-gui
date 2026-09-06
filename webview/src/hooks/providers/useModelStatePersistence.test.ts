@@ -19,12 +19,14 @@ function makeOptions(overrides: Partial<UseModelStatePersistenceOptions> = {}): 
     setCodexPermissionMode: vi.fn(),
     setSelectedGrokModel: vi.fn(),
     setSelectedKimiModel: vi.fn(),
+    setSelectedMiniMaxModel: vi.fn(),
     setSelectedOpenCodeModel: vi.fn(),
     setSelectedPiModel: vi.fn(),
     setSelectedOmpModel: vi.fn(),
     setSelectedDshModel: vi.fn(),
     setGrokPermissionMode: vi.fn(),
     setKimiPermissionMode: vi.fn(),
+    setMiniMaxPermissionMode: vi.fn(),
     setOpenCodePermissionMode: vi.fn(),
     setPiPermissionMode: vi.fn(),
     setOmpPermissionMode: vi.fn(),
@@ -41,12 +43,14 @@ function makeOptions(overrides: Partial<UseModelStatePersistenceOptions> = {}): 
     codexPermissionMode: 'default' as PermissionMode,
     selectedGrokModel: 'grok-4.6',
     selectedKimiModel: 'auto',
+    selectedMiniMaxModel: 'auto',
     selectedOpenCodeModel: 'opencode-default',
     selectedPiModel: 'auto',
     selectedOmpModel: 'auto',
     selectedDshModel: 'auto',
     grokPermissionMode: 'default' as PermissionMode,
     kimiPermissionMode: 'default' as PermissionMode,
+    miniMaxPermissionMode: 'default' as PermissionMode,
     openCodePermissionMode: 'default' as PermissionMode,
     piPermissionMode: 'default' as PermissionMode,
     ompPermissionMode: 'default' as PermissionMode,
@@ -89,7 +93,7 @@ describe('useModelStatePersistence — boot sync does not clobber the persisted 
     // Reinstall wipes JCEF localStorage → the hook would fall back to 'default'.
     // Pushing that to Java on boot would clobber the app-level PropertiesComponent
     // value (e.g. bypassPermissions) that survives the reinstall — the reported
-    // "reinstall forgets Auto" bug. Java is the source of truth via get_mode.
+    // "reinstall forgets Full Auto" bug. Java is the source of truth via get_mode.
     renderHook(() => useModelStatePersistence(makeOptions()));
     vi.advanceTimersByTime(200); // fire the deferred syncToBackend
 
@@ -98,6 +102,18 @@ describe('useModelStatePersistence — boot sync does not clobber the persisted 
     expect(bridgeEventsFor('set_provider')).toHaveLength(1);
     expect(bridgeEventsFor('set_model')).toHaveLength(1);
     expect(bridgeEventsFor('set_codex_fast_mode')).toHaveLength(1);
+  });
+
+  it('migrates a legacy autoEdit mode to acceptEdits during restore', () => {
+    localStorage.setItem('model-selection-state', JSON.stringify({
+      provider: 'claude',
+      claudePermissionMode: 'autoEdit',
+    }));
+
+    const setClaudePermissionMode = vi.fn();
+    renderHook(() => useModelStatePersistence(makeOptions({ setClaudePermissionMode })));
+
+    expect(setClaudePermissionMode).toHaveBeenCalledWith('acceptEdits');
   });
 
   it('does NOT send set_mode on boot even when localStorage carries a non-default mode', () => {

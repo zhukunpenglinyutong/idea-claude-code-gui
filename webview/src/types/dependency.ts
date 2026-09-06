@@ -33,7 +33,7 @@ export interface SdkStatus {
   status: SdkInstallStatus;
   /** Installed version (empty when not installed) */
   installedVersion?: string;
-  /** Minimum required version for full feature support (e.g. Claude SDK Fable tier) */
+  /** Minimum required version for full feature support (e.g. Claude SDK Fable tier or Codex native auto review) */
   minimumVersion?: string;
   /** Whether the installed version meets the minimum required version */
   meetsMinimumVersion?: boolean;

@@ -8,6 +8,7 @@ import {
   extractAppendedDelta,
   canUseAnthropicAskPath,
   computeMaxTokens,
+  buildEnhanceAskRequest,
 } from './prompt-enhancer.js';
 
 test('resolvePromptEnhancerRuntimeConfig prefers Codex when auto mode has both providers available', () => {
@@ -382,4 +383,24 @@ test('buildFullPrompt skips current-file content preview when selection is prese
 test('buildFullPrompt appends project type when provided', () => {
   const result = buildFullPrompt('Refactor', { projectType: 'React + Vite' });
   assert.match(result, /\[Project Type\] React \+ Vite/);
+});
+
+// ---------- buildEnhanceAskRequest (#1693 follow-up) ----------
+
+test('buildEnhanceAskRequest disables thinking so reasoning models still emit text', () => {
+  const request = buildEnhanceAskRequest('deepseek-reasoner', 'Improve this prompt', null, 1024);
+  // Reasoning models default to thinking and can spend the whole token budget
+  // on `thinking` blocks, leaving the enhancement text empty.
+  assert.deepEqual(request.thinking, { type: 'disabled' });
+  assert.equal(request.model, 'deepseek-reasoner');
+  assert.equal(request.max_tokens, 1024);
+  assert.deepEqual(request.messages, [{ role: 'user', content: 'Improve this prompt' }]);
+  assert.equal('system' in request, false, 'system should be omitted when not provided');
+});
+
+test('buildEnhanceAskRequest trims and attaches a non-empty system prompt', () => {
+  const request = buildEnhanceAskRequest('m', 'p', '  be concise  ', 512);
+  assert.equal(request.system, 'be concise');
+  // Blank / non-string system prompts must not produce an empty system field.
+  assert.equal('system' in buildEnhanceAskRequest('m', 'p', '   ', 512), false);
 });

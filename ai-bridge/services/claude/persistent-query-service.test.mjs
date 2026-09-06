@@ -1,3 +1,5 @@
+// Isolate credentials before the runtime caches the user's home directory.
+import './testing/cli-login-home.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -15,6 +17,14 @@ function createDeferred() {
     reject = rej;
   });
   return { promise, resolve, reject };
+}
+
+async function waitForTurnSink(runtime) {
+  const deadline = Date.now() + 2000;
+  while (!runtime.turnSink) {
+    assert.ok(Date.now() < deadline, 'the turn must attach its sink before cleanup is tested');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
 }
 
 function createQueryFactory() {
@@ -62,6 +72,15 @@ function createSequencedQueryFactory(steps) {
     runtimes,
     queryFn({ prompt, options }) {
       let index = 0;
+      let closeResolve;
+      const closed = new Promise((resolve) => { closeResolve = resolve; });
+      let inputResolve;
+      const inputReady = new Promise((resolve) => { inputResolve = resolve; });
+      const enqueue = prompt.enqueue.bind(prompt);
+      prompt.enqueue = (value) => {
+        enqueue(value);
+        inputResolve();
+      };
       const runtime = {
         prompt,
         options,
@@ -71,11 +90,21 @@ function createSequencedQueryFactory(steps) {
         setMaxThinkingTokens: async () => {},
         close() {
           this.closed = true;
+          closeResolve();
         },
         async next() {
           const step = steps[index++];
           if (!step) {
-            return { done: false, value: { type: 'result', is_error: false } };
+            // Keep the fake reader parked like the real SDK until disposal.
+            await closed;
+            return { done: true };
+          }
+          if (typeof step !== 'function') {
+            const inputArrived = await Promise.race([
+              inputReady.then(() => true),
+              closed.then(() => false)
+            ]);
+            if (!inputArrived) return { done: true };
           }
           return typeof step === 'function' ? await step() : step;
         }
@@ -148,6 +177,48 @@ test('anonymous runtime is isolated by runtimeSessionEpoch', async () => {
   const runtime2 = await __testing.acquireRuntime(secondContext);
   assert.notEqual(runtime1, runtime2);
   assert.equal(factory.runtimes.length, 2);
+});
+
+test('concurrent acquisitions share one runtime for anonymous and named sessions', async () => {
+  for (const requestedSessionId of [null, 'session-concurrent']) {
+    const factory = createQueryFactory();
+    __testing.setQueryFn(factory.queryFn);
+    const context = {
+      requestedSessionId,
+      runtimeSessionEpoch: 'epoch-concurrent',
+      runtimeSignature: 'sig-concurrent',
+      permissionMode: 'default',
+      options: { cwd: process.cwd() },
+    };
+    const [first, second] = await Promise.all([
+      __testing.acquireRuntime(context),
+      __testing.acquireRuntime(context),
+    ]);
+    assert.equal(first, second);
+    assert.equal(first.closed, false);
+    assert.equal(factory.runtimes.length, 1);
+  }
+});
+
+test('a failed acquisition does not block the next request for that session', async () => {
+  const factory = createQueryFactory();
+  let attempts = 0;
+  __testing.setQueryFn((args) => {
+    if (attempts++ === 0) throw new Error('startup failed');
+    return factory.queryFn(args);
+  });
+  const context = {
+    requestedSessionId: 'session-retry',
+    runtimeSessionEpoch: 'epoch-retry',
+    runtimeSignature: 'sig-retry',
+    permissionMode: 'default',
+    options: { cwd: process.cwd() },
+  };
+  const first = __testing.acquireRuntime(context);
+  const second = __testing.acquireRuntime(context);
+  await assert.rejects(first, /startup failed/);
+  assert.equal((await second).closed, false);
+  assert.equal(factory.runtimes.length, 1);
 });
 
 test('same-tab new-session isolation matches fresh runtime isolation expectations', async () => {
@@ -254,6 +325,7 @@ test('active session runtime is not disposed by idle cleanup while a turn is exe
 
   const turnPromise = __testing.executeTurn(runtime, context);
   await enteredDeferred.promise;
+  await waitForTurnSink(runtime);
 
   await __testing.cleanupSessionRuntimes();
 
@@ -306,6 +378,7 @@ test('active anonymous runtime is not disposed by idle cleanup while a turn is e
 
   const turnPromise = __testing.executeTurn(runtime, context);
   await enteredDeferred.promise;
+  await waitForTurnSink(runtime);
 
   await __testing.cleanupAnonymousRuntimes();
 

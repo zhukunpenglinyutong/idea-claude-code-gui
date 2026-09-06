@@ -489,6 +489,12 @@ public class CodexSDKBridge extends BaseSDKBridge {
                     String sandboxMode = resolveCodexSandboxMode(cwd);
 
                     switch (permissionMode) {
+                        case "auto":
+                            // Codex native auto review requires the guarded workspace-write/on-request pair.
+                            env.put(ENV_CODEX_SANDBOX_MODE, SANDBOX_MODE_WORKSPACE_WRITE);
+                            env.put(ENV_CODEX_SANDBOX, SANDBOX_MODE_WORKSPACE_WRITE);
+                            env.put(ENV_CODEX_APPROVAL_POLICY, APPROVAL_POLICY_ON_REQUEST);
+                            break;
                         case "bypassPermissions":
                             env.put(ENV_CODEX_SANDBOX_MODE, sandboxMode);
                             env.put(ENV_CODEX_SANDBOX, sandboxMode);

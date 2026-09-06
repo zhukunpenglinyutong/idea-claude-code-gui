@@ -43,6 +43,7 @@ export interface UseMessageSenderOptions {
   permissionMode: PermissionMode;
   reasoningEffort: ReasoningEffort;
   codexFastMode: CodexFastMode;
+  codexNativeAutoReviewAvailable: boolean;
   dshPreset?: string;
   selectedAgent: SelectedAgent | null;
   sdkStatusLoading: boolean;
@@ -77,6 +78,7 @@ export function useMessageSender({
   permissionMode,
   reasoningEffort,
   codexFastMode,
+  codexNativeAutoReviewAvailable,
   dshPreset,
   selectedAgent,
   sdkStatusLoading,
@@ -257,7 +259,9 @@ export function useMessageSender({
     requestedPermissionMode: PermissionMode
   ) => {
     const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
-    const effectivePermissionMode: PermissionMode = currentProvider === 'codex' && requestedPermissionMode === 'plan'
+    const effectivePermissionMode: PermissionMode = currentProvider === 'codex'
+      && (requestedPermissionMode === 'plan'
+        || (requestedPermissionMode === 'auto' && !codexNativeAutoReviewAvailable))
       ? 'default'
       : requestedPermissionMode;
     console.debug('[ModeSync][Frontend] send request mode', {
@@ -312,7 +316,7 @@ export function useMessageSender({
       });
       sendBridgeEvent('send_message', payload);
     }
-  }, [codexFastMode, currentProvider, dshPreset, selectedModel, reasoningEffort]);
+  }, [codexFastMode, codexNativeAutoReviewAvailable, currentProvider, dshPreset, selectedModel, reasoningEffort]);
 
   /**
    * Execute message sending (from queue or directly)

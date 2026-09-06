@@ -237,7 +237,8 @@
           "kimi": "Kimi CLI",
           "opencode": "OpenCode",
           "pi": "PI CLI",
-          "omp": "OMP CLI"
+          "omp": "OMP CLI",
+          "minimax": "MiniMax Code"
         },
         "currentProviderAuto": "目前使用自動選擇：{{provider}}",
         "currentProviderManual": "目前使用手動選擇的 provider：{{provider}}",
@@ -854,6 +855,10 @@
       "copied": "Copied to clipboard",
       "copyFailed": "Failed to copy",
       "tools": {
+        "minimax": {
+          "name": "MiniMax Code",
+          "description": "MiniMax 終端編碼智能體。需 Node.js 22.19+ / 24+（不支援 23）；命令：minimax / mcode"
+        },
         "grok": {
           "name": "Grok CLI",
           "description": "xAI Grok 終端編碼助手"
@@ -1600,13 +1605,13 @@
         "label": "Haiku 4.5",
         "description": "Haiku 4.5 · 速度最快，適合快速回覆"
       },
-      "opus48": {
-        "label": "Opus 4.8",
-        "description": "Opus 4.8 · 保留的前代 Opus 模型"
+      "fable51": {
+        "label": "Fable 5.1",
+        "description": "Fable 5.1 · 最強大 · Mythos 級"
       },
       "fable5": {
         "label": "Fable 5",
-        "description": "Fable 5 · 最強大 · Mythos 級"
+        "description": "Fable 5 · 保留的前代 Fable 模型"
       }
     },
     "longContext": {
@@ -1616,6 +1621,10 @@
       "tooltipDisabled": "Haiku不支援1M上下文"
     },
     "codex": {
+      "gpt6astra": {
+        "label": "GPT-6 Astra",
+        "description": "新一代旗艦模型，擅長自主電腦操作與長鏈路智慧體任務"
+      },
       "gpt56sol": {
         "label": "GPT-5.6 Sol",
         "description": "面向複雜專業工作的前沿模型"
@@ -1666,9 +1675,15 @@
       "tooltip": "自動接受檔案編輯",
       "description": "自動接受檔案建立/編輯，減少確認步驟"
     },
-    "bypassPermissions": {
-      "label": "自動模式",
+    "auto": {
+      "label": "自動審批",
       "shortLabel": "自動",
+      "tooltip": "由模型審查器自動批准或阻止操作",
+      "description": "使用供應商原生審查器處理審批，同時保留安全邊界"
+    },
+    "bypassPermissions": {
+      "label": "全自動",
+      "shortLabel": "全自動",
       "tooltip": "略過所有權限檢查",
       "description": "完全自動化，略過所有權限檢查【請謹慎使用】"
     }
@@ -1688,6 +1703,12 @@
       "label": "Auto Edit",
       "tooltip": "Codex approval_policy=on-request – asks for approval when needed",
       "description": "Balanced option. Allows normal editing flow while still requiring approvals when needed."
+    },
+    "auto": {
+      "label": "替我審批",
+      "shortLabel": "自動",
+      "tooltip": "Codex approvals_reviewer=auto_review：由自動審查器處理可審批請求。",
+      "description": "維持 workspace-write 沙箱；審查器無法批准的請求仍會升級處理。"
     },
     "bypassPermissions": {
       "label": "Full Auto",
@@ -1729,6 +1750,9 @@
     },
     "kimi": {
       "label": "Kimi CLI"
+    },
+    "minimax": {
+      "label": "MiniMax Code"
     },
     "gemini": {
       "label": "Gemini Cli"

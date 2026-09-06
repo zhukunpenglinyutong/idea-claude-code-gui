@@ -1,7 +1,7 @@
 import type { ModelInfo, PermissionMode } from '../../components/ChatInputBox/types';
 
 /** Headless CLI providers that share Grok-style marker streaming (no npm SDK). */
-export const CLI_ONLY_PROVIDERS = new Set(['grok', 'kimi', 'opencode', 'pi', 'omp', 'dsh']);
+export const CLI_ONLY_PROVIDERS = new Set(['grok', 'kimi', 'opencode', 'pi', 'omp', 'dsh', 'minimax']);
 
 export function isCliOnlyProvider(providerId: string | null | undefined): boolean {
   return !!providerId && CLI_ONLY_PROVIDERS.has(providerId);
@@ -25,13 +25,16 @@ export function ompModeForModelId(modelId: string, roles: ModelInfo[]): Permissi
 }
 
 /**
- * Plan mode is not exposed for CLI providers (always-approve / auto permission),
- * so it is coerced to default. OMP is the exception: its modes are model roles
- * (default / smol / slow / plan) and must be preserved as-is.
+ * Plan mode and provider-native auto review are not exposed for headless CLI providers,
+ * so they are coerced to default. The legacy autoEdit alias is migrated to acceptEdits
+ * (or default for OMP), while OMP preserves model-role ids (default / smol / slow / plan).
  */
 export function normalizeCliPermissionMode(mode: PermissionMode, provider?: string | null): PermissionMode {
   if (provider === 'omp') {
-    return mode;
+    return mode === 'auto' || mode === 'autoEdit' ? 'default' : mode;
   }
-  return mode === 'plan' ? 'default' : mode;
+  if (mode === 'autoEdit') {
+    return 'acceptEdits';
+  }
+  return mode === 'plan' || mode === 'auto' ? 'default' : mode;
 }

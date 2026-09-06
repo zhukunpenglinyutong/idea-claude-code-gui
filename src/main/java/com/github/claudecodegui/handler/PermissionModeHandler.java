@@ -9,7 +9,7 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 
 /**
- * Handles permission mode (bypassPermissions, etc.) get/set operations.
+ * Handles native auto approval, full auto, and other permission mode get/set operations.
  */
 public class PermissionModeHandler {
 
@@ -22,6 +22,21 @@ public class PermissionModeHandler {
 
     public PermissionModeHandler(HandlerContext context) {
         this.context = context;
+    }
+
+    private String normalizeModeForCurrentProvider(String mode) {
+        String normalized = mode == null ? "default" : mode.trim();
+        String provider = this.context.getCurrentProvider();
+        if (provider == null || provider.isEmpty()) {
+            provider = HandlerContext.DEFAULT_PROVIDER;
+        }
+        if ("autoEdit".equals(normalized)) {
+            normalized = "omp".equals(provider) ? "default" : "acceptEdits";
+        }
+        if ("auto".equals(normalized) && !"claude".equals(provider) && !"codex".equals(provider)) {
+            return "default";
+        }
+        return normalized;
     }
 
     /**
@@ -42,10 +57,15 @@ public class PermissionModeHandler {
                 PropertiesComponent props = PropertiesComponent.getInstance();
                 String savedMode = props.getValue(PERMISSION_MODE_PROPERTY_KEY);
                 if (savedMode != null && !savedMode.trim().isEmpty()) {
+                    // Keep the raw trimmed value here — the legacy autoEdit alias
+                    // and per-provider fallbacks are all handled by the shared
+                    // normalizeModeForCurrentProvider below, so read and write
+                    // paths map the same stored value to the same effective mode.
                     currentMode = savedMode.trim();
                 }
             }
 
+            currentMode = normalizeModeForCurrentProvider(currentMode);
             final String modeToSend = currentMode;
 
             ApplicationManager.getApplication().invokeLater(() -> {
@@ -73,20 +93,27 @@ public class PermissionModeHandler {
                 }
             }
 
+            mode = normalizeModeForCurrentProvider(mode);
+
             // Check if session exists
             if (this.context.getSession() != null) {
                 this.context.getSession().setPermissionMode(mode);
+                String effectiveMode = this.context.getSession().getPermissionMode();
+                if (effectiveMode == null || effectiveMode.isEmpty()) {
+                    effectiveMode = "default";
+                    this.context.getSession().setPermissionMode(effectiveMode);
+                }
 
                 // Save permission mode to persistent storage
                 PropertiesComponent props = PropertiesComponent.getInstance();
-                props.setValue(PERMISSION_MODE_PROPERTY_KEY, mode);
-                LOG.info("Saved permission mode to settings: " + mode);
-                com.github.claudecodegui.notifications.ClaudeNotifier.setMode(this.context.getProject(), mode);
+                props.setValue(PERMISSION_MODE_PROPERTY_KEY, effectiveMode);
+                LOG.info("Saved permission mode to settings: " + effectiveMode);
+                com.github.claudecodegui.notifications.ClaudeNotifier.setMode(this.context.getProject(), effectiveMode);
 
                 // Push the new mode to the live runtime so it takes effect on the
                 // next tool call in the current turn, mirroring the TUI's instant
                 // mode switch instead of waiting for the next user message.
-                pushPermissionModeLive(mode);
+                pushPermissionModeLive(effectiveMode);
             } else {
                 LOG.warn("[PermissionModeHandler] WARNING: Session is null! Cannot set permission mode");
             }

@@ -237,7 +237,8 @@
           "kimi": "Kimi CLI",
           "opencode": "OpenCode",
           "pi": "PI CLI",
-          "omp": "OMP CLI"
+          "omp": "OMP CLI",
+          "minimax": "MiniMax Code"
         },
         "currentProviderAuto": "Currently using automatic selection: {{provider}}",
         "currentProviderManual": "Currently using manually selected provider: {{provider}}",
@@ -849,6 +850,10 @@
       "copied": "Copied to clipboard",
       "copyFailed": "Failed to copy",
       "tools": {
+        "minimax": {
+          "name": "MiniMax Code",
+          "description": "Agent de code en terminal de MiniMax. Nécessite Node.js 22.19+ / 24+ (pas 23) ; commandes : minimax / mcode"
+        },
         "grok": {
           "name": "Grok CLI",
           "description": "xAI Grok terminal coding agent"
@@ -1571,13 +1576,13 @@
         "label": "Haiku 4.5",
         "description": "Haiku 4.5 · Le plus rapide pour des réponses rapides"
       },
-      "opus48": {
-        "label": "Opus 4.8",
-        "description": "Opus 4.8 · Génération Opus précédente"
+      "fable51": {
+        "label": "Fable 5.1",
+        "description": "Fable 5.1 · Le plus puissant · classe Mythos"
       },
       "fable5": {
         "label": "Fable 5",
-        "description": "Fable 5 · Le plus puissant · classe Mythos"
+        "description": "Fable 5 · Génération Fable précédente"
       }
     },
     "longContext": {
@@ -1587,6 +1592,10 @@
       "tooltipDisabled": "1M contexte non disponible pour Haiku"
     },
     "codex": {
+      "gpt6astra": {
+        "label": "GPT-6 Astra",
+        "description": "Vaisseau amiral de nouvelle génération pour l'utilisation autonome de l'ordinateur et les longues tâches agentiques."
+      },
       "gpt56sol": {
         "label": "GPT-5.6 Sol",
         "description": "Modèle frontier pour les travaux professionnels complexes."
@@ -1625,10 +1634,17 @@
       "tooltip": "Automatically accept file edits",
       "description": "Automatically accept file creation/editing, reducing confirmation steps"
     },
+    "auto": {
+      "label": "Approbation automatique",
+      "shortLabel": "Auto",
+      "tooltip": "Laisser le réviseur natif gérer automatiquement les demandes d'approbation",
+      "description": "Utilise le réviseur natif du fournisseur tout en conservant les limites de sécurité"
+    },
     "bypassPermissions": {
-      "label": "Auto Mode",
-      "tooltip": "Bypass all permission checks",
-      "description": "Fully automated, bypassing all permission checks [Use with caution]"
+      "label": "Automatisation totale",
+      "shortLabel": "Totale",
+      "tooltip": "Contourner toutes les vérifications d'autorisation",
+      "description": "Entièrement automatisé, contourne toutes les vérifications d'autorisation [À utiliser avec prudence]"
     }
   },
   "codexModes": {
@@ -1646,6 +1662,12 @@
       "label": "Auto Edit",
       "tooltip": "Codex approval_policy=on-request – asks for approval when needed",
       "description": "Balanced option. Allows normal editing flow while still requiring approvals when needed."
+    },
+    "auto": {
+      "label": "Approuver pour moi",
+      "shortLabel": "Auto",
+      "tooltip": "Codex approvals_reviewer=auto_review – un réviseur automatique traite les demandes admissibles.",
+      "description": "Conserve le bac à sable workspace-write et transmet les demandes que le réviseur ne peut pas approuver."
     },
     "bypassPermissions": {
       "label": "Full Auto",
@@ -1681,6 +1703,9 @@
     },
     "codex": {
       "label": "Codex"
+    },
+    "minimax": {
+      "label": "MiniMax Code"
     },
     "gemini": {
       "label": "Gemini Cli"

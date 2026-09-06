@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import {
   AcpTerminalHost,
   truncateOutputFromStart,
@@ -26,11 +27,12 @@ test('truncateOutputFromStart keeps suffix within byte limit', () => {
   assert.ok(text.endsWith('z'));
 });
 
-test('create → output → wait_for_exit for simple command', async () => {
+test('create → output → wait_for_exit for simple command', async (t) => {
   const host = new AcpTerminalHost({
     defaultCwd: process.cwd(),
     authorizeCreate: async () => true,
   });
+  t.after(() => host.disposeAll());
   const { terminalId } = await host.create({
     sessionId: 's1',
     command: process.execPath,
@@ -49,6 +51,43 @@ test('create → output → wait_for_exit for simple command', async () => {
 
   await host.release({ terminalId });
   assert.equal(host.size(), 0);
+});
+
+test('argv preserves spaces, quotes and shell metacharacters', async (t) => {
+  const host = new AcpTerminalHost({ authorizeCreate: async () => true });
+  t.after(() => host.disposeAll());
+  const values = ['two words', 'a"b', '%PATH%', 'x&echo wrong', 'tail\\', '', "it's"];
+  const { terminalId } = await host.create({
+    command: process.execPath,
+    args: ['-e', 'process.stdout.write(JSON.stringify(process.argv.slice(1)))', ...values],
+  });
+  assert.equal((await host.waitForExit({ terminalId })).exitCode, 0);
+  assert.deepEqual(JSON.parse((await host.output({ terminalId })).output), values);
+});
+
+test('failed commands report their actual exit code', async (t) => {
+  const host = new AcpTerminalHost({ authorizeCreate: async () => true });
+  t.after(() => host.disposeAll());
+  const { terminalId } = await host.create({ command: process.execPath, args: ['-e', 'process.exit(17)'] });
+  assert.equal((await host.waitForExit({ terminalId })).exitCode, 17);
+});
+
+test('launches a CLI shim from a directory containing spaces', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'grok cli '));
+  const shim = path.join(dir, process.platform === 'win32' ? 'tool.cmd' : 'tool');
+  const script = process.platform === 'win32'
+    ? `@echo off\r\n"${process.execPath}" -e "process.stdout.write(JSON.stringify(process.argv.slice(1)))" %*\r\n`
+    : `#!/bin/sh\nexec '${process.execPath}' -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)))' "$@"\n`;
+  fs.writeFileSync(shim, script, { mode: 0o700 });
+  const host = new AcpTerminalHost({ authorizeCreate: async () => true });
+  t.after(async () => {
+    await host.disposeAll();
+    fs.unlinkSync(shim);
+    fs.rmdirSync(dir);
+  });
+  const { terminalId } = await host.create({ command: shim, args: ['two words', 'x&y'] });
+  assert.equal((await host.waitForExit({ terminalId })).exitCode, 0);
+  assert.deepEqual(JSON.parse((await host.output({ terminalId })).output), ['two words', 'x&y']);
 });
 
 test('kill terminates long-running process', async () => {
@@ -104,11 +143,12 @@ test('loginShellSpawnArgs matches daemon.js flag shapes', () => {
   assert.deepEqual(loginShellSpawnArgs('/usr/bin/fish', 'echo hi'), ['-c', 'echo hi']);
 });
 
-test('create with Grok-style /bin/bash -lc args', async () => {
+test('create with Grok-style /bin/bash -lc args', async (t) => {
   const host = new AcpTerminalHost({
     authorizeCreate: async () => true,
     env: { ...process.env, SHELL: '/bin/bash' },
   });
+  t.after(() => host.disposeAll());
   const { terminalId } = await host.create({
     sessionId: 's',
     command: '/bin/bash',
@@ -120,11 +160,12 @@ test('create with Grok-style /bin/bash -lc args', async () => {
   await host.release({ terminalId });
 });
 
-test('shell string command with empty args', async () => {
+test('shell string command with empty args', async (t) => {
   const host = new AcpTerminalHost({
     authorizeCreate: async () => true,
     env: { ...process.env, SHELL: '/bin/bash' },
   });
+  t.after(() => host.disposeAll());
   const { terminalId } = await host.create({
     sessionId: 's',
     command: 'echo shell-ok',
@@ -138,11 +179,12 @@ test('shell string command with empty args', async () => {
   await host.release({ terminalId });
 });
 
-test('shell string with metacharacters runs as script not as binary name', async () => {
+test('shell string with metacharacters runs as script not as binary name', async (t) => {
   const host = new AcpTerminalHost({
     authorizeCreate: async () => true,
     env: { ...process.env, SHELL: '/bin/bash' },
   });
+  t.after(() => host.disposeAll());
   const { terminalId } = await host.create({
     sessionId: 's',
     command: 'echo hello && echo world',

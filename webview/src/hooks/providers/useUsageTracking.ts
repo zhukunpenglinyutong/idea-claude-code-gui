@@ -15,6 +15,7 @@ const PROVIDER_TO_SDK: Record<string, string> = {
   // CLI providers have no npm SDK — markers are only for lookups.
   grok: 'grok-cli',
   kimi: 'kimi-cli',
+  minimax: 'minimax-cli',
   opencode: 'opencode-cli',
   pi: 'pi-cli',
   omp: 'omp-cli',

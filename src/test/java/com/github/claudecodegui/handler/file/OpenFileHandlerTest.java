@@ -148,6 +148,34 @@ public class OpenFileHandlerTest {
         assertNull(OpenFileHandler.extractPathSuffix("Bar.java"));
     }
 
+    // ---------- isSafeExternalUrl ----------
+
+    @Test
+    public void isSafeExternalUrl_allowsHttpHttpsAndMailto() {
+        assertTrue(OpenFileHandler.isSafeExternalUrl("https://www.npmmirror.com/package/@minimax-ai/code"));
+        assertTrue(OpenFileHandler.isSafeExternalUrl("http://example.com/docs"));
+        assertTrue(OpenFileHandler.isSafeExternalUrl("HTTPS://EXAMPLE.COM"));
+        assertTrue(OpenFileHandler.isSafeExternalUrl("mailto:dev@example.com"));
+    }
+
+    @Test
+    public void isSafeExternalUrl_rejectsDangerousSchemes() {
+        assertFalse(OpenFileHandler.isSafeExternalUrl("file:///C:/Windows/System32/calc.exe"));
+        assertFalse(OpenFileHandler.isSafeExternalUrl("file:///etc/passwd"));
+        assertFalse(OpenFileHandler.isSafeExternalUrl("javascript:alert(1)"));
+        assertFalse(OpenFileHandler.isSafeExternalUrl("jar:https://example.com/x.jar!/"));
+        assertFalse(OpenFileHandler.isSafeExternalUrl("smb://attacker/share"));
+    }
+
+    @Test
+    public void isSafeExternalUrl_rejectsBlankNullAndPaddedInput() {
+        assertFalse(OpenFileHandler.isSafeExternalUrl(null));
+        assertFalse(OpenFileHandler.isSafeExternalUrl(""));
+        assertFalse(OpenFileHandler.isSafeExternalUrl("   "));
+        // Scheme must start at the first character — no whitespace smuggling.
+        assertFalse(OpenFileHandler.isSafeExternalUrl("  https://example.com"));
+    }
+
     // ---------- pickBestFuzzyMatchPath / isSegmentAlignedSuffixMatch (#1682) ----------
 
     @Test

@@ -772,8 +772,23 @@ function emitDeniedCommandToolResultOnce(state, toolUseId, messageText = 'Comman
   state.emittedDeniedCommandToolResultIds.add(toolUseId);
 }
 
+/**
+ * Whether the event stream still needs the plugin's Java approval bridge.
+ * Codex native review resolves approval before item.started is emitted.
+ * @param {object} config
+ * @returns {boolean}
+ */
+export function shouldBridgeCodexApproval(config) {
+  const approvalPolicy = config?.threadOptions?.approvalPolicy;
+  return config?.normalizedPermissionMode !== 'auto'
+    && typeof approvalPolicy === 'string'
+    && approvalPolicy !== 'never';
+}
+
 async function maybeRequestCommandApprovalViaBridge(state, config, { toolUseId, command, smartTool, description }) {
-  const shouldBridgeApproval = config.threadOptions.approvalPolicy && config.threadOptions.approvalPolicy !== 'never';
+  // `item.started` is emitted after Codex has resolved the command approval and
+  // started the process. Native auto review must therefore not ask Java again.
+  const shouldBridgeApproval = shouldBridgeCodexApproval(config);
   if (!shouldBridgeApproval) return true;
   const permissionToolName = mapCommandToolNameToPermissionToolName(smartTool);
   const requestInput = { command, description, source: 'codex_command_execution' };
@@ -933,7 +948,7 @@ async function handleFileChange(item, state, config) {
 
   const shouldBridgeApproval = !isError &&
     !isAutoEditPermissionMode(config.normalizedPermissionMode) &&
-    (config.threadOptions.approvalPolicy && config.threadOptions.approvalPolicy !== 'never');
+    shouldBridgeCodexApproval(config);
   if (shouldBridgeApproval && patchBatches.length > 0) {
     deniedCallIds = await requestPatchApprovalsViaBridge(patchBatches);
     if (deniedCallIds.size > 0) {

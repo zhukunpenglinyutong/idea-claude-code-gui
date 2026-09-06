@@ -49,6 +49,15 @@
 
 .model-config-dropdown {
   min-width: 280px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Keep the function rows visible while the model list yields to short viewports. */
+.model-config-models {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 /* Flat inline model list inside the model-config popover (no own chrome) */
 .model-selector-inline {
@@ -66,12 +75,12 @@
   text-overflow: ellipsis;
 }
 
-/* Auto mode (bypassPermissions) - subtle orange indicator */
-.selector-button.mode-auto-active {
+/* Full Auto (bypassPermissions) - subtle orange warning indicator */
+.selector-button.mode-full-auto-active {
   color: #cc8400;
 }
 
-.selector-button.mode-auto-active:hover {
+.selector-button.mode-full-auto-active:hover {
   color: #e09520;
 }
 

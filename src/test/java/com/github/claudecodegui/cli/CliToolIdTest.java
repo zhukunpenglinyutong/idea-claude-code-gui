@@ -16,6 +16,8 @@ public class CliToolIdTest {
         assertEquals(CliToolId.PI, CliToolId.fromId("pi"));
         assertEquals(CliToolId.OMP, CliToolId.fromId("omp"));
         assertEquals(CliToolId.OMP, CliToolId.fromId(" OMP "));
+        assertEquals(CliToolId.MINIMAX, CliToolId.fromId("minimax"));
+        assertEquals(CliToolId.MINIMAX, CliToolId.fromId(" MiniMax "));
     }
 
     @Test
@@ -33,6 +35,7 @@ public class CliToolIdTest {
         assertEquals("pi", CliToolId.PI.getBinaryName());
         assertEquals("omp", CliToolId.OMP.getBinaryName());
         assertEquals("OMP CLI", CliToolId.OMP.getDisplayName());
+        assertEquals("minimax", CliToolId.MINIMAX.getBinaryName());
         for (CliToolId tool : CliToolId.values()) {
             assertNotNull(tool.getDisplayName());
         }

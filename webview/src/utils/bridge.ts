@@ -228,6 +228,20 @@ export const openBrowser = (url?: string) => {
   sendBridgeEvent('open_browser', url);
 };
 
+/**
+ * Open a URL in the OS default browser (outside the IDE's embedded JCEF
+ * preview). Use for external docs whose SPA pages render blank inside JCEF.
+ */
+export const openBrowserExternal = (url?: string) => {
+  if (!url) {
+    return;
+  }
+  if (!SAFE_BROWSER_PROTOCOLS.test(url)) {
+    return;
+  }
+  sendBridgeEvent('open_browser_external', url);
+};
+
 export const sendToJava = (message: string, payload: any = {}) => {
   const payloadStr = typeof payload === 'string' ? payload : JSON.stringify(payload);
   sendBridgeEvent(message, payloadStr);

@@ -120,13 +120,13 @@ public class CodemossSettingsServicePromptEnhancerConfigTest {
 
         CodemossSettingsService service = new CodemossSettingsService();
 
-        invokeSetPromptEnhancerConfig(service, "claude", "claude-opus-4-8", "gpt-5.4");
+        invokeSetPromptEnhancerConfig(service, "claude", "claude-opus-5", "gpt-5.4");
         JsonObject config = invokeGetPromptEnhancerConfig(service);
 
         assertEquals("claude", config.get("provider").getAsString());
         assertEquals("claude", config.get("effectiveProvider").getAsString());
         assertEquals("manual", config.get("resolutionSource").getAsString());
-        assertEquals("claude-opus-4-8", config.getAsJsonObject("models").get("claude").getAsString());
+        assertEquals("claude-opus-5", config.getAsJsonObject("models").get("claude").getAsString());
         assertEquals("gpt-5.4", config.getAsJsonObject("models").get("codex").getAsString());
         // Partial legacy set keeps default CLI models
         assertEquals("grok", config.getAsJsonObject("models").get("grok").getAsString());
@@ -166,7 +166,7 @@ public class CodemossSettingsServicePromptEnhancerConfigTest {
 
         CodemossSettingsService service = new CodemossSettingsService();
 
-        invokeSetPromptEnhancerConfig(service, "claude", "claude-opus-4-8", "gpt-5.4");
+        invokeSetPromptEnhancerConfig(service, "claude", "claude-opus-5", "gpt-5.4");
         JsonObject config = invokeGetPromptEnhancerConfig(service);
 
         assertEquals("claude", config.get("provider").getAsString());

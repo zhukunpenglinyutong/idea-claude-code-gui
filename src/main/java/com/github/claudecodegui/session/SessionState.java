@@ -26,6 +26,7 @@ public class SessionState {
         modes.add("plan");
         modes.add("acceptEdits");
         modes.add("autoEdit");
+        modes.add("auto");
         modes.add("bypassPermissions");
         // omp model-role modes (`omp --model smol|slow`); only offered by the
         // webview for the omp provider, but validated here so set_mode accepts them.
@@ -251,11 +252,19 @@ public class SessionState {
     }
 
     public void setPermissionMode(String permissionMode) {
-        if (permissionMode != null && !VALID_PERMISSION_MODES.contains(permissionMode.trim())) {
+        if (permissionMode == null) {
+            this.permissionMode = null;
+            return;
+        }
+        String normalizedMode = permissionMode.trim();
+        if ("autoEdit".equals(normalizedMode)) {
+            normalizedMode = "acceptEdits";
+        }
+        if (!VALID_PERMISSION_MODES.contains(normalizedMode)) {
             // Reject unrecognized modes silently to prevent injection of arbitrary strings
             return;
         }
-        this.permissionMode = permissionMode;
+        this.permissionMode = normalizedMode;
     }
 
     public void setModel(String model) {
@@ -297,7 +306,8 @@ public class SessionState {
                 base = "claude-sonnet-5";
                 break;
             case "claude-opus-4-6":
-                base = "claude-opus-4-8";
+            case "claude-opus-4-8":
+                base = "claude-opus-5";
                 break;
             default:
                 return trimmed;

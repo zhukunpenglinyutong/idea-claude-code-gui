@@ -6,6 +6,12 @@ import { ModeSelect } from './ModeSelect';
 const LABELS: Record<string, string> = {
   'modes.default.label': 'Default Mode',
   'modes.default.shortLabel': 'Default',
+  'modes.auto.label': 'Auto Mode',
+  'modes.auto.shortLabel': 'Auto',
+  'modes.bypassPermissions.label': 'Full Auto',
+  'modes.bypassPermissions.shortLabel': 'Full Auto',
+  'codexModes.auto.label': 'Approve for me',
+  'codexModes.auto.shortLabel': 'Auto',
   'ompModes.default.label': 'Default',
   'ompModes.smol.label': 'Smol',
   'ompModes.slow.label': 'Slow',
@@ -101,14 +107,47 @@ describe('ModeSelect', () => {
     expect(screen.getByText('Default Mode')).toBeTruthy();
   });
 
-  it('hides smol/slow for the claude provider while keeping the four claude modes', () => {
-    expect(openAndGetOptionIds('claude')).toEqual(['default', 'plan', 'acceptEdits', 'bypassPermissions']);
+  it('renders native auto and Full Auto as separate Claude choices', () => {
+    render(<ModeSelect value="auto" onChange={vi.fn()} provider="claude" />);
+    expect(screen.getByRole('button').textContent).toContain('Auto');
+    expect(screen.getByRole('button').className).not.toContain('mode-full-auto-active');
+
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByText('Auto Mode')).toBeTruthy();
+    expect(screen.getByText('Full Auto')).toBeTruthy();
   });
 
-  it('hides plan/smol/slow for the other CLI providers', () => {
-    for (const provider of ['codex', 'grok', 'kimi', 'opencode', 'pi']) {
-      expect(openAndGetOptionIds(provider)).toEqual(['default', 'acceptEdits', 'bypassPermissions']);
-      cleanup();
-    }
+  it('uses the warning treatment only for Full Auto', () => {
+    render(<ModeSelect value="bypassPermissions" onChange={vi.fn()} provider="claude" />);
+    expect(screen.getByRole('button').className).toContain('mode-full-auto-active');
   });
+
+  it('hides smol/slow for the claude provider while keeping native auto and Full Auto distinct', () => {
+    expect(openAndGetOptionIds('claude')).toEqual(['default', 'plan', 'acceptEdits', 'auto', 'bypassPermissions']);
+  });
+
+  it('shows Codex native auto review alongside Full Auto', () => {
+    expect(openAndGetOptionIds('codex')).toEqual(['default', 'acceptEdits', 'auto', 'bypassPermissions']);
+    cleanup();
+
+    render(<ModeSelect value="auto" onChange={vi.fn()} provider="codex" />);
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByText('Approve for me')).toBeTruthy();
+    expect(screen.getByText('Full Auto')).toBeTruthy();
+  });
+
+  it('hides native auto when the installed Codex SDK is below the supported version', () => {
+    render(
+      <ModeSelect
+        value="default"
+        onChange={vi.fn()}
+        provider="codex"
+        codexNativeAutoReviewAvailable={false}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.queryByTestId('mode-option-auto')).toBeNull();
+    expect(screen.getByTestId('mode-option-bypassPermissions')).toBeTruthy();
+  });
+
 });

@@ -186,6 +186,23 @@ async function createAnthropicClient(config) {
 }
 
 /**
+ * Build the messages.create() request for title generation.
+ * thinking is disabled: the Haiku alias can be user-mapped to a reasoning
+ * model (e.g. DeepSeek via relay), which would otherwise burn the 128-token
+ * budget on `thinking` blocks and return an empty title.
+ * Exposed for tests.
+ */
+export function buildSessionTitleRequest(model, userMessage) {
+  return {
+    model,
+    max_tokens: 128,
+    thinking: { type: 'disabled' },
+    messages: [{ role: 'user', content: userMessage }],
+    system: SESSION_TITLE_PROMPT,
+  };
+}
+
+/**
  * Call Haiku API to generate a title.
  * @param {string} userMessage - The user's first message text
  * @returns {Promise<string|null>} Generated title or null
@@ -214,12 +231,7 @@ async function callHaikuApi(userMessage) {
   let response;
   try {
     response = await client.messages.create(
-      {
-        model,
-        max_tokens: 128,
-        messages: [{ role: 'user', content: userMessage }],
-        system: SESSION_TITLE_PROMPT,
-      },
+      buildSessionTitleRequest(model, userMessage),
       { signal: controller.signal }
     );
   } catch (err) {

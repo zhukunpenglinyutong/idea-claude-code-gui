@@ -13,6 +13,7 @@ public class SessionSendServiceTest {
         assertNull(SessionSendService.normalizeRequestedPermissionMode(null));
         assertNull(SessionSendService.normalizeRequestedPermissionMode(" "));
         assertNull(SessionSendService.normalizeRequestedPermissionMode("dangerouslyAllowEverything"));
+        assertEquals("acceptEdits", SessionSendService.normalizeRequestedPermissionMode("autoEdit"));
     }
 
     @Test
@@ -52,6 +53,35 @@ public class SessionSendServiceTest {
         assertEquals(
                 "default",
                 SessionSendService.resolveEffectivePermissionMode("pi", "plan", null)
+        );
+    }
+
+    @Test
+    public void resolveEffectivePermissionModeDowngradesNativeAutoForCliProvidersWithoutNativeReviewer() {
+        // Grok's ACP bridge already uses "auto" as its internal always-approve alias.
+        assertEquals(
+                "auto",
+                SessionSendService.resolveEffectivePermissionMode("grok", "auto", "acceptEdits")
+        );
+        assertEquals(
+                "default",
+                SessionSendService.resolveEffectivePermissionMode("kimi", null, "auto")
+        );
+        assertEquals(
+                "default",
+                SessionSendService.resolveEffectivePermissionMode("omp", "auto", "slow")
+        );
+        assertEquals(
+                "default",
+                SessionSendService.resolveEffectivePermissionMode("dsh", "auto", "acceptEdits")
+        );
+        assertEquals(
+                "auto",
+                SessionSendService.resolveEffectivePermissionMode("codex", "auto", "default")
+        );
+        assertEquals(
+                "auto",
+                SessionSendService.resolveEffectivePermissionMode("claude", null, "auto")
         );
     }
 

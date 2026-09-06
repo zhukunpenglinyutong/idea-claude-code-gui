@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ProviderModelIcon } from '../../shared/ProviderModelIcon';
 import { copyToClipboard } from '../../../utils/copyUtils';
-import { openBrowser } from '../../../utils/bridge';
+import { openBrowserExternal } from '../../../utils/bridge';
 import DshConnectionCard from './DshConnectionCard';
 import { useHiddenCliProviders } from '../../../hooks/useCliProviderVisibility';
 import { setCliProviderHidden } from '../../../utils/cliProviderVisibility';
@@ -385,7 +385,9 @@ const CliSection = ({ addToast }: CliSectionProps) => {
   }, []);
 
   const openDocs = useCallback((url: string) => {
-    openBrowser(url);
+    // CLI docs pages are SPAs that often render blank in the embedded JCEF
+    // preview — open them in the system default browser instead.
+    openBrowserExternal(url);
   }, []);
   const toggleSwitcherVisibility = useCallback((id: CliToolId, hidden: boolean) => {
     setCliProviderHidden(id, hidden);

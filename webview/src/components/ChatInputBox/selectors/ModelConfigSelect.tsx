@@ -181,7 +181,7 @@ export const ModelConfigSelect = ({
     }
   }, [clearHoverTimer]);
 
-  const { positionedStyle: mainPositionedStyle, recalculate: mainRecalculate } = useDropdownPosition({
+  const { positionedStyle: mainPositionedStyle, maxHeight: mainMaxHeight, recalculate: mainRecalculate } = useDropdownPosition({
     buttonRef,
     dropdownRef,
     preferredAlignment: 'right',
@@ -327,14 +327,14 @@ export const ModelConfigSelect = ({
           ref={dropdownRef}
           className="selector-dropdown model-config-dropdown"
           data-testid="model-config-dropdown"
-          style={{ ...DROPDOWN_STYLE, ...mainPositionedStyle }}
+          style={{ ...DROPDOWN_STYLE, ...mainPositionedStyle, maxHeight: mainMaxHeight, boxSizing: 'border-box' }}
           onMouseOverCapture={retainActiveSubmenu}
         >
           {/* The flat list has no hover row of its own; entering it must
               dismiss any open fly-out (effort / speed / preset). It sits at
               the top so model switching — the most frequent action — never
               crosses the submenu rows. */}
-          <div onMouseEnter={() => scheduleSubmenu('none')}>
+          <div className="model-config-models" onMouseEnter={() => scheduleSubmenu('none')}>
             <ModelSelect
               value={selectedModel}
               onChange={onModelSelect}

@@ -3,11 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import PlanApprovalDialog, { type PlanApprovalRequest } from './PlanApprovalDialog';
 import { resetLinkifyCapabilities, setLinkifyCapabilities } from '../utils/linkifyCapabilities';
 
+const { setDialogHeightMock } = vi.hoisted(() => ({
+  setDialogHeightMock: vi.fn(),
+}));
+
 vi.mock('../hooks/useDialogResize', () => ({
   useDialogResize: () => ({
     dialogRef: { current: null },
     dialogHeight: null,
-    setDialogHeight: vi.fn(),
+    setDialogHeight: setDialogHeightMock,
     handleResizeStart: vi.fn(),
   }),
 }));
@@ -86,6 +90,25 @@ describe('PlanApprovalDialog countdown', () => {
   // When the user does not respond, the dialog must auto-reject — leaving the
   // Java pending future hanging would block the agent until the safety-net
   // timeout (much later). Auto-reject mirrors what onCancel does for AskUser.
+
+  it('passes native auto as the selected execution mode', () => {
+    const onApprove = vi.fn();
+    const onReject = vi.fn();
+
+    render(
+      <PlanApprovalDialog
+        isOpen
+        request={buildRequest()}
+        onApprove={onApprove}
+        onReject={onReject}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'auto' }));
+    fireEvent.click(screen.getByText('批准并执行'));
+
+    expect(onApprove).toHaveBeenCalledWith('plan-test-1', 'auto');
+  });
 
   it('auto-rejects with the original requestId after timeoutSeconds elapses', () => {
     const onApprove = vi.fn();

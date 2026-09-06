@@ -21,6 +21,7 @@ export const DEFAULT_PROMPT_ENHANCER_CONFIG: PromptEnhancerConfig = {
     opencode: false,
     pi: false,
     omp: false,
+    minimax: false,
   },
 };
 

@@ -12,6 +12,7 @@ import com.github.claudecodegui.provider.common.MarkerCliBridge;
 import com.github.claudecodegui.provider.dsh.DshCliBridge;
 import com.github.claudecodegui.provider.grok.GrokSDKBridge;
 import com.github.claudecodegui.provider.kimi.KimiCliBridge;
+import com.github.claudecodegui.provider.minimax.MiniMaxCliBridge;
 import com.github.claudecodegui.provider.opencode.OpenCodeCliBridge;
 import com.github.claudecodegui.provider.pi.PiCliBridge;
 import com.github.claudecodegui.provider.omp.OmpCliBridge;
@@ -81,6 +82,7 @@ public class ClaudeChatWindow {
     private final OpenCodeCliBridge openCodeCliBridge;
     private final PiCliBridge piCliBridge;
     private final OmpCliBridge ompCliBridge;
+    private final MiniMaxCliBridge miniMaxCliBridge;
     private final Project project;
     private final CodemossSettingsService settingsService;
     private final HtmlLoader htmlLoader;
@@ -231,10 +233,11 @@ public class ClaudeChatWindow {
         this.openCodeCliBridge = new OpenCodeCliBridge();
         this.piCliBridge = new PiCliBridge();
         this.ompCliBridge = new OmpCliBridge();
+        this.miniMaxCliBridge = new MiniMaxCliBridge();
         // Grok uses GrokSDKBridge (persistent ACP / grok agent stdio), not MarkerCliBridge.
         this.cliBridges = SessionProviderRouter.registerCliBridges(
                 this.kimiCliBridge, this.openCodeCliBridge, this.piCliBridge,
-                this.ompCliBridge, new DshCliBridge());
+                this.ompCliBridge, new DshCliBridge(), this.miniMaxCliBridge);
         this.settingsService = new CodemossSettingsService();
         this.htmlLoader = new HtmlLoader(getClass());
         this.mainPanel = new JPanel(new BorderLayout());
@@ -1404,6 +1407,10 @@ public class ClaudeChatWindow {
 
     public OmpCliBridge getOmpCliBridge() {
         return ompCliBridge;
+    }
+
+    public MiniMaxCliBridge getMiniMaxCliBridge() {
+        return miniMaxCliBridge;
     }
 
     /**

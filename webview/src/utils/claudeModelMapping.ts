@@ -40,6 +40,7 @@ function hasMappingValue(mapping: ClaudeModelMapping): boolean {
  * (e.g. Fable) fall back to `mapping.main`.
  */
 const MODEL_KEY_MAP: Record<string, keyof ClaudeModelMapping> = {
+  'claude-fable-5-1': 'fable',
   'claude-fable-5': 'fable',
   'claude-sonnet-5': 'sonnet',
   'claude-sonnet-4-7': 'sonnet',

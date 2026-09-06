@@ -189,6 +189,7 @@ export type PermissionMode =
   | 'default'
   | 'acceptEdits'
   | 'plan'
+  | 'auto'
   | 'bypassPermissions'
   | 'smol'
   | 'slow'
@@ -232,8 +233,15 @@ export const AVAILABLE_MODES: ModeInfo[] = [
     description: 'Auto-accept file creation/editing, fewer confirmations',
   },
   {
-    id: 'bypassPermissions',
+    id: 'auto',
     label: 'Auto Mode',
+    icon: 'codicon-shield',
+    tooltip: 'Let the provider review approval requests automatically',
+    description: 'Uses the provider-native reviewer while retaining safety boundaries',
+  },
+  {
+    id: 'bypassPermissions',
+    label: 'Full Auto',
     icon: 'codicon-zap',
     tooltip: 'Bypass all permission checks',
     description: 'Fully automated, bypasses all permission checks [use with caution]',
@@ -341,7 +349,8 @@ export const DEFAULT_CLAUDE_MODEL_ID = 'claude-sonnet-5';
 const LEGACY_CLAUDE_MODEL_ID_ALIASES: Record<string, string> = {
   'claude-sonnet-4-6': 'claude-sonnet-5',
   'claude-sonnet-4-7': 'claude-sonnet-5',
-  'claude-opus-4-6': 'claude-opus-4-8',
+  'claude-opus-4-6': 'claude-opus-5',
+  'claude-opus-4-8': 'claude-opus-5',
 };
 
 export function normalizeClaudeModelId(modelId: string | undefined | null): string {
@@ -359,19 +368,19 @@ export function normalizeClaudeModelId(modelId: string | undefined | null): stri
  */
 export const CLAUDE_MODELS: ModelInfo[] = [
   {
+    id: 'claude-fable-5-1',
+    label: 'Fable 5.1',
+    description: 'Fable 5.1 · Most powerful · Mythos-class',
+  },
+  {
     id: 'claude-fable-5',
     label: 'Fable 5',
-    description: 'Fable 5 · Most powerful · Mythos-class',
+    description: 'Fable 5 · Previous Fable generation',
   },
   {
     id: 'claude-opus-5',
     label: 'Opus 5',
     description: 'Opus 5 · Latest Opus upgrade',
-  },
-  {
-    id: 'claude-opus-4-8',
-    label: 'Opus 4.8',
-    description: 'Opus 4.8 · Previous Opus generation',
   },
   {
     id: 'claude-sonnet-5',
@@ -389,6 +398,11 @@ export const CLAUDE_MODELS: ModelInfo[] = [
  * Codex model list
  */
 export const CODEX_MODELS: ModelInfo[] = [
+  {
+    id: 'gpt-6-astra',
+    label: 'GPT-6 Astra',
+    description: 'New-generation flagship for autonomous computer use and long agentic tasks.',
+  },
   {
     id: 'gpt-5.6-sol',
     label: 'GPT-5.6 Sol',
@@ -583,6 +597,32 @@ export const isValidDshPreset = (value: unknown): value is DshPreset =>
   && (DSH_PRESETS.some((preset) => preset.id === value)
     || getUserDshPresetOptions().some((preset) => preset.id === value));
 
+/** MiniMax Code default: omit `--model` so the CLI resolves its own default. */
+export const MINIMAX_DEFAULT_MODEL_ID = 'auto';
+
+export const MINIMAX_MODELS: ModelInfo[] = [
+  {
+    id: MINIMAX_DEFAULT_MODEL_ID,
+    label: 'MiniMax Auto',
+    description: 'Use MiniMax Code default model',
+  },
+  {
+    id: 'minimax/MiniMax-M2.7',
+    label: 'MiniMax M2.7',
+    description: 'MiniMax coding model (thinking forced on)',
+  },
+  {
+    id: 'minimax/MiniMax-M2.7-highspeed',
+    label: 'MiniMax M2.7 Highspeed',
+    description: 'MiniMax low-latency coding model',
+  },
+  {
+    id: 'minimax/MiniMax-M3',
+    label: 'MiniMax M3',
+    description: 'MiniMax multimodal coding model',
+  },
+];
+
 /**
  * Available models (backward compatibility)
  */
@@ -612,6 +652,7 @@ export const AVAILABLE_PROVIDERS: ProviderInfo[] = [
   { id: 'pi', label: 'PI CLI', icon: 'codicon-terminal', enabled: true, beta: true },
   { id: 'omp', label: 'OMP CLI', icon: 'codicon-terminal', enabled: true, beta: true },
   { id: 'dsh', label: 'DeepSeek Harness', icon: 'codicon-terminal', enabled: true, beta: true },
+  { id: 'minimax', label: 'MiniMax Code', icon: 'codicon-terminal', enabled: true, beta: true },
 ];
 
 /**
@@ -619,6 +660,7 @@ export const AVAILABLE_PROVIDERS: ProviderInfo[] = [
  * Based on: https://code.claude.com/docs/en/model-config#adjust-effort-level
  */
 export const EFFORT_SUPPORTED_CLAUDE_MODELS = new Set([
+  'claude-fable-5-1',
   'claude-fable-5',
   'claude-opus-5',
   'claude-opus-4-8',
@@ -633,6 +675,7 @@ export const EFFORT_SUPPORTED_CLAUDE_MODELS = new Set([
  * Claude models that additionally support the 'xhigh' effort level.
  */
 export const XHIGH_EFFORT_CLAUDE_MODELS = new Set([
+  'claude-fable-5-1',
   'claude-fable-5',
   'claude-opus-5',
   'claude-opus-4-8',
@@ -642,6 +685,7 @@ export const XHIGH_EFFORT_CLAUDE_MODELS = new Set([
  * Claude models that support the 'max' effort level.
  */
 export const MAX_EFFORT_CLAUDE_MODELS = new Set([
+  'claude-fable-5-1',
   'claude-fable-5',
   'claude-opus-5',
   'claude-opus-4-8',
@@ -653,14 +697,14 @@ export const MAX_EFFORT_CLAUDE_MODELS = new Set([
 ]);
 
 export function codexModelSupportsMaxEffort(modelId: string): boolean {
-  return modelId.trim().toLowerCase().includes('gpt-5.6');
+  return modelId.trim().toLowerCase().includes('gpt-5.6') || modelId.trim().toLowerCase().includes('gpt-6');
 }
 
 /**
  * Reasoning Effort (thinking depth)
  * Controls the depth of reasoning for AI models
  * Claude API values: low, medium, high, xhigh, max
- * Codex API values: low, medium, high, xhigh; GPT-5.6 also supports max
+ * Codex API values: low, medium, high, xhigh; GPT-5.6 and GPT-6 support max
  */
 export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
@@ -771,6 +815,8 @@ export interface ChatInputBoxProps {
   permissionMode?: PermissionMode;
   /** Current provider */
   currentProvider?: string;
+  /** Whether the installed Codex SDK supports native auto review */
+  codexNativeAutoReviewAvailable?: boolean;
   /** Usage percentage */
   usagePercentage?: number;
   /** Used context tokens */
@@ -910,6 +956,8 @@ export interface ButtonAreaProps {
   permissionMode?: PermissionMode;
   /** Current provider */
   currentProvider?: string;
+  /** Whether the installed Codex SDK supports native auto review */
+  codexNativeAutoReviewAvailable?: boolean;
   /** Current reasoning effort */
   reasoningEffort?: ReasoningEffort;
   /** Codex speed mode */

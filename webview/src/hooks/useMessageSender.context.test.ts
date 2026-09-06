@@ -13,6 +13,7 @@ describe('useMessageSender - /context command', () => {
     permissionMode: 'default',
     reasoningEffort: 'high',
     codexFastMode: 'normal',
+    codexNativeAutoReviewAvailable: true,
     selectedAgent: null,
     sdkStatusLoading: false,
     currentSdkInstalled: true,
@@ -148,6 +149,30 @@ describe('useMessageSender - /context command', () => {
       expect.any(String),
       'error',
     );
+  });
+
+  it.each([
+    { supported: false, withAttachment: false },
+    { supported: false, withAttachment: true },
+    { supported: true, withAttachment: false },
+    { supported: true, withAttachment: true },
+  ])('sends Codex auto mode only with confirmed support ($supported, attachment: $withAttachment)', ({ supported, withAttachment }) => {
+    const opts = createOptions({
+      currentProvider: 'codex',
+      permissionMode: 'auto',
+      codexNativeAutoReviewAvailable: supported,
+    });
+
+    const { result } = renderHook(() => useMessageSender(opts));
+
+    act(() => {
+      result.current.handleSubmit('hello', withAttachment ? [{
+        id: 'att-1', fileName: 'note.txt', mediaType: 'text/plain', data: 'aGVsbG8=',
+      }] : undefined);
+    });
+
+    const event = withAttachment ? 'send_message_with_attachments' : 'send_message';
+    expect(getBridgePayload(event).permissionMode).toBe(supported ? 'auto' : 'default');
   });
 
   it('includes explicit Claude high reasoning effort in plain message payload', () => {

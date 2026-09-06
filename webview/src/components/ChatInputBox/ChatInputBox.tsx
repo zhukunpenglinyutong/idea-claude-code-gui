@@ -80,6 +80,7 @@ export const ChatInputBox = memo(forwardRef<ChatInputBoxHandle, ChatInputBoxProp
       selectedModel = DEFAULT_CLAUDE_MODEL_ID,
       permissionMode = 'default',
       currentProvider = 'claude',
+      codexNativeAutoReviewAvailable = true,
       usagePercentage = 0,
       usageUsedTokens,
       usageMaxTokens,
@@ -778,6 +779,7 @@ export const ChatInputBox = memo(forwardRef<ChatInputBoxHandle, ChatInputBoxProp
           selectedModel={selectedModel}
           permissionMode={permissionMode}
           currentProvider={currentProvider}
+          codexNativeAutoReviewAvailable={codexNativeAutoReviewAvailable}
           reasoningEffort={reasoningEffort}
           codexFastMode={codexFastMode}
           dshPreset={dshPreset}

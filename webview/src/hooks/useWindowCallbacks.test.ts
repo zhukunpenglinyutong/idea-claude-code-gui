@@ -161,7 +161,7 @@ describe('useWindowCallbacks integration', () => {
     act(() => {
       window.applyBackendTabState?.(JSON.stringify({
         provider: 'claude',
-        model: 'claude-opus-4-8[1m]',
+        model: 'claude-fable-5-1[1m]',
         permissionMode: 'default',
         reasoningEffort: 'high',
         codexFastMode: 'normal',
@@ -170,7 +170,7 @@ describe('useWindowCallbacks integration', () => {
 
     expect(currentProviderRef.current).toBe('claude');
     expect(opts.setCurrentProvider).toHaveBeenCalledWith('claude');
-    expect(opts.setSelectedClaudeModel).toHaveBeenCalledWith('claude-opus-4-8');
+    expect(opts.setSelectedClaudeModel).toHaveBeenCalledWith('claude-fable-5-1');
     expect(opts.setLongContextEnabled).toHaveBeenCalledWith(true);
     expect(opts.setReasoningEffort).toHaveBeenCalledWith('high');
     expect(opts.setCodexFastMode).toHaveBeenCalledWith('normal');

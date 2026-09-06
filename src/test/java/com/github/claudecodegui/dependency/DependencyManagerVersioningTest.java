@@ -68,7 +68,8 @@ public class DependencyManagerVersioningTest {
     }
 
     @Test
-    public void codexSdkShouldHaveNoEnforcedMinimumVersion() {
-        assertNull(SdkDefinition.CODEX_SDK.getMinRequiredVersion());
+    public void codexSdkShouldRequireNativeAutoReviewMinimumVersion() {
+        // The plugin uses CodexOptions.config.approvals_reviewer, which is present in the verified 0.146.0 SDK.
+        assertEquals("0.146.0", SdkDefinition.CODEX_SDK.getMinRequiredVersion());
     }
 }

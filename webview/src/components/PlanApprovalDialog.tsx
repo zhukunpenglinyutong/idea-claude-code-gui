@@ -33,6 +33,7 @@ interface PlanApprovalDialogProps {
 const EXECUTION_MODES = [
   { id: 'default', labelKey: 'modes.default.label', descriptionKey: 'modes.default.description' },
   { id: 'acceptEdits', labelKey: 'modes.acceptEdits.label', descriptionKey: 'modes.acceptEdits.description' },
+  { id: 'auto', labelKey: 'modes.auto.label', descriptionKey: 'modes.auto.description' },
   { id: 'bypassPermissions', labelKey: 'modes.bypassPermissions.label', descriptionKey: 'modes.bypassPermissions.description' },
 ];
 

@@ -3,7 +3,7 @@
  * Detection only — the plugin never auto-installs these binaries.
  */
 
-export type CliToolId = 'grok' | 'kimi' | 'opencode' | 'pi' | 'dsh' | 'omp';
+export type CliToolId = 'grok' | 'kimi' | 'opencode' | 'pi' | 'dsh' | 'omp' | 'minimax';
 
 export interface CliToolStatus {
   id: CliToolId;
@@ -92,5 +92,17 @@ export const CLI_TOOL_DEFINITIONS: CliToolDefinition[] = [
     docsUrl: 'https://omp.sh/',
     installCommand: 'curl -fsSL https://omp.sh/install.sh | sh',
     altInstallCommand: 'npm install -g @oh-my-pi/pi-coding-agent',
+  },
+  {
+    id: 'minimax',
+    nameKey: 'settings.cli.tools.minimax.name',
+    descriptionKey: 'settings.cli.tools.minimax.description',
+    binaryName: 'minimax / mcode',
+    // npmjs.com is a Cloudflare-guarded SPA that renders blank inside the
+    // IDE's JCEF browser; the npmmirror package page serves the same official
+    // README server-side and is reachable in CN.
+    docsUrl: 'https://www.npmmirror.com/package/@minimax-ai/code',
+    installCommand: 'npm install -g @minimax-ai/code',
+    installCommandWindows: 'npm install -g @minimax-ai/code',
   },
 ];

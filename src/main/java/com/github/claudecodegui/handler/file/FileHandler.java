@@ -33,6 +33,7 @@ public class FileHandler extends BaseMessageHandler {
         "list_files",
         "open_file",
         "open_browser",
+        "open_browser_external",
         "open_class",
         "get_linkify_capabilities",
         "resolve_file_path"
@@ -73,6 +74,10 @@ public class FileHandler extends BaseMessageHandler {
             }
             case "open_browser" -> {
                 openFileHandler.handleOpenBrowser(content);
+                yield true;
+            }
+            case "open_browser_external" -> {
+                openFileHandler.handleOpenBrowserExternal(content);
                 yield true;
             }
             case "open_class" -> {

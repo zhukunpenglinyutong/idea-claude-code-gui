@@ -11,6 +11,19 @@ function killChildTree(child, label) {
   if (!child || child.killed) return;
   try {
     if (process.platform === 'win32') {
+      if (child.pid) {
+        // Tree-kill via taskkill so grandchild node processes (npm .cmd shims)
+        // do not outlive the cmd.exe wrapper and hold stdout open.
+        spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
+          .on('error', () => {
+            try {
+              child.kill();
+            } catch {
+              /* already gone */
+            }
+          });
+        return;
+      }
       child.kill();
     } else {
       try {
@@ -34,6 +47,10 @@ function killChildTree(child, label) {
  * @param {NodeJS.ProcessEnv} [options.env]
  * @param {string} options.label - log / error label
  * @param {(line: string) => void} options.onLine
+ * @param {(line: string) => boolean} [options.shouldTerminate] - when set and it
+ *   returns true for a parsed stdout line, the child tree is killed and the
+ *   stream is finished as a success (for CLIs that keep running after emitting
+ *   a final result line, e.g. `mcode exec` exec.result).
  * @param {() => void} [options.onCloseBeforeEnd] - called before endStream once
  * @param {(message: string) => void} [options.onError] - when set, called instead of
  *   writing `[SEND_ERROR]` (used by session-less ask paths: prompt enhance / commit)
@@ -47,6 +64,7 @@ export function runCliStreaming({
   env = process.env,
   label,
   onLine,
+  shouldTerminate,
   onCloseBeforeEnd,
   onError,
   emitEndStream = true,
@@ -55,6 +73,7 @@ export function runCliStreaming({
     let hadError = false;
     let lastErrorMessage = '';
     let streamEnded = false;
+    let intentionallyTerminated = false;
 
     const reportError = (message) => {
       lastErrorMessage = String(message || `Unknown ${label} error`);
@@ -117,6 +136,18 @@ export function runCliStreaming({
       } catch (error) {
         console.error(`[WARN][${label}] onLine failed:`, error?.message || error);
       }
+      if (!intentionallyTerminated && typeof shouldTerminate === 'function') {
+        let terminate = false;
+        try {
+          terminate = shouldTerminate(line) === true;
+        } catch (error) {
+          console.error(`[WARN][${label}] shouldTerminate failed:`, error?.message || error);
+        }
+        if (terminate) {
+          intentionallyTerminated = true;
+          killChildTree(child, label);
+        }
+      }
     });
 
     child.stderr.on('data', (chunk) => {
@@ -138,7 +169,11 @@ export function runCliStreaming({
       process.off('SIGINT', onParentSignal);
       process.off('SIGHUP', onParentSignal);
 
-      if (!hadError && code !== 0 && signal !== 'SIGTERM' && signal !== 'SIGINT') {
+      if (!hadError
+        && !intentionallyTerminated
+        && code !== 0
+        && signal !== 'SIGTERM'
+        && signal !== 'SIGINT') {
         const tail = stderrTail.trim().slice(-800);
         reportError(
           `${label} CLI exited with code ${code}${signal ? ` (signal ${signal})` : ''}`

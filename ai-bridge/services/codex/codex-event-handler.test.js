@@ -8,6 +8,7 @@ import {
   isWindowsTaskkillParseNoise,
   prepareSessionReplayBoundary,
   processCodexEventStream,
+  shouldBridgeCodexApproval,
 } from './codex-event-handler.js';
 
 async function* eventsFrom(items) {
@@ -45,6 +46,30 @@ function makeConfig() {
     turnAbortController: new AbortController(),
   };
 }
+
+test('native auto review does not invoke the late Java approval bridge', () => {
+  assert.equal(
+    shouldBridgeCodexApproval({
+      normalizedPermissionMode: 'auto',
+      threadOptions: { approvalPolicy: 'on-request' },
+    }),
+    false,
+  );
+  assert.equal(
+    shouldBridgeCodexApproval({
+      normalizedPermissionMode: 'default',
+      threadOptions: { approvalPolicy: 'on-request' },
+    }),
+    true,
+  );
+  assert.equal(
+    shouldBridgeCodexApproval({
+      normalizedPermissionMode: 'bypassPermissions',
+      threadOptions: { approvalPolicy: 'never' },
+    }),
+    false,
+  );
+});
 
 const CUSTOM_EXEC_PATCH = [
   '*** Begin Patch',

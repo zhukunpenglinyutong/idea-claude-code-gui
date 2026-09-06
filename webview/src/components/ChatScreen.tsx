@@ -87,6 +87,7 @@ export interface ChatScreenProps {
   currentProvider: ProviderState['currentProvider'];
   selectedModel: ProviderState['selectedModel'];
   permissionMode: ProviderState['permissionMode'];
+  codexNativeAutoReviewAvailable?: ProviderState['codexNativeAutoReviewAvailable'];
   selectedAgent: ProviderState['selectedAgent'];
   sdkStatusLoading: ProviderState['sdkStatusLoading'];
   sdkStatusError: ProviderState['sdkStatusError'];
@@ -142,6 +143,7 @@ export const ChatScreen = ({
   onSubmit, onInterrupt, onRewind,
   onNavigateToProviderSettings, onProviderSelect,
   currentProvider, selectedModel, permissionMode, selectedAgent,
+  codexNativeAutoReviewAvailable = true,
   sdkStatusLoading, sdkStatusError, onRetrySdkStatus, currentSdkInstalled,
   activeProviderConfig, claudeSettingsAlwaysThinkingEnabled,
   reasoningEffort, codexFastMode, dshPreset, streamingEnabledSetting, sendShortcut, autoOpenFileEnabled,
@@ -337,6 +339,7 @@ export const ChatScreen = ({
           isLoading={loading}
           selectedModel={selectedModel}
           permissionMode={permissionMode}
+          codexNativeAutoReviewAvailable={codexNativeAutoReviewAvailable}
           currentProvider={currentProvider}
           usagePercentage={usagePercentage}
           usageUsedTokens={usageUsedTokens}

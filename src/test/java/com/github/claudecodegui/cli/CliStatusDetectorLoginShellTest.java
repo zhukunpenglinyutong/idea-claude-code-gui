@@ -1,8 +1,9 @@
 package com.github.claudecodegui.cli;
 
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
-import java.io.File;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
@@ -15,6 +16,10 @@ import static org.junit.Assert.assertTrue;
  * the parser contract: only {@code name=absolute-existing-path} lines survive.
  */
 public class CliStatusDetectorLoginShellTest {
+
+    /** Keep lookup fixtures independent of the host's installed shells. */
+    @Rule
+    public final TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     @Test
     public void buildLookupScriptEmitsOneLinePerTool() {
@@ -38,9 +43,10 @@ public class CliStatusDetectorLoginShellTest {
         assertFalse(script.contains("$("));
     }
 
+    /** Recognize an existing absolute path on every supported host. */
     @Test
-    public void parseLoginShellLookupKeepsAbsoluteExistingPaths() {
-        String existing = new File("/bin/sh").getAbsolutePath();
+    public void parseLoginShellLookupKeepsAbsoluteExistingPaths() throws Exception {
+        String existing = this.temporaryFolder.newFile("shell").getAbsolutePath();
         Map<String, String> parsed = CliStatusDetector.parseLoginShellLookup(
                 "omp=" + existing + "\n"
                         + "pi=\n"                       // not found: empty value dropped
@@ -57,13 +63,13 @@ public class CliStatusDetectorLoginShellTest {
         assertTrue(CliStatusDetector.parseLoginShellLookup("   \n  ").isEmpty());
     }
 
+    /** Preserve equals signs in existing paths and reject missing files. */
     @Test
-    public void parseLoginShellLookupSplitsOnFirstEqualsOnly() {
-        String existing = new File("/bin/sh").getAbsolutePath();
+    public void parseLoginShellLookupSplitsOnFirstEqualsOnly() throws Exception {
+        String existing = this.temporaryFolder.newFile("shell=extra").getAbsolutePath();
         // Values containing '=' (unusual but legal in paths) must not break parsing.
         Map<String, String> parsed = CliStatusDetector.parseLoginShellLookup(
-                "omp=" + existing + "=extra\n");
-        // "/bin/sh=extra" does not exist → dropped; key itself stays intact.
-        assertTrue(parsed.isEmpty());
+                "omp=" + existing + "\npi=" + existing + "=missing\n");
+        assertEquals(Map.of("omp", existing), parsed);
     }
 }

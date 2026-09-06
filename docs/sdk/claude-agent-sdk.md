@@ -1735,7 +1735,7 @@ type AgentInput = {
   max_turns?: number;
   name?: string;
   team_name?: string;
-  mode?: "acceptEdits" | "bypassPermissions" | "default" | "dontAsk" | "plan";
+  mode?: "acceptEdits" | "auto" | "bypassPermissions" | "default" | "dontAsk" | "plan";
   isolation?: "worktree";
 };
 ```

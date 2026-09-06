@@ -28,14 +28,16 @@ describe('normalizeClaudeModelId', () => {
     expect(normalizeClaudeModelId('claude-sonnet-4-7')).toBe('claude-sonnet-5');
   });
 
-  it('migrates retired Opus 4.6 to Opus 4.8', () => {
-    expect(normalizeClaudeModelId('claude-opus-4-6')).toBe('claude-opus-4-8');
+  it('migrates retired Opus generations to Opus 5', () => {
+    expect(normalizeClaudeModelId('claude-opus-4-6')).toBe('claude-opus-5');
+    expect(normalizeClaudeModelId('claude-opus-4-8')).toBe('claude-opus-5');
   });
 
   it('migrates retired IDs carrying a [1m] suffix', () => {
     expect(normalizeClaudeModelId('claude-sonnet-4-6[1m]')).toBe('claude-sonnet-5');
     expect(normalizeClaudeModelId('claude-sonnet-4-7[1m]')).toBe('claude-sonnet-5');
-    expect(normalizeClaudeModelId('claude-opus-4-6[1m]')).toBe('claude-opus-4-8');
+    expect(normalizeClaudeModelId('claude-opus-4-6[1m]')).toBe('claude-opus-5');
+    expect(normalizeClaudeModelId('claude-opus-4-8[1m]')).toBe('claude-opus-5');
   });
 
   it('leaves current models untouched', () => {

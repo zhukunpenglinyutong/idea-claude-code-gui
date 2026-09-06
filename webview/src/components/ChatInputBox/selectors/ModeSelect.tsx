@@ -50,13 +50,19 @@ interface ModeSelectProps {
   value: PermissionMode;
   onChange: (mode: PermissionMode) => void;
   provider?: string;
+  codexNativeAutoReviewAvailable?: boolean;
 }
 
 /**
  * ModeSelect - Mode selector component
- * Supports switching between default, agent, plan, and auto modes
+ * Supports switching between manual, agent, provider-native auto, plan, and Full Auto modes
  */
-export const ModeSelect = ({ value, onChange, provider }: ModeSelectProps) => {
+export const ModeSelect = ({
+  value,
+  onChange,
+  provider,
+  codexNativeAutoReviewAvailable = true,
+}: ModeSelectProps) => {
   const { t, i18n } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -78,13 +84,21 @@ export const ModeSelect = ({ value, onChange, provider }: ModeSelectProps) => {
       const roleModes = ompRoles.map(roleToModeInfo);
       return defaultMode ? [defaultMode, ...roleModes] : roleModes;
     }
-    if (provider === 'codex' || provider === 'grok' || provider === 'kimi' || provider === 'opencode' || provider === 'pi' || provider === 'dsh') {
-      // Codex + headless CLI: plan/smol/slow modes are not exposed (always-approve / auto).
-      return AVAILABLE_MODES.filter((mode) => mode.id !== 'plan' && mode.id !== 'smol' && mode.id !== 'slow');
+    if (provider === 'codex') {
+      return AVAILABLE_MODES.filter((mode) =>
+        (mode.id !== 'auto' || codexNativeAutoReviewAvailable)
+        && mode.id !== 'plan'
+        && mode.id !== 'smol'
+        && mode.id !== 'slow'
+      );
+    }
+    if (provider === 'grok' || provider === 'kimi' || provider === 'minimax' || provider === 'opencode' || provider === 'pi' || provider === 'dsh') {
+      // Headless CLI providers do not expose Claude/Codex native automatic reviewers.
+      return AVAILABLE_MODES.filter((mode) => mode.id !== 'auto' && mode.id !== 'plan' && mode.id !== 'smol' && mode.id !== 'slow');
     }
     // smol/slow are OMP-only model roles; hide them everywhere else.
     return AVAILABLE_MODES.filter((mode) => mode.id !== 'smol' && mode.id !== 'slow');
-  }, [provider, ompRoles]);
+  }, [provider, ompRoles, codexNativeAutoReviewAvailable]);
 
   const currentMode = modeOptions.find(m => m.id === value) || modeOptions[0];
 
@@ -177,7 +191,7 @@ export const ModeSelect = ({ value, onChange, provider }: ModeSelectProps) => {
     <div style={RELATIVE_INLINE_BLOCK_STYLE}>
       <button
         ref={buttonRef}
-        className={`selector-button${value === 'bypassPermissions' ? ' mode-auto-active' : ''}`}
+        className={`selector-button${value === 'bypassPermissions' ? ' mode-full-auto-active' : ''}`}
         onClick={handleToggle}
         title={getModeText(currentMode.id, 'tooltip') || `${t('chat.currentMode', { mode: getModeText(currentMode.id, 'label') })}`}
       >

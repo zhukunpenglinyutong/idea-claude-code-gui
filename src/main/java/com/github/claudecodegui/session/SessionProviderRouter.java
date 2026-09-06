@@ -22,7 +22,7 @@ public class SessionProviderRouter {
      * {@link MarkerCliBridge} — the keys of the map built by
      * {@link #registerCliBridges(MarkerCliBridge...)} for the bundled bridges.
      */
-    private static final Set<String> CLI_PROVIDER_IDS = Set.of("kimi", "opencode", "pi", "omp", "dsh");
+    private static final Set<String> CLI_PROVIDER_IDS = Set.of("kimi", "opencode", "pi", "omp", "dsh", "minimax");
 
     /**
      * Whether {@code provider} is a headless CLI provider routed through the

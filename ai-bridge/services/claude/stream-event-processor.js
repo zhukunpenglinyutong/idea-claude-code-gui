@@ -30,11 +30,6 @@ export function createTurnState(requestContext, runtime) {
     streamStarted: false,
     streamEnded: false,
     hasStreamEvents: false,
-    // True once any non-result message has been processed this turn. A closing
-    // SUCCESS result arriving with this still false is provably foreign (a real
-    // run emits output before its result) and is skipped rather than ending the
-    // turn empty — see the foreign-result skip in executeTurn (#1410).
-    sawTurnMessage: false,
     lastAssistantContent: '',
     lastThinkingContent: '',
     textBlockContentByIndex: new Map(),

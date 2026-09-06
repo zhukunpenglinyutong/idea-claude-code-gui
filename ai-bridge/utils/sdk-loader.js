@@ -341,6 +341,33 @@ export function getSdkStatus() {
 }
 
 /**
+ * Read the installed version of an SDK package without importing it.
+ * @param {string} sdkId
+ * @returns {string|null}
+ */
+export function getInstalledSdkVersion(sdkId) {
+    const definition = Object.values(SDK_DEFINITIONS).find((entry) => entry.id === sdkId);
+    if (!definition) {
+        return null;
+    }
+
+    const packageJsonPath = join(
+        getPackageDirFromRoot(getSdkRootDir(sdkId), definition.npmPackage),
+        'package.json'
+    );
+    if (!existsSync(packageJsonPath)) {
+        return null;
+    }
+
+    try {
+        const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+        return typeof packageJson.version === 'string' ? packageJson.version : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Clear the SDK cache
  * Should be called after an SDK is reinstalled
  */

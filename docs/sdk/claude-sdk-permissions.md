@@ -46,6 +46,10 @@ flowchart TD
     Ask -->|&nbsp;&nbsp;Match&nbsp;&nbsp;| Callback
     Ask -->|&nbsp;&nbsp;No Match&nbsp;&nbsp;| Mode{Permission Mode?}
 
+    Mode -->|&nbsp;&nbsp;auto&nbsp;&nbsp;| AutoReview{Native classifier}
+    AutoReview -->|&nbsp;&nbsp;Approve&nbsp;&nbsp;| Execute
+    AutoReview -->|&nbsp;&nbsp;Escalate&nbsp;&nbsp;| Callback
+    AutoReview -->|&nbsp;&nbsp;Block&nbsp;&nbsp;| Denied
     Mode -->|&nbsp;&nbsp;bypassPermissions&nbsp;&nbsp;| Execute
     Mode -->|&nbsp;&nbsp;Other modes&nbsp;&nbsp;| Callback
 
@@ -68,14 +72,15 @@ Permission modes provide global control over how Claude uses tools. You can set 
 
 ### Available Modes
 
-The SDK supports four permission modes, each with different behavior:
+The plugin exposes five permission modes, each with different behavior:
 
 | Mode | Description | Tool Behavior |
 | :--- | :---------- | :------------ |
 | `default` | Standard permission behavior | Normal permission checks apply |
-| `plan` | Planning mode - no execution | Claude can only use read-only tools; presents a plan before execution **(Not currently supported in SDK)** |
+| `plan` | Planning mode - no execution | Claude can only use read-only tools and presents a plan before execution |
 | `acceptEdits` | Auto-accept file edits | File edits and filesystem operations are automatically approved |
-| `bypassPermissions` | Bypass all permission checks | All tools run without permission prompts (use with caution) |
+| `auto` | Provider-native automatic review | Claude's classifier approves or blocks permission requests while explicit rules still apply |
+| `bypassPermissions` | Full Auto | All ordinary permission checks are bypassed (use with caution) |
 
 ### Setting Permission Mode
 
@@ -200,20 +205,31 @@ async for message in q:
 #### Accept Edits Mode (`acceptEdits`)
 
 In accept edits mode:
-- All file edits are automatically approved
-- Filesystem operations (mkdir, touch, rm, etc.) are auto-approved
-- Other tools still require normal permissions
+- Eligible file edits are automatically approved
+- Command execution and sub-agent launches still require explicit confirmation
+- Other tools follow normal permission checks
 - Speeds up development when you trust Claude's edits
 - Useful for rapid prototyping and iterations
 
 Auto-approved operations:
-- File edits (Edit, Write tools)
-- Bash filesystem commands (mkdir, touch, rm, mv, cp)
-- File creation and deletion
+- File edits (Edit, Write tools) handled by the SDK's `acceptEdits` mode
 
-#### Bypass Permissions Mode (`bypassPermissions`)
+Still-confirmed operations in this plugin:
+- Bash commands, including filesystem commands such as `mkdir`, `touch`, `rm`, `mv`, and `cp`
+- Agent/sub-agent launches
 
-In bypass permissions mode:
+#### Native Auto Mode (`auto`)
+
+In native auto mode:
+- Claude Code sends eligible permission requests to its model classifier
+- The classifier approves low-risk actions and blocks or escalates riskier actions
+- Explicit `ask` and `deny` rules still apply
+- The mode can be changed live with `setPermissionMode('auto')`
+- Unlike Full Auto, it does not require `allowDangerouslySkipPermissions`
+
+#### Full Auto (`bypassPermissions`)
+
+In Full Auto:
 - **ALL tool uses are automatically approved**
 - No permission prompts appear
 - Hooks still execute (can still block operations)
@@ -229,31 +245,34 @@ Permission modes are evaluated at a specific point in the permission flow:
 3. **Allow rules** are checked - Permit tools if matched
 4. **Ask rules** are checked - Prompt for permission if matched
 5. **Permission mode** is evaluated:
-   - **`bypassPermissions` mode** - If active, allows all remaining tools
+   - **`auto` mode** - Sends eligible requests to Claude's native classifier
+   - **`bypassPermissions` mode** - Allows all remaining tools without ordinary prompts
    - **Other modes** - Defer to `canUseTool` callback
-6. **`canUseTool` callback** - Handles remaining cases
+6. **`canUseTool` callback** - Handles remaining or escalated cases
 
 This means:
-- Hooks can always control tool use, even in `bypassPermissions` mode
+- Hooks can always control tool use, including in Full Auto
 - Explicit deny rules override all permission modes
 - Ask rules are evaluated before permission modes
-- `bypassPermissions` mode overrides the `canUseTool` callback for unmatched tools
+- Native auto review retains a provider decision boundary
+- Full Auto overrides the `canUseTool` callback for unmatched tools
 
 ### Best Practices
 
-1. **Use default mode** for controlled execution with normal permission checks
-2. **Use acceptEdits mode** when working on isolated files or directories
-3. **Avoid bypassPermissions** in production or on systems with sensitive data
-4. **Combine modes with hooks** for fine-grained control
-5. **Switch modes dynamically** based on task progress and confidence
+1. **Use default mode** for controlled execution with direct user approval
+2. **Use acceptEdits mode** when file edits are trusted but commands should still prompt
+3. **Use native auto mode** when you want fewer prompts without removing the review boundary
+4. **Avoid Full Auto** on systems with sensitive data or without external isolation
+5. **Combine modes with hooks** for fine-grained control
+6. **Switch modes dynamically** based on task progress and confidence
 
 Example of mode progression:
 ```typescript
-// Start in default mode for controlled execution
+// Start in default mode for direct oversight
 permissionMode: 'default'
 
-// Switch to acceptEdits for rapid iteration
-await q.setPermissionMode('acceptEdits')
+// Let Claude's classifier handle eligible approval requests
+await q.setPermissionMode('auto')
 ```
 
 ## canUseTool

@@ -331,6 +331,7 @@
       "retryAttempts": "Retry attempts",
       "catalogColumns": "Cards per row",
       "catalogPageSize": "Items per page",
+      "catalogSort": "Sort order",
       "pageSizeOption": "{{count}} per page",
       "pageJump": "Go to",
       "goToPage": "Go to page",
@@ -479,7 +480,8 @@
           "kimi": "Kimi CLI",
           "opencode": "OpenCode",
           "pi": "PI CLI",
-          "omp": "OMP CLI"
+          "omp": "OMP CLI",
+          "minimax": "MiniMax Code"
         },
         "currentProviderAuto": "Currently using automatic selection: {{provider}}",
         "currentProviderManual": "Currently using manually selected provider: {{provider}}",
@@ -635,6 +637,10 @@
       "copied": "Copied to clipboard",
       "copyFailed": "Failed to copy",
       "tools": {
+        "minimax": {
+          "name": "MiniMax Code",
+          "description": "MiniMax terminal coding agent. Requires Node.js 22.19+ / 24+ (not 23); commands: minimax / mcode"
+        },
         "grok": {
           "name": "Grok CLI",
           "description": "xAI Grok terminal coding agent"
@@ -2042,16 +2048,20 @@
         "label": "Haiku 4.5",
         "description": "Haiku 4.5 · Fastest for quick answers"
       },
-      "opus48": {
-        "label": "Opus 4.8",
-        "description": "Opus 4.8 · Previous Opus generation"
+      "fable51": {
+        "label": "Fable 5.1",
+        "description": "Fable 5.1 · Most powerful · Mythos-class"
       },
       "fable5": {
         "label": "Fable 5",
-        "description": "Fable 5 · Most powerful · Mythos-class"
+        "description": "Fable 5 · Previous Fable generation"
       }
     },
     "codex": {
+      "gpt6astra": {
+        "label": "GPT-6 Astra",
+        "description": "New-generation flagship for autonomous computer use and long agentic tasks."
+      },
       "gpt56sol": {
         "label": "GPT-5.6 Sol",
         "description": "Frontier model for complex professional work."
@@ -2108,9 +2118,15 @@
       "tooltip": "Automatically accept file edits",
       "description": "Automatically accept file creation/editing, reducing confirmation steps"
     },
-    "bypassPermissions": {
+    "auto": {
       "label": "Auto Mode",
       "shortLabel": "Auto",
+      "tooltip": "Let the provider review approval requests automatically",
+      "description": "Uses the provider-native reviewer while retaining safety boundaries"
+    },
+    "bypassPermissions": {
+      "label": "Full Auto",
+      "shortLabel": "Full Auto",
       "tooltip": "Bypass all permission checks",
       "description": "Fully automated, bypassing all permission checks [Use with caution]"
     }
@@ -2131,6 +2147,12 @@
       "label": "Auto Edit",
       "tooltip": "Codex approval_policy=on-request – asks for approval when needed",
       "description": "Balanced option. Allows normal editing flow while still requiring approvals when needed."
+    },
+    "auto": {
+      "label": "Approve for me",
+      "shortLabel": "Auto",
+      "tooltip": "Codex approvals_reviewer=auto_review – an automatic reviewer handles eligible approval requests.",
+      "description": "Keeps the workspace-write sandbox and escalates requests the reviewer cannot approve."
     },
     "bypassPermissions": {
       "label": "Full Auto",
@@ -2172,6 +2194,9 @@
     },
     "kimi": {
       "label": "Kimi CLI"
+    },
+    "minimax": {
+      "label": "MiniMax Code"
     },
     "gemini": {
       "label": "Gemini Cli"

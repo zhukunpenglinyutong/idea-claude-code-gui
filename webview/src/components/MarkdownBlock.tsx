@@ -177,10 +177,12 @@ marked.use(
         try {
           return hljs.highlight(code, { language: lang }).value;
         } catch {
-          // Silently fall through to auto-highlight
+          // Silently fall through to plain-text rendering
         }
       }
-      return hljs.highlightAuto(code).value;
+      // highlightAuto misclassifies prose like commit messages (leading "- " lines
+      // score as diff deletions), so unlabeled blocks render as plain text
+      return hljs.highlight(code, { language: 'plaintext' }).value;
     },
   })
 );

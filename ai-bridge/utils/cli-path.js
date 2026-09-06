@@ -486,6 +486,8 @@ export function commonCliBinDirs(home = homedir()) {
     join(home, '.pi', 'bin'),
     join(home, '.omp', 'bin'),
     join(home, '.bun', 'bin'),
+    join(home, '.minimax', 'bin'),
+    join(home, '.minimax-code'),
     join(home, '.claude', 'bin'),
     join(home, '.yarn', 'bin'),
     // pnpm global installs (PNPM_HOME defaults per platform)
@@ -562,4 +564,33 @@ export function resolveOmpCliPath() {
       '{home}/.local/bin/{bin}',
     ],
   });
+}
+
+export function resolveMiniMaxCliPath() {
+  // Official installer exposes `minimax`; npm global installs expose `mcode`.
+  // Try the official name first, then fall back to the npm bin name.
+  const envKeys = ['MINIMAX_BIN', 'MINIMAX_PATH', 'MINIMAX_CLI_PATH', 'MCODE_BIN'];
+  const minimax = resolveCliPath({
+    binaryName: 'minimax',
+    envKeys,
+    homeCandidates: [
+      '{home}/.minimax/bin/{bin}',
+      '{home}/.local/bin/{bin}',
+    ],
+  });
+  if (minimax !== 'minimax') {
+    return minimax;
+  }
+  const mcode = resolveCliPath({
+    binaryName: 'mcode',
+    envKeys,
+    homeCandidates: [
+      '{home}/.minimax-code/{bin}',
+      '{home}/.minimax/bin/{bin}',
+      '{home}/.local/bin/{bin}',
+    ],
+  });
+  // resolveCliPath returns the bare name when nothing resolved; prefer mcode's
+  // result (it may be a real path) and only fall back to `minimax` at the very end.
+  return mcode !== 'mcode' ? mcode : minimax;
 }

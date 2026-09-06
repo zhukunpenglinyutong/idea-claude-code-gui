@@ -5,7 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { buildRuntimeSignature, applyDynamicControls, createTurnSink } from './runtime-lifecycle.js';
+import { buildRuntimeSignature, applyDynamicControls, applyPermissionModeToRuntime, createTurnSink } from './runtime-lifecycle.js';
+import { findRuntimeForRequest, rememberRuntime, resetRegistryState } from './runtime-registry.js';
+import { createPreToolUseHook } from './permission-mode.js';
 
 // ============================================================================
 // TurnSink Tests - Core Message Queue Functionality
@@ -487,6 +489,69 @@ test('buildRuntimeSignature is stable for the same [1m] state', () => {
   assert.equal(a, b);
 });
 
+test('applyPermissionModeToRuntime keeps state unchanged when the SDK rejects a live mode change', async () => {
+  const runtime = {
+    closed: false,
+    currentPermissionMode: 'default',
+    permissionModeState: { value: 'default' },
+    runtimeSignature: 'sig-original',
+    query: {
+      setPermissionMode: async () => { throw new Error('rejected'); },
+    },
+  };
+
+  const applied = await applyPermissionModeToRuntime(runtime, 'auto');
+
+  assert.equal(applied, false);
+  assert.equal(runtime.currentPermissionMode, 'default');
+  assert.equal(runtime.permissionModeState.value, 'default');
+  assert.equal(runtime.runtimeSignature, 'sig-original');
+});
+
+test('applyPermissionModeToRuntime marks Full Auto transitions for rebuild', async () => {
+  const setPermissionModeCalls = [];
+  const runtime = {
+    closed: false,
+    currentPermissionMode: 'default',
+    permissionModeState: { value: 'default' },
+    runtimeSignature: 'sig-original',
+    query: {
+      setPermissionMode: async (mode) => { setPermissionModeCalls.push(mode); },
+    },
+  };
+
+  const applied = await applyPermissionModeToRuntime(runtime, 'bypassPermissions');
+
+  assert.equal(applied, true);
+  assert.deepEqual(setPermissionModeCalls, []);
+  assert.equal(runtime.currentPermissionMode, 'bypassPermissions');
+  assert.equal(runtime.permissionModeState.value, 'bypassPermissions');
+  assert.equal(runtime.runtimeSignature, '__rebuild-pending-bypass-change__');
+});
+
+test('pending anonymous bypass runtime stays isolated by session epoch', () => {
+  resetRegistryState();
+  const pending = {
+    runtimeSignature: '__rebuild-pending-bypass-change__',
+    runtimeSessionEpoch: 'epoch-a',
+  };
+  rememberRuntime(pending, {
+    requestedSessionId: null,
+    runtimeSignature: 'sig-a',
+  });
+
+  assert.equal(findRuntimeForRequest({
+    requestedSessionId: null,
+    runtimeSignature: 'sig-b',
+    runtimeSessionEpoch: 'epoch-b',
+  }), null);
+  assert.equal(findRuntimeForRequest({
+    requestedSessionId: null,
+    runtimeSignature: 'sig-a-new',
+    runtimeSessionEpoch: 'epoch-a',
+  }), pending);
+  resetRegistryState();
+});
 test('applyDynamicControls passes the resolved model id to setModel, not the short name', async () => {
   // The CLI subprocess resolves short names ("sonnet") against its own env,
   // which was frozen at spawn — a daemon-side env update never reaches it.
@@ -495,6 +560,7 @@ test('applyDynamicControls passes the resolved model id to setModel, not the sho
   const runtime = {
     closed: false,
     currentPermissionMode: 'default',
+    permissionModeState: { value: 'default' },
     currentModel: 'sonnet',
     currentResolvedModel: 'claude-sonnet-4-6',
     currentMaxThinkingTokens: null,
@@ -520,6 +586,7 @@ test('applyDynamicControls skips setModel when short name and resolved id are un
   const runtime = {
     closed: false,
     currentPermissionMode: 'default',
+    permissionModeState: { value: 'default' },
     currentModel: 'sonnet',
     currentResolvedModel: 'claude-sonnet-4-6',
     currentMaxThinkingTokens: null,
@@ -536,6 +603,45 @@ test('applyDynamicControls skips setModel when short name and resolved id are un
   });
 
   assert.deepEqual(setModelCalls, []);
+});
+
+test('applyDynamicControls reapplies a mode skipped while another transition is pending', async () => {
+  const pending = [];
+  const runtime = {
+    closed: false,
+    currentPermissionMode: 'default',
+    permissionModeState: { value: 'default' },
+    currentModel: null,
+    currentResolvedModel: null,
+    currentMaxThinkingTokens: null,
+    query: {
+      setPermissionMode: (mode) => new Promise((resolve) => pending.push({ mode, resolve })),
+    },
+  };
+
+  const first = applyDynamicControls(runtime, {
+    permissionMode: 'acceptEdits',
+    sdkModelName: null,
+    resolvedModelId: null,
+    maxThinkingTokens: null,
+  });
+  const second = applyDynamicControls(runtime, {
+    permissionMode: 'default',
+    sdkModelName: null,
+    resolvedModelId: null,
+    maxThinkingTokens: null,
+  });
+
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(pending.map((item) => item.mode), ['acceptEdits']);
+  pending[0].resolve();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(pending.map((item) => item.mode), ['acceptEdits', 'default']);
+
+  pending[1].resolve();
+  await Promise.all([first, second]);
+  assert.equal(runtime.currentPermissionMode, 'default');
+  assert.equal(runtime.permissionModeState.value, 'default');
 });
 
 test('acquireRuntime rebuilds the runtime when the [1m] context toggle changes', () => {
@@ -573,36 +679,155 @@ test('acquireRuntime rebuilds the runtime when the [1m] context toggle changes',
 });
 
 // ============================================================================
-// buildRuntimeSignature — bypassPermissions (Auto mode) rebuild
+// buildRuntimeSignature — bypassPermissions (Full Auto) rebuild
 // ============================================================================
 
-test('buildRuntimeSignature differs when entering/leaving bypassPermissions (Auto)', () => {
+test('buildRuntimeSignature differs when entering/leaving bypassPermissions (Full Auto)', () => {
   const base = { cwd: '/w', model: 'sonnet' };
   const sigDefault = buildRuntimeSignature({ ...base, permissionMode: 'default' }, '', true, 'ep');
   const sigAuto = buildRuntimeSignature({ ...base, permissionMode: 'bypassPermissions' }, '', true, 'ep');
 
-  // Entering Auto must change the signature so acquireRuntime rebuilds the
+  // Entering Full Auto must change the signature so acquireRuntime rebuilds the
   // runtime with allowDangerouslySkipPermissions at spawn.
   assert.notEqual(sigDefault, sigAuto);
   assert.match(sigDefault, /"bypassPermissions":false/);
   assert.match(sigAuto, /"bypassPermissions":true/);
 });
 
-test('buildRuntimeSignature is stable across non-bypass mode changes (default/plan/acceptEdits apply live)', () => {
+test('buildRuntimeSignature is stable across native modes (default/plan/acceptEdits/auto apply live)', () => {
   const base = { cwd: '/w', model: 'sonnet' };
   const sigDefault = buildRuntimeSignature({ ...base, permissionMode: 'default' }, '', true, 'ep');
   const sigPlan = buildRuntimeSignature({ ...base, permissionMode: 'plan' }, '', true, 'ep');
   const sigAccept = buildRuntimeSignature({ ...base, permissionMode: 'acceptEdits' }, '', true, 'ep');
+  const sigAuto = buildRuntimeSignature({ ...base, permissionMode: 'auto' }, '', true, 'ep');
 
   // These modes need no launch flag and are applied live via setPermissionMode,
   // so they must NOT force a runtime rebuild.
   assert.equal(sigDefault, sigPlan);
   assert.equal(sigDefault, sigAccept);
+  assert.equal(sigDefault, sigAuto);
 });
 
 test('buildRuntimeSignature treats a missing permissionMode as non-bypass', () => {
   const sig = buildRuntimeSignature({ cwd: '/w', model: 'sonnet' }, '', true, 'ep');
   assert.match(sig, /"bypassPermissions":false/);
+});
+
+test('applyPermissionModeToRuntime serializes transitions and preserves request order', async () => {
+  const pending = [];
+  const runtime = {
+    closed: false,
+    currentPermissionMode: 'default',
+    permissionModeState: { value: 'default' },
+    query: {
+      setPermissionMode: (mode) => new Promise((resolve) => pending.push({ mode, resolve }))
+    }
+  };
+
+  const first = applyPermissionModeToRuntime(runtime, 'acceptEdits');
+  const second = applyPermissionModeToRuntime(runtime, 'plan');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(pending.map((item) => item.mode), ['acceptEdits']);
+
+  pending[0].resolve();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(pending.map((item) => item.mode), ['acceptEdits', 'plan']);
+  pending[1].resolve();
+  assert.equal(await first, false);
+  assert.equal(await second, true);
+  assert.equal(runtime.currentPermissionMode, 'plan');
+  assert.equal(runtime.permissionModeState.value, 'plan');
+});
+
+test('applyPermissionModeToRuntime reapplies the original mode after a superseded transition', async () => {
+  const pending = [];
+  const runtime = {
+    closed: false,
+    currentPermissionMode: 'default',
+    permissionModeState: { value: 'default' },
+    query: {
+      setPermissionMode: (mode) => new Promise((resolve) => pending.push({ mode, resolve }))
+    }
+  };
+
+  const first = applyPermissionModeToRuntime(runtime, 'acceptEdits');
+  const second = applyPermissionModeToRuntime(runtime, 'default');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(pending.map((item) => item.mode), ['acceptEdits']);
+
+  pending[0].resolve();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(pending.map((item) => item.mode), ['acceptEdits', 'default']);
+
+  pending[1].resolve();
+  assert.equal(await first, false);
+  assert.equal(await second, true);
+  assert.equal(runtime.currentPermissionMode, 'default');
+  assert.equal(runtime.permissionModeState.value, 'default');
+});
+
+test('applyPermissionModeToRuntime ignores absent or closed runtimes', async () => {
+  assert.equal(await applyPermissionModeToRuntime(null, 'plan'), false);
+  assert.equal(await applyPermissionModeToRuntime({ closed: true, permissionModeState: {} }, 'plan'), false);
+});
+
+test('a superseded plan hook preserves the acknowledged SDK mode while the next change waits', async () => {
+  const pending = [];
+  const runtime = {
+    currentPermissionMode: 'default',
+    permissionModeState: { value: 'default' },
+    query: {
+      setPermissionMode: (mode) => new Promise((resolve) => pending.push({ mode, resolve })),
+    },
+  };
+  const hook = createPreToolUseHook(runtime.permissionModeState, process.cwd(),
+    (mode) => applyPermissionModeToRuntime(runtime, mode));
+  const enterPlan = hook({ tool_name: 'EnterPlanMode' });
+  await new Promise((resolve) => setImmediate(resolve));
+  const acceptEdits = applyPermissionModeToRuntime(runtime, 'acceptEdits');
+  pending[0].resolve();
+  await enterPlan;
+  await new Promise((resolve) => setImmediate(resolve));
+
+  try {
+    assert.equal(runtime.currentPermissionMode, 'plan');
+    assert.equal(runtime.permissionModeState.value, 'plan');
+  } finally {
+    pending[1].resolve();
+    await acceptEdits;
+  }
+});
+
+test('superseded no-op and bypass transitions do not report themselves as the latest mode', async () => {
+  for (const target of ['default', 'bypassPermissions']) {
+    const runtime = {
+      currentPermissionMode: 'default',
+      permissionModeState: { value: 'default' },
+      query: { setPermissionMode: async () => {} },
+    };
+    const first = applyPermissionModeToRuntime(runtime, target);
+    const second = applyPermissionModeToRuntime(runtime, 'plan');
+    assert.deepEqual(await Promise.all([first, second]), [false, true]);
+    assert.equal(runtime.permissionModeState.value, 'plan');
+  }
+});
+
+test('applyPermissionModeToRuntime ignores a transition completed after disposal', async () => {
+  let resolveSdk;
+  const runtime = {
+    closed: false,
+    currentPermissionMode: 'default',
+    permissionModeState: { value: 'default' },
+    query: { setPermissionMode: () => new Promise((resolve) => { resolveSdk = resolve; }) }
+  };
+
+  const result = applyPermissionModeToRuntime(runtime, 'plan');
+  await new Promise((resolve) => setImmediate(resolve));
+  runtime.closed = true;
+  resolveSdk();
+  assert.equal(await result, false);
+  assert.equal(runtime.currentPermissionMode, 'default');
+  assert.equal(runtime.permissionModeState.value, 'default');
 });
 
 console.log('\n✅ All TurnSink tests defined. Run with: node runtime-lifecycle.test.js');

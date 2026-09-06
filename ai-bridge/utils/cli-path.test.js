@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, normalize } from 'node:path';
 import {
   decodeCliOutput,
   isWindowsCmdShim,
@@ -161,7 +161,7 @@ test('resolveCliPath expands {localAppData} candidates (OMP Windows installer la
       envKeys: [],
       homeCandidates: ['{localAppData}/omp/{bin}'],
     });
-    assert.ok(resolved.startsWith(binDir), `expected hit under ${binDir}, got ${resolved}`);
+    assert.equal(dirname(normalize(resolved)), binDir);
   } finally {
     if (saved === undefined) {
       delete process.env.LOCALAPPDATA;
@@ -218,8 +218,8 @@ test('resolveCliPath finds a CLI shim installed under an nvm version dir', () =>
 
 test('commonCliBinDirs includes the OMP bin dir after the PI entry', () => {
   const dirs = commonCliBinDirs('/home/tester');
-  const piIndex = dirs.indexOf('/home/tester/.pi/bin');
-  const ompIndex = dirs.indexOf('/home/tester/.omp/bin');
+  const piIndex = dirs.indexOf(join('/home/tester', '.pi', 'bin'));
+  const ompIndex = dirs.indexOf(join('/home/tester', '.omp', 'bin'));
   assert.ok(piIndex !== -1, 'expected .pi/bin entry');
   assert.ok(ompIndex !== -1, 'expected .omp/bin entry');
   assert.equal(ompIndex, piIndex + 1);

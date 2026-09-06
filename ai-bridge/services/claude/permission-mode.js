@@ -34,23 +34,22 @@ const PLAN_MODE_ALLOWED_TOOLS = new Set([
 /**
  * Read-only MCP tool detection — a positive allowlist (default-deny).
  *
- * MCP tool names are `mcp__<server>__<action>`. A tool counts as read-only only when its
- * ACTION begins with a known read-only verb. This replaces an earlier blocklist
- * (`name.startsWith('mcp__') && !name.includes('Write') && !name.includes('Edit')`) that was
- * default-ALLOW: destructive actions whose names happen to lack "Write"/"Edit"
- * (mcp__fs__delete_file, mcp__shell__run_command, mcp__db__execute) slipped through — auto-yielded
- * during read-only plan mode, and (in default mode) auto-approvable by an attacker-controlled
- * project/local settings.json allow-rule. Anything not matched here falls through to 'ask'
- * (default mode) or 'deny' (plan mode), so unknown/ambiguous MCP tools are safe by default.
+ * MCP tool names are allowlisted by their complete name. An MCP server can choose any action
+ * name, so action prefixes are not enough to prove that a tool is side-effect free. Unknown or
+ * ambiguous MCP tools fall through to 'ask' (both default and plan mode), safe by default.
  */
-const READ_ONLY_MCP_ACTION = /^(read|list|get|search|query|fetch|find|view|describe|show|resolve|lookup|status|info|inspect|count|exists|preview|ls|cat|head|tail)([_-]|$)/i;
+const READ_ONLY_MCP_TOOLS = new Set([
+  'mcp__ace-tool__search_context',
+  'mcp__context7__resolve-library-id',
+  'mcp__context7__query-docs',
+  'mcp__conductor__GetWorkspaceDiff',
+  'mcp__conductor__GetTerminalOutput',
+  'mcp__time__get_current_time',
+  'mcp__time__convert_time',
+]);
 
 function isReadOnlyMcpTool(toolName) {
-  if (typeof toolName !== 'string' || !toolName.startsWith('mcp__')) {
-    return false;
-  }
-  const action = toolName.split('__').slice(2).join('__');
-  return action.length > 0 && READ_ONLY_MCP_ACTION.test(action);
+  return typeof toolName === 'string' && READ_ONLY_MCP_TOOLS.has(toolName);
 }
 
 const PLAN_FILE_NAME = 'PLAN.md';
@@ -86,7 +85,7 @@ function extractFilePaths(toolName, toolInput) {
 }
 
 const INTERACTIVE_TOOLS = new Set(['AskUserQuestion']);
-const VALID_PERMISSION_MODES = new Set(['default', 'plan', 'acceptEdits', 'bypassPermissions']);
+const VALID_PERMISSION_MODES = new Set(['default', 'plan', 'acceptEdits', 'auto', 'bypassPermissions']);
 
 // Yield to the SDK's native permission flow (settings.json deny/allow/ask rules,
 // mode-check, canUseTool fallback). Maps to SyncHookJSONOutput.continue in sdk.d.ts.
@@ -121,11 +120,14 @@ export function createPreToolUseHook(permissionModeState, cwd = null, onModeChan
   };
   const updatePermissionMode = async (mode) => {
     const normalized = normalizePermissionMode(mode);
+    if (typeof onModeChange === 'function') {
+      // The runtime owns SDK acknowledgements and concurrent transitions. A
+      // superseded hook must not roll back the mode that the SDK already accepted.
+      await onModeChange(normalized);
+      return readPermissionMode();
+    }
     if (permissionModeState && typeof permissionModeState === 'object') {
       permissionModeState.value = normalized;
-    }
-    if (typeof onModeChange === 'function') {
-      await onModeChange(normalized);
     }
     return normalized;
   };
@@ -284,10 +286,23 @@ export function createPreToolUseHook(permissionModeState, cwd = null, onModeChan
         return YIELD_TO_SDK;
       }
 
-      // Step 6: Auto-approve read-only MCP tools (positive verb allowlist; see isReadOnlyMcpTool).
-      // Destructive/ambiguous MCP tools fall through to the plan-mode deny below — plan mode is read-only.
+      // Step 6: Yield known read-only MCP tools to the SDK (see isReadOnlyMcpTool).
       if (isReadOnlyMcpTool(toolName)) {
         return YIELD_TO_SDK;
+      }
+
+      // Step 7: Unknown MCP tools cannot be proven side-effect free from their
+      // names, but a hard deny makes every read-only third-party MCP server
+      // unusable in plan mode. Ask instead — the user confirms via the same
+      // can_use_tool dialog that plan mode already uses for Edit/Write/Bash.
+      if (typeof toolName === 'string' && toolName.startsWith('mcp__')) {
+        return {
+          hookSpecificOutput: {
+            hookEventName: 'PreToolUse',
+            permissionDecision: 'ask',
+            permissionDecisionReason: 'Plan mode: unrecognized MCP tool — approve only if it is read-only.'
+          }
+        };
       }
 
       // Everything else is blocked in plan mode
@@ -344,7 +359,7 @@ export function createPreToolUseHook(permissionModeState, cwd = null, onModeChan
       };
     }
 
-    // acceptEdits (file edits) and bypassPermissions yield to the SDK's native flow.
+    // acceptEdits, native auto review, and Full Auto all rely on the SDK's mode-specific flow.
     return YIELD_TO_SDK;
   };
 }

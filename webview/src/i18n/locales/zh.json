@@ -331,6 +331,7 @@
       "retryAttempts": "重试次数",
       "catalogColumns": "每行卡片数",
       "catalogPageSize": "每页数量",
+      "catalogSort": "排序方式",
       "pageSizeOption": "每页 {{count}} 个",
       "pageJump": "跳转到",
       "goToPage": "跳转到页面",
@@ -479,7 +480,8 @@
           "kimi": "Kimi CLI",
           "opencode": "OpenCode",
           "pi": "PI CLI",
-          "omp": "OMP CLI"
+          "omp": "OMP CLI",
+          "minimax": "MiniMax Code"
         },
         "currentProviderAuto": "当前使用自动选择：{{provider}}",
         "currentProviderManual": "当前使用手动选择的 provider：{{provider}}",
@@ -635,6 +637,10 @@
       "copied": "已复制到剪贴板",
       "copyFailed": "复制失败",
       "tools": {
+        "minimax": {
+          "name": "MiniMax Code",
+          "description": "MiniMax 终端编码智能体。需 Node.js 22.19+ / 24+（不支持 23）；命令：minimax / mcode"
+        },
         "grok": {
           "name": "Grok CLI",
           "description": "xAI Grok 终端编码助手"
@@ -2047,16 +2053,20 @@
         "label": "Haiku 4.5",
         "description": "Haiku 速度最快，适合快速答复"
       },
-      "opus48": {
-        "label": "Opus 4.8",
-        "description": "Opus 4.8 · 保留的前代 Opus 模型"
+      "fable51": {
+        "label": "Fable 5.1",
+        "description": "Fable 5.1 · 最强大 · Mythos 级"
       },
       "fable5": {
         "label": "Fable 5",
-        "description": "Fable 5 · 最强大 · Mythos 级"
+        "description": "Fable 5 · 保留的前代 Fable 模型"
       }
     },
     "codex": {
+      "gpt6astra": {
+        "label": "GPT-6 Astra",
+        "description": "新一代旗舰模型，擅长自主电脑操作与长链路智能体任务"
+      },
       "gpt56sol": {
         "label": "GPT-5.6 Sol",
         "description": "面向复杂专业工作的前沿模型"
@@ -2113,9 +2123,15 @@
       "tooltip": "自动接受文件编辑",
       "description": "自动接受文件创建/编辑，减少确认步骤"
     },
-    "bypassPermissions": {
-      "label": "自动模式",
+    "auto": {
+      "label": "自动审批",
       "shortLabel": "自动",
+      "tooltip": "由模型审查器自动批准或阻止操作",
+      "description": "使用提供商原生审查器处理审批，同时保留安全边界"
+    },
+    "bypassPermissions": {
+      "label": "全自动",
+      "shortLabel": "全自动",
       "tooltip": "绕过所有权限检查",
       "description": "完全自动化，绕过所有权限检查【谨慎使用】"
     }
@@ -2137,6 +2153,12 @@
       "label": "自动编辑",
       "tooltip": "Codex approval_policy=on-request：按需发起审批请求。",
       "description": "平衡模式，保持正常编辑流程，同时在需要时进行审批。"
+    },
+    "auto": {
+      "label": "替我审批",
+      "shortLabel": "自动",
+      "tooltip": "Codex approvals_reviewer=auto_review：由自动审查器处理可审批请求。",
+      "description": "保持 workspace-write 沙箱；审查器无法批准的请求仍会升级处理。"
     },
     "bypassPermissions": {
       "label": "全自动",
@@ -2178,6 +2200,9 @@
     },
     "kimi": {
       "label": "Kimi CLI"
+    },
+    "minimax": {
+      "label": "MiniMax Code"
     },
     "gemini": {
       "label": "Gemini Cli"

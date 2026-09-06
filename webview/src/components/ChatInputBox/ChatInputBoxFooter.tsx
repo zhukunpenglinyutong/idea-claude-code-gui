@@ -24,6 +24,7 @@ export function ChatInputBoxFooter({
   selectedModel,
   permissionMode,
   currentProvider,
+  codexNativeAutoReviewAvailable = true,
   reasoningEffort,
   codexFastMode,
   dshPreset,
@@ -64,6 +65,7 @@ export function ChatInputBoxFooter({
   selectedModel: string;
   permissionMode: PermissionMode;
   currentProvider: string;
+  codexNativeAutoReviewAvailable?: boolean;
   reasoningEffort: ReasoningEffort;
   codexFastMode?: CodexFastMode;
   dshPreset?: string;
@@ -122,6 +124,7 @@ export function ChatInputBoxFooter({
         selectedModel={selectedModel}
         permissionMode={permissionMode}
         currentProvider={currentProvider}
+        codexNativeAutoReviewAvailable={codexNativeAutoReviewAvailable}
         reasoningEffort={reasoningEffort}
         codexFastMode={codexFastMode}
         dshPreset={dshPreset}

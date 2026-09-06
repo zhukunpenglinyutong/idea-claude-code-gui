@@ -246,6 +246,9 @@ class HistoryDeleteService {
         if ("kimi".equals(currentProvider)) {
             return new DeleteResult(deleteKimiSession(sessionId), 0);
         }
+        if ("minimax".equals(currentProvider)) {
+            return new DeleteResult(deleteMiniMaxSession(sessionId), 0);
+        }
         if ("dsh".equals(currentProvider)) {
             return new DeleteResult(deleteDshSession(sessionId), 0);
         }
@@ -314,6 +317,17 @@ class HistoryDeleteService {
                 new com.github.claudecodegui.provider.kimi.KimiHistoryReader();
         boolean deleted = reader.deleteSession(sessionId, projectPath);
         LOG.info("[HistoryHandler] Delete Kimi session " + sessionId + ": " + (deleted ? "ok" : "not found"));
+        return deleted;
+    }
+
+    private boolean deleteMiniMaxSession(String sessionId) throws java.io.IOException {
+        String rawPath = context.resolveEffectiveWorkingDirectory();
+        String nodePath = NodeDetector.getInstance().getCachedNodePath();
+        String projectPath = NodeDetector.isWslPath(nodePath) ? NodeDetector.convertToWslPath(rawPath) : rawPath;
+        com.github.claudecodegui.provider.minimax.MiniMaxHistoryReader reader =
+                new com.github.claudecodegui.provider.minimax.MiniMaxHistoryReader();
+        boolean deleted = reader.deleteSession(sessionId, projectPath);
+        LOG.info("[HistoryHandler] Delete MiniMax session " + sessionId + ": " + (deleted ? "ok" : "not found"));
         return deleted;
     }
 
